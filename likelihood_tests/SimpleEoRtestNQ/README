@@ -1,0 +1,8 @@
+Likelihood_v1d3_3D_ZM.py is a refactored version of Likelihood_v1d24_3D_ZM.py. It is also modified so that PolyChord simultaneously estimates the power in both of the k-space bins. This currently works correctly.
+
+v1d24 contains various Fourier etc. consistency check that may provide a use reference when tackling bugs...).
+
+
+
+
+
