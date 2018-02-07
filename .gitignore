@@ -1,0 +1,10 @@
+fits_storage/*
+array_storage/*
+chains/*
+*/fits_storage/*
+*/array_storage/*
+*/chains/*
+*/*/fits_storage/*
+*/*/array_storage/*
+*/*/chains/*
+
