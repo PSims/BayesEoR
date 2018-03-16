@@ -8,6 +8,7 @@ import sys
 head,tail = os.path.split(os.getcwd())
 sys.path.append(head)
 from BayesEoR import * #Make everything available for now, this can be refined later
+import BayesEoR.Params.params as p
 use_MultiNest = True #Set to false for large parameter spaces
 if use_MultiNest:
 	from pymultinest.solve import solve
@@ -83,16 +84,15 @@ else:
 	bin_selector_vis_ordered_list = bin_selector_in_model_mask_vis_ordered_WQ
 map_bins_out=0
 
-k = generate_k_cube_in_physical_coordinates_21cmFAST(nu,nv,nx,ny,nf,neta)[0]
+mod_k, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z = generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(nu,nv,nx,ny,nf,neta,p.box_size_21cmFAST_pix,p.box_size_21cmFAST_Mpc)
+k=mod_k.copy()
 k_vis_ordered = k.T.flatten()
 modk_vis_ordered_list = [k_vis_ordered[bin_selector.T.flatten()] for bin_selector in bin_selector_cube_ordered_list]
 
-mod_k, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z = generate_k_cube_in_physical_coordinates_21cmFAST(nu,nv,nx,ny,nf,neta)
 k_x_masked = generate_masked_coordinate_cubes(k_x, nu,nv,nx,ny,nf,neta,nq)
 k_y_masked = generate_masked_coordinate_cubes(k_y, nu,nv,nx,ny,nf,neta,nq)
 k_z_masked = generate_masked_coordinate_cubes(k_z, nu,nv,nx,ny,nf,neta,nq)
 mod_k_masked = generate_masked_coordinate_cubes(mod_k, nu,nv,nx,ny,nf,neta,nq)
-
 k_cube_voxels_in_bin, modkbins_containing_voxels = generate_k_cube_model_spherical_binning(mod_k_masked, k_z_masked, nu,nv,nx,ny,nf,neta,nq)
 k_vals = calc_mean_binned_k_vals(mod_k_masked, k_cube_voxels_in_bin, save_k_vals=True, k_vals_file='k_vals_nf128.txt')
 
@@ -107,7 +107,7 @@ if do_cylindrical_binning:
 use_EoR_cube = True
 if use_EoR_cube:
 	print 'Using use_EoR_cube data'
-	s, abc, scidata1 = generate_data_from_loaded_EoR_cube(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show,chan_selection)
+	s, abc, scidata1 = generate_data_from_loaded_EoR_cube_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show,chan_selection,p.EoR_npz_path)
 
 #--------------------------------------------
 # Define data vector

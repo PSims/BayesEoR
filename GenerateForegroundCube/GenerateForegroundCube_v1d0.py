@@ -12,11 +12,11 @@ from subprocess import os
 import sys
 from scipy import stats
 from pdb import set_trace as brk
-sys.path.append(os.path.expanduser('~/EoR/Python_Scripts/BayesEoR/SpatialPS/PolySpatialPS/'))
+# sys.path.append(os.path.expanduser('~/EoR/Python_Scripts/BayesEoR/SpatialPS/PolySpatialPS/'))
 
-from SimData_v1d4 import GenerateForegroundCube, update_Tb_experimental_std_K_to_correct_for_normalisation_resolution
-from Utils_v1d0 import PriorC, ParseCommandLineArguments, DataUnitConversionmkandJyperpix, WriteDataToFits
-from Utils_v1d0 import ExtractDataFrom21cmFASTCube
+from BayesEoR.SimData import GenerateForegroundCube, update_Tb_experimental_std_K_to_correct_for_normalisation_resolution
+from BayesEoR.Utils import PriorC, ParseCommandLineArguments, DataUnitConversionmkandJyperpix, WriteDataToFits
+from BayesEoR.Utils import ExtractDataFrom21cmFASTCube
 
 
 #----------------------
@@ -35,6 +35,9 @@ def generate_Jelic_cube(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, beta_experime
 	default_HF_nu_min_MHz_array = [205,215,225]
 	default_simulation_FoV_deg = 12.0
 	default_simulation_resolution_deg = 12.0/127
+	default_random_seed = 3142
+	default_cube_side_Mpc = 2048.0 #Size of EoR cube foreground simulation should match (used when calculating fits header variables)
+	default_redshift = 7.6 #Redshift of EoR cube foreground simulation should match (used when calculating fits header variables)
 
 	
 	##===== Inputs =======
@@ -43,31 +46,30 @@ def generate_Jelic_cube(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, beta_experime
 	fits_storage_dir=kwargs.pop('fits_storage_dir',default_fits_storage_dir)
 	HF_nu_min_MHz_array=kwargs.pop('HF_nu_min_MHz_array',default_fits_storage_dir)
 	simulation_FoV_deg=kwargs.pop('simulation_FoV_deg',default_simulation_FoV_deg)
-	simulation_resolution_deg_deg=kwargs.pop('simulation_resolution_deg',default_simulation_resolution_deg)
+	simulation_resolution_deg=kwargs.pop('simulation_resolution_deg',default_simulation_resolution_deg)
+	random_seed=kwargs.pop('random_seed',default_random_seed)
+	cube_side_Mpc=kwargs.pop('random_seed',default_cube_side_Mpc)
+	redshift=kwargs.pop('random_seed',default_redshift)
 
-	n_sim_pix = int(default_simulation_FoV_deg/default_simulation_resolution_deg)
+	n_sim_pix = int(simulation_FoV_deg/simulation_resolution_deg + 0.5)
 
-	low_res_to_high_res_std_conversion_factor = update_Tb_experimental_std_K_to_correct_for_normalisation_resolution(Tb_experimental_std_K, simulation_FoV_deg, default_simulation_resolution_deg)
+	low_res_to_high_res_std_conversion_factor = update_Tb_experimental_std_K_to_correct_for_normalisation_resolution(Tb_experimental_std_K, simulation_FoV_deg, simulation_resolution_deg)
 	Tb_experimental_std_K = Tb_experimental_std_K*low_res_to_high_res_std_conversion_factor
 
-	# brk()
-
-
-	GFC = GenerateForegroundCube(nu,nv,neta,nq, beta_experimental_mean, beta_experimental_std, gamma_mean, gamma_sigma, Tb_experimental_mean_K, Tb_experimental_std_K, nu_min_MHz, channel_width_MHz)
+	GFC = GenerateForegroundCube(nu,nv,neta,nq, beta_experimental_mean, beta_experimental_std, gamma_mean, gamma_sigma, Tb_experimental_mean_K, Tb_experimental_std_K, nu_min_MHz, channel_width_MHz,random_seed=random_seed)
 
 	Tb_nu, A, beta, Tb, nu_array_MHz = GFC.generate_normalised_Tb_A_and_beta_fields(n_sim_pix,n_sim_pix,n_sim_pix,n_sim_pix,nf,neta,nq)
 	# Tb_nu, A, beta, Tb, nu_array_MHz = GFC.generate_normalised_Tb_A_and_beta_fields(513,513,513,513,nf,neta,nq)
 	# Tb_nu, A, beta, Tb, nu_array_MHz = GFC.generate_normalised_Tb_A_and_beta_fields(nu,nv,nx,ny,nf,neta,nq)
 	# Tb_nu2 = np.array([Tb_nu[0]*(nu_array_MHz[i]/nu_array_MHz[0])**-beta_experimental_mean for i in range(len(nu_array_MHz))])
 
-	
 
 	if generate_additional_extrapolated_HF_foreground_cube:
 		# HF_nu_min_MHz = 225
 		# HF_nu_min_MHz_array = [205,215,225]
 		for HF_nu_min_MHz_i in range(len(HF_nu_min_MHz_array)):
 			HF_nu_min_MHz = HF_nu_min_MHz_array[HF_nu_min_MHz_i]
-			HF_Tb_nu = generate_additional_HF_Jelic_cube(A,HF_nu_min_MHz,beta,fits_storage_dir,nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, beta_experimental_mean,beta_experimental_std,gamma_mean,gamma_sigma,Tb_experimental_mean_K,Tb_experimental_std_K,nu_min_MHz,channel_width_MHz)
+			HF_Tb_nu = generate_additional_HF_Jelic_cube(A,HF_nu_min_MHz,beta,fits_storage_dir,nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, beta_experimental_mean,beta_experimental_std,gamma_mean,gamma_sigma,Tb_experimental_mean_K,Tb_experimental_std_K,nu_min_MHz,channel_width_MHz,cube_side_Mpc=cube_side_Mpc,redshift=redshift)
 
 	else:
 		HF_Tb_nu = []
@@ -78,10 +80,6 @@ def generate_Jelic_cube(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, beta_experime
 	###
 
 	ED = ExtractDataFrom21cmFASTCube(plot_data=False)
-	cube_side_Mpc = 3072.0
-	redshift = 7.6
-	# cube_side_Mpc = 2048.0
-	# redshift = 10.26
 	bandwidth_MHz, central_frequency_MHz, output_21cmFast_box_width_deg = ED.calculate_box_size_in_degrees_and_MHz(cube_side_Mpc, redshift)
 	
 	DUC = DataUnitConversionmkandJyperpix()
@@ -130,7 +128,6 @@ def generate_Jelic_cube(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, beta_experime
 
 	pylab.close('all')
 	# Show=False
-
 
 	###
 	# Inspect quadratic residuals
@@ -216,12 +213,12 @@ def generate_Jelic_cube(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, beta_experime
 	###
 	# Inspect quadratic residuals in uv
 	###
-	dat1 = fg.reshape(-1,8)[:,0].real[::-1]
+	dat1 = fg.reshape(-1,nu*nv-1)[:,0].real[::-1]
 	quad_coeffs = np.polyfit(nu_array_MHz, dat1, 2)
 	quad_fit = quad_coeffs[0]*nu_array_MHz**2. + quad_coeffs[1]*nu_array_MHz**1. + quad_coeffs[2]*nu_array_MHz**0. 
 	residuals = dat1-quad_fit
 
-	dat2 = fg.reshape(-1,8)[:,0].imag[::-1]
+	dat2 = fg.reshape(-1,nu*nv-1)[:,0].imag[::-1]
 	quad_coeffs2 = np.polyfit(nu_array_MHz, dat2, 2)
 	quad_fit2 = quad_coeffs2[0]*nu_array_MHz**2. + quad_coeffs2[1]*nu_array_MHz**1. + quad_coeffs2[2]*nu_array_MHz**0. 
 	residuals2 = dat2-quad_fit2
@@ -237,14 +234,15 @@ def generate_Jelic_cube(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, beta_experime
 	ax[0].legend(['Quad residuals real', 'Quad residuals imag'], fontsize=20)
 	ax[0].set_ylabel('Amplitude, arbitrary units', fontsize=20)
 	ax[0].set_xlabel('Frequency, MHz', fontsize=20)
-	ax[1].errorbar(log10(nu_array_MHz), log10(fg.reshape(-1,8)[:,0].real),  color='red', fmt='-')
-	ax[1].errorbar(log10(nu_array_MHz), log10(fg.reshape(-1,8)[:,0].imag),  color='blue', fmt='-')
+	ax[1].errorbar(log10(nu_array_MHz), log10(fg.reshape(-1,nu*nv-1)[:,0].real),  color='red', fmt='-')
+	ax[1].errorbar(log10(nu_array_MHz), log10(fg.reshape(-1,nu*nv-1)[:,0].imag),  color='blue', fmt='-')
 	ax[1].legend(['real','imag'], fontsize=20)
 	ax[1].set_ylabel('log(Amplitude), arbitrary units', fontsize=20)
 	ax[1].set_xlabel('log(Frequency), MHz', fontsize=20)
 	for axi in ax.ravel(): axi.tick_params(labelsize=20)
 	# fig.savefig(save_dir+'foreground_quadsub_residuals.png')
 	if Show:fig.show()
+
 
 	import numpy
 	axes_tuple = (0,)
@@ -335,12 +333,8 @@ def generate_additional_HF_Jelic_cube(A,HF_nu_min_MHz,beta,fits_storage_dir,nu,n
 
 
 
-
-
 ## ======================================================================================================
 ## ======================================================================================================
-
-
 
 def top_hat_average_temperature_cube_to_lower_res_31x31xnf_cube(Tb_nu):
 	bl_size = Tb_nu[0].shape[0]/31
@@ -359,7 +353,6 @@ def top_hat_average_temperature_cube_to_lower_res_31x31xnf_cube(Tb_nu):
 
 ## ======================================================================================================
 ## ======================================================================================================
-
 
 def generate_data_from_loaded_EoR_cube(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show,chan_selection):
 
@@ -397,6 +390,59 @@ def generate_data_from_loaded_EoR_cube(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show
 	sci_u_centre = sci_u/2
 	vfft1_subset = vfft1[0:nf,sci_u_centre-nu/2:sci_u_centre+nu/2+1,sci_v_centre-nv/2:sci_v_centre+nv/2+1]
 	s_before_ZM = vfft1_subset.flatten()/vfft1[0].size**0.5
+	ZM_vis_ordered_mask = np.ones(nu*nv*nf)
+	ZM_vis_ordered_mask[nf*((nu*nv)/2):nf*((nu*nv)/2+1)]=0
+	ZM_vis_ordered_mask = ZM_vis_ordered_mask.astype('bool')
+	ZM_chan_ordered_mask = ZM_vis_ordered_mask.reshape(-1, neta+nq).T.flatten()
+	s = s_before_ZM[ZM_chan_ordered_mask]
+
+	abc = s
+
+	return s, abc, scidata1
+
+
+
+## ======================================================================================================
+## ======================================================================================================
+
+
+def generate_data_from_loaded_EoR_cube_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show,chan_selection,EoR_npz_path='/users/psims/EoR/EoR_simulations/21cmFAST_512MPc_512pix_128pix/Fits/21cm_z10d2_mK.npz'):
+
+	print 'Using use_EoR_cube data'
+	#----------------------
+	###
+	# Replace Gaussian signal with EoR cube
+	###
+	scidata1 = np.load(EoR_npz_path)['arr_0']
+
+	base_dir = 'Plots'
+	save_dir = base_dir+'/Likelihood_v1d75_3D_ZM/'
+	if not os.path.isdir(save_dir):
+		os.makedirs(save_dir)
+
+	# scidata1 = top_hat_average_temperature_cube_to_lower_res_31x31xnf_cube(scidata1)
+	scidata1 = scidata1[0:nf,:124,:124]
+
+	import numpy
+	axes_tuple = (1,2)
+	if chan_selection=='0_38_':
+		vfft1=numpy.fft.ifftshift(scidata1[0:38]-scidata1[0].mean()+0j, axes=axes_tuple)
+	elif chan_selection=='38_76_':
+		vfft1=numpy.fft.ifftshift(scidata1[38:76]-scidata1[0].mean()+0j, axes=axes_tuple)
+	elif chan_selection=='76_114_':
+		vfft1=numpy.fft.ifftshift(scidata1[76:114]-scidata1[0].mean()+0j, axes=axes_tuple)
+	else:
+		vfft1=numpy.fft.ifftshift(scidata1[0:nf]-scidata1[0].mean()+0j, axes=axes_tuple)
+	vfft1=numpy.fft.fftn(vfft1, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
+	vfft1=numpy.fft.fftshift(vfft1, axes=axes_tuple)
+
+
+	sci_f, sci_v, sci_u = vfft1.shape
+	sci_v_centre = sci_v/2
+	sci_u_centre = sci_u/2
+	vfft1_subset = vfft1[0:nf,sci_u_centre-nu/2:sci_u_centre+nu/2+1,sci_v_centre-nv/2:sci_v_centre+nv/2+1]
+	s_before_ZM = vfft1_subset.flatten()/vfft1[0].size**0.5
+	# s_before_ZM = vfft1_subset.flatten()
 	ZM_vis_ordered_mask = np.ones(nu*nv*nf)
 	ZM_vis_ordered_mask[nf*((nu*nv)/2):nf*((nu*nv)/2+1)]=0
 	ZM_vis_ordered_mask = ZM_vis_ordered_mask.astype('bool')

@@ -6,6 +6,7 @@ from subprocess import os
 import sys
 import pylab
 from pdb import set_trace
+from pdb import set_trace as brk
 from numpy import * 
 import pylab
 import pylab as P
@@ -14,16 +15,17 @@ from scipy import optimize
 from scipy.optimize import curve_fit
 from scipy import misc
 from scipy import ndimage
+import BayesEoR.Params.params as p
 
-from Linalg import IDFT_Array_IDFT_2D_ZM_SH, makeGaussian, Produce_Full_Coordinate_Arrays, Produce_Coordinate_Arrays_ZM
-from Linalg import Produce_Coordinate_Arrays_ZM_Coarse, Produce_Coordinate_Arrays_ZM_SH, Calc_Coords_High_Res_Im_to_Large_uv
-from Linalg import Calc_Coords_Large_Im_to_High_Res_uv, Restore_Centre_Pixel, Calc_Indices_Centre_3x3_Grid
-from Linalg import Delete_Centre_3x3_Grid, Delete_Centre_Pix, N_is_Odd, Calc_Indices_Centre_NxN_Grid, Obtain_Centre_NxN_Grid
-from Linalg import Restore_Centre_3x3_Grid, Restore_Centre_NxN_Grid, Generate_Combined_Coarse_plus_Subharmic_uv_grids
-from Linalg import IDFT_Array_IDFT_2D_ZM_SH, DFT_Array_DFT_2D, IDFT_Array_IDFT_2D, DFT_Array_DFT_2D_ZM, IDFT_Array_IDFT_2D_ZM
-from Linalg import Construct_Hermitian, Construct_Hermitian_Gridding_Matrix, Construct_Hermitian_Gridding_Matrix_CosSin
-from Linalg import Construct_Hermitian_Gridding_Matrix_CosSin_SH_v4, IDFT_Array_IDFT_1D, IDFT_Array_IDFT_1D
-from Linalg import generate_gridding_matrix_vis_ordered_to_chan_ordered
+from BayesEoR.Linalg import IDFT_Array_IDFT_2D_ZM_SH, makeGaussian, Produce_Full_Coordinate_Arrays, Produce_Coordinate_Arrays_ZM
+from BayesEoR.Linalg import Produce_Coordinate_Arrays_ZM_Coarse, Produce_Coordinate_Arrays_ZM_SH, Calc_Coords_High_Res_Im_to_Large_uv
+from BayesEoR.Linalg import Calc_Coords_Large_Im_to_High_Res_uv, Restore_Centre_Pixel, Calc_Indices_Centre_3x3_Grid
+from BayesEoR.Linalg import Delete_Centre_3x3_Grid, Delete_Centre_Pix, N_is_Odd, Calc_Indices_Centre_NxN_Grid, Obtain_Centre_NxN_Grid
+from BayesEoR.Linalg import Restore_Centre_3x3_Grid, Restore_Centre_NxN_Grid, Generate_Combined_Coarse_plus_Subharmic_uv_grids
+from BayesEoR.Linalg import IDFT_Array_IDFT_2D_ZM_SH, DFT_Array_DFT_2D, IDFT_Array_IDFT_2D, DFT_Array_DFT_2D_ZM, IDFT_Array_IDFT_2D_ZM
+from BayesEoR.Linalg import Construct_Hermitian, Construct_Hermitian_Gridding_Matrix, Construct_Hermitian_Gridding_Matrix_CosSin
+from BayesEoR.Linalg import Construct_Hermitian_Gridding_Matrix_CosSin_SH_v4, IDFT_Array_IDFT_1D, IDFT_Array_IDFT_1D
+from BayesEoR.Linalg import generate_gridding_matrix_vis_ordered_to_chan_ordered
 
 
 ## ======================================================================================================
@@ -150,299 +152,37 @@ def generate_k_cube_in_physical_coordinates_21cmFAST(nu,nv,nx,ny,nf,neta):
 ## ======================================================================================================
 ## ======================================================================================================
 
-def generate_test_sim_signal_with_large_spectral_scales_1(nu,nv,nx,ny,nf,neta):
+def generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(nu,nv,nx,ny,nf,neta,box_size_21cmFAST_pix,box_size_21cmFAST_Mpc):
 	# ---------------------------------------------
-	###
-	# Generate test sim data
-	###
-	Fz_normalisation = nf**0.5
-	DFT2D_Fz_normalisation = (nu*nv*nf)**0.5
-
-	from scipy.linalg import block_diag
-	dft_array = DFT_Array_DFT_2D_ZM(nu,nv,nx,ny)
-	multi_chan_dft_array_noZMchan = block_diag(*[dft_array.T for i in range(nf)])
-
-	k_z, k_y, k_x = np.mgrid[-(nf/2):(nf/2),-(nu/2):(nu/2)+1,-(nv/2):(nv/2)+1]
-	mod_k = (k_z**2. + k_y**2. + k_x**2.)**0.5
-	k_cube_power_scaling_cube = np.zeros([nf,nu,nv])
-
-	k_sigma_1 = 24.0
-	k_sigma_2 = 10.0
-	k_sigma_3 = 6.0
-	k_sigma_4 = 6.0
-	k_sigma_5 = 6.0
-	k_sigma_6 = 4.0
-
-	k_sigma = [k_sigma_1, k_sigma_2, k_sigma_3, k_sigma_4, k_sigma_5, k_sigma_6]
-
-
-	bin_limit = 2.0
-	bin_limits = np.round(10.**np.linspace(0,np.log10(nf/2),7), 0).astype('int')
-	bin_limits[0]=0
-	bin_1_selector_in_k_cube_mask = np.logical_and(bin_limits[1]>=mod_k, mod_k>bin_limits[0])
-	bin_2_selector_in_k_cube_mask = np.logical_and(bin_limits[2]>=mod_k, mod_k>bin_limits[1])
-	bin_3_selector_in_k_cube_mask = np.logical_and(bin_limits[3]>=mod_k, mod_k>bin_limits[2])
-	bin_4_selector_in_k_cube_mask = np.logical_and(bin_limits[4]>=mod_k, mod_k>bin_limits[3])
-	bin_5_selector_in_k_cube_mask = np.logical_and(bin_limits[5]>=mod_k, mod_k>bin_limits[4])
-	bin_6_selector_in_k_cube_mask = np.logical_and(bin_limits[6]>=mod_k, mod_k>bin_limits[5])
-
-	#----------------
-	###
-	# Do not include high spatial frequency structure in the data except when performing wn-fitting in the analysis
-	###
-	Nyquist_k_z_mode = k_z[0,0,0]
-	Second_highest_frequency_k_z_mode = k_z[-1,0,0]
-	high_spatial_frequency_selector_mask = np.logical_or(k_z==Nyquist_k_z_mode, k_z==Second_highest_frequency_k_z_mode)
-	high_spatial_frequency_mask = np.logical_not(high_spatial_frequency_selector_mask)
-
-	bin_1_selector_in_k_cube_mask = np.logical_and(bin_1_selector_in_k_cube_mask, high_spatial_frequency_mask)
-	bin_2_selector_in_k_cube_mask = np.logical_and(bin_2_selector_in_k_cube_mask, high_spatial_frequency_mask)
-	bin_3_selector_in_k_cube_mask = np.logical_and(bin_3_selector_in_k_cube_mask, high_spatial_frequency_mask)
-	bin_4_selector_in_k_cube_mask = np.logical_and(bin_4_selector_in_k_cube_mask, high_spatial_frequency_mask)
-	bin_5_selector_in_k_cube_mask = np.logical_and(bin_5_selector_in_k_cube_mask, high_spatial_frequency_mask)
-	bin_6_selector_in_k_cube_mask = np.logical_and(bin_6_selector_in_k_cube_mask, high_spatial_frequency_mask)
-
-	#----------------
-
-	k_cube_power_scaling_cube[bin_1_selector_in_k_cube_mask] = k_sigma_1 #It would be more accurate to call this the k_cube_std_scaling_cube
-	k_cube_power_scaling_cube[bin_2_selector_in_k_cube_mask] = k_sigma_2 #It would be more accurate to call this the k_cube_std_scaling_cube
-	k_cube_power_scaling_cube[bin_3_selector_in_k_cube_mask] = k_sigma_3 #It would be more accurate to call this the k_cube_std_scaling_cube
-	k_cube_power_scaling_cube[bin_4_selector_in_k_cube_mask] = k_sigma_4 #It would be more accurate to call this the k_cube_std_scaling_cube
-	k_cube_power_scaling_cube[bin_5_selector_in_k_cube_mask] = k_sigma_5 #It would be more accurate to call this the k_cube_std_scaling_cube
-	k_cube_power_scaling_cube[bin_6_selector_in_k_cube_mask] = k_sigma_6 #It would be more accurate to call this the k_cube_std_scaling_cube
-
-	np.random.seed(2391)
-	random_im=np.random.normal(0.,1,nf*nu*nv).reshape(nf,nu,nv)
-	axes_tuple = (0,1,2)
-	random_k=numpy.fft.ifftshift(random_im+0j, axes=axes_tuple)
-	random_k=numpy.fft.fftn(random_k, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
-	random_k=numpy.fft.fftshift(random_k, axes=axes_tuple)
-	random_k = random_k/random_k.std()
-
-	k_perp_3D = (k_x**2.+k_y**2)**0.5
-	ZM_mask = k_perp_3D>0.0
-
-	#----------------
-	###
-	# Construct zero-mean dataset
-	###
-	bin_1_selector_in_k_cube_mask = np.logical_and.reduce((bin_1_selector_in_k_cube_mask, ZM_mask))
-	bin_2_selector_in_k_cube_mask = np.logical_and.reduce((bin_2_selector_in_k_cube_mask, ZM_mask))
-	bin_3_selector_in_k_cube_mask = np.logical_and.reduce((bin_3_selector_in_k_cube_mask, ZM_mask))
-	bin_4_selector_in_k_cube_mask = np.logical_and.reduce((bin_4_selector_in_k_cube_mask, ZM_mask))
-	bin_5_selector_in_k_cube_mask = np.logical_and.reduce((bin_5_selector_in_k_cube_mask, ZM_mask))
-	bin_6_selector_in_k_cube_mask = np.logical_and.reduce((bin_6_selector_in_k_cube_mask, ZM_mask))
-	#----------------
-
-	k_cube_signal = k_cube_power_scaling_cube*random_k
-
-	axes_tuple = (0,1,2)
-	im_power_scaling=numpy.fft.ifftshift(random_k+0j, axes=axes_tuple)
-	im_power_scaling=numpy.fft.ifftn(im_power_scaling, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
-	im_power_scaling=numpy.fft.fftshift(im_power_scaling, axes=axes_tuple)
-
-	s_im=numpy.fft.ifftshift(k_cube_signal+0j, axes=axes_tuple)
-	s_im=numpy.fft.ifftn(s_im, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
-	s_im=numpy.fft.fftshift(s_im, axes=axes_tuple)
-
-	#----------------
-	###
-	# Add in large spectral-scale power
-	###
-	a0=0.0
-	a1=1.0
-	a2=2.0
-	quad_large_spectral_scale_model = np.zeros(s_im.shape)
-	np.random.seed(123)
-	q1_amplitudes = np.random.normal(10,1,nu*nv).reshape(nu,nv)
-	np.random.seed(321)
-	q2_amplitudes = np.random.normal(10,1,nu*nv).reshape(nu,nv)
-	for i in range(nu):
-		for j in range(nv):
-			quad_large_spectral_scale_model[:,i,j] = a0+a1*q1_amplitudes[i,j]*k_z[:,i,j]+a2*q2_amplitudes[i,j]*(k_z[:,i,j]+0.0)**2
-
-	s_im_quad_only = quad_large_spectral_scale_model
-	s_im_fourier_only = s_im.copy()
-	s_im = s_im_fourier_only + s_im_quad_only
-	#----------------
-
-	s_im_quad_only = s_im_quad_only/(1./DFT2D_Fz_normalisation)
-	s_im_fourier_only = s_im_fourier_only/(1./DFT2D_Fz_normalisation)
-	s_im = s_im/(1./DFT2D_Fz_normalisation)
-
-	s_quad_only = np.dot(multi_chan_dft_array_noZMchan/(nu*nv)**0.5, s_im_quad_only.flatten())
-	s_fourier_only = np.dot(multi_chan_dft_array_noZMchan/(nu*nv)**0.5, s_im_fourier_only.flatten())
-	s = np.dot(multi_chan_dft_array_noZMchan/(nu*nv)**0.5, s_im.flatten())
-
-	return s, s_im, s_quad_only, s_im_quad_only, s_fourier_only, s_im_fourier_only, bin_1_selector_in_k_cube_mask, bin_2_selector_in_k_cube_mask , bin_3_selector_in_k_cube_mask, bin_4_selector_in_k_cube_mask, bin_5_selector_in_k_cube_mask, bin_6_selector_in_k_cube_mask,high_spatial_frequency_selector_mask, k_cube_power_scaling_cube, k_cube_signal, k_sigma
-
-
-## ======================================================================================================
-## ======================================================================================================
-
-def generate_test_sim_signal_with_large_spectral_scales_1_HERA_Binning(nu,nv,nx,ny,nf,neta):
-	# ---------------------------------------------
-	###
-	# Generate test sim data
-	###
-	Fz_normalisation = nf**0.5
-	DFT2D_Fz_normalisation = (nu*nv*nf)**0.5
-
-	from scipy.linalg import block_diag
-	dft_array = DFT_Array_DFT_2D_ZM(nu,nv,nx,ny)
-	multi_chan_dft_array_noZMchan = block_diag(*[dft_array.T for i in range(nf)])
 	###
 	# Generate k_cube pixel coordinates
 	###
 	z, y, x = np.mgrid[-(nf/2):(nf/2),-(nu/2):(nu/2)+1,-(nv/2):(nv/2)+1]
 
 	###
-	# Define xy-pixel to uv scaling
+	# Define k-perp and k-para pixel scaling, following 21cmFAST
 	###
-	uvcellsize = 2.5 #A distance of one pixel in the uv-plane corresponds to 2.5 lambda
+	# box_size_21cmFAST_pix = 512.
+	# box_size_21cmFAST_Mpc = 2048.
+	box_size_21cmFAST_pix = float(box_size_21cmFAST_pix)
+	box_size_21cmFAST_Mpc = float(box_size_21cmFAST_Mpc)
+	box_size_xy_MyCube_Mpc = box_size_21cmFAST_Mpc #I 2D DFT the whole (128, 128) pix = (512,512) Mpc channels. Taking a subset of the pixels in the uv-plane filters high resolution (high k-perp) values but doesn't alter deltakperp.
+	box_size_z_MyCube_Mpc = box_size_21cmFAST_Mpc*nf/box_size_21cmFAST_pix #I take a subset of the channels in the xyf cube i.e. before Fourier transforming. I then 1D DFT the subset. Therefore deltakpara, the smallest k-parallel value accessible, is now much larger because I have effectively filtered out the large scales (== low k) when taking the subset.
+	deltakperp = 2.*np.pi/box_size_xy_MyCube_Mpc
+	deltakpara=2.*pi/box_size_z_MyCube_Mpc
+	# EoRVolume = 770937185.063917
+	# modkscaleterm=1.5 #Value used in BEoRfgs
+	k_z = z*deltakpara
+	k_y = y*deltakperp
+	k_x = x*deltakperp
+	mod_k_physical = (k_z**2. + k_y**2. + k_x**2.)**0.5
 
-	###
-	# Define uv-pixel to k_xy and z-pixel to k_z scaling
-	###
-	DCov=9745.3730 #comoving distance at redshift 10.26
-	deltakperp = 2.*np.pi*uvcellsize/DCov # k_x = 2*pi*u/D_M, k_y = 2*pi*v/D_M
-	deltakpara=0.04134*38.0/nf
-
-	EoRVolume = 770937185.063917
-	modkscaleterm=1.5 #Value used in BEoRfgs
-
-	k_z_phys = z*deltakpara
-	k_y_phys = y*deltakperp
-	k_x_phys = x*deltakperp
-	mod_k_physical = (k_z_phys**2. + k_y_phys**2. + k_x_phys**2.)**0.5
-
-	k_z, k_y, k_x = k_z_phys, k_y_phys, k_x_phys
-	mod_k = (k_z**2. + k_y**2. + k_x**2.)**0.5
-	k_cube_power_scaling_cube = np.zeros([nf,nu,nv])
-
-	k_sigma_1 = 10.**(3.0/2.)
-	k_sigma_2 = 10.**(4.0/2.)
-	k_sigma_3 = 10.**(3.0/2.)
-	k_sigma_4 = 10.**(4.0/2.)
-	k_sigma_5 = 10.**(3.0/2.)
-	k_sigma_6 = 10.**(4.0/2.)
-	k_sigma_7 = 10.**(3.0/2.)
-	k_sigma_8 = 10.**(4.0/2.)
-
-	k_sigma = [k_sigma_1, k_sigma_2, k_sigma_3, k_sigma_4, k_sigma_5, k_sigma_6, k_sigma_7, k_sigma_8]
-
-	modkscaleterm=1.5 #Value used in BEoRfgs
-	binsize=deltakperp*2
-
-	numKbins = 50
-	modkbins = np.zeros([numKbins,2])
-	modkbins[0,0]=0
-	modkbins[0,1]=binsize
-
-	for m1 in range(1,numKbins,1):
-		binsize=binsize*modkscaleterm
-		modkbins[m1,0]=modkbins[m1-1,1]
-		modkbins[m1,1]=modkscaleterm*modkbins[m1,0]
-
-	total_elements = 0
-	bin_selector_in_k_cube_mask=[]
-	for i_bin in range(numKbins):
-		n_elements = np.sum(np.logical_and(mod_k>modkbins[i_bin,0], mod_k<=modkbins[i_bin,1]))
-		if n_elements>0:
-	 		print i_bin, modkbins[i_bin,0], modkbins[i_bin,1], n_elements 
-	 		total_elements+=n_elements
-	 		bin_selector_in_k_cube_mask.append(np.logical_and(mod_k>modkbins[i_bin,0], mod_k<=modkbins[i_bin,1]))
-
-	print total_elements, mod_k.size
-
-	#----------------
-	###
-	# Do not include high spatial frequency structure in the data except when performing wn-fitting in the analysis
-	###
-	Nyquist_k_z_mode = k_z[0,0,0]
-	Second_highest_frequency_k_z_mode = k_z[-1,0,0]
-	high_spatial_frequency_selector_mask = np.logical_or(k_z==Nyquist_k_z_mode, k_z==Second_highest_frequency_k_z_mode)
-	high_spatial_frequency_mask = np.logical_not(high_spatial_frequency_selector_mask)
-
-	for i_bin in range(len(bin_selector_in_k_cube_mask)):
-		bin_selector_in_k_cube_mask[i_bin] = np.logical_and(bin_selector_in_k_cube_mask[i_bin], high_spatial_frequency_mask)
-	#----------------
-
-	k_cube_power_scaling_cube[bin_selector_in_k_cube_mask[0]] = k_sigma_1 #It would be more accurate to call this the k_cube_std_scaling_cube
-	k_cube_power_scaling_cube[bin_selector_in_k_cube_mask[1]] = k_sigma_2 #It would be more accurate to call this the k_cube_std_scaling_cube
-	k_cube_power_scaling_cube[bin_selector_in_k_cube_mask[2]] = k_sigma_3 #It would be more accurate to call this the k_cube_std_scaling_cube
-	k_cube_power_scaling_cube[bin_selector_in_k_cube_mask[3]] = k_sigma_4 #It would be more accurate to call this the k_cube_std_scaling_cube
-	k_cube_power_scaling_cube[bin_selector_in_k_cube_mask[4]] = k_sigma_5 #It would be more accurate to call this the k_cube_std_scaling_cube
-	k_cube_power_scaling_cube[bin_selector_in_k_cube_mask[5]] = k_sigma_6 #It would be more accurate to call this the k_cube_std_scaling_cube
-	k_cube_power_scaling_cube[bin_selector_in_k_cube_mask[6]] = k_sigma_7 #It would be more accurate to call this the k_cube_std_scaling_cube
-	k_cube_power_scaling_cube[bin_selector_in_k_cube_mask[7]] = k_sigma_8 #It would be more accurate to call this the k_cube_std_scaling_cube
-
-	np.random.seed(2391)
-	random_im=np.random.normal(0.,1,nf*nu*nv).reshape(nf,nu,nv)
-	axes_tuple = (0,1,2)
-	random_k=numpy.fft.ifftshift(random_im+0j, axes=axes_tuple)
-	random_k=numpy.fft.fftn(random_k, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
-	random_k=numpy.fft.fftshift(random_k, axes=axes_tuple)
-	random_k = random_k/random_k.std()
-
-	k_perp_3D = (k_x**2.+k_y**2)**0.5
-	ZM_mask = k_perp_3D>0.0
-
-	#----------------
-	###
-	# Construct zero-mean dataset
-	###
-	for i_bin in range(len(bin_selector_in_k_cube_mask)):
-		bin_selector_in_k_cube_mask[i_bin] = np.logical_and(bin_selector_in_k_cube_mask[i_bin], ZM_mask)	
-	#----------------
-
-	k_cube_signal = k_cube_power_scaling_cube*random_k
-
-	axes_tuple = (0,1,2)
-	im_power_scaling=numpy.fft.ifftshift(random_k+0j, axes=axes_tuple)
-	im_power_scaling=numpy.fft.ifftn(im_power_scaling, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
-	im_power_scaling=numpy.fft.fftshift(im_power_scaling, axes=axes_tuple)
-
-	s_im=numpy.fft.ifftshift(k_cube_signal+0j, axes=axes_tuple)
-	s_im=numpy.fft.ifftn(s_im, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
-	s_im=numpy.fft.fftshift(s_im, axes=axes_tuple)
-
-	#----------------
-	###
-	# Add in large spectral-scale power (for testing)
-	###
-	a0=0.0
-	a1=1.0
-	a2=2.0
-	quad_large_spectral_scale_model = np.zeros(s_im.shape)
-	np.random.seed(123)
-	q1_amplitudes = np.random.normal(10,1,nu*nv).reshape(nu,nv)
-	np.random.seed(321)
-	q2_amplitudes = np.random.normal(10,1,nu*nv).reshape(nu,nv)
-	for i in range(nu):
-		for j in range(nv):
-			quad_large_spectral_scale_model[:,i,j] = a0+a1*q1_amplitudes[i,j]*k_z[:,i,j]+a2*q2_amplitudes[i,j]*(k_z[:,i,j]+0.0)**2
-			# quad_large_spectral_scale_model[:,i,j] = a1+i*k_z[:,i,j]+j*(k_z[:,i,j])**2
-			# quad_large_spectral_scale_model[:,i,j] = a1+i*k_z[:,i,j]+j*(k_z[:,i,j]+10)**2
-
-	s_im_quad_only = quad_large_spectral_scale_model
-	s_im_fourier_only = s_im.copy()
-	s_im = s_im_fourier_only + s_im_quad_only
-	#----------------
-
-	s_im_quad_only = s_im_quad_only/(1./DFT2D_Fz_normalisation)
-	s_im_fourier_only = s_im_fourier_only/(1./DFT2D_Fz_normalisation)
-	s_im = s_im/(1./DFT2D_Fz_normalisation)
-
-	s_quad_only = np.dot(multi_chan_dft_array_noZMchan/(nu*nv)**0.5, s_im_quad_only.flatten())
-	s_fourier_only = np.dot(multi_chan_dft_array_noZMchan/(nu*nv)**0.5, s_im_fourier_only.flatten())
-	s = np.dot(multi_chan_dft_array_noZMchan/(nu*nv)**0.5, s_im.flatten())
-
-	return s, s_im, s_quad_only, s_im_quad_only, s_fourier_only, s_im_fourier_only, bin_selector_in_k_cube_mask,high_spatial_frequency_selector_mask, k_cube_power_scaling_cube, k_cube_signal, k_sigma
+	return mod_k_physical, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z
 
 
 ## ======================================================================================================
 ## ======================================================================================================
+
 
 def construct_GRN_unitary_hermitian_k_cube(nu,nv,neta,nq):
 	n_kz = neta+nq
@@ -597,15 +337,16 @@ def generate_test_sim_signal_with_large_spectral_scales_2_HERA_Binning(nu,nv,nx,
 	n_bins = 0
 	for i_bin in range(numKbins):
 		#NOTE: By requiring k_z>0 the constant term in the 1D FFT is now effectively a quadratic mode!
-		# If it is to be included explicitely with the quadratic modes,, then k_z==0 should be added to the quadratic selector mask
+		# If it is to be included explicitly with the quadratic modes, then k_z==0 should be added to the quadratic selector mask
 		n_elements = np.sum(np.logical_and.reduce((mod_k>modkbins[i_bin,0], mod_k<=modkbins[i_bin,1], k_z>0)))
 		if n_elements>0:
 			n_bins+=1
 	 		print i_bin, modkbins[i_bin,0], modkbins[i_bin,1], n_elements 
 	 		total_elements+=n_elements
-	 		bin_selector_in_k_cube_mask.append(np.logical_and(mod_k>modkbins[i_bin,0], mod_k<=modkbins[i_bin,1]))
+	 		bin_selector_in_k_cube_mask.append(np.logical_and(mod_k>modkbins[i_bin,0], mod_k<=modkbins[i_bin,1], k_z>0))
 
 	print total_elements, mod_k.size
+
 
 	#----------------
 	###
@@ -614,7 +355,7 @@ def generate_test_sim_signal_with_large_spectral_scales_2_HERA_Binning(nu,nv,nx,
 	Nyquist_k_z_mode = k_z[0,0,0]
 	Second_highest_frequency_k_z_mode = k_z[-1,0,0]
 	# Mean_k_z_mode = 0.0
-	#NOTE: the k_z=0 term should not necessarily be masked out since it is still required as a quadratic component (and is not currently explicitely added in there) even if it is not used for calculating the power spectrum.
+	#NOTE: the k_z=0 term should not necessarily be masked out since it is still required as a quadratic component (and is not currently explicitly added in there) even if it is not used for calculating the power spectrum.
 	high_spatial_frequency_selector_mask = np.logical_or.reduce((k_z==Nyquist_k_z_mode, k_z==Second_highest_frequency_k_z_mode))
 	high_spatial_frequency_mask = np.logical_not(high_spatial_frequency_selector_mask)
 
@@ -699,7 +440,7 @@ def generate_test_sim_signal_with_large_spectral_scales_2_21cmFAST_Binning(nu,nv
 	###
 	# Generate k_cube physical coordinates to match the 21cmFAST input simulation
 	###
-	mod_k, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z = generate_k_cube_in_physical_coordinates_21cmFAST(nu,nv,nx,ny,nf,neta)
+	mod_k, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z = generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(nu,nv,nx,ny,nf,neta,p.box_size_21cmFAST_pix_sc,p.box_size_21cmFAST_Mpc_sc)
 	k_cube_power_scaling_cube = np.zeros([nf,nu,nv])
 
 	k_sigma_1 = 10.**(4.0/2.)
@@ -737,15 +478,19 @@ def generate_test_sim_signal_with_large_spectral_scales_2_21cmFAST_Binning(nu,nv
 	n_bins = 0
 	for i_bin in range(numKbins):
 		#NOTE: By requiring k_z>0 the constant term in the 1D FFT is now effectively a quadratic mode.
-		# If it is to be included explicitely with the quadratic modes, then k_z==0 should be added to the quadratic selector mask
+		# If it is to be included explicitly with the quadratic modes, then k_z==0 should be added to the quadratic selector mask
 		n_elements = np.sum(np.logical_and.reduce((mod_k>modkbins[i_bin,0], mod_k<=modkbins[i_bin,1], k_z>0)))
 		if n_elements>0:
 			n_bins+=1
 	 		print i_bin, modkbins[i_bin,0], modkbins[i_bin,1], n_elements 
 	 		total_elements+=n_elements
-	 		bin_selector_in_k_cube_mask.append(np.logical_and(mod_k>modkbins[i_bin,0], mod_k<=modkbins[i_bin,1]))
+	 		bin_selector_in_k_cube_mask.append(np.logical_and(mod_k>modkbins[i_bin,0], mod_k<=modkbins[i_bin,1], k_z>0))
 
 	print total_elements, mod_k.size
+
+	print 'deltakperp, deltakpara', deltakperp, deltakpara
+	# raw_input()
+
 
 	#----------------
 	###
@@ -753,18 +498,26 @@ def generate_test_sim_signal_with_large_spectral_scales_2_21cmFAST_Binning(nu,nv
 	###
 	Nyquist_k_z_mode = k_z[0,0,0]
 	Second_highest_frequency_k_z_mode = k_z[-1,0,0]
-	#NOTE: the k_z=0 term should not necessarily be masked out since it is still required as a quadratic component (and is not currently explicitely added in there) even if it is not used for calculating the power spectrum.
+	#NOTE: the k_z=0 term should not necessarily be masked out since it is still required as a quadratic component (and is not currently explicitly added in there) even if it is not used for calculating the power spectrum.
+	# NOTE 2: bin_selector_in_k_cube_mask is actually only used for working out which parts of the k-cube NOT to use (should change to a name more descriptive of its later usage) when calculating LogDetPhi in the likelihood and hence the k_z=0 term (which should not be in that determinant!) should be masked out here! ...probably.
+	Mean_k_z_mode = 0.0
+	k_z_mean_mask = k_z!=Mean_k_z_mode
+
 	if nq==1:
 		high_spatial_frequency_selector_mask = k_z==Nyquist_k_z_mode
-	else:
+	elif nq==2:
 		high_spatial_frequency_selector_mask = np.logical_or.reduce((k_z==Nyquist_k_z_mode, k_z==Second_highest_frequency_k_z_mode))
+	else:
+		high_spatial_frequency_selector_mask = np.zeros(k_z.shape).astype('bool')
 	high_spatial_frequency_mask = np.logical_not(high_spatial_frequency_selector_mask)
 
 	for i_bin in range(len(bin_selector_in_k_cube_mask)):
-		bin_selector_in_k_cube_mask[i_bin] = np.logical_and(bin_selector_in_k_cube_mask[i_bin], high_spatial_frequency_mask)
+		if nq>0:
+			# bin_selector_in_k_cube_mask[i_bin] = np.logical_and(bin_selector_in_k_cube_mask[i_bin], high_spatial_frequency_mask)
+			bin_selector_in_k_cube_mask[i_bin] = np.logical_and(bin_selector_in_k_cube_mask[i_bin], high_spatial_frequency_mask, k_z_mean_mask)
+		else:
+			bin_selector_in_k_cube_mask[i_bin] = np.logical_and(bin_selector_in_k_cube_mask[i_bin], k_z_mean_mask)
 	#----------------
-	Mean_k_z_mode = 0.0
-	k_z_mean_mask = k_z!=Mean_k_z_mode
 
 	k_perp_3D = (k_x**2.+k_y**2)**0.5
 	ZM_mask = k_perp_3D>0.0
@@ -838,11 +591,14 @@ def map_out_bins_for_power_spectral_coefficients_HERA_Binning(nu,nv,nx,ny,nf,net
 	ZM_mask = k_perp_3D>0.0
 	ZM_2D_mask_vis_ordered = ZM_mask.T.flatten()
 	high_spatial_frequency_mask_vis_ordered = np.logical_not(high_spatial_frequency_selector_mask.T.flatten())
+	# k_z_mean_mask_vis_ordered = k_z_mean_mask.T.flatten()
 
 	if nq>0:
 		ZM_2D_and_high_spatial_frequencies_mask_vis_ordered = np.logical_and(high_spatial_frequency_mask_vis_ordered, ZM_2D_mask_vis_ordered)
+		# ZM_2D_and_high_spatial_frequencies_mask_vis_ordered = np.logical_and.reduce(high_spatial_frequency_mask_vis_ordered, ZM_2D_mask_vis_ordered, k_z_mean_mask_vis_ordered)
 	else:
 		ZM_2D_and_high_spatial_frequencies_mask_vis_ordered = ZM_2D_mask_vis_ordered
+		# ZM_2D_and_high_spatial_frequencies_mask_vis_ordered = np.logical_and(ZM_2D_mask_vis_ordered, k_z_mean_mask_vis_ordered)
 	
 	bin_selector_in_model_mask_vis_ordered = [bin_selector_in_k_cube_mask_vis_ordered[i_bin][ZM_2D_and_high_spatial_frequencies_mask_vis_ordered] for i_bin in range(len(bin_selector_in_k_cube_mask_vis_ordered))]
 
@@ -1287,7 +1043,7 @@ class GenerateForegroundCube(object):
 		complex_GRN = complex_GRN_real+1j*complex_GRN_imag
 		complex_GRN = complex_GRN/complex_GRN.std()
 
-		mod_k, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z = generate_k_cube_in_physical_coordinates_21cmFAST(nu,nv,nx,ny,nf,neta)
+		mod_k, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z = generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(nu,nv,nx,ny,nf,neta,p.box_size_21cmFAST_pix_sc,p.box_size_21cmFAST_Mpc_sc)
 
 		if n_kz_even:
 			#Ignore unmoddelled Nyquist bin in mask by starting at mask channel 1
@@ -1361,9 +1117,14 @@ class GenerateForegroundCube(object):
 		unnormalised_A, unnormalised_beta = self.calculate_unnormalised_A_and_beta_fields(nu,nv,nx,ny,nf,neta,nq, gamma_mean, gamma_sigma)
 
 		unnormalised_Tb = np.sum(unnormalised_A.real, axis=0)
-		Tb_mean_normalisation = (Tb_experimental_mean_K-unnormalised_Tb.mean())
 		Tb_std_normalisation = (Tb_experimental_std_K/unnormalised_Tb.std())
-		Tb = Tb_mean_normalisation + unnormalised_Tb*Tb_std_normalisation
+		# Tb_mean_normalisation = (Tb_experimental_mean_K-unnormalised_Tb.mean())
+		# Tb_std_normalisation = (Tb_experimental_std_K/unnormalised_Tb.std())
+		# Tb = Tb_mean_normalisation + unnormalised_Tb*Tb_std_normalisation
+
+		Tb = unnormalised_Tb*Tb_std_normalisation
+		Tb_mean_normalisation = (Tb_experimental_mean_K-Tb.mean())
+		Tb = Tb + Tb_mean_normalisation
 
 		beta = unnormalised_beta*(beta_experimental_std/unnormalised_beta.std())
 		beta = beta+(beta_experimental_mean-beta.mean())
@@ -1375,6 +1136,7 @@ class GenerateForegroundCube(object):
 		A_nu = np.array([A*(nu_array_MHz[i_nu]/nu_min_MHz)**-beta for i_nu in range(len(nu_array_MHz))])
 		Tb_nu = np.sum(A_nu, axis=1)
 		print 'Tb_nu[0] - Tb', Tb_nu[0] - Tb
+		# brk()
 		return Tb_nu, A, beta, Tb, nu_array_MHz
 
 
@@ -1385,7 +1147,7 @@ def generate_masked_coordinate_cubes(cube_to_mask, nu,nv,nx,ny,nf,neta,nq):
 	###
 	# Generate k_cube physical coordinates to match the 21cmFAST input simulation
 	###
-	mod_k, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z = generate_k_cube_in_physical_coordinates_21cmFAST(nu,nv,nx,ny,nf,neta)
+	mod_k, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z = generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(nu,nv,nx,ny,nf,neta,p.box_size_21cmFAST_pix_sc,p.box_size_21cmFAST_Mpc_sc)
 
 	#----------------
 	###
@@ -1394,7 +1156,7 @@ def generate_masked_coordinate_cubes(cube_to_mask, nu,nv,nx,ny,nf,neta,nq):
 	Nyquist_k_z_mode = k_z[0,0,0]
 	Second_highest_frequency_k_z_mode = k_z[-1,0,0]
 	# Mean_k_z_mode = 0.0
-	#NOTE: the k_z=0 term should not necessarily be masked out since it is still required as a quadratic component (and is not currently explicitely added in there) even if it is not used for calculating the power spectrum.
+	#NOTE: the k_z=0 term should not necessarily be masked out since it is still required as a quadratic component (and is not currently explicitly added in there) even if it is not used for calculating the power spectrum.
 	if nq==1:
 		high_spatial_frequency_selector_mask = k_z==Nyquist_k_z_mode
 	else:
@@ -1451,7 +1213,7 @@ def generate_k_cube_model_spherical_binning(mod_k_masked, k_z_masked, nu,nv,nx,n
 	###
 	# Generate k_cube physical coordinates to match the 21cmFAST input simulation
 	###
-	mod_k, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z = generate_k_cube_in_physical_coordinates_21cmFAST(nu,nv,nx,ny,nf,neta)
+	mod_k, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z = generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(nu,nv,nx,ny,nf,neta,p.box_size_21cmFAST_pix_sc,p.box_size_21cmFAST_Mpc_sc)
 	
 	modkscaleterm=1.5 #Value used in BEoRfgs and in 21cmFAST binning
 	# binsize=deltakperp*1 #Value used in 21cmFAST
@@ -1476,7 +1238,7 @@ def generate_k_cube_model_spherical_binning(mod_k_masked, k_z_masked, nu,nv,nx,n
 	#
 	for i_bin in range(numKbins):
 		#NOTE: By requiring k_z>0 the constant term in the 1D FFT is now effectively a quadratic mode!
-		# If it is to be included explicitely with the quadratic modes,, then k_z==0 should be added to the quadratic selector mask
+		# If it is to be included explicitly with the quadratic modes, then k_z==0 should be added to the quadratic selector mask
 		n_elements = np.sum(np.logical_and.reduce((mod_k_masked>modkbins[i_bin,0], mod_k_masked<=modkbins[i_bin,1], k_z_masked!=0)))
 		if n_elements>0:
 			n_bins+=1
@@ -1499,6 +1261,20 @@ def generate_k_cube_model_spherical_binning(mod_k_masked, k_z_masked, nu,nv,nx,n
 	return k_cube_voxels_in_bin, modkbins_containing_voxels
 
 
+
+## ======================================================================================================
+## ======================================================================================================
+
+def create_directory(Directory,**kwargs):
+	
+	if not os.path.exists(Directory):
+		print 'Directory not found: \n\n'+Directory+"\n"
+		print 'Creating required directory structure..'
+		os.makedirs(Directory)
+	
+	return 0
+
+
 ## ======================================================================================================
 ## ======================================================================================================
 
@@ -1506,10 +1282,12 @@ def calc_mean_binned_k_vals(mod_k_masked, k_cube_voxels_in_bin, **kwargs):
 	##===== Defaults =======
 	default_save_k_vals = False
 	default_k_vals_file = 'k_vals.txt'
+	default_k_vals_dir = 'k_vals'
 	
 	##===== Inputs =======
 	save_k_vals=kwargs.pop('save_k_vals',default_save_k_vals)
 	k_vals_file=kwargs.pop('k_vals_file',default_k_vals_file)
+	k_vals_dir=kwargs.pop('k_vals_dir',default_k_vals_dir)
 
 	k_vals = []
 	print '---Calculating k-vals---'
@@ -1519,7 +1297,8 @@ def calc_mean_binned_k_vals(mod_k_masked, k_cube_voxels_in_bin, **kwargs):
 		print i_bin, mean_mod_k
 
 	if save_k_vals:
-		np.savetxt(k_vals_file, k_vals)
+		create_directory(k_vals_dir)
+		np.savetxt(k_vals_dir+'/'+k_vals_file, k_vals)
 		
 	return k_vals
 
@@ -1531,7 +1310,7 @@ def generate_k_cube_model_cylindrical_binning(mod_k_masked, k_z_masked, k_y_mask
 	###
 	# Generate k_cube physical coordinates to match the 21cmFAST input simulation
 	###
-	mod_k, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z = generate_k_cube_in_physical_coordinates_21cmFAST(nu,nv,nx,ny,nf,neta)
+	mod_k, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z = generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(nu,nv,nx,ny,nf,neta,p.box_size_21cmFAST_pix_sc,p.box_size_21cmFAST_Mpc_sc)
 
 	###
 	# define mod_k binning
@@ -1558,7 +1337,7 @@ def generate_k_cube_model_cylindrical_binning(mod_k_masked, k_z_masked, k_y_mask
 	#
 	for i_bin in range(numKbins):
 		#NOTE: By requiring k_z>0 the constant term in the 1D FFT is now effectively a quadratic mode!
-		# If it is to be included explicitely with the quadratic modes,, then k_z==0 should be added to the quadratic selector mask
+		# If it is to be included explicitly with the quadratic modes,, then k_z==0 should be added to the quadratic selector mask
 		n_elements = np.sum(np.logical_and.reduce((mod_k_masked>modkbins[i_bin,0], mod_k_masked<=modkbins[i_bin,1], k_z_masked>0)))
 		if n_elements>0:
 			n_bins+=1
@@ -1585,7 +1364,7 @@ def generate_k_cube_model_cylindrical_binning(mod_k_masked, k_z_masked, k_y_mask
 		k_perp_bins_containing_voxels=[]
 		for i_bin in range(len(k_perp_bins)):
 			#NOTE: By requiring k_z>0 the constant term in the 1D FFT is now effectively a quadratic mode!
-			# If it is to be included explicitely with the quadratic modes,, then k_z==0 should be added to the quadratic selector mask
+			# If it is to be included explicitly with the quadratic modes,, then k_z==0 should be added to the quadratic selector mask
 			k_perp_constraint = np.logical_and.reduce((k_perp_3D>k_perp_bins[i_bin][0], k_perp_3D<=k_perp_bins[i_bin][1]))
 			n_elements = np.sum(k_perp_constraint)
 			if n_elements>0:

@@ -3,6 +3,8 @@ import numpy as np
 from numpy import shape
 import scipy
 from numpy import real
+from pdb import set_trace as brk
+import BayesEoR.Params.params as p
 
 #--------------------------------------------
 # Define posterior
@@ -15,7 +17,7 @@ class PowerSpectrumPosteriorProbability(object):
 		default_block_T_Ninv_T=[]
 		default_log_priors = False
 		default_dimensionless_PS=False
-		default_inverse_quadratic_power= 0.0
+		default_inverse_LW_power= 0.0
 		default_Print=False
 		
 		##===== Inputs =======
@@ -25,7 +27,7 @@ class PowerSpectrumPosteriorProbability(object):
 		if self.log_priors:print 'Using log-priors'
 		self.dimensionless_PS=kwargs.pop('dimensionless_PS',default_dimensionless_PS)
 		if self.dimensionless_PS:print 'Calculating dimensionless_PS'
-		self.inverse_quadratic_power=kwargs.pop('inverse_quadratic_power',default_inverse_quadratic_power)
+		self.inverse_LW_power=kwargs.pop('inverse_LW_power',default_inverse_LW_power)
 		self.Print=kwargs.pop('Print',default_Print)
 
 		self.fit_single_elems      = fit_single_elems
@@ -141,36 +143,38 @@ class PowerSpectrumPosteriorProbability(object):
 		#define VOLUME (BOX_LEN*BOX_LEN*BOX_LEN) // in Mpc^3
 		# p_box[ct] += pow(k_mag,3)*pow(cabs(deldel_T[HII_C_INDEX(n_x, n_y, n_z)]), 2)/(2.0*PI*PI*VOLUME);
 		###
-		EoR_x_full_pix = 128 #pix (defined by input to 21cmFAST simulation)
-		EoR_y_full_pix = 128 #pix (defined by input to 21cmFAST simulation)
-		EoR_z_full_pix = 128 #pix (defined by input to 21cmFAST simulation)
-		EoR_x_full_Mpc = 512. #Mpc (defined by input to 21cmFAST simulation)
-		EoR_y_full_Mpc = 512. #Mpc (defined by input to 21cmFAST simulation)
-		EoR_z_full_Mpc = 512. #Mpc (defined by input to 21cmFAST simulation)
+		EoR_x_full_pix = float(p.box_size_21cmFAST_pix) #pix (defined by input to 21cmFAST simulation)
+		EoR_y_full_pix = float(p.box_size_21cmFAST_pix) #pix (defined by input to 21cmFAST simulation)
+		EoR_z_full_pix = float(p.box_size_21cmFAST_pix) #pix (defined by input to 21cmFAST simulation)
+		EoR_x_full_Mpc = float(p.box_size_21cmFAST_Mpc) #Mpc (defined by input to 21cmFAST simulation)
+		EoR_y_full_Mpc = float(p.box_size_21cmFAST_Mpc) #Mpc (defined by input to 21cmFAST simulation)
+		EoR_z_full_Mpc = float(p.box_size_21cmFAST_Mpc) #Mpc (defined by input to 21cmFAST simulation)
 		# EoR_analysis_cube_x_pix = EoR_x_full_pix #Mpc Analysing the full FoV in x
 		# EoR_analysis_cube_y_pix = EoR_y_full_pix #Mpc Analysing the full FoV in y
 		# EoR_analysis_cube_z_pix = 38 #Mpc Analysing 38 of the 128 channels of the full EoR_simulations 
-		EoR_analysis_cube_x_pix = 128 #pix Analysing the full FoV in x
-		EoR_analysis_cube_y_pix = 128 #pix Analysing the full FoV in y
+		EoR_analysis_cube_x_pix = float(p.EoR_analysis_cube_x_pix) #pix Analysing the full FoV in x
+		EoR_analysis_cube_y_pix = float(p.EoR_analysis_cube_y_pix) #pix Analysing the full FoV in y
 		EoR_analysis_cube_z_pix = self.nf #Mpc Analysing 38 of the 128 channels of the full EoR_simulations 
-		EoR_analysis_cube_x_Mpc = EoR_x_full_Mpc * (124./128) #Mpc Analysing the full FoV in x
-		EoR_analysis_cube_y_Mpc = EoR_y_full_Mpc * (124./128) #Mpc Analysing the full FoV in y
+		EoR_analysis_cube_x_Mpc = float(p.EoR_analysis_cube_x_Mpc) #Mpc Analysing the full FoV in x
+		EoR_analysis_cube_y_Mpc = float(p.EoR_analysis_cube_y_Mpc) #Mpc Analysing the full FoV in y
 		EoR_analysis_cube_z_Mpc = EoR_z_full_Mpc*(float(EoR_analysis_cube_z_pix)/EoR_z_full_pix) #Mpc Analysing 38 of the 128 channels of the full simulation
 		EoRVolume = EoR_analysis_cube_x_Mpc*EoR_analysis_cube_y_Mpc*EoR_analysis_cube_z_Mpc
 		pixel_volume = EoR_analysis_cube_x_pix*EoR_analysis_cube_y_pix*EoR_analysis_cube_z_pix
-		dimensionless_PS_scaling = (self.modk_vis_ordered_list[i_bin]**3.)*(EoRVolume**1.0)/(2.*(np.pi**2)*pixel_volume)
+		cosmo_fft_norm_factor = (2.*np.pi)**2. #This needs to be verified / replaced........!
+		# dimensionless_PS_scaling = (self.modk_vis_ordered_list[i_bin]**3.)*(EoRVolume**1.0)/(2.*(np.pi**2)*pixel_volume**2.)*cosmo_fft_norm_factor
+		dimensionless_PS_scaling = (self.modk_vis_ordered_list[i_bin]**3.)*(EoRVolume**1.0)/(2.*(np.pi**2)*pixel_volume**1.)
 
 		return dimensionless_PS_scaling
 
 	def calc_PowerI(self, x, **kwargs):
 		
 		if self.dimensionless_PS:
-			PowerI=np.zeros(self.Npar)+self.inverse_quadratic_power #set to zero for a uniform distribution
+			PowerI=np.zeros(self.Npar)+self.inverse_LW_power #set to zero for a uniform distribution
 			for i_bin in range(len(self.k_cube_voxels_in_bin)):
 				dimensionless_PS_scaling = self.calc_dimensionless_power_spectral_normalisation_21cmFAST(i_bin)
 				PowerI[self.k_cube_voxels_in_bin[i_bin]] = dimensionless_PS_scaling/x[i_bin] #NOTE: fitting for power not std here
 		else:
-			PowerI=np.zeros(self.Npar)+self.inverse_quadratic_power #set to zero for a uniform distribution
+			PowerI=np.zeros(self.Npar)+self.inverse_LW_power #set to zero for a uniform distribution
 			for i_bin in range(len(self.k_cube_voxels_in_bin)):
 				PowerI[self.k_cube_voxels_in_bin[i_bin]] = 1./x[i_bin]  #NOTE: fitting for power not std here
 
@@ -191,6 +195,7 @@ class PowerSpectrumPosteriorProbability(object):
 			# print 'Using log-priors'
 			x = 10.**np.array(x)
 
+		# brk()
 		phi = [0.0]
 		do_block_diagonal_inversion = len(shape(block_T_Ninv_T))>1
 		self.count+=1
