@@ -1157,6 +1157,38 @@ P.show()
 
 
 
+
+import numpy as np
+from numpy import *
+import pylab as P
+
+PS_21cmFast_data = np.loadtxt('/users/psims/EoR/EoR_simulations/21cmFAST_512MPc_128pix_32pix/Output_files/Deldel_T_power_spec/ps_no_halos_z007.60_nf0.422668_useTs0_zetaX-1.0e+00_alphaX-1.0_TvirminX-1.0e+00_aveTb009.94_Pop-1_32_512Mpc_v3')
+PS_21cmFast_k_vals = np.log10(PS_21cmFast_data[:,0])
+PS_21cmFast_PS = np.log10(PS_21cmFast_data[:,1])
+PS_21cmFast_uncertainties = PS_21cmFast_data[:,2]/(PS_21cmFast_data[:,1]*log(10.0))
+
+k_vals_nu_31_nv_31_nf_32_nq_0 = np.loadtxt('/users/psims/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/spec_model_tests/k_vals/k_vals_nu_31_nv_31_nf_32_nq_0.txt')
+EoR_nu_31_nv_31_nf32_nq0 = np.loadtxt('EoR_nu_31_nv_31_nf32_nq0-_posterior_weighted_means_and_standard_deviations.dat')
+EoR_nu_31_nv_31_nf32_nq2 = np.loadtxt('EoR_nu_31_nv_31_nf32_nq2-_posterior_weighted_means_and_standard_deviations.dat')
+
+P.figure(figsize=(10,10))
+P.errorbar(PS_21cmFast_k_vals, PS_21cmFast_PS, PS_21cmFast_uncertainties, fmt='o', color='red', linewidth=1.5, label='21cmFast')
+P.errorbar(PS_21cmFast_k_vals, PS_21cmFast_PS, fmt='--', color='red', linewidth=1.5)
+P.errorbar(np.log10(k_vals_nu_31_nv_31_nf_32_nq_0), EoR_nu_31_nv_31_nf32_nq0[:,0], EoR_nu_31_nv_31_nf32_nq0[:,1], fmt='o', color='blue', linewidth=1.5, label='nq0')
+P.errorbar(np.log10(k_vals_nu_31_nv_31_nf_32_nq_0)[1:], EoR_nu_31_nv_31_nf32_nq2[:,0][1:], EoR_nu_31_nv_31_nf32_nq2[:,1][1:], fmt='o', color='black', linewidth=1.5, label='nq2')
+
+P.tick_params(labelsize=20)
+P.xlabel('$\\log_{10}(k[h\\mathrm{Mpc}^{-1}])$', size='23')
+P.ylabel('$\\log_{10}(\Delta_{k}^{2}[\mathrm{mK}^{2}])$', size='23')
+#
+P.legend(loc='lower right', fontsize=17)
+P.show()
+
+
+
+
+
+
 #----------------------
 #----------------------
 

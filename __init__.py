@@ -2,7 +2,7 @@
 # Imports
 ###
 import matplotlib
-matplotlib.use('pdf') #No pop-ups (comment out to interact with plots)
+# matplotlib.use('pdf') #No pop-ups (comment out to interact with plots)
 import numpy as np
 import numpy
 from numpy import arange, shape, log10, pi
@@ -30,13 +30,11 @@ from Linalg import IDFT_Array_IDFT_1D_WQ_ZM, generate_gridding_matrix_vis_ordere
 
 from SimData import generate_test_sim_signal, map_out_bins_for_power_spectral_coefficients
 from SimData import generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector
-from SimData import generate_test_sim_signal_with_large_spectral_scales_1
 from SimData import map_out_bins_for_power_spectral_coefficients_WQ_v2, generate_k_cube_in_physical_coordinates
 from SimData import map_out_bins_for_power_spectral_coefficients_HERA_Binning
 from SimData import map_out_bins_for_power_spectral_coefficients_WQ_v2_HERA_Binning
-from SimData import generate_test_sim_signal_with_large_spectral_scales_1_HERA_Binning
 from SimData import generate_test_sim_signal_with_large_spectral_scales_2_HERA_Binning
-from SimData import generate_k_cube_in_physical_coordinates_21cmFAST
+from SimData import generate_k_cube_in_physical_coordinates_21cmFAST, generate_k_cube_in_physical_coordinates_21cmFAST_v2d0
 from SimData import generate_test_sim_signal_with_large_spectral_scales_2_21cmFAST_Binning
 from SimData import GenerateForegroundCube
 from SimData import generate_masked_coordinate_cubes, generate_k_cube_model_cylindrical_binning
@@ -50,7 +48,9 @@ from Utils import PriorC, ParseCommandLineArguments, DataUnitConversionmkandJype
 from Utils import ExtractDataFrom21cmFASTCube, plot_signal_vs_MLsignal_residuals
 from Utils import generate_output_file_base
 
-from GenerateForegroundCube import generate_Jelic_cube, generate_data_from_loaded_EoR_cube
+from Utils import remove_unused_header_variables, construct_aplpy_image_from_fits
+
+from GenerateForegroundCube import generate_Jelic_cube, generate_data_from_loaded_EoR_cube, generate_data_from_loaded_EoR_cube_v2d0
 from GenerateForegroundCube import generate_test_signal_from_image_cube
 from GenerateForegroundCube import top_hat_average_temperature_cube_to_lower_res_31x31xnf_cube
 

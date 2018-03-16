@@ -72,7 +72,7 @@ PCLA = ParseCommandLineArguments()
 nq = PCLA.parse(argv) #defaults to 2 (i.e. jointly fits for a second order quadratic)
 # nq = 2
 # nq = 0
-nq = 2
+nq = 0
 npl = 0 #Overwrites quadratic term when nq=2, otherwise unused.
 
 # nf=38
