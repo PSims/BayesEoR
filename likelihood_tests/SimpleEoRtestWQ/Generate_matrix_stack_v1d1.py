@@ -9,6 +9,9 @@ import pylab
 import time
 import h5py
 from scipy.linalg import block_diag
+from pdb import set_trace as brk
+
+import BayesEoR.Params.params as p
 
 from BayesEoR.Linalg import IDFT_Array_IDFT_2D_ZM_SH, makeGaussian, Produce_Full_Coordinate_Arrays, Produce_Coordinate_Arrays_ZM
 from BayesEoR.Linalg import Produce_Coordinate_Arrays_ZM_Coarse, Produce_Coordinate_Arrays_ZM_SH, Calc_Coords_High_Res_Im_to_Large_uv
@@ -395,7 +398,7 @@ class BuildMatrices(BuildMatrixTree):
 		pmd = self.load_prerequisites(matrix_name)
 		start = time.time()
 		print 'Performing matrix algebra'
-		idft_array_1D_WQ=IDFT_Array_IDFT_1D_WQ(self.nf, self.neta, self.nq, npl=self.npl)*self.Fz_normalisation #Note: the nf**0.5 normalisation factor results in a symmetric transform and is necessary for correctly estimating the power spectrum. However, it is not consistent with Python's asymmetric DFTs, therefore this factor needs to be removed when comparing to np.fft.fftn cross-checks!
+		idft_array_1D_WQ=IDFT_Array_IDFT_1D_WQ(self.nf, self.neta, self.nq, npl=self.npl, nu_min_MHz=p.nu_min_MHz, channel_width_MHz=p.channel_width_MHz, beta=p.beta)*self.Fz_normalisation #Note: the nf**0.5 normalisation factor results in a symmetric transform and is necessary for correctly estimating the power spectrum. However, it is not consistent with Python's asymmetric DFTs, therefore this factor needs to be removed when comparing to np.fft.fftn cross-checks!
 		print 'Time taken: {}'.format(time.time()-start)
 		###
 		# Save matrix to HDF5
@@ -497,9 +500,11 @@ class BuildMatrices(BuildMatrixTree):
 
 	def build_minimum_sufficient_matrix_stack(self, **kwargs):
 		default_overwrite_existing_matrix_stack = False
+		default_proceed_without_overwrite_confirmation = False #Set to true when submitting to cluster
 		
 		##===== Inputs =======
 		self.overwrite_existing_matrix_stack=kwargs.pop('overwrite_existing_matrix_stack',default_overwrite_existing_matrix_stack)
+		self.proceed_without_overwrite_confirmation=kwargs.pop('proceed_without_overwrite_confirmation',default_proceed_without_overwrite_confirmation)
 
 		matrix_stack_dir_exists =  os.path.exists(self.array_save_directory)
 		if matrix_stack_dir_exists:
@@ -508,7 +513,11 @@ class BuildMatrices(BuildMatrixTree):
 		self.build_matrix_if_it_doesnt_already_exist('block_T_Ninv_T')
 		self.build_matrix_if_it_doesnt_already_exist('N')
 		if matrix_stack_dir_exists and self.overwrite_existing_matrix_stack:
-			confirm_deletion = raw_input('Confirm deletion of archived matrix stack? y/n\n')
+			if not self.proceed_without_overwrite_confirmation:
+				confirm_deletion = raw_input('Confirm deletion of archived matrix stack? y/n\n')
+			else:
+				print 'Deletion of archived matrix stack has been pre-confirmed. Continuing...'
+				confirm_deletion = 'y'
 			self.delete_old_matrix_stack(dst, confirm_deletion)
 
 		print 'Matrix stack complete'

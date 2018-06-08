@@ -6,6 +6,45 @@ from numpy import real
 from pdb import set_trace as brk
 import BayesEoR.Params.params as p
 
+
+try:
+	import pycuda.autoinit
+	import pycuda.driver as cuda
+	for devicenum in range(cuda.Device.count()):
+	    device=cuda.Device(devicenum)
+	    attrs=device.get_attributes()
+	    print("\n===Attributes for device %d"%devicenum)
+	    for (key,value) in attrs.iteritems():
+	        print("%s:%s"%(str(key),str(value)))
+
+	import time
+	import numpy as np
+	import ctypes
+	from numpy import ctypeslib
+	from scipy import linalg
+	from subprocess import os
+
+	# wrapmzpotrf=ctypes.CDLL('/users/psims/EoR/Applications/magma-2.3.0/example/new_wrappers/temp/wrapmzpotrf.so')
+	current_dir = os.getcwd()
+	base_dir = '/'.join(current_dir.split('/')[:np.where(np.array(current_dir.split('/'))=='BayesEoR')[0][-1]])+'/BayesEoR/'
+	GPU_wrap_dir = base_dir+'likelihood_tests/SimpleEoRtestWQ/GPU_wrapper/'
+	wrapmzpotrf=ctypes.CDLL(GPU_wrap_dir+'wrapmzpotrf.so')
+	nrhs=1
+	wrapmzpotrf.cpu_interface.argtypes = [ctypes.c_int, ctypes.c_int, ctypeslib.ndpointer(np.complex128, ndim=2, flags='C'), ctypeslib.ndpointer(np.complex128, ndim=1, flags='C'), ctypes.c_int]
+	print 'Computing on GPU'
+
+
+
+
+
+
+
+except Exception as e:
+	print 'Exception loading GPU encountered...'
+	print e
+	print 'Computing on CPU instead...'
+	p.useGPU=False
+
 #--------------------------------------------
 # Define posterior
 #--------------------------------------------
@@ -91,15 +130,24 @@ class PowerSpectrumPosteriorProbability(object):
 
 			start = time.time()
 			dbar_blocks = np.split(dbar, self.nuv)
-			SigmaI_dbar_blocks = np.array([self.calc_SigmaI_dbar(Sigma_block_diagonals[i_block], dbar_blocks[i_block])  for i_block in range(self.nuv)])
+			if p.useGPU:
+				SigmaI_dbar_blocks_and_logdet_Sigma = np.array([self.calc_SigmaI_dbar(Sigma_block_diagonals[i_block], dbar_blocks[i_block])  for i_block in range(self.nuv)])
+				SigmaI_dbar_blocks = np.array([SigmaI_dbar_block for SigmaI_dbar_block, logdet_Sigma in SigmaI_dbar_blocks_and_logdet_Sigma])
+				# SigmaI_dbar_blocks = SigmaI_dbar_blocks_and_logdet_Sigma[:,0] #This doesn't work because the array size is lost / flatten fails
+				logdet_Sigma_blocks = SigmaI_dbar_blocks_and_logdet_Sigma[:,1]
+			else:
+				SigmaI_dbar_blocks = np.array([self.calc_SigmaI_dbar(Sigma_block_diagonals[i_block], dbar_blocks[i_block])  for i_block in range(self.nuv)])
 			if self.Print:print 'Time taken: {}'.format(time.time()-start)
 			
 			SigmaI_dbar = SigmaI_dbar_blocks.flatten()
 			dbarSigmaIdbar=np.dot(dbar.conjugate().T,SigmaI_dbar)
 			if self.Print:print 'Time taken: {}'.format(time.time()-start)
 
-			logSigmaDet=np.sum([np.linalg.slogdet(Sigma_block)[1] for Sigma_block in Sigma_block_diagonals])
-			if self.Print:print 'Time taken: {}'.format(time.time()-start)
+			if p.useGPU:
+				logSigmaDet = np.sum(logdet_Sigma_blocks)
+			else:
+				logSigmaDet=np.sum([np.linalg.slogdet(Sigma_block)[1] for Sigma_block in Sigma_block_diagonals])
+				if self.Print:print 'Time taken: {}'.format(time.time()-start)
 
 		else:
 			print 'Not using block-diagonal inversion'
@@ -112,13 +160,21 @@ class PowerSpectrumPosteriorProbability(object):
 			if self.Print:print 'Time taken: {}'.format(time.time()-start)
 
 			start = time.time()
-			SigmaI_dbar = self.calc_SigmaI_dbar(Sigma, dbar)
+			if p.useGPU:
+				SigmaI_dbar_and_logdet_Sigma = self.calc_SigmaI_dbar(Sigma, dbar)
+				SigmaI_dbar = SigmaI_dbar_and_logdet_Sigma[0]
+				logdet_Sigma = SigmaI_dbar_and_logdet_Sigma[1]
+			else:
+				SigmaI_dbar = self.calc_SigmaI_dbar(Sigma, dbar)
 			if self.Print:print 'Time taken: {}'.format(time.time()-start)
 
 			dbarSigmaIdbar=np.dot(dbar.conjugate().T,SigmaI_dbar)
 			if self.Print:print 'Time taken: {}'.format(time.time()-start)
 
-			logSigmaDet=np.linalg.slogdet(Sigma)[1]
+			if p.useGPU:
+				logSigmaDet = logdet_Sigma
+			else:
+				logSigmaDet=np.linalg.slogdet(Sigma)[1]
 			if self.Print:print 'Time taken: {}'.format(time.time()-start)
 			# logSigmaDet=2.*np.sum(np.log(np.diag(Sigmacho)))
 
@@ -132,11 +188,26 @@ class PowerSpectrumPosteriorProbability(object):
 		if 'block_T_Ninv_T' in kwargs:
 			block_T_Ninv_T=kwargs['block_T_Ninv_T']
 		
-		# Sigmacho = scipy.linalg.cholesky(Sigma, lower=True).astype(np.complex256)
-		# SigmaI_dbar = scipy.linalg.cho_solve((Sigmacho,True), dbar)
-		SigmaI = scipy.linalg.inv(Sigma)
-		SigmaI_dbar = np.dot(SigmaI, dbar)
-		return SigmaI_dbar
+		if not p.useGPU:
+			# Sigmacho = scipy.linalg.cholesky(Sigma, lower=True).astype(np.complex256)
+			# SigmaI_dbar = scipy.linalg.cho_solve((Sigmacho,True), dbar)
+			SigmaI = scipy.linalg.inv(Sigma)
+			SigmaI_dbar = np.dot(SigmaI, dbar)
+			return SigmaI_dbar
+
+		else:
+			dbar_copy = dbar.copy()
+			dbar_copy_copy = dbar.copy()
+			# wrapmzpotrf.cpu_interface(len(Sigma), nrhs, Sigma, dbar_copy, 1) #to print debug
+			wrapmzpotrf.cpu_interface(len(Sigma), nrhs, Sigma, dbar_copy, 0)
+			logdet_Magma_Sigma = np.sum(np.log(np.diag(abs(Sigma))))*2 #Note: After wrapmzpotrf, Sigma is actually SigmaCho (i.e. L with SigmaLL^T)
+			# print logdet_Magma_Sigma
+			SigmaI_dbar = linalg.cho_solve((Sigma.conjugate().T,True), dbar_copy_copy)
+			return SigmaI_dbar, logdet_Magma_Sigma
+			
+
+
+
 		
 	def calc_dimensionless_power_spectral_normalisation_ltl(self, i_bin, **kwargs):
 		EoRVolume = 770937185.063917
@@ -204,7 +275,7 @@ class PowerSpectrumPosteriorProbability(object):
 
 	def posterior_probability(self, x, **kwargs):
 		if self.debug:brk()
-		
+
 		##===== Defaults =======
 		block_T_Ninv_T=self.block_T_Ninv_T
 		fit_single_elems = self.fit_single_elems

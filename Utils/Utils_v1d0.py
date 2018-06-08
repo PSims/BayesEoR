@@ -9,6 +9,7 @@ from astropy.io import fits
 import shutil
 import pylab
 from pdb import set_trace as brk
+import argparse
 
 ## ======================================================================================================
 ## ======================================================================================================
@@ -24,6 +25,7 @@ class PriorC(object):
 			theta_i = pmm[i_p][0]+((pmm[i_p][1]-pmm[i_p][0])*cube[i_p])
 			theta.append(theta_i)
 		return theta
+
 
 ## ======================================================================================================
 ## ======================================================================================================
@@ -51,13 +53,6 @@ class ParseCommandLineArguments(object):
 		except getopt.GetoptError:
 		    sys.exit(2)
 		return self.nq
-
-def get_true_false_id_string(Variable):
-	if Variable:
-		return 'T'
-	else:
-		return 'F'
-
 
 
 ## ======================================================================================================
@@ -448,8 +443,9 @@ def plot_signal_vs_MLsignal_residuals(true_signal, MLsignal, sigma, output_path=
 	##===== Inputs =======
 	if 'demarcate_baseline' in kwargs:
 		demarcate_baseline=kwargs['demarcate_baseline']
+
 	pylab.close('all')
-	fig,ax = pylab.subplots(nrows=3, ncols=2, figsize=(20,20))
+	fig,ax = pylab.subplots(nrows=4, ncols=2, figsize=(20,20))
 	ax[0,0].errorbar(arange(len(true_signal)), true_signal.real, color='black')
 	ax[0,0].errorbar(arange(len(MLsignal)), MLsignal.real, yerr=np.ones(len(MLsignal))*sigma,  color='red', fmt='+')
 	ax[0,0].legend(['Re(signal)', 'Re(ML fit)'], fontsize=20)
@@ -481,6 +477,28 @@ def plot_signal_vs_MLsignal_residuals(true_signal, MLsignal, sigma, output_path=
 	ax[2,1].legend(['$\mu={}$,\n$\sigma={}$, \n$\sigma_{}={}$'.format(np.round(residuals.imag.mean(),1), np.round(residuals.imag.std(),1), r'\mathrm{T}', np.round(sigma/2**0.5,1))], fontsize=20)
 	ax[2,1].set_ylabel('count', fontsize=20)
 	ax[2,1].set_xlabel('residual, arbitrary units', fontsize=20)
+
+	max_res_index_real = residuals.real.reshape(960,38).argmax()/38
+	max_res_index_real = 100
+	max_res_real = residuals.real.reshape(960,38)[max_res_index_real]
+	max_res_index_imag = residuals.imag.reshape(960,38).argmax()/38
+	max_res_index_imag = 100
+	max_res_imag = residuals.imag.reshape(960,38)[max_res_index_imag]
+	alpha=0.3
+
+	ax[3,0].errorbar(arange(len(max_res_real)), max_res_real, yerr=np.ones(len(max_res_real))*sigma,  color='red', fmt='+')
+	ax[3,0].errorbar(arange(len(max_res_real)), max_res_real,  color='red', fmt='-')
+	ax[3,0].legend(['$Re(s-m)$ residual'], fontsize=20)
+	ax[3,0].errorbar(arange(len(max_res_real)), true_signal.real.reshape(960,38)[max_res_index_real], color='black', fmt='-', alpha=alpha)
+	ax[3,0].errorbar(arange(len(max_res_real)), MLsignal.real.reshape(960,38)[max_res_index_real], color='black', fmt='--', alpha=alpha)
+	ax[3,0].set_ylabel('residual, arbitrary units', fontsize=20)
+	ax[3,0].set_xlabel('$uv$-cell', fontsize=20)
+	ax[3,1].errorbar(arange(len(max_res_imag)), max_res_imag, yerr=np.ones(len(max_res_imag))*sigma,  color='blue', fmt='+')
+	ax[3,1].errorbar(arange(len(max_res_imag)), max_res_imag,  color='blue', fmt='-')
+	ax[3,1].legend(['$Im(s-m)$ residual'], fontsize=20)
+	ax[3,1].errorbar(arange(len(max_res_real)), true_signal.imag.reshape(960,38)[max_res_index_imag], color='black', fmt='-', alpha=alpha)
+	ax[3,1].errorbar(arange(len(max_res_real)), MLsignal.imag.reshape(960,38)[max_res_index_imag], color='black', fmt='--', alpha=alpha)
+	ax[3,1].set_xlabel('$uv$-cell', fontsize=20)
 	for axi in ax.ravel(): axi.tick_params(labelsize=20)
 	if not output_path=='':fig.savefig(output_path)
 	if Show:fig.show()

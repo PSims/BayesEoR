@@ -2,7 +2,7 @@
 # Imports
 ###
 import matplotlib
-# matplotlib.use('pdf') #No pop-ups (comment out to interact with plots)
+matplotlib.use('pdf') #No pop-ups (comment out to interact with plots)
 import numpy as np
 import numpy
 from numpy import arange, shape, log10, pi
@@ -42,7 +42,7 @@ from SimData import generate_k_cube_model_spherical_binning, construct_GRN_unita
 from SimData import calc_mean_binned_k_vals
 
 from likelihood_tests.SimpleEoRtestWQ.Generate_matrix_stack_v1d1 import BuildMatrices
-from likelihood_tests.SimpleEoRtestWQ.Likelihood_v1d763_3D_ZM_standalone import PowerSpectrumPosteriorProbability
+from likelihood_tests.SimpleEoRtestWQ.Likelihood_v1d763_3D_ZM_standalone_GPU import PowerSpectrumPosteriorProbability
 
 from Utils import PriorC, ParseCommandLineArguments, DataUnitConversionmkandJyperpix, WriteDataToFits
 from Utils import ExtractDataFrom21cmFASTCube, plot_signal_vs_MLsignal_residuals
@@ -53,6 +53,7 @@ from Utils import remove_unused_header_variables, construct_aplpy_image_from_fit
 from GenerateForegroundCube import generate_Jelic_cube, generate_data_from_loaded_EoR_cube, generate_data_from_loaded_EoR_cube_v2d0
 from GenerateForegroundCube import generate_test_signal_from_image_cube
 from GenerateForegroundCube import top_hat_average_temperature_cube_to_lower_res_31x31xnf_cube
+from GenerateForegroundCube import generate_data_from_loaded_EGS_cube
 
 
 

@@ -421,7 +421,7 @@ def generate_data_from_loaded_EoR_cube_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z
 		os.makedirs(save_dir)
 
 	# scidata1 = top_hat_average_temperature_cube_to_lower_res_31x31xnf_cube(scidata1)
-	scidata1 = scidata1[0:nf,:124,:124]
+	# scidata1 = scidata1[0:nf,:124,:124]
 
 	import numpy
 	axes_tuple = (1,2)
@@ -433,6 +433,50 @@ def generate_data_from_loaded_EoR_cube_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z
 		vfft1=numpy.fft.ifftshift(scidata1[76:114]-scidata1[0].mean()+0j, axes=axes_tuple)
 	else:
 		vfft1=numpy.fft.ifftshift(scidata1[0:nf]-scidata1[0].mean()+0j, axes=axes_tuple)
+	vfft1=numpy.fft.fftn(vfft1, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
+	vfft1=numpy.fft.fftshift(vfft1, axes=axes_tuple)
+
+
+	sci_f, sci_v, sci_u = vfft1.shape
+	sci_v_centre = sci_v/2
+	sci_u_centre = sci_u/2
+	vfft1_subset = vfft1[0:nf,sci_u_centre-nu/2:sci_u_centre+nu/2+1,sci_v_centre-nv/2:sci_v_centre+nv/2+1]
+	s_before_ZM = vfft1_subset.flatten()/vfft1[0].size**0.5
+	# s_before_ZM = vfft1_subset.flatten()
+	ZM_vis_ordered_mask = np.ones(nu*nv*nf)
+	ZM_vis_ordered_mask[nf*((nu*nv)/2):nf*((nu*nv)/2+1)]=0
+	ZM_vis_ordered_mask = ZM_vis_ordered_mask.astype('bool')
+	ZM_chan_ordered_mask = ZM_vis_ordered_mask.reshape(-1, neta+nq).T.flatten()
+	s = s_before_ZM[ZM_chan_ordered_mask]
+
+	abc = s
+
+	return s, abc, scidata1
+
+
+
+## ======================================================================================================
+## ======================================================================================================
+
+
+def generate_data_from_loaded_EGS_cube(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show,EGS_npz_path='/users/psims/Cav/EoR/Missing_Radio_Flux/Surveys/Flux_Variance_Maps/S_Cubed/S_163_10nJy_Image_Cube_v34_18_deg_NV_15JyCN_With_Synchrotron_Self_Absorption/Fits/Flux_Density_Upper_Lim_15.0__Flux_Density_Lower_Lim_0.0/mk_cube/151_Flux_values_10NanoJansky_limit_data_result_18_Degree_Cube_RA_Dec_Degrees_and__10_pow_LogFlux_Columns_and_Source_Redshifts_and_Source_SI_and_Source_AGN_Type_Comb__mk.npz'):
+
+	print 'Using EGS foreground data'
+	#----------------------
+
+	scidata1 = np.squeeze(np.load(EGS_npz_path)['arr_0'])[:,10:10+512,10:10+512] #Take 12 deg. subset to match EoR cube
+
+	base_dir = 'Plots'
+	save_dir = base_dir+'/Likelihood_v1d75_3D_ZM/'
+	if not os.path.isdir(save_dir):
+		os.makedirs(save_dir)
+
+	# scidata1 = top_hat_average_temperature_cube_to_lower_res_31x31xnf_cube(scidata1)
+	scidata1 = scidata1[0:nf,:,:]
+
+	import numpy
+	axes_tuple = (1,2)
+	vfft1=numpy.fft.ifftshift(scidata1[0:nf]-scidata1[0].mean()+0j, axes=axes_tuple)
 	vfft1=numpy.fft.fftn(vfft1, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
 	vfft1=numpy.fft.fftshift(vfft1, axes=axes_tuple)
 

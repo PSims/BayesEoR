@@ -661,45 +661,52 @@ def IDFT_Array_IDFT_1D(nf, neta):
 def quadratic_array_linear_plus_quad_modes_only_v2(nf, nq=2, **kwargs):
 	##===== Defaults =======
 	default_npl = 0
+	default_nu_min_MHz = (163.0-4.0)
+	default_channel_width_MHz = 0.2
+	default_beta = 2.63
 	
 	##===== Inputs =======
 	npl=kwargs.pop('npl',default_npl)
+	nu_min_MHz=kwargs.pop('nu_min_MHz',default_nu_min_MHz)
+	channel_width_MHz=kwargs.pop('channel_width_MHz',default_channel_width_MHz)
+	beta=kwargs.pop('beta',default_beta)
 
 	quadratic_array = np.zeros([nq,nf])+0j
 	if nq==1:
-		###
-		# This function needs modifying so that all of the following information is passed to it rather than being hard coded!
-		nu_min_MHz = (163.0-4.0)
-		channel_width_MHz = 0.2
-		# beta_experimental_mean = 2.63+0
-		beta = 2.63
-		###
-		nu_array_MHz = nu_min_MHz+np.arange(nf)*channel_width_MHz
-		m_pl = np.array([(nu_array_MHz[i_nu]/nu_min_MHz)**-beta for i_nu in range(len(nu_array_MHz))])
-		quadratic_array[0] = m_pl
-	if nq==2:
-		x=arange(nf)-(nf/2)
+		x=arange(nf)-(nf/2.)
 		quadratic_array[0] = x
-		quadratic_array[1] = x**2
-		# 
-		# 
-		# 
-		# replace_quad_term_with_pl=True
-		# if replace_quad_term_with_pl:
 		if npl>0:
 			###
-			# This function needs modifying so that the following information is passed to it rather than being hard coded!
-			###
+			# This function needs modifying so that all of the following information is passed to it rather than being hard coded!
 			nu_min_MHz = (163.0-4.0)
 			channel_width_MHz = 0.2
 			# beta_experimental_mean = 2.63+0
 			beta = 2.63
 			###
-			nu_array_MHz = nu_min_MHz+np.arange(nf)*channel_width_MHz
+			nu_array_MHz = nu_min_MHz+np.arange(float(nf))*channel_width_MHz
+			m_pl = np.array([(nu_array_MHz[i_nu]/nu_min_MHz)**-beta for i_nu in range(len(nu_array_MHz))])
+			quadratic_array[0] = m_pl
+	if nq==2:
+		x=arange(nf)-(nf/2.)
+		quadratic_array[0] = x
+		quadratic_array[1] = x**2
+		# 
+		if npl>0:
+			###
+			# This function needs modifying so that the following information is passed to it rather than being hard coded!
+			###
+			# nu_min_MHz = (163.0-4.0)
+			# channel_width_MHz = 0.2
+			# # beta_experimental_mean = 2.63+0
+			# beta = 2.63
+			###
+			nu_array_MHz = nu_min_MHz+np.arange(float(nf))*channel_width_MHz
 			m_pl = np.array([(nu_array_MHz[i_nu]/nu_min_MHz)**-beta for i_nu in range(len(nu_array_MHz))])
 			quadratic_array[1] = m_pl
-		# 
-		# 
+			print '\nQuadratic LW mode replaced with power-law model'
+			print 'nu_min_MHz = ', nu_min_MHz
+			print 'channel_width_MHz = ', channel_width_MHz
+			print 'beta = ', beta, '\n'
 		# 
 	if nq==3:
 		x=arange(nf)
@@ -752,15 +759,21 @@ def quadratic_array_linear_plus_quad_modes_only_v2_ZM(nf, nq=2):
 def IDFT_Array_IDFT_1D_WQ(nf, neta, nq, **kwargs):
 	##===== Defaults =======
 	default_npl = 0
+	default_nu_min_MHz = (163.0-4.0)
+	default_channel_width_MHz = 0.2
+	default_beta = 2.63
 	
 	##===== Inputs =======
 	npl=kwargs.pop('npl',default_npl)
+	nu_min_MHz=kwargs.pop('nu_min_MHz)',default_nu_min_MHz)
+	channel_width_MHz=kwargs.pop('channel_width_MHz',default_channel_width_MHz)
+	beta=kwargs.pop('beta',default_beta)
 	
 	i_f=(np.arange(nf)-nf/2).reshape(-1,1)
 	i_eta=(np.arange(neta)-neta/2).reshape(1,-1)
 	ExponentArray=np.exp(+2.0*np.pi*1j*( (i_eta*i_f/float(nf)) ))
 	ExponentArray = ExponentArray/float(nf)
-	quadratic_array = quadratic_array_linear_plus_quad_modes_only_v2(nf, nq, npl=npl)
+	quadratic_array = quadratic_array_linear_plus_quad_modes_only_v2(nf, nq, npl=npl, nu_min_MHz=nu_min_MHz, channel_width_MHz=channel_width_MHz, beta=beta)
 	print quadratic_array
 	# quadratic_array = quadratic_array_linear_plus_quad_modes_only(neta)
 	Exponent_plus_quadratic_array = np.hstack((ExponentArray,quadratic_array.T))
