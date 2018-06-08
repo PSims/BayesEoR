@@ -713,7 +713,7 @@ def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vec
 	sigma_squared_array = np.ones(s.size)*sigma**2 + 0j*np.ones(s.size)*sigma**2
 	N = np.diag(sigma_squared_array)
 	Ninv = np.diag(1./sigma_squared_array)
-	logNDet=np.sum(np.log(sigma_squared_array))
+	if sigma>0: logNDet=np.sum(np.log(sigma_squared_array))
 	sigma_complex = sigma/2**0.5
 	noise_real = np.random.normal(0,sigma_complex,s.size)
 	noise_imag = np.random.normal(0,sigma_complex,s.size)

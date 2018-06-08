@@ -359,6 +359,7 @@ class PowerSpectrumPosteriorProbability(object):
 		default_dimensionless_PS=False
 		default_inverse_quadratic_power= 0.0
 		default_Print=False
+		default_debug=False
 		
 		##===== Inputs =======
 		self.diagonal_sigma=kwargs.pop('diagonal_sigma',default_diagonal_sigma)
@@ -369,6 +370,7 @@ class PowerSpectrumPosteriorProbability(object):
 		if self.dimensionless_PS:print 'Calculating dimensionless_PS'
 		self.inverse_quadratic_power=kwargs.pop('inverse_quadratic_power',default_inverse_quadratic_power)
 		self.Print=kwargs.pop('Print',default_Print)
+		self.debug=kwargs.pop('debug',default_debug)
 
 		self.fit_single_elems      = fit_single_elems
 		self.T_Ninv_T              = T_Ninv_T
@@ -519,6 +521,8 @@ class PowerSpectrumPosteriorProbability(object):
 		return PowerI
 
 	def posterior_probability(self, x, **kwargs):
+		if self.debug:brk()
+		
 		##===== Defaults =======
 		block_T_Ninv_T=self.block_T_Ninv_T
 		fit_single_elems = self.fit_single_elems
