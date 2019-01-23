@@ -227,8 +227,6 @@ print 'Output file_root = ', file_root
 
 PSPP_block_diag_Polychord = PowerSpectrumPosteriorProbability(T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes, modk_vis_ordered_list, block_T_Ninv_T=block_T_Ninv_T, log_priors=log_priors, dimensionless_PS=dimensionless_PS, Print=True)
 if zero_the_LW_modes: PSPP_block_diag_Polychord.inverse_LW_power=1.e20
-if sub_MLLWM: PSPP_block_diag_Polychord.dbar = q_sub_dbar
-if sub_ML_monopole_term_model: PSPP_block_diag_Polychord.dbar = q_sub_dbar
 if sub_ML_monopole_plus_first_LW_term_model: PSPP_block_diag_Polychord.dbar = q_sub_dbar
 
 start = time.time()

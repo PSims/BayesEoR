@@ -16,10 +16,24 @@ Analysis settings
 ###
 nf=38
 neta=38
-nu=31
-nv=31
-nx=31
-ny=31
+# nf=76
+# neta=76
+# nu=15
+# nv=15
+# nx=15
+# ny=15
+nu=9
+nv=9
+nx=9
+ny=9
+# nu=31
+# nv=31
+# nx=31
+# ny=31
+
+use_uniform_prior_on_min_k_bin = False
+# use_uniform_prior_on_min_k_bin = True #Don't use the min_kz voxels (eta \propto 1/B), which have significant correlation with the Fg model, in estimates of the low-k power spectrum 
+
 
 ###
 # EoR sim params
@@ -49,7 +63,10 @@ EoR_analysis_cube_y_Mpc = box_size_21cmFAST_Mpc_sc #Mpc Analysing the full FoV i
 # GDSE foreground params
 ###
 beta_experimental_mean = 2.63+0   #Matches beta_150_408 in Mozden, Bowman et al. 2016
+# beta_experimental_mean = 2.53+0   #Matches beta_150_408 in Mozden, Bowman et al. 2016
+# beta_experimental_mean = 2.60+0   #Matches beta_150_408 in Mozden, Bowman et al. 2016
 beta_experimental_std  = 0.02      #A conservative over-estimate of the dbeta_150_408=0.01 (dbeta_90_190=0.02) in Mozden, Bowman et al. 2016
+# beta_experimental_std  = 1.e-10      #A conservative over-estimate of the dbeta_150_408=0.01 (dbeta_90_190=0.02) in Mozden, Bowman et al. 2016
 gamma_mean             = -2.7     #Revise to match published values
 gamma_sigma            = 0.3      #Revise to match published values
 Tb_experimental_mean_K = 194.0    #Matches GSM mean in region A
@@ -62,7 +79,7 @@ simulation_FoV_deg = 12.0             #Matches EoR simulation
 simulation_resolution_deg = simulation_FoV_deg/511. #Matches EoR sim (note: use closest odd val., so 127 rather than 128, for easier FFT normalisation)
 fits_storage_dir = 'fits_storage/multi_frequency_band_pythonPStest1/Jelic_nu_min_MHz_{}_TbStd_{}_beta_{}_dbeta{}/'.format(nu_min_MHz, Tb_experimental_std_K, beta_experimental_mean, beta_experimental_std).replace('.','d')
 # HF_nu_min_MHz_array = [210,220,230]
-HF_nu_min_MHz_array = [210]
+HF_nu_min_MHz_array = [220]
 
 ###
 # diffuse free-free foreground params
@@ -93,14 +110,27 @@ EGS_npz_path = '/users/psims/Cav/EoR/Missing_Radio_Flux/Surveys/Flux_Variance_Ma
 ###
 nu_min_MHz = nu_min_MHz #Match spectral range of simulated signals
 channel_width_MHz = channel_width_MHz #Match spectral range of simulated signals
-beta = 2.63
+# beta = 2.63
 # beta = -2.0
+# beta = [2.63, 2.82, 2.0]
+beta = [2.63, 2.82]
+# beta = [-1.0, -2.0]
+# beta = [2.4, 3.0]
+# beta = False
+
+if beta:
+	if type(beta)==list:
+		npl = len(beta)
+	else:
+		npl=1
+else:
+	npl=0
+
 
 def BayesEoRParser():
 	parser = argparse.ArgumentParser()
 	parser.add_argument("-nq", "--nq", help="Number of LWM basis vectors (0-2)", default=2)
 	parser.add_argument("-beta", "--beta", help="Power law spectral index used in data model", default=beta)
-	# parser.add_argument("-beta", "--beta", help="Power law spectral index used in data model", default=2.63)
 	args = parser.parse_args() #Parse command line arguments
 	return args
 

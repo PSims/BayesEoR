@@ -415,6 +415,15 @@ def generate_data_from_loaded_EoR_cube_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z
 	###
 	scidata1 = np.load(EoR_npz_path)['arr_0']
 
+	Jacob_test__overwrite_EoR_cube_with_noise = True
+	# Jacob_test__overwrite_EoR_cube_with_noise = False
+	if Jacob_test__overwrite_EoR_cube_with_noise:
+		# np.random.seed(7254)
+		# np.random.seed(87254)
+		# np.random.seed(187254)
+		np.random.seed(287254)
+		scidata1 = np.random.normal(0,scidata1.std()*3.,scidata1.shape)
+
 	base_dir = 'Plots'
 	save_dir = base_dir+'/Likelihood_v1d75_3D_ZM/'
 	if not os.path.isdir(save_dir):

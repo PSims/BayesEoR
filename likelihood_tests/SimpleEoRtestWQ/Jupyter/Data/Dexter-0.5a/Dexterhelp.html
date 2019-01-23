@@ -1,0 +1,230 @@
+<HTML>
+<head>
+<TITLE>ADS Dexter Help</TITLE>
+</head>
+<body bgcolor="#ffffff"  text="#000000" link="#0000ff" alink="#ff0000" vlink="#4000a0">
+<CENTER>
+<H1><A HREF="http://adswww.harvard.edu/">ADS</A> Dexter help</H1></H1>
+</CENTER>
+<P ALIGN="CENTER">Please report errors or malfunctions of Dexter
+to <a href="mailto:gavo@ari.uni-heidelberg.de">gavo@ari.uni-heidelberg.de</a>.
+If possible, please include the contents of your Browser's Java Console.</P>
+
+<p>Dexter is a little tool to extract data from figures on scanned pages
+from ADS' article service.  A standalone version is available at
+<a href="http://vo.ari.uni-heidelberg.de/sdexter">http://vo.ari.uni-heidelberg.de/sdexter</a> To use it, you need a browser that can execute
+Java Applets and has that feature enabled.</p>
+
+<H2>Figure Selection Page</H2>
+<p>The site operators have usually set up Dexter such that you first have to
+select the portion of an image you want to work on.  On this page, please wait
+until a scaled-down version of the image is entirely downloaded.  To select a
+figure, just click on one corner of the figure, hold the (left) mouse button
+and adjust the rubber band to encompass the entire figure.  If the figure is
+larger than the applet area, the visible portion of the page will follow your
+mouse pointer.  When you are done, release the mouse button, and the...</P>
+
+<H2>Data Extraction Window</H2>
+<P>will pop up.  The site operators can set up Dexter such that 
+this extraction window will pop up automatically on an entire image -- the 
+standalone service mentioned above does this for uploaded images.</p>
+
+<p>Again, you should wait until the image is fully downloaded, at
+which point the window will resize to show as much of the image as is possible
+on your screen.
+After that, the usual action sequence in there is</P>
+<UL>
+
+<LI>click-and-drag a gauge along the horizontal axis (this will be a red 
+line)</LI>
+
+<LI>click-and-drag a gauge along the vertical axis (this will be a blue 
+line)</LI>
+
+<LI>fill in the boxes marked x0/x1 and y0/y1 with the lower and upper values
+marked by the gauges</LI>
+
+<LI>left click on the points in the diagram to set points.  To remove a
+point, shift-click or use the middle mouse button</LI>
+
+<LI>optionally change the output file name</LI>
+
+<LI>click on either the "Send Data" or the "Save Data" button to 
+receive the file with the data points</LI>
+
+</UL>
+
+<p>"Send data" will display the extracted data on the figure selection page 
+(which is present even if the extraction window popped up automatically).
+"Save data" will usually (depending on the setup of your browser)
+bring up a "Save file as..."-type dialog.  On the standalone version,
+it will additionally store the extracted file on the server for later 
+retrieval.  You can delete these server-side files and should do so if you 
+notice a mistake.</p>
+
+<p>Instead of manually marking the gauges, you can select
+<strong>automatic axes</strong> from the Recognizer Window or
+hit Control-A.  You can adjust the gauges by dragging their end
+points</p>
+
+<h3>Special Features</h3>
+
+<P>Under the "Zoom" pull down menu, you have entries from 75dpi
+to 600dpi to <STRONG>change the resolution</STRONG> of the
+image -- for large figures, you may want to use 100 dpi, small 
+figures will require 300dpi.  Use these buttons if your screen is too
+small for the entire image or the figure is so small that you cannot
+mark points with sufficient accuracy.  Please note that you
+Java virtual machine may not have enough memory for high
+resolution renderings of large images.</P>
+
+<p>If you uploaded an image to the standalone service, these resolutions
+are of course just random numbers since the service in general does not know 
+the original resolution of the source file.  600 dpi here correspond to
+the an unscaled version of the uploaded image.</p>
+
+<P>The <STRONG>coordinates</STRONG> of the mouse pointer are shown in the last
+line of the data extraction window.  The coordinates will be in pixels as long
+as you have not defined both axes, and in graph coordinates otherwise.  If you
+change one of the text fields, you may have to force a loss of keyboard focus
+on that text field for the change to become effective for the mouse tracking,
+e.g. by clicking into the output field, pressing the tab key, setting a data
+point, or the like.  Unfortunately, this behavior is platform dependent, and
+you will have to try for yourself to see what works on your machine.</P>
+
+<P><EM>After</EM> you have defined the axes, you can set <STRONG>error bars</STRONG> by clicking
+and dragging <EM>on</EM> an existing data point.  Error bars are always parallel
+to the axes at the point of time of their creation.  On output, the
+error bars are shown in up to four additional columns, with horizontal
+error bars first if both vertical and horizontal ones were marked; "plus"
+and "minus" errors are indicated by the applicable sign.
+If you miss the data point, Dexter starts to draw another axis gauge.
+To avoid clobbering your previous gauge, drop the new gauge when its length is
+below Dexter's lower limit on gauge length (about 30 pixels).
+To entirely
+remove (as opposed to resize) the error bars, delete the data point and
+set a new one.</P>
+
+<P>If the diagram has <STRONG>logarithmic axes</STRONG>, check the "log" check button.
+Note that you should not check this button if the logarithm of a
+quantity is plotted on a linear scale.</P>
+
+<p>Dexter has a <strong>magnifying glass</strong> that is by default
+turned off because some (faulty) Java run-time libraries cause
+the applet to slow to a crawl when it is turned on or cause
+other funny effects.  To turn it on, just click on the sketched
+magnifying glass on the left side of the applet.  Clicking on
+the area of the magnifying glass once more deactivates it again.</p>
+
+<p>The magnifying glass currently does not show "temporary"
+features (axes and error bars during their creation), and you
+may have to move the mouse to update the display after you set
+a point.  We are looking to change this without slowing down
+Dexter.</p>
+
+<h3>Recognizers</h3>
+
+<p>You can ask Dexter to do some of the marking of data points
+automatically.  Currently, three operations are supported: axis
+finding, line tracing, and point marking.  In general, teaching
+a computer to recognize features is a highly nontrivial task,
+so you should not expect miracles.  For many plots, though,
+Dexter's recognizers might save you some time.</p>
+
+<p>All recognizers
+run in separate threads, so that you can continue working
+with Dexter.  While they are running, certain operations are
+not allowed (e.g., changing resolution, sending data), 
+and the respective buttons or menu entries are
+greyed out.  As long as a recognizer is running, there will be
+a notice "Recog. running" in Dexter's status line.</p>
+
+<p>Some parameters used by the recognizers can be changed using
+the Recognizer/Settings dialog.  The settings become effective
+as you change them.</p>
+
+<p>Because the recognizers may set a large number of points,
+there is a menu entry Delete all Points in the Recognizer
+pull-down menu.  Selecting this really deletes all points set,
+not only those set by a recognizer.  You may want to use that
+feature while experimenting with various parameters for the
+recognizers.</p>
+
+<p>To stop a running recognizer, select "Stop Recognizer" in
+the Recognizer pull-down menu.<p>
+
+<p>The run time of recognizers with current Java
+implementations is mainly a function of the image size, since
+they spend most of their time transforming the image into
+something that is accessible by the program.  Also, this
+conversion requires significant amounts of memory.  If a
+recognizer runs out of memory, it may just stop working (though
+in general we try to catch these cases and warn the user). 
+Reducing the resolution might help.</p>
+
+<h4>Axis Finding</h4>
+
+<p>To make Dexter identify the gauges on the axes, select
+Recognize/Automatic Axes or type Control-A.  Note that no gauge
+will be set if Dexter cannot find any ticks on an axis.</p>
+
+<h4>Line Tracing</h4>
+
+<p>This recognizer follows a line and leaves points along it
+where it thinks something "interesting" happens or at invervals
+configurable in the Settings dialog.  When you start the line
+tracer either by selecting Recognizer/Trace a line or hitting
+Control-T, the mouse pointer will change to a pointing finger. 
+Click on the line you want Dexter to trace, and after a little
+time you should see points marked along the line.  At junctions
+of lines, the tracer may become confused and take the wrong
+way, or it may lose the line at certain extreme points.  In
+these cases is may help to give the line tracer a different
+start point or to let it run more than once.</p>
+
+<h4>Point Finding</h4>
+
+<p>This recognizer tries to register points similar to a
+user-defined template within a graph.  After you start it by
+either selecting Recognizer/Find Points or Control-B, it asks
+you to click on a template point.  When there are error bars in
+the graph, either select a template without error bars or one
+with large error bars (i.e., error bars larger than the marker
+itself), or Dexter will add the error bars into the
+template and will have a hard time finding anything similar to
+the template.</p>
+
+<p>The distance measure used by the point finder is the number
+of matching points normalized by the total number of points in
+the template area, where two points match if they are both
+black or both white after thresholding.<p>
+
+<p>You can change the maximal acceptable difference between a
+template and an acceptable data point in the
+settings dialog.  For bad scans, it may be necessary to raise
+this value.</p>
+
+<p>The point finder will not accept templates smaller than 4x4
+pixels.  If you run into this limitation (Dexter will complain
+that it could not find the start object), try increasing the
+resolution.</p>
+
+<a name="Browsers"><H2>Browsers</H2></a>
+
+<p>The apple JVM on classic MacOS disallows Dexter to open its child
+window by default.  If Dexter complains that it is not allowed to open
+a window, go to Preferences, select the Java tab and check "Don't check"
+in the combo box for code checking.  We recommend to undo this selection 
+after using Dexter.</p>
+
+<HR>
+
+<p>A source distribution of Dexter is available at 
+<a href="http://Dexter.sourceforge.net">sourceforge</a> under
+the GNU General Public Licence.</p>
+
+<HR>
+
+<address><a href="mailto:gavo@ari.uni-heidelberg.de">gavo@ari.uni-heidelberg.de</a></address>
+</BODY>
+</HTML>

@@ -2,7 +2,7 @@
 # Imports
 ###
 import matplotlib
-matplotlib.use('pdf') #No pop-ups (comment out to interact with plots)
+# matplotlib.use('pdf') #No pop-ups (comment out to interact with plots)
 import numpy as np
 import numpy
 from numpy import arange, shape, log10, pi
@@ -29,7 +29,8 @@ from Linalg import IDFT_Array_IDFT_1D_WQ, generate_gridding_matrix_vis_ordered_t
 from Linalg import IDFT_Array_IDFT_1D_WQ_ZM, generate_gridding_matrix_vis_ordered_to_chan_ordered_ZM
 
 from SimData import generate_test_sim_signal, map_out_bins_for_power_spectral_coefficients
-from SimData import generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector
+# from SimData import generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector
+from SimData import generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2
 from SimData import map_out_bins_for_power_spectral_coefficients_WQ_v2, generate_k_cube_in_physical_coordinates
 from SimData import map_out_bins_for_power_spectral_coefficients_HERA_Binning
 from SimData import map_out_bins_for_power_spectral_coefficients_WQ_v2_HERA_Binning
@@ -46,7 +47,7 @@ from likelihood_tests.SimpleEoRtestWQ.Likelihood_v1d763_3D_ZM_standalone_GPU imp
 
 from Utils import PriorC, ParseCommandLineArguments, DataUnitConversionmkandJyperpix, WriteDataToFits
 from Utils import ExtractDataFrom21cmFASTCube, plot_signal_vs_MLsignal_residuals
-from Utils import generate_output_file_base
+from Utils import generate_output_file_base, RenormaliseMatricesForScaledNoise
 
 from Utils import remove_unused_header_variables, construct_aplpy_image_from_fits
 
