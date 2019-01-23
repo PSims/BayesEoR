@@ -22,19 +22,32 @@ else:
 # Model Params
 args = p.BayesEoRParser()
 print args
+npl = p.npl
 print 'p.beta', p.beta
-if args.beta: p.beta = float(args.beta) #Overwrite parameter file beta with value chosen from the command line if it is included 
+if args.beta:
+	if args.beta.count('[') and args.beta.count(']'):
+		p.beta = map(float, args.beta.replace('[','').replace(']','').split(',')) #Overwrite parameter file beta with value chosen from the command line if it is included
+		npl = len(p.beta) #Overwrites quadratic term when nq=2, otherwise unused.
+	elif type(args.beta)==list:
+		p.beta = args.beta #Overwrite parameter file beta with value chosen from the command line if it is included 
+		npl = len(p.beta)
+	else:
+		p.beta = float(args.beta) #Overwrite parameter file beta with value chosen from the command line if it is included 
+		npl = 1
+
 print 'args.beta', args.beta
 print 'p.beta', p.beta
+print 'args.nq', args.nq
 
 # raw_input()
 
-nq = 2 #Overwrite PCLA selection
-npl = 1 #Overwrites quadratic term when nq=2, otherwise unused.
+nq = int(args.nq)
+# nq = 2 #Overwrite PCLA selection
+#npl = 0 #Overwrites quadratic term when nq=2, otherwise unused.
 print 'nq', nq
 print 'npl', npl
 sub_ML_monopole_term_model = False #Improve numerical precision. Can be used for improving numerical precision when performing evidence comparison.
-sub_ML_monopole_plus_first_LW_term_model = True #Improve numerical precision. Can be used for improving numerical precision when performing evidence comparison.
+sub_ML_monopole_plus_first_LW_term_model = False #Improve numerical precision. Can be used for improving numerical precision when performing evidence comparison.
 sub_MLLWM = False #Improve numerical precision. DO NOT USE WHEN PERFORMING EVIDENCE COMPARISON! Can only be used for parameter estimation not evidence comparison since subtracting different MLLWM (with different evidences) from the data when comparing different LWMs will alter the relative evidences of the subtracted models. In effect subtracting a higher evidence MLLWM1 reduces the evidence for the fit to the residuals with MLLWM1 relative to fitting low evidence MLLWM2 and refitting with MLLWM2. It is only correct to compare evidences when doing no qsub or when the qsub model is fixed such as with sub_ML_monopole_term_model.
 # Cube size
 nf=p.nf
@@ -45,7 +58,8 @@ nv=p.nv
 nx=p.nx
 ny=p.ny
 # Data noise
-sigma=100.e-1
+# sigma=100.e-1
+sigma=50.e-1
 # Auxiliary and derived params
 small_cube = nu<=7 and nv<=7
 nuv = (nu*nv-1)
@@ -58,9 +72,14 @@ n_LW = (nu*nv-1)*nq
 n_model = n_Fourier+n_LW
 n_dat = n_Fourier
 current_file_version = 'Likelihood_v1d76_3D_ZM'
-array_save_directory = 'array_storage/{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(current_file_version,nu,nv,neta,nq,npl,sigma).replace('.','d')
-if npl>0:
+# array_save_directory = 'array_storage/{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(current_file_version,nu,nv,neta,nq,npl,sigma).replace('.','d')
+array_save_directory = 'array_storage/batch_1/{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(current_file_version,nu,nv,neta,nq,npl,sigma).replace('.','d')
+# array_save_directory = 'array_storage/batch_2/{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(current_file_version,nu,nv,neta,nq,npl,sigma).replace('.','d')
+if npl==1:
 	array_save_directory=array_save_directory.replace('_sigma', '_beta_{:.2E}_sigma'.format(p.beta))
+if npl==2:
+	array_save_directory=array_save_directory.replace('_sigma', '_b1_{:.2E}_b2_{:.2E}_sigma'.format(p.beta[0], p.beta[1]))
+
 
 
 #--------------------------------------------
@@ -112,6 +131,12 @@ k_z_masked = generate_masked_coordinate_cubes(k_z, nu,nv,nx,ny,nf,neta,nq)
 mod_k_masked = generate_masked_coordinate_cubes(mod_k, nu,nv,nx,ny,nf,neta,nq)
 
 k_cube_voxels_in_bin, modkbins_containing_voxels = generate_k_cube_model_spherical_binning(mod_k_masked, k_z_masked, nu,nv,nx,ny,nf,neta,nq)
+
+if p.use_uniform_prior_on_min_k_bin:
+	print 'Excluding min-kz bin...'
+	k_cube_voxels_in_bin = k_cube_voxels_in_bin[1:]
+	modkbins_containing_voxels = modkbins_containing_voxels[1:]
+
 modk_vis_ordered_list = [mod_k_masked[k_cube_voxels_in_bin[i_bin]] for i_bin in range(len(k_cube_voxels_in_bin))]
 k_vals_file_name = 'k_vals_nu_{}_nv_{}_nf_{}_nq_{}.txt'.format(nu,nv,nf,nq)
 k_vals = calc_mean_binned_k_vals(mod_k_masked, k_cube_voxels_in_bin, save_k_vals=True, k_vals_file=k_vals_file_name)
@@ -124,7 +149,7 @@ if do_cylindrical_binning:
 #--------------------------------------------
 # Generate mock-GDSE data
 #--------------------------------------------
-use_GDSE_foreground_cube = True
+use_GDSE_foreground_cube = False
 if use_GDSE_foreground_cube:
 	###
 	# GDSE foreground_outputs
@@ -142,7 +167,7 @@ if use_GDSE_foreground_cube:
 #--------------------------------------------
 # Generate mock-free-free data
 #--------------------------------------------
-use_freefree_foreground_cube = True
+use_freefree_foreground_cube = False
 if use_freefree_foreground_cube:
 	###
 	# diffuse free-free foreground_outputs
@@ -159,7 +184,7 @@ if use_freefree_foreground_cube:
 #--------------------------------------------
 # Load EGS data
 #--------------------------------------------
-use_EGS_cube = True
+use_EGS_cube = False
 if use_EGS_cube:
 	print 'Using use_EGS_cube data'
 	s_EGS, abc_EGS, scidata1_EGS = generate_data_from_loaded_EGS_cube(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show,p.EGS_npz_path)
@@ -227,58 +252,58 @@ if calc_uv_domain_noise_in_Jy:
 
 
 
-
 #--------------------------------------------
 # Define data vector
 #--------------------------------------------
 if use_EoR_cube:
 	print 'Using EoR cube'
-	d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector(sigma, s_EoR)[0]
+	d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq)[0]
 	s_Tot = s_EoR.copy()
 	if use_GDSE_foreground_cube:
 		print 'Using GDSE cube'
-		d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector(0.0, fg_GDSE)[0]
+		d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(0.0, fg_GDSE, nu,nv,nx,ny,nf,neta,nq)[0]
 		s_Tot += fg_GDSE
 		s_fgs_only = fg_GDSE.copy()
 	if use_freefree_foreground_cube:
 		print 'Using free-free cube'
-		d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector(0.0, s_ff)[0]
+		d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(0.0, s_ff, nu,nv,nx,ny,nf,neta,nq)[0]
 		s_Tot += s_ff
 		s_fgs_only += s_ff
 	if use_EGS_cube:
 		print 'Using EGS cube'
-		d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector(0.0, s_EGS)[0]
+		d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(0.0, s_EGS, nu,nv,nx,ny,nf,neta,nq)[0]
 		s_Tot += s_EGS
 		s_fgs_only += s_EGS
 elif use_GDSE_foreground_cube:
-	d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector(sigma, fg_GDSE)[0]
+	d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(sigma, fg_GDSE, nu,nv,nx,ny,nf,neta,nq)[0]
 	s_Tot = fg_GDSE.copy()
 	s_fgs_only = fg_GDSE.copy()
 	print 'Using GDSE cube'
 	if use_freefree_foreground_cube:
-		d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector(0.0, s_ff)[0]
+		d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(0.0, s_ff, nu,nv,nx,ny,nf,neta,nq)[0]
 		s_Tot += s_ff.copy()
 		s_fgs_only += s_ff.copy()
 		print 'Using free-free cube'
 	if use_EGS_cube:
-		d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector(0.0, s_EGS)[0]
+		d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(0.0, s_EGS, nu,nv,nx,ny,nf,neta,nq)[0]
 		s_Tot += s_EGS.copy()
 		s_fgs_only += s_EGS.copy()
 		print 'Using EGS cube'
 elif use_EGS_cube:
-	d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector(sigma, s_EGS)[0]
+	d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(sigma, s_EGS, nu,nv,nx,ny,nf,neta,nq)[0]
 	s_Tot = s_EGS.copy()
 	s_fgs_only = s_EGS.copy()
 	print 'Using EGS cube'
 elif use_free_free_foreground_cube:
-	d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector(sigma, s_ff)[0]
+	d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(sigma, s_ff, nu,nv,nx,ny,nf,neta,nq)[0]
 	s_Tot = s_ff.copy()
 	s_fgs_only = s_ff.copy()
 	print 'Using free-free cube'
 else:
-	d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector(sigma, s_EoR)[0]
+	d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq)[0]
 	s_Tot = s_EoR.copy()
 	print 'Using EoR cube'
+
 
 #--------------------------------------------
 # Load base matrices used in the likelihood and define related variables
@@ -296,6 +321,261 @@ nDims = len(k_cube_voxels_in_bin)
 x=[100.e0]*nDims
 nuv = (nu*nv-1)
 block_T_Ninv_T = np.array([np.hsplit(block,nuv) for block in np.vsplit(T_Ninv_T,nuv)])
+
+
+
+
+
+
+# run_nudft_test=True
+run_nudft_test=False
+if run_nudft_test:
+	###
+	def Produce_Coordinate_Arrays_ZM(nu, nv, nx, ny):
+		#U_oversampling_Factor=nu/float(nx) #Keeps uv-plane size constant and oversampled rather than DFTing to a larger uv-plane
+		#V_oversampling_Factor=nv/float(ny) #Keeps uv-plane size constant and oversampled rather than DFTing to a larger uv-plane
+		#
+		i_y_Vector=(np.arange(ny)-ny/2)
+		#i_y_Vector=numpy.fft.fftshift(arange(ny)) #This puts the centre of x,y grid: 0,0 at the centre of the vector rather than the start
+		i_y_Vector=i_y_Vector.reshape(1,ny)
+		i_y_Array=np.tile(i_y_Vector,ny)
+		i_y_Array_Vectorised=i_y_Array.reshape(nx*ny,1)
+		i_y_AV=i_y_Array_Vectorised
+		#
+		i_x_Vector=(np.arange(nx)-nx/2)
+		#i_x_Vector=numpy.fft.fftshift(arange(nx)) #This puts the centre of x,y grid: 0,0 at the centre of the vector rather than the start
+		i_x_Vector=i_x_Vector.reshape(nx,1)
+		i_x_Array=np.tile(i_x_Vector,nx)
+		i_x_Array_Vectorised=i_x_Array.reshape(nx*ny,1)
+		i_x_AV=i_x_Array_Vectorised
+		#
+		i_v_Vector=(np.arange(nu)-nu/2)
+		#i_v_Vector= numpy.fft.fftshift(arange(nu)) #This puts the centre of u,v grid: 0,0 at the centre of the vector rather than the start
+		i_v_Vector=i_v_Vector.reshape(1,nu)
+		i_v_Array=np.tile(i_v_Vector,nv)
+		i_v_Array_Vectorised=i_v_Array.reshape(1,nu*nv)
+		i_v_AV=i_v_Array_Vectorised
+		i_v_AV=numpy.delete(i_v_AV,[i_v_AV.size/2]) #Remove the centre uv-pix
+		#
+		i_u_Vector=(np.arange(nv)-nv/2)
+		#i_u_Vector=numpy.fft.fftshift(arange(nv)) #This puts the centre of u,v grid: 0,0 at the centre of the vector rather than the start
+		i_u_Vector=i_u_Vector.reshape(nv,1)
+		i_u_Array=np.tile(i_u_Vector,nu)
+		i_u_Array_Vectorised=i_u_Array.reshape(1,nv*nu)
+		i_u_AV=i_u_Array_Vectorised
+		i_u_AV=numpy.delete(i_u_AV,[i_u_AV.size/2]) #Remove the centre uv-pix
+		#
+		#
+		#ExponentArray=np.exp(-2.0*np.pi*1j*( (i_x_AV*i_u_AV/float(nx)) +  (i_v_AV*i_y_AV/float(ny)) ))
+		return i_x_AV, i_y_AV, i_u_AV, i_v_AV
+
+
+
+	nu, nv, nx, ny = p.nu, p.nv, p.nx, p.ny
+
+
+	###
+	def DFT_Array_DFT_2D_ZM(nu, nv, nx, ny):
+		#
+		i_x_AV, i_y_AV, i_u_AV, i_v_AV = Produce_Coordinate_Arrays_ZM(nu, nv, nx, ny)
+		#
+		ExponentArray=np.exp(-2.0*np.pi*1j*( (i_x_AV*i_u_AV/float(nx)) +  (i_v_AV*i_y_AV/float(ny)) ))
+		return ExponentArray
+
+
+
+	use_HERA_uv_coverage = True
+	# use_HERA_uv_coverage = False
+	if use_HERA_uv_coverage:
+		i_x_AV, i_y_AV, i_u_AV, i_v_AV = Produce_Coordinate_Arrays_ZM(nu, nv, nx, ny)
+		Jacob_uv_dict_dir = '/gpfs/data/jpober/shared/bayeseor_files/'
+		uv_array = np.load(Jacob_uv_dict_dir+'noise_hera7-hex_1.0e+01rms_38nfreqs_5ntimes_phased.npy').item()
+		i_u_AV = uv_array['uvw_array'][:,0]
+		i_v_AV = uv_array['uvw_array'][:,1]
+
+		# Check uv_array is Hermitian (everything should print true)
+		for uv in uv_array['uvw_array'][:,:2]:                                 
+		    if not (uv in uv_array['uvw_array'][:,:2] and -uv in uv_array['uvw_array'][:,:2]):
+		    	print 'ERROR, uv_array is not Hermitian'
+
+
+	else:
+		i_x_AV, i_y_AV, i_u_AV, i_v_AV = Produce_Coordinate_Arrays_ZM(nu, nv, nx, ny)
+		# i_u_AV = i_u_AV/2.
+		# i_v_AV = i_v_AV/2.
+		np.random.seed(123)
+		i_u_AV_pt1 = np.random.uniform(i_u_AV.min(), i_u_AV.max(), len(i_u_AV)*3)
+		i_u_AV = np.hstack((i_u_AV_pt1, -1.*i_u_AV_pt1[::-1]))
+		np.random.seed(456)
+		i_v_AV_pt1 = np.random.uniform(i_v_AV.min(), i_v_AV.max(), len(i_v_AV)*3)
+		i_v_AV = np.hstack((i_v_AV_pt1, -1.*i_v_AV_pt1[::-1]))
+
+	pylab.close('all')
+	pylab.figure()
+	pylab.scatter(i_u_AV, i_v_AV)
+	pylab.show()
+
+
+	dft_array = np.exp(-2.0*np.pi*1j*( (i_x_AV*i_u_AV/float(nx)) +  (i_v_AV*i_y_AV/float(ny)) ))
+
+
+
+
+
+	# dft_array = BM.read_data_from_hdf5(array_save_directory+'dft_array.h5', 'dft_array')
+	Finv = block_diag(*[dft_array.T for i in range(p.nf)])
+
+	# Finv = BM.read_data_from_hdf5(array_save_directory+'Finv.h5', 'Finv')
+	Fprime_Fz = BM.read_data_from_hdf5(array_save_directory+'Fprime_Fz.h5', 'Fprime_Fz')
+	T = np.dot(Finv, Fprime_Fz)
+	# Ninv = BM.read_data_from_hdf5(array_save_directory+'Ninv.h5', 'Ninv')
+	Ninv = np.identity(T.shape[0])*1./sigma**2.	+0j
+	Ninv_T = np.dot(Ninv,T)
+	T_Ninv_T = np.dot(T.conjugate().T,Ninv_T)
+
+
+
+	pylab.close('all')
+	pylab.figure()
+	pylab.imshow((dft_array.real))
+	pylab.colorbar()
+	pylab.show()
+
+
+	pylab.close('all')
+	pylab.figure()
+	pylab.imshow((abs(Finv)))
+	pylab.colorbar()
+	pylab.show()
+
+
+	pylab.close('all')
+	pylab.figure()
+	pylab.imshow(np.log10(abs(T)))
+	pylab.colorbar()
+	pylab.show()
+
+
+	theta_test = np.zeros(T.shape[1])
+	# theta_test[38*0+17] = 1.0
+	for i in range(8):
+		theta_test[38*i+17] = 1.0
+
+	m_test = np.dot(T,theta_test)
+
+	pylab.figure()
+	pylab.imshow(abs(m_test.reshape(38,-1)))
+	pylab.colorbar()
+	pylab.show()
+
+
+	pylab.figure()
+	pylab.errorbar(arange(38), m_test.reshape(38,-1)[:,0].real)
+	pylab.errorbar(arange(38), m_test.reshape(38,-1)[:,0].imag)
+	# pylab.show()
+
+	pylab.figure()
+	pylab.errorbar(arange(38), abs(m_test.reshape(38,-1)[:,0]))
+	pylab.show()
+
+
+	Sigma = T_Ninv_T.copy()
+	Sigma[np.diag_indices(len(T_Ninv_T))] += 1.e-10
+	Sigma_inv = np.linalg.inv(Sigma)
+	a = np.dot(Sigma_inv, Sigma)
+
+
+	pylab.figure()
+	pylab.imshow(abs(a))
+	pylab.colorbar()
+	pylab.figure()
+	pylab.imshow(np.log10(abs(a)))
+	pylab.colorbar()
+	pylab.show()
+
+
+	if p.useGPU:
+		import pycuda.autoinit
+		import pycuda.driver as cuda
+		for devicenum in range(cuda.Device.count()):
+		    device=cuda.Device(devicenum)
+		    attrs=device.get_attributes()
+		    print("\n===Attributes for device %d"%devicenum)
+		    for (key,value) in attrs.iteritems():
+		        print("%s:%s"%(str(key),str(value)))
+
+		import time
+		import numpy as np
+		import ctypes
+		from numpy import ctypeslib
+		from scipy import linalg
+		from subprocess import os
+
+		current_dir = os.getcwd()
+		base_dir = '/'.join(current_dir.split('/')[:np.where(np.array(current_dir.split('/'))=='BayesEoR')[0][-1]])+'/BayesEoR/'
+		GPU_wrap_dir = base_dir+'likelihood_tests/SimpleEoRtestWQ/GPU_wrapper/'
+		wrapmzpotrf=ctypes.CDLL(GPU_wrap_dir+'wrapmzpotrf.so')
+		nrhs=1
+		wrapmzpotrf.cpu_interface.argtypes = [ctypes.c_int, ctypes.c_int, ctypeslib.ndpointer(np.complex128, ndim=2, flags='C'), ctypeslib.ndpointer(np.complex128, ndim=1, flags='C'), ctypes.c_int]
+		print 'Computing on GPU'
+
+		print 'performing GPU inversion check...'
+		dbar=np.ones_like(d)
+		Sigma = T_Ninv_T.copy()
+		# powers = 1.e-10
+		powers = 10.
+		Sigma[np.diag_indices(len(T_Ninv_T))] += powers
+
+		dbar_copy = dbar.copy()
+		dbar_copy_copy = dbar.copy()
+		# wrapmzpotrf.cpu_interface(len(Sigma), nrhs, Sigma, dbar_copy, 1) #to print debug
+		wrapmzpotrf.cpu_interface(len(Sigma), nrhs, Sigma, dbar_copy, 0)
+
+		logdet_Magma_Sigma = np.sum(np.log(np.diag(abs(Sigma))))*2 #Note: After wrapmzpotrf, Sigma is actually SigmaCho (i.e. L with SigmaLL^T)
+		SigmaI_dbar = linalg.cho_solve((Sigma.conjugate().T,True), dbar_copy_copy)
+
+		Sigma = T_Ninv_T.copy()
+		Sigma[np.diag_indices(len(T_Ninv_T))] += powers
+		Sigma_SigmaI_dbar = np.dot(Sigma, SigmaI_dbar)
+
+		returned_arrays_are_equal = np.allclose(dbar, Sigma_SigmaI_dbar, rtol=sigma/1.e3)
+		if returned_arrays_are_equal:
+			print 'Sigma inversion worked correctly'
+		else:
+			print 'A problem occured with the inversion of Sigma.....'
+
+
+
+
+
+
+# Fz = BM.read_data_from_hdf5(array_save_directory+'Fz.h5', 'Fz')
+
+# import pylab
+# pylab.imshow(np.log10(abs(Fz)))
+# pylab.colorbar()
+# pylab.show()
+
+# import pylab
+# pylab.figure()
+# pylab.errorbar(arange(len(Fz[:,0][::8])), Fz[:,30][0::8].real)
+# pylab.figure()
+# pylab.errorbar(arange(len(Fz[:,0][::8])), Fz[:,30][0::8].imag)
+# pylab.show()
+
+# dt1 = np.dot(Fz,np.ones(len(Fz)))
+# pylab.figure()
+# pylab.errorbar(arange(len(dt1)), dt1.real)
+# pylab.figure()
+# pylab.errorbar(arange(len(dt1)), dt1.imag)
+# pylab.show()
+
+# Fz_Ninv_Fz = np.dot(Fz.conjugate().T, np.dot(Ninv, Fz))
+# Fz_Ninv_d  = np.dot(Fz.conjugate().T, np.dot(Ninv, dt1))
+# print np.dot(np.linalg.inv(Fz_Ninv_Fz), Fz_Ninv_d)
+
+
+
 
 
 
@@ -413,7 +693,7 @@ if small_cube and not use_EoR_cube and nq==2:
 	# maxL_k_cube_fourier_modes[LW_modes_only_boolean_array_vis_ordered] = 0.0
 	maxL_k_cube_fourier_modes[LW_modes_only_boolean_array_vis_ordered_v2] = 0.0
 	f_component_of_maxL_of_f_plus_q_signal = np.dot(T,maxL_k_cube_fourier_modes)
-	plot_signal_vs_MLsignal_residuals(s_EoR, f_component_of_maxL_of_f_plus_q_signal, sigma, save_dir+'Fourier_component_of_signal_model_fit_and_residuals_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}_beta_{}.png'.format(nu,nv,neta,nq,npl,sigma,p.beta))
+	plot_signal_vs_MLsignal_residuals(s_fgs_only, f_component_of_maxL_of_f_plus_q_signal, sigma, save_dir+'Fourier_component_of_signal_model_fit_and_residuals_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}_beta_{}.png'.format(nu,nv,neta,nq,npl,sigma,p.beta))
 
 No_large_spectral_scale_model_fit = False
 if No_large_spectral_scale_model_fit:
@@ -442,20 +722,27 @@ prior_c = PriorC(log_priors_min_max)
 nDerived = 0
 nDims = len(k_cube_voxels_in_bin)
 # base_dir = 'chains/'
+# outputfiles_base_dir = 'chains/'
 outputfiles_base_dir = 'chains/'
-# outputfiles_base_dir = 'chains/beta_ev_GDSE_only/'
+# outputfiles_base_dir = 'chains/nu5nv5/'
 base_dir = outputfiles_base_dir+'clusters/'
 if not os.path.isdir(base_dir):
 		os.makedirs(base_dir)
 
 log_priors = True
-dimensionless_PS = True
+# dimensionless_PS = True
+dimensionless_PS = False
+# zero_the_LW_modes = True
 zero_the_LW_modes = False
 
-file_root = 'Test_mini-{}_{}_{}_{}_{}_sigma_{:.1E}-lp_F-dPS_F-v1-'.format(nu,nv,neta,nq,npl,sigma).replace('.','d')
-# file_root = 'Test_mini-nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}-lp_F-dPS_F-v1-'.format(nu,nv,neta,nq,npl,sigma).replace('.','d')
-# file_root = 'Test_mini-sigma_{:.1E}-lp_F-dPS_F-v1-'.format(sigma).replace('.','d')
+file_root = 'Test-{}_{}_{}_{}_{}_s_{:.1E}-lp_F-dPS_F-'.format(nu,nv,neta,nq,npl,sigma).replace('.','d')
+# file_root = 'Test-nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}-lp_F-dPS_F-v1-'.format(nu,nv,neta,nq,npl,sigma).replace('.','d')
+# file_root = 'Test-sigma_{:.1E}-lp_F-dPS_F-v1-'.format(sigma).replace('.','d')
 if chan_selection!='':file_root=chan_selection+file_root
+if npl==1:
+	file_root=file_root.replace('-dPS_F', '-dPS_F-beta_{:.2E}-v1'.format(p.beta))
+if npl==2:
+	file_root=file_root.replace('-dPS_F', '-dPS_F_b1_{:.2F}_b2_{:.2F}-v1'.format(p.beta[0], p.beta[1]))
 if log_priors:
 	file_root=file_root.replace('lp_F', 'lp_T')
 if dimensionless_PS:
@@ -465,11 +752,13 @@ if nq==0:
 elif zero_the_LW_modes:
 	file_root=file_root.replace('mini-', 'mini-ZLWM-')
 if use_EoR_cube:
-	file_root=file_root.replace('Test_mini', 'EoR_mini')
+	file_root=file_root.replace('Test', 'EoR')
 if use_MultiNest:
 	file_root='MN-'+file_root
-if npl>0:
-	file_root=file_root.replace('-v1', '-beta_{:.2E}-v1'.format(p.beta))
+# if npl==1:
+# 	file_root=file_root.replace('-v1', '-beta_{:.2E}-v1'.format(p.beta))
+# if npl==2:
+# 	file_root=file_root.replace('-v1', '_b1_{:.2F}_b2_{:.2F}-v1'.format(p.beta[0], p.beta[1]))
 
 file_root = generate_output_file_base(file_root, version_number='1')
 print 'Output file_root = ', file_root
@@ -479,6 +768,8 @@ if zero_the_LW_modes: PSPP_block_diag_Polychord.inverse_LW_power=1.e20
 if sub_MLLWM: PSPP_block_diag_Polychord.dbar = q_sub_dbar
 if sub_ML_monopole_term_model: PSPP_block_diag_Polychord.dbar = q_sub_dbar
 if sub_ML_monopole_plus_first_LW_term_model: PSPP_block_diag_Polychord.dbar = q_sub_dbar
+
+# PSPP_block_diag_Polychord.inverse_LW_power=1.e5
 
 start = time.time()
 PSPP_block_diag_Polychord.Print=False
@@ -509,23 +800,6 @@ else:
 
 print 'Sampling complete!'
 #######################
-
-
-
-
-# PowerI = PSPP_block_diag_Polychord.calc_PowerI(x)
-# PhiI=PowerI
-# Sigma_block_diagonals = PSPP_block_diag_Polychord.calc_Sigma_block_diagonals(T_Ninv_T, PhiI)
-# dbar_blocks = np.split(dbar, PSPP_block_diag_Polychord.nuv)
-
-# if p.useGPU:
-# 	SigmaI_dbar_blocks_and_logdet_Sigma = np.array([PSPP_block_diag_Polychord.calc_SigmaI_dbar(Sigma_block_diagonals[i_block], dbar_blocks[i_block])  for i_block in range(PSPP_block_diag_Polychord.nuv)])
-# 	SigmaI_dbar_blocks = SigmaI_dbar_blocks_and_logdet_Sigma[:,0]
-# 	logdet_Sigma_blocks = SigmaI_dbar_blocks_and_logdet_Sigma[:,1]
-# 	print np.sum(logdet_Sigma_blocks)
-# else:
-# 	logdet_Sigma_blocks = np.array([PSPP_block_diag_Polychord.calc_SigmaI_dbar(Sigma_block_diagonals[i_block], dbar_blocks[i_block])  for i_block in range(PSPP_block_diag_Polychord.nuv)])
-# 	print np.sum([np.linalg.slogdet(Sigma_block)[1] for Sigma_block in Sigma_block_diagonals])
 
 
 
