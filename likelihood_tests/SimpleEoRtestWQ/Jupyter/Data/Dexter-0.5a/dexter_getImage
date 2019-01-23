@@ -1,0 +1,143 @@
+#!/bin/bash
+# This script is called by gaucho to acquire scaled and cropped
+# bitmap images from input files
+# It is called with the source image in the first argument and
+# optionally -s <floating point scale> and -b <bbox in format
+# left,top,w,h -- no blanks, please> specifications.  It should 
+# output an image understood by the java toolkit on stdout (gif, 
+# png, jpeg should all work on fairly recent awts)
+# The bbox is understood as in the unscaled image.
+
+#outputFilter=ppmtogif
+#outputFilter=pnmtogif
+outputFilter=pnmtopng
+
+# Don't change -- you'll mess up the bounding boxes
+psRes=600
+
+# procBitmap is called as
+# procBitmap inputFile inputFilter scale bbox
+# where bbox is some specification pnmcut understands (or empty)
+# inputFile is a bitmap image that is converted to pnm by inputFilter
+function procBitmap() {
+
+	local inputFile=$1
+	local inputFilter=$2
+	local scale=$3
+	local bbox="$4"
+
+	procFilter1=cat
+	procFilter2=cat
+
+	if [ ! -z "$bbox" ]
+	then
+		procFilter1="pnmcut ${bbox//,/ }"
+	fi
+	if [ $scale -ne 1 ]
+	then
+		procFilter2="pnmscale -reduce $scale"
+	fi
+
+	($inputFilter $inputFile | $procFilter1 | $procFilter2 | \
+		ppmquant 64 | $outputFilter) 2> convert.log
+}
+
+
+# converts one page of a ps/pdf file to psRes dpi pbm
+# the argument is pageno@filename
+function vectorToPbm() {
+	local inputFile=${1#*@}
+	if [ t$inputFile == t$1 ]
+	then
+		local pgSelect=cat
+	else
+		local pgSelect="psselect -q ${1%%@*}"
+	fi
+	case $inputFile in
+		*.pdf)
+			local preFilter="pdf2ps $inputFile -"
+			;;
+		* )
+			local preFilter="cat $inputFile"
+			;;
+	esac
+	($preFilter | $pgSelect |\
+		gs -sDEVICE=pbm -r${psRes}x$psRes -dBATCH -dNOPAUSE \
+		-d SAFER -sOutputFile=- -q - ) 2> convert.log
+}
+
+
+# procVector is an integrated and usually faster alternative to
+# combining vectorToPbm and procBitmap
+function procVector() {
+	local inputFile="${1#*@}"
+	local scale=$3
+	local bbox="$4"
+	local renderRes=`echo "3 k $psRes $scale / p" | dc`
+	
+	if [ ! -z "$bbox" ]
+	then
+		local renderbbox=`echo $bbox | awk -F, \
+		"{printf(\"%f %f %f %f\", \\\$1/$scale,\\\$2/$scale,\\\$3/$scale,\\\$4/$scale)}"`
+		local cropFilter="pnmcut $renderbbox"
+	else
+		local cropFilter=cat
+	fi
+
+	if [ "t$inputFile" == "t$1" ]
+	then
+		local pgSelect=cat
+	else
+		local pgSelect="psselect -q ${1%%@*}"
+	fi
+
+	case $inputFile in
+		*.pdf)
+			local preFilter=pdf2ps
+			;;
+		* )
+			local preFilter=cat
+			;;
+	esac
+
+	($preFilter $inputFile | $pgSelect |\
+		gs -sDEVICE=pgm -r$renderRes -dSAFER -dBATCH -dNOPAUSE \
+		-dTextAlphaBits=4 -dGraphicsAlphaBits=4 -sOutputFile=- -q - \
+		| $cropFilter | $outputFilter ) 2> convert.log
+}
+
+
+scale=1
+while getopts "s:b:" option
+do
+	case $option in
+		s) scale=$OPTARG;;
+		b) bbox=$OPTARG;;
+		*) echo "This can't happen";;
+	esac
+done
+
+shift $(($OPTIND-1))
+
+inputFilter=pngtopnm
+
+case "$1" in
+	*.gif) inputFilter=giftopnm; procFun=procBitmap;;
+	*.png) inputFilter=pngtopnm; procFun=procBitmap;;
+	*.jpg) inputFilter=djpeg procFun=procBitmap;;
+	*.jpeg) inputFilter=djpeg; procFun=procBitmap;;
+	*.ps | *.eps | *.epsi | *.PS | *.pdf) 
+		procFun=procVector
+		inputFilter=ignore
+		;;
+#	*.ps | *.eps | *.epsi | *.PS | *.pdf) 
+#		inputFilter=vectorToPbm
+#		procFun=procBitmap
+#		scale=`echo "3 k $psRes 600 / $scale * p" | dc`
+#		;;
+	*) echo "Don't know image format of $1" > convert.log
+		exit 1
+		;;
+esac
+
+$procFun "$1" $inputFilter $scale "$bbox"

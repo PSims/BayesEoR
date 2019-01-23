@@ -10,6 +10,8 @@ import shutil
 import pylab
 from pdb import set_trace as brk
 import argparse
+import BayesEoR.Params.params as p
+
 
 ## ======================================================================================================
 ## ======================================================================================================
@@ -478,26 +480,27 @@ def plot_signal_vs_MLsignal_residuals(true_signal, MLsignal, sigma, output_path=
 	ax[2,1].set_ylabel('count', fontsize=20)
 	ax[2,1].set_xlabel('residual, arbitrary units', fontsize=20)
 
-	max_res_index_real = residuals.real.reshape(960,38).argmax()/38
-	max_res_index_real = 100
-	max_res_real = residuals.real.reshape(960,38)[max_res_index_real]
-	max_res_index_imag = residuals.imag.reshape(960,38).argmax()/38
-	max_res_index_imag = 100
-	max_res_imag = residuals.imag.reshape(960,38)[max_res_index_imag]
+	nuv = (p.nu*p.nv)-1
+	max_res_index_real = residuals.real.reshape(nuv,p.nf).argmax()/p.nf
+	# max_res_index_real = 100
+	max_res_real = residuals.real.reshape(nuv,p.nf)[max_res_index_real]
+	max_res_index_imag = residuals.imag.reshape(nuv,p.nf).argmax()/p.nf
+	# max_res_index_imag = 100
+	max_res_imag = residuals.imag.reshape(nuv,p.nf)[max_res_index_imag]
 	alpha=0.3
 
 	ax[3,0].errorbar(arange(len(max_res_real)), max_res_real, yerr=np.ones(len(max_res_real))*sigma,  color='red', fmt='+')
 	ax[3,0].errorbar(arange(len(max_res_real)), max_res_real,  color='red', fmt='-')
 	ax[3,0].legend(['$Re(s-m)$ residual'], fontsize=20)
-	ax[3,0].errorbar(arange(len(max_res_real)), true_signal.real.reshape(960,38)[max_res_index_real], color='black', fmt='-', alpha=alpha)
-	ax[3,0].errorbar(arange(len(max_res_real)), MLsignal.real.reshape(960,38)[max_res_index_real], color='black', fmt='--', alpha=alpha)
+	ax[3,0].errorbar(arange(len(max_res_real)), true_signal.real.reshape(nuv,p.nf)[max_res_index_real], color='black', fmt='-', alpha=alpha)
+	ax[3,0].errorbar(arange(len(max_res_real)), MLsignal.real.reshape(nuv,p.nf)[max_res_index_real], color='black', fmt='--', alpha=alpha)
 	ax[3,0].set_ylabel('residual, arbitrary units', fontsize=20)
 	ax[3,0].set_xlabel('$uv$-cell', fontsize=20)
 	ax[3,1].errorbar(arange(len(max_res_imag)), max_res_imag, yerr=np.ones(len(max_res_imag))*sigma,  color='blue', fmt='+')
 	ax[3,1].errorbar(arange(len(max_res_imag)), max_res_imag,  color='blue', fmt='-')
 	ax[3,1].legend(['$Im(s-m)$ residual'], fontsize=20)
-	ax[3,1].errorbar(arange(len(max_res_real)), true_signal.imag.reshape(960,38)[max_res_index_imag], color='black', fmt='-', alpha=alpha)
-	ax[3,1].errorbar(arange(len(max_res_real)), MLsignal.imag.reshape(960,38)[max_res_index_imag], color='black', fmt='--', alpha=alpha)
+	ax[3,1].errorbar(arange(len(max_res_real)), true_signal.imag.reshape(nuv,p.nf)[max_res_index_imag], color='black', fmt='-', alpha=alpha)
+	ax[3,1].errorbar(arange(len(max_res_real)), MLsignal.imag.reshape(nuv,p.nf)[max_res_index_imag], color='black', fmt='--', alpha=alpha)
 	ax[3,1].set_xlabel('$uv$-cell', fontsize=20)
 	for axi in ax.ravel(): axi.tick_params(labelsize=20)
 	if not output_path=='':fig.savefig(output_path)
@@ -523,6 +526,64 @@ def generate_output_file_base(file_root, **kwargs):
 		version_number = next_version_number
 		file_name_exists = os.path.isfile('chains/'+file_root+'_phys_live.txt') or os.path.isfile('chains/'+file_root+'.resume') or os.path.isfile('chains/'+file_root+'resume.dat')
 	return file_root
+
+
+## ======================================================================================================
+## ======================================================================================================
+
+class RenormaliseMatricesForScaledNoise(object):
+	def __init__(self):
+		self.sigma_init = 1.0
+		self.updated_sigma = 1.0
+		self.matrix_renormalisation_scale_factor = 1.0
+		self.have_run_calc_matrix_renormalisation_scale_factor = False
+
+	def calc_updated_225_sigma(self, S18a_163_sigma):
+		# Tsys = 100 K + 60*(lambda/1 m)**2.55 (Ewall-Wice et al. 2016, pg. 11 below eqn. 22)
+		# Tsys_225 = 100+60*(3.e8/225.e6)**2.55
+		# Tsys_163 = 100+60*(3.e8/163.e6)**2.55
+		Tsys_225 = 245+60*(3.e8/225.e6)**2.55
+		Tsys_163 = 245+60*(3.e8/163.e6)**2.55
+		# S18a_163_sigma = 100.e-1 #BayesEoR sigma used in Sims et al 2018a
+		updated_225_sigma = S18a_163_sigma * (Tsys_225/Tsys_163)
+		updated_225_sigma = np.round(updated_225_sigma, 1)
+		print 'updated_225_sigma', updated_225_sigma
+		return updated_225_sigma
+
+	def calc_matrix_renormalisation_scale_factor(self, sigma_init, updated_sigma):
+		# For diagonal N: N \propto 1./sigma**2
+		self.sigma_init = sigma_init
+		self.updated_sigma = updated_sigma
+		self.matrix_renormalisation_scale_factor  = sigma_init**2./updated_sigma**2.
+		self.have_run_calc_matrix_renormalisation_scale_factor = True
+		print 'Input sigma_init:', self.sigma_init
+		print 'Input updated_sigma:', self.updated_sigma
+		print 'Derived matrix_renormalisation_scale_factor:', self.matrix_renormalisation_scale_factor
+		return self.matrix_renormalisation_scale_factor
+
+	def update_matrix_renormalisation_scale_factor(self, matrix_renormalisation_scale_factor):
+		self.matrix_renormalisation_scale_factor  = matrix_renormalisation_scale_factor
+
+	def renormalise_matrices_for_scaled_noise(self, T_Ninv_T, block_T_Ninv_T, Ninv, **kwargs):
+		#
+		##===== Defaults =======
+		default_matrix_renormalisation_scale_factor=self.matrix_renormalisation_scale_factor
+		
+		##===== Inputs =======
+		self.matrix_renormalisation_scale_factor=kwargs.pop('matrix_renormalisation_scale_factor', default_matrix_renormalisation_scale_factor)
+		
+		if self.have_run_calc_matrix_renormalisation_scale_factor:
+			print "About to update likelihood matrices to from a constructed noise level of {} to a newly assumed noise in the data of {} using a scale factor sigma_init**2./updated_sigma**2. = {}".format(self.sigma_init, self.updated_sigma, (self.sigma_init**2./self.updated_sigma**2.))
+		else:
+			print "Warning, the calc_matrix_renormalisation_scale_factor hasn't been used to derive this updated matrix_renormalisation_scale_factor so the output noise level isn't being tracked by this class...\nUpdating likelihood matrices with the manually input scale factor: {}...".format(self.matrix_renormalisation_scale_factor)
+
+		print 'Renormalising T_Ninv_T'
+		T_Ninv_T       = T_Ninv_T*self.matrix_renormalisation_scale_factor
+		print 'Renormalising block_T_Ninv_T'
+		block_T_Ninv_T = block_T_Ninv_T*self.matrix_renormalisation_scale_factor
+		print 'Renormalising Ninv'
+		Ninv           = Ninv*self.matrix_renormalisation_scale_factor
+		return T_Ninv_T, block_T_Ninv_T, Ninv
 
 
 ## ======================================================================================================

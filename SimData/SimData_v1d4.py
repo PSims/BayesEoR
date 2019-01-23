@@ -723,6 +723,61 @@ def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vec
 	return d, noise, N, Ninv
 
 
+
+
+def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(sigma, s, nu,nv,nx,ny,nf,neta,nq, **kwargs):
+
+	##===== Defaults =======
+	default_random_seed = ''
+	
+	##===== Inputs =======
+	random_seed=kwargs.pop('random_seed',default_random_seed)
+
+	if random_seed:
+		print 'Using the following random_seed for dataset noise:', random_seed
+		np.random.seed(random_seed)
+
+	real_noise_cube = np.random.normal(0,sigma,[nf,ny,nx])
+
+	import numpy
+	axes_tuple = (1,2)
+	vfft1=numpy.fft.ifftshift(real_noise_cube+0j, axes=axes_tuple)
+	vfft1=numpy.fft.fftn(vfft1, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
+	vfft1=numpy.fft.fftshift(vfft1, axes=axes_tuple)
+
+	sci_f, sci_v, sci_u = vfft1.shape
+	sci_v_centre = sci_v/2
+	sci_u_centre = sci_u/2
+	vfft1_subset = vfft1[0:nf,sci_u_centre-nu/2:sci_u_centre+nu/2+1,sci_v_centre-nv/2:sci_v_centre+nv/2+1]
+	noise_before_ZM = vfft1_subset.flatten()
+	ZM_vis_ordered_mask = np.ones(nu*nv*nf)
+	ZM_vis_ordered_mask[nf*((nu*nv)/2):nf*((nu*nv)/2+1)]=0
+	ZM_vis_ordered_mask = ZM_vis_ordered_mask.astype('bool')
+	ZM_chan_ordered_mask = ZM_vis_ordered_mask.reshape(-1, neta+nq).T.flatten()
+	noise = noise_before_ZM[ZM_chan_ordered_mask]
+	if sigma == 0:
+		noise = noise*0.0
+	else:
+		noise = noise * sigma/noise.std()
+
+	sigma_squared_array = np.ones(s.size)*sigma**2 + 0j*np.ones(s.size)*sigma**2
+	N = np.diag(sigma_squared_array)
+	Ninv = np.diag(1./sigma_squared_array)
+	if sigma>0: logNDet=np.sum(np.log(sigma_squared_array))
+
+	d=s+noise
+
+	return d, noise, N, Ninv
+
+
+
+
+
+
+
+
+
+
 Deal_with_Primary_Beam_Effects = False
 ###
 # NOTE: if Deal_with_Primary_Beam_Effects is set to True the code below should be turned into a function to output a frequency dependent primary beam model matrix to be integrated into the likelihood.

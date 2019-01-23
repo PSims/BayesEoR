@@ -675,23 +675,28 @@ def quadratic_array_linear_plus_quad_modes_only_v2(nf, nq=2, **kwargs):
 	if nq==1:
 		x=arange(nf)-(nf/2.)
 		quadratic_array[0] = x
-		if npl>0:
+		if npl==1:
 			###
-			# This function needs modifying so that all of the following information is passed to it rather than being hard coded!
-			nu_min_MHz = (163.0-4.0)
-			channel_width_MHz = 0.2
-			# beta_experimental_mean = 2.63+0
-			beta = 2.63
+			# This function needs modifying so that the following information is passed to it rather than being hard coded!
+			###
+			# nu_min_MHz = (163.0-4.0)
+			# channel_width_MHz = 0.2
+			# # beta_experimental_mean = 2.63+0
+			# beta = 2.63
 			###
 			nu_array_MHz = nu_min_MHz+np.arange(float(nf))*channel_width_MHz
 			m_pl = np.array([(nu_array_MHz[i_nu]/nu_min_MHz)**-beta for i_nu in range(len(nu_array_MHz))])
 			quadratic_array[0] = m_pl
+			print '\nLinear LW mode replaced with power-law model'
+			print 'nu_min_MHz = ', nu_min_MHz
+			print 'channel_width_MHz = ', channel_width_MHz
+			print 'beta = ', beta, '\n'
 	if nq==2:
 		x=arange(nf)-(nf/2.)
 		quadratic_array[0] = x
 		quadratic_array[1] = x**2
 		# 
-		if npl>0:
+		if npl==1:
 			###
 			# This function needs modifying so that the following information is passed to it rather than being hard coded!
 			###
@@ -707,13 +712,78 @@ def quadratic_array_linear_plus_quad_modes_only_v2(nf, nq=2, **kwargs):
 			print 'nu_min_MHz = ', nu_min_MHz
 			print 'channel_width_MHz = ', channel_width_MHz
 			print 'beta = ', beta, '\n'
+		if npl==2:
+			###
+			# This function needs modifying so that the following information is passed to it rather than being hard coded!
+			###
+			# nu_min_MHz = (163.0-4.0)
+			# channel_width_MHz = 0.2
+			# # beta_experimental_mean = 2.63+0
+			# beta = 2.63
+			###
+			nu_array_MHz = nu_min_MHz+np.arange(float(nf))*channel_width_MHz
+			m_pl1 = np.array([(nu_array_MHz[i_nu]/nu_min_MHz)**-beta[0] for i_nu in range(len(nu_array_MHz))])
+			quadratic_array[0] = m_pl1
+			print '\nLinear LW mode replaced with power-law model'
+			print 'beta1 = ', beta[0], '\n'	
+			m_pl2 = np.array([(nu_array_MHz[i_nu]/nu_min_MHz)**-beta[1] for i_nu in range(len(nu_array_MHz))])
+			quadratic_array[1] = m_pl2
+			print '\nQuadratic LW mode replaced with power-law model'
+			print 'nu_min_MHz = ', nu_min_MHz
+			print 'channel_width_MHz = ', channel_width_MHz
+			print 'beta2 = ', beta[1], '\n'	
 		# 
 	if nq==3:
-		x=arange(nf)
-		# x=arange(nf)-(nf/2)
-		quadratic_array[0] = np.ones(len(x))
-		quadratic_array[1] = x+1j*x
-		quadratic_array[2] = x**2.0+1j*x**2
+		x=arange(nf)-(nf/2.)
+		quadratic_array[0] = x
+		quadratic_array[1] = x**2
+		quadratic_array[1] = x**3
+		# 
+		if npl==1:
+			###
+			# This function needs modifying so that the following information is passed to it rather than being hard coded!
+			###
+			# nu_min_MHz = (163.0-4.0)
+			# channel_width_MHz = 0.2
+			# # beta_experimental_mean = 2.63+0
+			# beta = 2.63
+			###
+			nu_array_MHz = nu_min_MHz+np.arange(float(nf))*channel_width_MHz
+			m_pl = np.array([(nu_array_MHz[i_nu]/nu_min_MHz)**-beta for i_nu in range(len(nu_array_MHz))])
+			quadratic_array[1] = m_pl
+			print '\nQuadratic LW mode replaced with power-law model'
+			print 'nu_min_MHz = ', nu_min_MHz
+			print 'channel_width_MHz = ', channel_width_MHz
+			print 'beta = ', beta, '\n'
+		if npl==2:
+			nu_array_MHz = nu_min_MHz+np.arange(float(nf))*channel_width_MHz
+			m_pl1 = np.array([(nu_array_MHz[i_nu]/nu_min_MHz)**-beta[0] for i_nu in range(len(nu_array_MHz))])
+			quadratic_array[0] = m_pl1
+			print '\nLinear LW mode replaced with power-law model'
+			print 'beta1 = ', beta[0], '\n'	
+			m_pl2 = np.array([(nu_array_MHz[i_nu]/nu_min_MHz)**-beta[1] for i_nu in range(len(nu_array_MHz))])
+			quadratic_array[1] = m_pl2
+			print '\nQuadratic LW mode replaced with power-law model'
+			print 'nu_min_MHz = ', nu_min_MHz
+			print 'channel_width_MHz = ', channel_width_MHz
+			print 'beta2 = ', beta[1], '\n'	
+		if npl==3:
+			nu_array_MHz = nu_min_MHz+np.arange(float(nf))*channel_width_MHz
+			m_pl1 = np.array([(nu_array_MHz[i_nu]/nu_min_MHz)**-beta[0] for i_nu in range(len(nu_array_MHz))])
+			quadratic_array[0] = m_pl1
+			print '\nLinear LW mode replaced with power-law model'
+			print 'beta1 = ', beta[0], '\n'	
+			m_pl2 = np.array([(nu_array_MHz[i_nu]/nu_min_MHz)**-beta[1] for i_nu in range(len(nu_array_MHz))])
+			quadratic_array[1] = m_pl2
+			print '\nQuadratic LW mode replaced with power-law model'
+			print 'beta2 = ', beta[1], '\n'	
+			m_pl3 = np.array([(nu_array_MHz[i_nu]/nu_min_MHz)**-beta[1] for i_nu in range(len(nu_array_MHz))])
+			quadratic_array[2] = m_pl3
+			print '\nCubic LW mode replaced with power-law model'
+			print 'nu_min_MHz = ', nu_min_MHz
+			print 'channel_width_MHz = ', channel_width_MHz
+			print 'beta3 = ', beta[2], '\n'	
+		# 
 	if nq==4:
 		quadratic_array[0] = arange(nf)
 		quadratic_array[1] = arange(nf)**2.0

@@ -1,0 +1,123 @@
+How to use Dexter outside of the ADS
+====================================
+
+Dexter was primarily written to support extraction of data from scans
+at ADS.  However, with a little fiddling you can make it work on
+your local site.  Rather than doing this -- in particular if you've
+never built a Java application before --, I suggest you check out
+http://vo.uni-hd.de/dexter/ui/ui/custom.  This is a version of dexter
+you can upload your own data to.
+
+The instructions below only cover Unix-like systems.  
+You should make sure that you have fairly recent versions of
+Sun jdk (version 1.5 or higher), GNU make, and that both javac 
+and java are on your path.  
+
+As far as windows is concerned, you may be able to run Debuxter if you
+have a local version of the JRE installed, but the rest of the
+scripts in this distribution will be useless to you (some may 
+actually work if you have ghostscript and cygwin installed).
+What should work under windows is opening a command line prompt and
+then typing:
+     
+     start Debuxter example.gif
+
+
+Debuxter
+========
+
+With debuxter, you can extract data from bitmap images of (preferably)
+pre-cropped graphs.  Note: Indexed images (GIFs, some PNGs) should
+not have more than 128 colours, since otherwise the recognizers
+won't work due to a bug (or my stupidity) in AWT's IndexedColorModel.
+For the usual graphs, 128 colours are more than enough, though.
+
+Try
+
+make debug
+
+in the directory you unpacked the Dexter sources to.  When the machine
+is done building, you should see Dexter's extraction window.
+
+If that doesn't happen, your Java Runtime probably is too old.  If
+you send me bug reports, please include the entire output of "make
+debug".
+
+To process own images (but see above),
+java -mx30000000 -jar Debuxter.jar <name-of-image>
+
+(the -mx option just sets the heap size of the program to something
+reasonable for handling images).  You should now see Dexter's main
+extraction window with your image in it.
+
+
+On windows, you'd put both Debuxter.jar and your image into a common
+directory, open the command prompt, go into that directory and say
+
+start Debuxter.jar <name-of-image>
+
+You may have to increase the heap size here as well.
+
+Note again that Debuxter doesn't support saving the results.  You can,
+however, "Show data" and cut'n'paste the results.  See the following
+paragraph for a somewhat more streamlined stand-alone operation.
+
+
+Gaucho
+======
+
+Gaucho gets its images from a shell script, and thus you can potentially
+extract from anything you can get images from.  Due to the dependence
+on shell scripts, this won't work on Windows unless you get yourself
+something like Cygwin (which is quite recommendable anyway).
+
+Probably the most common application is extraction from postscript files.
+The script dexter_getImage that is shipped with the distribution uses
+ghostscript and netpbm for this conversion -- you need to have both
+packages installed for Gaucho to work.
+
+Go to the directory you unpacked Dexter to and say
+
+make test
+
+After a while (possibly quite a long while) you should see a selection
+window pop up.  Mark the part you want to run the extraction on with
+the mouse, wait a little more[1], and you'll see the selection window.
+
+If this doesn't work, it may be that you're missing tools -- check
+if there's a convert.log file and check its contents.  Also, try
+
+dexter_getImage -s8 sample.ps
+
+-- this may help to see why the image aquistion failed.
+
+To extract from your own postscript or pdf, say
+
+./runGaucho /path/to/your/ps.
+
+This extracts from the first page.  If you want to extract from later
+pages, just prepend a <pageno>@, e.g.
+
+./runGaucho 4@/path/to/your/ps
+
+extracts from the fourth page.
+
+If you know a bit Bourne shell, you can check out dexter_getImage and
+fiddle around.
+
+
+
+System-wide installation
+========================
+
+I've made no provisions for system-wide installation yet, but if you
+ask me, I'll probably have motivation to do so.
+
+---
+
+[1] This can actually take quite a while if your machine is slowish
+and your extraction resolution is high (you can probably speed it up
+up a bit by reducing the AlphaBits in dexter_getImage:procVector 
+at the expense of antialiasing).  This could be made much faster
+if ghostscript could be told to output a cropped image.  Any hints
+in that direction are welcome.

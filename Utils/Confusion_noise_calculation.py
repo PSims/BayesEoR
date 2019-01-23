@@ -32,3 +32,15 @@ Gamma=2.51
 k=4.0e3*(163./151)**-0.82
 q=5.
 Confusion_Sigma=Calc_Confusion_Sigma(Beam_FWHM_Rad, Gamma, k, q)
+
+
+
+
+#HERA beam width and source-count for 225 MHz in S18b
+Beam_FWHM_Rad=1./(87./(3.e8/225.e6))
+Gamma=2.51
+k=4.0e3*(225./151)**-0.82
+q=5.
+Confusion_Sigma=Calc_Confusion_Sigma(Beam_FWHM_Rad, Gamma, k, q)
+
+
