@@ -18,6 +18,7 @@ from BayesEoR.SimData import GenerateForegroundCube, update_Tb_experimental_std_
 from BayesEoR.Utils import PriorC, ParseCommandLineArguments, DataUnitConversionmkandJyperpix, WriteDataToFits
 from BayesEoR.Utils import ExtractDataFrom21cmFASTCube
 
+import BayesEoR.Params.params as p
 
 #----------------------
 
@@ -415,15 +416,6 @@ def generate_data_from_loaded_EoR_cube_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z
 	###
 	scidata1 = np.load(EoR_npz_path)['arr_0']
 
-	Jacob_test__overwrite_EoR_cube_with_noise = True
-	# Jacob_test__overwrite_EoR_cube_with_noise = False
-	if Jacob_test__overwrite_EoR_cube_with_noise:
-		# np.random.seed(7254)
-		# np.random.seed(87254)
-		# np.random.seed(187254)
-		np.random.seed(287254)
-		scidata1 = np.random.normal(0,scidata1.std()*3.,scidata1.shape)
-
 	base_dir = 'Plots'
 	save_dir = base_dir+'/Likelihood_v1d75_3D_ZM/'
 	if not os.path.isdir(save_dir):
@@ -431,6 +423,9 @@ def generate_data_from_loaded_EoR_cube_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z
 
 	# scidata1 = top_hat_average_temperature_cube_to_lower_res_31x31xnf_cube(scidata1)
 	# scidata1 = scidata1[0:nf,:124,:124]
+
+	np.random.seed(12345)
+	scidata1 = np.random.normal(0,scidata1.std()*3.,scidata1.shape)
 
 	import numpy
 	axes_tuple = (1,2)
@@ -458,6 +453,64 @@ def generate_data_from_loaded_EoR_cube_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z
 	ZM_chan_ordered_mask = ZM_vis_ordered_mask.reshape(-1, neta+nq).T.flatten()
 	s = s_before_ZM[ZM_chan_ordered_mask]
 
+	abc = s
+
+	return s, abc, scidata1
+
+
+
+## ======================================================================================================
+## ======================================================================================================
+
+def generate_white_noise_signal(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,T,Show,chan_selection,masked_power_spectral_modes):
+
+	print 'Using use_WN_cube data'
+
+
+	EoR_npz_path = p.EoR_npz_path
+
+
+	#----------------------
+	###
+	# Replace Gaussian signal with EoR cube
+	###
+	scidata1 = np.load(EoR_npz_path)['arr_0']
+
+	#Overwrite EoR cube with white noise
+	# np.random.seed(21287254)
+	np.random.seed(123)
+	scidata1 = np.random.normal(0,scidata1.std()*1.,scidata1.shape)*0.5
+
+	base_dir = 'Plots'
+	save_dir = base_dir+'/Likelihood_v1d75_3D_ZM/'
+	if not os.path.isdir(save_dir):
+		os.makedirs(save_dir)
+
+
+	axes_tuple = (0,1,2)
+	scidata1_kcube=numpy.fft.ifftshift(scidata1[0:38]-scidata1[0:38].mean()+0j, axes=axes_tuple)
+	scidata1_kcube=numpy.fft.fftn(scidata1_kcube, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
+	scidata1_kcube=numpy.fft.fftshift(scidata1_kcube, axes=axes_tuple)
+
+
+	sci_f, sci_v, sci_u = scidata1_kcube.shape
+	sci_v_centre = sci_v/2
+	sci_u_centre = sci_u/2
+	scidata1_kcube_subset = scidata1_kcube[0:nf,sci_u_centre-nu/2:sci_u_centre+nu/2+1,sci_v_centre-nv/2:sci_v_centre+nv/2+1]
+	scidata1_kcube_subset_before_ZM = scidata1_kcube_subset.flatten()/scidata1_kcube.size**0.5
+	ZM_vis_ordered_mask = np.ones(nu*nv*nf)
+	ZM_vis_ordered_mask[nf*((nu*nv)/2):nf*((nu*nv)/2+1)]=0
+	ZM_vis_ordered_mask = ZM_vis_ordered_mask.astype('bool')
+	ZM_chan_ordered_mask = ZM_vis_ordered_mask.reshape(-1, neta+nq).T.flatten()
+	scidata1_kcube_subset_ZM = scidata1_kcube_subset_before_ZM[ZM_chan_ordered_mask]
+
+	###
+	# Zero all modes that correspond to / are replaced with foreground parameters (in the parameter vector that T is desiged to operate on) before applying T!
+	###
+	scidata1_kcube_subset_ZM[masked_power_spectral_modes] = 0.0
+
+	# T = BM.read_data_from_hdf5(array_save_directory+'T.h5', 'T')
+	s = np.dot(T,scidata1_kcube_subset_ZM.reshape(-1,1)).flatten()
 	abc = s
 
 	return s, abc, scidata1

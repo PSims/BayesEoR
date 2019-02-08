@@ -18,6 +18,9 @@ Utils/Noise_calulations/*
 *.old
 */*.old
 */*/*.old
+*.pyc
+*/*.pyc
+*/*/*.pyc
 
 
 

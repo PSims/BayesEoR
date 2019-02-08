@@ -30,7 +30,7 @@ try:
 	GPU_wrap_dir = base_dir+'likelihood_tests/SimpleEoRtestWQ/GPU_wrapper/'
 	wrapmzpotrf=ctypes.CDLL(GPU_wrap_dir+'wrapmzpotrf.so')
 	nrhs=1
-	wrapmzpotrf.cpu_interface.argtypes = [ctypes.c_int, ctypes.c_int, ctypeslib.ndpointer(np.complex128, ndim=2, flags='C'), ctypeslib.ndpointer(np.complex128, ndim=1, flags='C'), ctypes.c_int]
+	wrapmzpotrf.cpu_interface.argtypes = [ctypes.c_int, ctypes.c_int, ctypeslib.ndpointer(np.complex128, ndim=2, flags='C'), ctypeslib.ndpointer(np.complex128, ndim=1, flags='C'), ctypes.c_int, ctypeslib.ndpointer(np.int, ndim=1, flags='C')]
 	print 'Computing on GPU'
 
 
@@ -131,12 +131,12 @@ class PowerSpectrumPosteriorProbability(object):
 			start = time.time()
 			dbar_blocks = np.split(dbar, self.nuv)
 			if p.useGPU:
-				SigmaI_dbar_blocks_and_logdet_Sigma = np.array([self.calc_SigmaI_dbar(Sigma_block_diagonals[i_block], dbar_blocks[i_block])  for i_block in range(self.nuv)])
+				SigmaI_dbar_blocks_and_logdet_Sigma = np.array([self.calc_SigmaI_dbar(Sigma_block_diagonals[i_block], dbar_blocks[i_block], x_for_error_checking=x)  for i_block in range(self.nuv)])
 				SigmaI_dbar_blocks = np.array([SigmaI_dbar_block for SigmaI_dbar_block, logdet_Sigma in SigmaI_dbar_blocks_and_logdet_Sigma])
 				# SigmaI_dbar_blocks = SigmaI_dbar_blocks_and_logdet_Sigma[:,0] #This doesn't work because the array size is lost / flatten fails
 				logdet_Sigma_blocks = SigmaI_dbar_blocks_and_logdet_Sigma[:,1]
 			else:
-				SigmaI_dbar_blocks = np.array([self.calc_SigmaI_dbar(Sigma_block_diagonals[i_block], dbar_blocks[i_block])  for i_block in range(self.nuv)])
+				SigmaI_dbar_blocks = np.array([self.calc_SigmaI_dbar(Sigma_block_diagonals[i_block], dbar_blocks[i_block], x_for_error_checking=x)  for i_block in range(self.nuv)])
 			if self.Print:print 'Time taken: {}'.format(time.time()-start)
 			
 			SigmaI_dbar = SigmaI_dbar_blocks.flatten()
@@ -150,7 +150,7 @@ class PowerSpectrumPosteriorProbability(object):
 				if self.Print:print 'Time taken: {}'.format(time.time()-start)
 
 		else:
-			print 'Not using block-diagonal inversion'
+			if self.count%self.print_rate==0:print 'Not using block-diagonal inversion'
 			start = time.time()
 			###
 			# Note: the following two lines can probably be speeded up by adding T_Ninv_T and np.diag(PhiI). (Should test this!) but this else statement only occurs on the GPU inversion so will deal with it later.
@@ -161,11 +161,11 @@ class PowerSpectrumPosteriorProbability(object):
 
 			start = time.time()
 			if p.useGPU:
-				SigmaI_dbar_and_logdet_Sigma = self.calc_SigmaI_dbar(Sigma, dbar)
+				SigmaI_dbar_and_logdet_Sigma = self.calc_SigmaI_dbar(Sigma, dbar, x_for_error_checking=x)
 				SigmaI_dbar = SigmaI_dbar_and_logdet_Sigma[0]
 				logdet_Sigma = SigmaI_dbar_and_logdet_Sigma[1]
 			else:
-				SigmaI_dbar = self.calc_SigmaI_dbar(Sigma, dbar)
+				SigmaI_dbar = self.calc_SigmaI_dbar(Sigma, dbar, x_for_error_checking=x)
 			if self.Print:print 'Time taken: {}'.format(time.time()-start)
 
 			dbarSigmaIdbar=np.dot(dbar.conjugate().T,SigmaI_dbar)
@@ -183,10 +183,13 @@ class PowerSpectrumPosteriorProbability(object):
 	def calc_SigmaI_dbar(self, Sigma, dbar, **kwargs):
 		##===== Defaults =======
 		block_T_Ninv_T=[]
+		default_x_for_error_checking = "Params haven't been recorded... use x_for_error_checking kwarg when calling calc_SigmaI_dbar to change this."
 
 		##===== Inputs =======
 		if 'block_T_Ninv_T' in kwargs:
 			block_T_Ninv_T=kwargs['block_T_Ninv_T']
+		if 'x_for_error_checking' in kwargs:
+			x_for_error_checking=kwargs['x_for_error_checking']
 		
 		if not p.useGPU:
 			# Sigmacho = scipy.linalg.cholesky(Sigma, lower=True).astype(np.complex256)
@@ -198,11 +201,16 @@ class PowerSpectrumPosteriorProbability(object):
 		else:
 			dbar_copy = dbar.copy()
 			dbar_copy_copy = dbar.copy()
-			# wrapmzpotrf.cpu_interface(len(Sigma), nrhs, Sigma, dbar_copy, 1) #to print debug
-			wrapmzpotrf.cpu_interface(len(Sigma), nrhs, Sigma, dbar_copy, 0)
+			self.GPU_error_flag = np.array([0])
+			# wrapmzpotrf.cpu_interface(len(Sigma), nrhs, Sigma, dbar_copy, 1, self.GPU_error_flag) #to print debug
+			wrapmzpotrf.cpu_interface(len(Sigma), nrhs, Sigma, dbar_copy, 0, self.GPU_error_flag)
 			logdet_Magma_Sigma = np.sum(np.log(np.diag(abs(Sigma))))*2 #Note: After wrapmzpotrf, Sigma is actually SigmaCho (i.e. L with SigmaLL^T)
 			# print logdet_Magma_Sigma
 			SigmaI_dbar = linalg.cho_solve((Sigma.conjugate().T,True), dbar_copy_copy)
+			if self.GPU_error_flag[0] != 0:
+				logdet_Magma_Sigma=+np.inf #If the inversion doesn't work, zero-weight the sample (may want to stop computing if this occurs?)
+				print 'GPU inversion error. Setting sample posterior probability to zero.'
+				print 'Param values: ', x_for_error_checking
 			return SigmaI_dbar, logdet_Magma_Sigma
 			
 
@@ -247,6 +255,35 @@ class PowerSpectrumPosteriorProbability(object):
 
 		return dimensionless_PS_scaling
 
+	def calc_Npix_physical_power_spectrum_normalisation(self, i_bin, **kwargs):
+		###
+		# 21cmFAST normalisation:
+		#define BOX_LEN (float) 512 // in Mpc
+		#define VOLUME (BOX_LEN*BOX_LEN*BOX_LEN) // in Mpc^3
+		# p_box[ct] += pow(k_mag,3)*pow(cabs(deldel_T[HII_C_INDEX(n_x, n_y, n_z)]), 2)/(2.0*PI*PI*VOLUME);
+		###
+		EoR_x_full_pix = float(p.box_size_21cmFAST_pix) #pix (defined by input to 21cmFAST simulation)
+		EoR_y_full_pix = float(p.box_size_21cmFAST_pix) #pix (defined by input to 21cmFAST simulation)
+		EoR_z_full_pix = float(p.box_size_21cmFAST_pix) #pix (defined by input to 21cmFAST simulation)
+		EoR_x_full_Mpc = float(p.box_size_21cmFAST_Mpc) #Mpc (defined by input to 21cmFAST simulation)
+		EoR_y_full_Mpc = float(p.box_size_21cmFAST_Mpc) #Mpc (defined by input to 21cmFAST simulation)
+		EoR_z_full_Mpc = float(p.box_size_21cmFAST_Mpc) #Mpc (defined by input to 21cmFAST simulation)
+		# EoR_analysis_cube_x_pix = EoR_x_full_pix #Mpc Analysing the full FoV in x
+		# EoR_analysis_cube_y_pix = EoR_y_full_pix #Mpc Analysing the full FoV in y
+		# EoR_analysis_cube_z_pix = 38 #Mpc Analysing 38 of the 128 channels of the full EoR_simulations 
+		EoR_analysis_cube_x_pix = float(p.EoR_analysis_cube_x_pix) #pix Analysing the full FoV in x
+		EoR_analysis_cube_y_pix = float(p.EoR_analysis_cube_y_pix) #pix Analysing the full FoV in y
+		EoR_analysis_cube_z_pix = self.nf #Mpc Analysing 38 of the 128 channels of the full EoR_simulations 
+		EoR_analysis_cube_x_Mpc = float(p.EoR_analysis_cube_x_Mpc) #Mpc Analysing the full FoV in x
+		EoR_analysis_cube_y_Mpc = float(p.EoR_analysis_cube_y_Mpc) #Mpc Analysing the full FoV in y
+		EoR_analysis_cube_z_Mpc = EoR_z_full_Mpc*(float(EoR_analysis_cube_z_pix)/EoR_z_full_pix) #Mpc Analysing 38 of the 128 channels of the full simulation
+		EoRVolume = EoR_analysis_cube_x_Mpc*EoR_analysis_cube_y_Mpc*EoR_analysis_cube_z_Mpc
+		pixel_volume = EoR_analysis_cube_x_pix*EoR_analysis_cube_y_pix*EoR_analysis_cube_z_pix
+		cosmo_fft_norm_factor = (2.*np.pi)**2. #This needs to be verified / replaced........!
+		PS_scaling = (EoRVolume**1.0)/(pixel_volume**1.0)
+
+		return PS_scaling
+
 	def calc_PowerI(self, x, **kwargs):
 		###
 		# Place restricions on the power in the long spectral scale model either for,
@@ -268,7 +305,8 @@ class PowerSpectrumPosteriorProbability(object):
 				PowerI[self.k_cube_voxels_in_bin[i_bin]] = dimensionless_PS_scaling/x[i_bin] #NOTE: fitting for power not std here
 		else:
 			for i_bin in range(len(self.k_cube_voxels_in_bin)):
-				PowerI[self.k_cube_voxels_in_bin[i_bin]] = 1./x[i_bin]  #NOTE: fitting for power not std here
+				physical_PS_scaling = self.calc_Npix_physical_power_spectrum_normalisation(i_bin)
+				PowerI[self.k_cube_voxels_in_bin[i_bin]] = physical_PS_scaling*1./x[i_bin]  #NOTE: fitting for power not std here
 
 		# brk()
 		return PowerI
@@ -314,11 +352,11 @@ class PowerSpectrumPosteriorProbability(object):
 				print 'logSigmaDet, logPhiDet, dbarSigmaIdbar', logSigmaDet, logPhiDet, dbarSigmaIdbar
 
 
-			print_rate = 10000
+			self.print_rate = 1000
 			# brk()
 			
 			if self.nu>10:
-				print_rate=100
+				self.print_rate=100
 			if self.count%print_rate==0:
 				print 'count', self.count
 				print 'Time since class instantiation: %f'%(time.time()-self.instantiation_time)
