@@ -1,4 +1,3 @@
-#!/users/psims/anaconda2/bin/python
 
 #--------------------------------------------
 # Imports
@@ -67,7 +66,7 @@ sigma=50.e-1
 
 if p.include_instrumental_effects:
 		average_baseline_redundancy = p.baseline_redundancy_array.mean() #Keep average noise level consisitent with the non-instrumental case by normalizing sigma my the average baseline redundancy before scaling individual baselines by their respective redundancies
-		sigma = sigma*average_baseline_redundancy**0.5 *1.0
+		sigma = sigma*average_baseline_redundancy**0.5 *5.0
 
 
 
@@ -808,8 +807,7 @@ file_root = generate_output_file_base(file_root, version_number='1')
 print 'Output file_root = ', file_root
 
 PSPP_block_diag_Polychord = PowerSpectrumPosteriorProbability(T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes, modk_vis_ordered_list, block_T_Ninv_T=block_T_Ninv_T, log_priors=log_priors, dimensionless_PS=dimensionless_PS, Print=True)
-if p.include_instrumental_effects and not zero_the_LW_modes:
-	PSPP_block_diag_Polychord.inverse_LW_power=1.e-10 #Include minimal prior over LW modes required for numerical stability
+if p.include_instrumental_effects:PSPP_block_diag_Polychord.inverse_LW_power=1.e-12 #Minimal regularisation of LW modes for numerical stability
 if zero_the_LW_modes: PSPP_block_diag_Polychord.inverse_LW_power=1.e20
 if sub_MLLWM: PSPP_block_diag_Polychord.dbar = q_sub_dbar
 if sub_ML_monopole_term_model: PSPP_block_diag_Polychord.dbar = q_sub_dbar
@@ -830,28 +828,3 @@ def likelihood(theta, calc_likelihood=PSPP_block_diag_Polychord.posterior_probab
 
 def MultiNest_likelihood(theta, calc_likelihood=PSPP_block_diag_Polychord.posterior_probability):
 	return calc_likelihood(theta)[0]
-
-if use_MultiNest:
-	MN_nlive = nDims*25
-	# Run MultiNest
-	result = solve(LogLikelihood=MultiNest_likelihood, Prior=prior_c.prior_func, n_dims=nDims, outputfiles_basename=outputfiles_base_dir+file_root, n_live_points=MN_nlive)
-else:
-	precision_criterion = 0.05
-	#precision_criterion = 0.001 #PolyChord default value
-	nlive=nDims*10
-	#nlive=nDims*25 #PolyChord default value
-	# Run PolyChord
-	PolyChord.mpi_notification()
-	PolyChord.run_nested_sampling(PSPP_block_diag_Polychord.posterior_probability, nDims, nDerived, file_root=file_root, read_resume=False, prior=prior_c.prior_func, precision_criterion=precision_criterion, nlive=nlive)
-
-print 'Sampling complete!'
-#######################
-
-
-
-
-
-
-
-
-

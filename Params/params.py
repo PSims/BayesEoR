@@ -141,6 +141,53 @@ useGPU = True #Use GPU if available
 
 
 ###
+# Useful constants
+###
+from astropy import constants
+speed_of_light = constants.c.value
+
+
+###
+# NUDFT params
+###
+
+include_instrumental_effects = True
+
+# Load uvw_multi_time_step_array_meters_reshaped inside a function to avoid creating extraneous params variables (like files_dir, file_name etc.)
+import pickle
+def load_uvw_instrument_sampling_m(instrument_model_directory):
+	file_dir = instrument_model_directory
+	file_name = "uvw_multi_time_step_array_meters_reshaped" #HERA 331 sub-100 m baselines (i.e. H37 baselines) uv-sampling in meters
+	f = open(file_dir+file_name,'r')  
+	uvw_multi_time_step_array_meters_reshaped =  pickle.load(f)
+	return uvw_multi_time_step_array_meters_reshaped
+
+def load_baseline_redundancy_array(instrument_model_directory):
+	file_dir = instrument_model_directory
+	file_name = "unique_H37_baseline_hermitian_redundancy_multi_time_step_array_reshaped" #HERA 331 sub-100 m baselines (i.e. H37 baselines) baseline redundancy
+	f = open(file_dir+file_name,'r')  
+	unique_H37_baseline_hermitian_redundancy_multi_time_step_array_reshaped =  pickle.load(f)
+	return unique_H37_baseline_hermitian_redundancy_multi_time_step_array_reshaped
+
+
+
+
+if include_instrumental_effects:
+	# instrument_model_directory = '/users/psims/EoR/Python_Scripts/Calculate_HERA_UV_Coords/output_products/HERA_331_baselines_shorter_than_14d7_for_30_0d5_min_time_steps/'
+	# instrument_model_directory = '/users/psims/EoR/Python_Scripts/Calculate_HERA_UV_Coords/output_products/HERA_331_baselines_shorter_than_14d7_for_60_0d5_min_time_steps/'
+	instrument_model_directory = '/users/psims/EoR/Python_Scripts/Calculate_HERA_UV_Coords/output_products/HERA_331_baselines_shorter_than_14d7_for_120_0d5_min_time_steps/'
+	uvw_multi_time_step_array_meters_reshaped = load_uvw_instrument_sampling_m(instrument_model_directory)
+	baseline_redundancy_array = load_baseline_redundancy_array(instrument_model_directory)
+	uv_pixel_width_wavelengths = 2.5 #Define a fixed pixel width in wavelengths
+	n_vis = len(uvw_multi_time_step_array_meters_reshaped) #Number of visibilities per channel (i.e. number of redundant baselines * number of time steps)
+
+
+
+
+
+
+
+###
 # Other parameter types
 # fg params
 # spectral params

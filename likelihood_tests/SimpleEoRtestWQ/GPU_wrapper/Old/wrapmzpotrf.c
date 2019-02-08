@@ -12,7 +12,7 @@
 // Solve A * X = B, where A and X are stored in CPU host memory.
 // Internally, MAGMA transfers data to the GPU device
 // and uses a hybrid CPU + GPU algorithm.
-void cpu_interface( int n, int nrhs , magmaDoubleComplex *A1, magmaDoubleComplex *B1, int Print, int *Flag)
+void cpu_interface( int n, int nrhs , magmaDoubleComplex *A1, magmaDoubleComplex *B1, int Print)
 //void cpu_interface( int n, int nrhs , double complex *A1, double complex *B1, int Print)
 {
 	magma_init();
@@ -53,7 +53,6 @@ void cpu_interface( int n, int nrhs , magmaDoubleComplex *A1, magmaDoubleComplex
 	}
 
 	if (info != 0){
-		Flag[0] = info;
 		printf("magma_zpotrf returned error %d: %s.\n", (int) info, magma_strerror( info ));
 	}
 
@@ -78,7 +77,7 @@ void cpu_interface( int n, int nrhs , magmaDoubleComplex *A1, magmaDoubleComplex
 	}
 
 //	magma_zprint(n, nrhs, B1, lda);
-//	Flag[0]=999;
+
 	magma_finalize();
 
 

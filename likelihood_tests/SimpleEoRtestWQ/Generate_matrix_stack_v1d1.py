@@ -29,6 +29,8 @@ from BayesEoR.SimData import map_out_bins_for_power_spectral_coefficients_WQ_v2
 
 from BayesEoR.Linalg import IDFT_Array_IDFT_1D_WQ, generate_gridding_matrix_vis_ordered_to_chan_ordered_WQ
 from BayesEoR.Linalg import IDFT_Array_IDFT_1D_WQ_ZM, generate_gridding_matrix_vis_ordered_to_chan_ordered_ZM
+from BayesEoR.Linalg import nuDFT_Array_DFT_2D
+
 
 ###
 # NOTE: a (960*38)*(960*38) array requires ~10.75 GB of memory (960*38*969*38*(64./8)/1.e9 GB precisely for a numpy.float64 double precision array). With 128 GB of memory per node 11 matrices of this size to be held in memory simultaneously.
@@ -52,13 +54,17 @@ class BuildMatrixTree(object):
 		self.matrix_prerequisites_dictionary['Fz'] = ['gridding_matrix_vis_ordered_to_chan_ordered', 'multi_vis_idft_array_1D_WQ', 'multi_vis_idft_array_1D']
 		self.matrix_prerequisites_dictionary['multi_chan_idft_array_noZMchan'] = ['idft_array']
 		self.matrix_prerequisites_dictionary['multi_chan_dft_array_noZMchan'] = ['dft_array']
-		self.matrix_prerequisites_dictionary['Fprime'] = ['multi_chan_idft_array_noZMchan']
-		self.matrix_prerequisites_dictionary['Finv'] = ['multi_chan_dft_array_noZMchan']
 		self.matrix_prerequisites_dictionary['Fprime_Fz'] = ['Fprime', 'Fz']
 		self.matrix_prerequisites_dictionary['T'] = ['Finv','Fprime_Fz']
 		self.matrix_prerequisites_dictionary['Ninv_T'] = ['Ninv','T']
 		self.matrix_prerequisites_dictionary['T_Ninv_T'] = ['T', 'Ninv_T']
 		self.matrix_prerequisites_dictionary['block_T_Ninv_T'] = ['T_Ninv_T']
+		self.matrix_prerequisites_dictionary['Fprime'] = ['multi_chan_idft_array_noZMchan']
+		if p.include_instrumental_effects:
+			self.matrix_prerequisites_dictionary['Finv'] = ['multi_chan_nudft']
+		else:
+			self.matrix_prerequisites_dictionary['Finv'] = ['multi_chan_dft_array_noZMchan']
+			
 
 	def check_for_prerequisites(self, parent_matrix):
 		prerequisites_status = {}
@@ -109,7 +115,7 @@ class BuildMatrixTree(object):
 ## ======================================================================================================
 
 class BuildMatrices(BuildMatrixTree):
-	def __init__(self, array_save_directory, nu, nv, nx, ny, neta, nf, nq, sigma, **kwargs):
+	def __init__(self, array_save_directory, nu, nv, nx, ny, n_vis, neta, nf, nq, sigma, **kwargs):
 		super(BuildMatrices, self).__init__(array_save_directory)
 
 		##===== Defaults =======
@@ -124,6 +130,7 @@ class BuildMatrices(BuildMatrixTree):
 		self.nv = nv
 		self.nx = nx
 		self.ny = ny
+		self.n_vis = n_vis
 		self.neta = neta
 		self.nf = nf
 		self.nq = nq
@@ -157,6 +164,7 @@ class BuildMatrices(BuildMatrixTree):
 		self.matrix_construction_methods_dictionary['Ninv_T'] = self.build_Ninv_T
 		self.matrix_construction_methods_dictionary['block_T_Ninv_T'] = self.build_block_T_Ninv_T
 		self.matrix_construction_methods_dictionary['N'] = self.build_N
+		self.matrix_construction_methods_dictionary['multi_chan_nudft'] = self.build_multi_chan_nudft
 
 	def load_prerequisites(self, matrix_name):
 		prerequisite_matrices_dictionary = {}
@@ -233,12 +241,28 @@ class BuildMatrices(BuildMatrixTree):
 		###
 		self.output_to_hdf5(multi_chan_dft_array_noZMchan, self.array_save_directory, matrix_name+'.h5', matrix_name)
 
+	def build_multi_chan_nudft(self):
+		matrix_name='multi_chan_nudft'
+		pmd = self.load_prerequisites(matrix_name)
+		start = time.time()
+		print 'Performing matrix algebra'
+		nu_array_MHz = p.nu_min_MHz+np.arange(p.nf)*p.channel_width_MHz
+		multi_chan_nudft = block_diag(*[nuDFT_Array_DFT_2D(self.nu,self.nv,self.nx,self.ny, chan_freq_MHz).T for chan_freq_MHz in nu_array_MHz])
+		print 'Time taken: {}'.format(time.time()-start)
+		###
+		# Save matrix to HDF5
+		###
+		self.output_to_hdf5(multi_chan_nudft, self.array_save_directory, matrix_name+'.h5', matrix_name)
+
 	def build_Finv(self):
 		matrix_name='Finv'
 		pmd = self.load_prerequisites(matrix_name)
 		start = time.time()
 		print 'Performing matrix algebra'
-		Finv = pmd['multi_chan_dft_array_noZMchan']
+		if p.include_instrumental_effects:
+			Finv = pmd['multi_chan_nudft']
+		else:
+			Finv = pmd['multi_chan_dft_array_noZMchan']
 		print 'Time taken: {}'.format(time.time()-start)
 		###
 		# Save matrix to HDF5
@@ -424,9 +448,17 @@ class BuildMatrices(BuildMatrixTree):
 		pmd = self.load_prerequisites(matrix_name)
 		start = time.time()
 		print 'Performing matrix algebra'
-		s_size = (self.nu*self.nv-1)*self.nf
-		sigma_squared_array = np.ones(s_size)*self.sigma**2 + 0j*np.ones(s_size)*self.sigma**2
-		Ninv = np.diag(1./sigma_squared_array)
+		if p.include_instrumental_effects:
+			baseline_redundancy_array = p.baseline_redundancy_array #This array is channel_ordered and the construct the covariance matrix assumes channel_ordered data set (this vector should be re-ordered if the data is in a differently ordered)
+			s_size = self.n_vis*self.nf
+			multifreq_baseline_redundancy_array = np.array([baseline_redundancy_array for i in range(p.nf)]).flatten()
+			sigma_accounting_for_redundancy = self.sigma / multifreq_baseline_redundancy_array**0.5 #RMS drops as the squareroot of the number of redundant samples
+			sigma_squared_array = np.ones(s_size)*sigma_accounting_for_redundancy**2 + 0j*np.ones(s_size)*sigma_accounting_for_redundancy**2
+			Ninv = np.diag(1./sigma_squared_array)
+		else:
+			s_size = (self.nu*self.nv-1)*self.nf
+			sigma_squared_array = np.ones(s_size)*self.sigma**2 + 0j*np.ones(s_size)*self.sigma**2
+			Ninv = np.diag(1./sigma_squared_array)
 		print 'Time taken: {}'.format(time.time()-start)
 		###
 		# Save matrix to HDF5
@@ -438,9 +470,17 @@ class BuildMatrices(BuildMatrixTree):
 		pmd = self.load_prerequisites(matrix_name)
 		start = time.time()
 		print 'Performing matrix algebra'
-		s_size = (self.nu*self.nv-1)*self.nf
-		sigma_squared_array = np.ones(s_size)*self.sigma**2 + 0j*np.ones(s_size)*self.sigma**2
-		N = np.diag(sigma_squared_array)
+		if p.include_instrumental_effects:
+			baseline_redundancy_array = p.baseline_redundancy_array #This array is channel_ordered and the construct the covariance matrix assumes channel_ordered data set (this vector should be re-ordered if the data is in a differently ordered)
+			s_size = self.n_vis*self.nf
+			multifreq_baseline_redundancy_array = np.array([baseline_redundancy_array for i in range(p.nf)]).flatten()
+			sigma_accounting_for_redundancy = self.sigma / multifreq_baseline_redundancy_array**0.5 #RMS drops as the squareroot of the number of redundant samples
+			sigma_squared_array = np.ones(s_size)*sigma_accounting_for_redundancy**2 + 0j*np.ones(s_size)*sigma_accounting_for_redundancy**2
+			N = np.diag(sigma_squared_array)
+		else:
+			s_size = (self.nu*self.nv-1)*self.nf
+			sigma_squared_array = np.ones(s_size)*self.sigma**2 + 0j*np.ones(s_size)*self.sigma**2
+			N = np.diag(sigma_squared_array)
 		print 'Time taken: {}'.format(time.time()-start)
 		###
 		# Save matrix to HDF5
