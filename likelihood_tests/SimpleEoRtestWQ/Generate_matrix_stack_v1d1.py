@@ -29,7 +29,7 @@ from BayesEoR.SimData import map_out_bins_for_power_spectral_coefficients_WQ_v2
 
 from BayesEoR.Linalg import IDFT_Array_IDFT_1D_WQ, generate_gridding_matrix_vis_ordered_to_chan_ordered_WQ
 from BayesEoR.Linalg import IDFT_Array_IDFT_1D_WQ_ZM, generate_gridding_matrix_vis_ordered_to_chan_ordered_ZM
-from BayesEoR.Linalg import nuDFT_Array_DFT_2D
+from BayesEoR.Linalg import nuDFT_Array_DFT_2D, make_Gaussian_beam, make_Uniform_beam
 
 
 ###
@@ -61,7 +61,7 @@ class BuildMatrixTree(object):
 		self.matrix_prerequisites_dictionary['block_T_Ninv_T'] = ['T_Ninv_T']
 		self.matrix_prerequisites_dictionary['Fprime'] = ['multi_chan_idft_array_noZMchan']
 		if p.include_instrumental_effects:
-			self.matrix_prerequisites_dictionary['Finv'] = ['multi_chan_nudft']
+			self.matrix_prerequisites_dictionary['Finv'] = ['multi_chan_nudft', 'multi_chan_P']
 		else:
 			self.matrix_prerequisites_dictionary['Finv'] = ['multi_chan_dft_array_noZMchan']
 			
@@ -165,6 +165,7 @@ class BuildMatrices(BuildMatrixTree):
 		self.matrix_construction_methods_dictionary['block_T_Ninv_T'] = self.build_block_T_Ninv_T
 		self.matrix_construction_methods_dictionary['N'] = self.build_N
 		self.matrix_construction_methods_dictionary['multi_chan_nudft'] = self.build_multi_chan_nudft
+		self.matrix_construction_methods_dictionary['multi_chan_P'] = self.build_multi_chan_P
 
 	def load_prerequisites(self, matrix_name):
 		prerequisite_matrices_dictionary = {}
@@ -254,13 +255,36 @@ class BuildMatrices(BuildMatrixTree):
 		###
 		self.output_to_hdf5(multi_chan_nudft, self.array_save_directory, matrix_name+'.h5', matrix_name)
 
+	def build_multi_chan_P(self):
+		matrix_name='multi_chan_P'
+		pmd = self.load_prerequisites(matrix_name)
+		start = time.time()
+		print 'Performing matrix algebra'
+		nu_array_MHz = p.nu_min_MHz+np.arange(p.nf)*p.channel_width_MHz
+		image_size_pix = p.nx
+		beam_peak_amplitude = p.beam_peak_amplitude
+		deg_to_pix = image_size_pix / float(p.simulation_FoV_deg)
+		FWHM_deg_at_chan_freq_MHz = [p.FWHM_deg_at_ref_freq_MHz*(float(p.PB_ref_freq_MHz)/chan_freq_MHz) for chan_freq_MHz in nu_array_MHz]
+		FWHM_pix_at_chan_freq_MHz = [FWHM_deg*deg_to_pix for FWHM_deg in FWHM_deg_at_chan_freq_MHz]
+		if p.beam_type.lower() == 'gaussian'.lower():
+			multi_chan_P = block_diag(*[np.diag(make_Gaussian_beam(image_size_pix,FWHM_pix,beam_peak_amplitude).flatten()) for FWHM_pix in FWHM_pix_at_chan_freq_MHz])
+		elif p.beam_type.lower() == 'uniform'.lower():
+			multi_chan_P = block_diag(*[np.diag(make_Uniform_beam(image_size_pix,beam_peak_amplitude).flatten()) for FWHM_pix in FWHM_pix_at_chan_freq_MHz])
+		else:
+			multi_chan_P = block_diag(*[np.diag(make_Uniform_beam(image_size_pix,beam_peak_amplitude).flatten()) for FWHM_pix in FWHM_pix_at_chan_freq_MHz])
+		print 'Time taken: {}'.format(time.time()-start)
+		###
+		# Save matrix to HDF5
+		###
+		self.output_to_hdf5(multi_chan_P, self.array_save_directory, matrix_name+'.h5', matrix_name)
+
 	def build_Finv(self):
 		matrix_name='Finv'
 		pmd = self.load_prerequisites(matrix_name)
 		start = time.time()
 		print 'Performing matrix algebra'
 		if p.include_instrumental_effects:
-			Finv = pmd['multi_chan_nudft']
+			Finv = np.dot(pmd['multi_chan_nudft'], pmd['multi_chan_P'])
 		else:
 			Finv = pmd['multi_chan_dft_array_noZMchan']
 		print 'Time taken: {}'.format(time.time()-start)

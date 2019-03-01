@@ -99,6 +99,8 @@ class PowerSpectrumPosteriorProbability(object):
 		self.nq  = nq
 		self.masked_power_spectral_modes  = masked_power_spectral_modes
 		self.modk_vis_ordered_list = modk_vis_ordered_list
+		self.print_rate = 1000
+
 
 	def add_power_to_diagonals(self, T_Ninv_T_block, PhiI_block, **kwargs):
 		return T_Ninv_T_block+np.diag(PhiI_block)
@@ -232,12 +234,12 @@ class PowerSpectrumPosteriorProbability(object):
 		#define VOLUME (BOX_LEN*BOX_LEN*BOX_LEN) // in Mpc^3
 		# p_box[ct] += pow(k_mag,3)*pow(cabs(deldel_T[HII_C_INDEX(n_x, n_y, n_z)]), 2)/(2.0*PI*PI*VOLUME);
 		###
-		EoR_x_full_pix = float(p.box_size_21cmFAST_pix) #pix (defined by input to 21cmFAST simulation)
-		EoR_y_full_pix = float(p.box_size_21cmFAST_pix) #pix (defined by input to 21cmFAST simulation)
-		EoR_z_full_pix = float(p.box_size_21cmFAST_pix) #pix (defined by input to 21cmFAST simulation)
-		EoR_x_full_Mpc = float(p.box_size_21cmFAST_Mpc) #Mpc (defined by input to 21cmFAST simulation)
-		EoR_y_full_Mpc = float(p.box_size_21cmFAST_Mpc) #Mpc (defined by input to 21cmFAST simulation)
-		EoR_z_full_Mpc = float(p.box_size_21cmFAST_Mpc) #Mpc (defined by input to 21cmFAST simulation)
+		EoR_x_full_pix = float(p.box_size_21cmFAST_pix_sc) #pix (defined by input to 21cmFAST simulation)
+		EoR_y_full_pix = float(p.box_size_21cmFAST_pix_sc) #pix (defined by input to 21cmFAST simulation)
+		EoR_z_full_pix = float(p.box_size_21cmFAST_pix_sc) #pix (defined by input to 21cmFAST simulation)
+		EoR_x_full_Mpc = float(p.box_size_21cmFAST_Mpc_sc) #Mpc (defined by input to 21cmFAST simulation)
+		EoR_y_full_Mpc = float(p.box_size_21cmFAST_Mpc_sc) #Mpc (defined by input to 21cmFAST simulation)
+		EoR_z_full_Mpc = float(p.box_size_21cmFAST_Mpc_sc) #Mpc (defined by input to 21cmFAST simulation)
 		# EoR_analysis_cube_x_pix = EoR_x_full_pix #Mpc Analysing the full FoV in x
 		# EoR_analysis_cube_y_pix = EoR_y_full_pix #Mpc Analysing the full FoV in y
 		# EoR_analysis_cube_z_pix = 38 #Mpc Analysing 38 of the 128 channels of the full EoR_simulations 
@@ -252,6 +254,12 @@ class PowerSpectrumPosteriorProbability(object):
 		cosmo_fft_norm_factor = (2.*np.pi)**2. #This needs to be verified / replaced........!
 		# dimensionless_PS_scaling = (self.modk_vis_ordered_list[i_bin]**3.)*(EoRVolume**1.0)/(2.*(np.pi**2)*pixel_volume**2.)*cosmo_fft_norm_factor
 		dimensionless_PS_scaling = (self.modk_vis_ordered_list[i_bin]**3.)*(EoRVolume**1.0)/(2.*(np.pi**2)*pixel_volume**1.)
+		# dimensionless_PS_scaling = (self.modk_vis_ordered_list[i_bin].mean()**3.)*(EoRVolume**1.0)/(2.*(np.pi**2)*pixel_volume**1.)
+		if p.include_instrumental_effects:
+			# e.g. http://www.mrao.cam.ac.uk/~kjbg1/lectures/lect1_1.pdf
+			Omega_beam_Gaussian_sr = (p.FWHM_deg_at_ref_freq_MHz*np.pi/180.)**2. * np.pi/(4.*np.log(2.0))
+			dimensionless_PS_scaling = dimensionless_PS_scaling * Omega_beam_Gaussian_sr**4.0
+
 
 		return dimensionless_PS_scaling
 
@@ -282,31 +290,64 @@ class PowerSpectrumPosteriorProbability(object):
 		cosmo_fft_norm_factor = (2.*np.pi)**2. #This needs to be verified / replaced........!
 		PS_scaling = (EoRVolume**1.0)/(pixel_volume**1.0)
 
+		random_scaling_factor = (9.0*np.pi/180.)**2. * np.pi/(4.*np.log(2.0))
+		# PS_scaling = PS_scaling*0.3**3.*random_scaling_factor**4. #Random scaling factor to put the physical and dimensionless power spectrum on a comparable scale (to avoid having to use different priors for the two cases).
+		PS_scaling = PS_scaling*0.1**3.*random_scaling_factor**4. #Random scaling factor to put the physical and dimensionless power spectrum on a comparable scale (to avoid having to use different priors for the two cases).
+
 		return PS_scaling
 
 	def calc_PowerI(self, x, **kwargs):
 		###
 		# Place restricions on the power in the long spectral scale model either for,
-		# inverse_LW_power: constrain the amplitude of all of the long spectral scale basis model components
+		# inverse_LW_power: constrain the amplitude distribution of all of the large spectral scale model components
 		# inverse_LW_power_zeroth_LW_term: constrain the amplitude of monopole-term basis vector
 		# inverse_LW_power_first_LW_term: constrain the amplitude of the model components of the 1st LW basis vector (e.g. linear model comp.)
 		# inverse_LW_power_second_LW_term: constrain the amplitude of the model components of the 2nd LW basis vector (e.g. quad model comp.)
 		# Note: The indices used are correct for the current ordering of basis vectors when nf is an even number...
 		###
-		PowerI=np.zeros(self.Npar)+self.inverse_LW_power #set to zero for a uniform distribution
-		if self.inverse_LW_power==0.0:
-			PowerI[self.nf/2-1::self.nf]=self.inverse_LW_power_zeroth_LW_term #set to zero for a uniform distribution
-			PowerI[self.nf-2::self.nf]=self.inverse_LW_power_first_LW_term #set to zero for a uniform distribution
-			PowerI[self.nf-1::self.nf]=self.inverse_LW_power_second_LW_term #set to zero for a uniform distribution
+		
+		PowerI=np.zeros(self.Npar)
+		# PowerI=np.zeros(self.Npar)+self.inverse_LW_power 
+		# # PowerI=np.zeros(self.Npar)
+		# # PowerI[self.nf/2-1::self.nf]=self.inverse_LW_power 
+		# # PowerI[self.nf-2::self.nf]=self.inverse_LW_power 
+		# # PowerI[self.nf-1::self.nf]=self.inverse_LW_power 
+		# PowerI[self.nf/2-1::self.nf]=self.inverse_LW_power_zeroth_LW_term #set to zero for a uniform distribution
+		# PowerI[self.nf-2::self.nf]=self.inverse_LW_power_first_LW_term #set to zero for a uniform distribution
+		# PowerI[self.nf-1::self.nf]=self.inverse_LW_power_second_LW_term #set to zero for a uniform distribution
+		# # print 'self.inverse_LW_power', self.inverse_LW_power
+		# # print 'self.inverse_LW_power_first_LW_term', self.inverse_LW_power_first_LW_term
+		# # print 'self.inverse_LW_power_second_LW_term', self.inverse_LW_power_second_LW_term
+		# if self.inverse_LW_power==0.0:
+		# 	PowerI[self.nf/2-1::self.nf]=self.inverse_LW_power_zeroth_LW_term #set to zero for a uniform distribution
+		# 	PowerI[self.nf-2::self.nf]=self.inverse_LW_power_first_LW_term #set to zero for a uniform distribution
+		# 	PowerI[self.nf-1::self.nf]=self.inverse_LW_power_second_LW_term #set to zero for a uniform distribution
 
 		if self.dimensionless_PS:
+			# Constrain LW mode amplitude distribution
+			# for i_bin_LW in range(3):
+			dimensionless_PS_scaling = self.calc_dimensionless_power_spectral_normalisation_21cmFAST(0)
+			PowerI[self.nf/2-1::self.nf]=np.mean(dimensionless_PS_scaling)/x[0] #set to zero for a uniform distribution
+			PowerI[self.nf-2::self.nf]=np.mean(dimensionless_PS_scaling)/x[1] #set to zero for a uniform distribution
+			PowerI[self.nf-1::self.nf]=np.mean(dimensionless_PS_scaling)/x[2] #set to zero for a uniform distribution
+
+			# Fit for Fourier mode power spectrum
 			for i_bin in range(len(self.k_cube_voxels_in_bin)):
 				dimensionless_PS_scaling = self.calc_dimensionless_power_spectral_normalisation_21cmFAST(i_bin)
-				PowerI[self.k_cube_voxels_in_bin[i_bin]] = dimensionless_PS_scaling/x[i_bin] #NOTE: fitting for power not std here
+				# PowerI[self.k_cube_voxels_in_bin[i_bin]] = dimensionless_PS_scaling/x[i_bin] #NOTE: fitting for power not std here
+				PowerI[self.k_cube_voxels_in_bin[i_bin]] = dimensionless_PS_scaling/x[3+i_bin] #NOTE: fitting for power not std here
 		else:
+			# Constrain LW mode amplitude distribution
+			# for i_bin_LW in range(3):
+			dimensionless_PS_scaling = self.calc_dimensionless_power_spectral_normalisation_21cmFAST(0)
+			PowerI[self.nf/2-1::self.nf]=np.mean(dimensionless_PS_scaling)/x[0] #set to zero for a uniform distribution
+			PowerI[self.nf-2::self.nf]=np.mean(dimensionless_PS_scaling)/x[1] #set to zero for a uniform distribution
+			PowerI[self.nf-1::self.nf]=np.mean(dimensionless_PS_scaling)/x[2] #set to zero for a uniform distribution
+			# Fit for Fourier mode power spectrum
 			for i_bin in range(len(self.k_cube_voxels_in_bin)):
 				physical_PS_scaling = self.calc_Npix_physical_power_spectrum_normalisation(i_bin)
-				PowerI[self.k_cube_voxels_in_bin[i_bin]] = physical_PS_scaling*1./x[i_bin]  #NOTE: fitting for power not std here
+				# PowerI[self.k_cube_voxels_in_bin[i_bin]] = physical_PS_scaling*1./x[i_bin]  #NOTE: fitting for power not std here
+				PowerI[self.k_cube_voxels_in_bin[i_bin]] = physical_PS_scaling*1./x[3+i_bin]  #NOTE: fitting for power not std here
 
 		# brk()
 		return PowerI
@@ -341,7 +382,8 @@ class PowerSpectrumPosteriorProbability(object):
 				if self.Print:print 'Not using block-diagonal inversion'
 				SigmaI_dbar, dbarSigmaIdbar, PhiI, logSigmaDet = self.calc_SigmaI_dbar_wrapper(x, T_Ninv_T, dbar)
 
-			logPhiDet=-1*np.sum(np.log(PhiI[np.logical_not(self.masked_power_spectral_modes)])).real #Only possible because Phi is diagonal (otherwise would need to calc np.linalg.slogdet(Phi)). -1 factor is to get logPhiDet from logPhiIDet. Note: the real part of this calculation matches the solution given by np.linalg.slogdet(Phi))
+			#logPhiDet=-1*np.sum(np.log(PhiI[np.logical_not(self.masked_power_spectral_modes)])).real #Only possible because Phi is diagonal (otherwise would need to calc np.linalg.slogdet(Phi)). -1 factor is to get logPhiDet from logPhiIDet. Note: the real part of this calculation matches the solution given by np.linalg.slogdet(Phi))
+			logPhiDet=-1*np.sum(np.log(PhiI)).real #Only possible because Phi is diagonal (otherwise would need to calc np.linalg.slogdet(Phi)). -1 factor is to get logPhiDet from logPhiIDet. Note: the real part of this calculation matches the solution given by np.linalg.slogdet(Phi))
 
 			MargLogL =  -0.5*logSigmaDet -0.5*logPhiDet + 0.5*dbarSigmaIdbar
 			vals = map(real, (-0.5*logSigmaDet, -0.5*logPhiDet, 0.5*dbarSigmaIdbar, MargLogL))
@@ -351,13 +393,11 @@ class PowerSpectrumPosteriorProbability(object):
 				print 'MargLogL.real', MargLogL.real
 				print 'logSigmaDet, logPhiDet, dbarSigmaIdbar', logSigmaDet, logPhiDet, dbarSigmaIdbar
 
-
-			self.print_rate = 1000
 			# brk()
 			
 			if self.nu>10:
 				self.print_rate=100
-			if self.count%print_rate==0:
+			if self.count%self.print_rate==0:
 				print 'count', self.count
 				print 'Time since class instantiation: %f'%(time.time()-self.instantiation_time)
 				print 'Time for this likelihood call: %f'%(time.time()-start)
@@ -368,8 +408,8 @@ class PowerSpectrumPosteriorProbability(object):
 			return -np.inf, phi
 
 
-
-
+# 
+# 
 
 
 

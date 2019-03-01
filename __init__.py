@@ -2,7 +2,7 @@
 # Imports
 ###
 import matplotlib
-matplotlib.use('pdf') #No pop-ups (comment out to interact with plots)
+# matplotlib.use('pdf') #No pop-ups (comment out to interact with plots)
 import numpy as np
 import numpy
 from numpy import arange, shape, log10, pi
@@ -27,7 +27,7 @@ from Linalg import Construct_Hermitian_Gridding_Matrix_CosSin_SH_v4, IDFT_Array_
 from Linalg import generate_gridding_matrix_vis_ordered_to_chan_ordered
 from Linalg import IDFT_Array_IDFT_1D_WQ, generate_gridding_matrix_vis_ordered_to_chan_ordered_WQ
 from Linalg import IDFT_Array_IDFT_1D_WQ_ZM, generate_gridding_matrix_vis_ordered_to_chan_ordered_ZM
-from Linalg import nuDFT_Array_DFT_2D
+from Linalg import nuDFT_Array_DFT_2D, make_Gaussian_beam, make_Uniform_beam
 
 from SimData import generate_test_sim_signal, map_out_bins_for_power_spectral_coefficients
 # from SimData import generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector
@@ -56,7 +56,8 @@ from Utils import remove_unused_header_variables, construct_aplpy_image_from_fit
 from GenerateForegroundCube import generate_Jelic_cube, generate_data_from_loaded_EoR_cube, generate_data_from_loaded_EoR_cube_v2d0
 from GenerateForegroundCube import generate_test_signal_from_image_cube
 from GenerateForegroundCube import top_hat_average_temperature_cube_to_lower_res_31x31xnf_cube
-from GenerateForegroundCube import generate_data_from_loaded_EGS_cube, generate_white_noise_signal
+from GenerateForegroundCube import generate_data_from_loaded_EGS_cube, generate_white_noise_signal_instrumental_k_2_vis
+from GenerateForegroundCube import generate_white_noise_signal_instrumental_im_2_vis, generate_EoR_signal_instrumental_im_2_vis
 
 
 

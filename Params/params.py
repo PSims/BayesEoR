@@ -18,18 +18,38 @@ nf=38
 neta=38
 # nf=76
 # neta=76
+# nu=17
+# nv=17
+# nx=17
+# ny=17
 # nu=15
 # nv=15
 # nx=15
 # ny=15
+# nu=13
+# nv=13
+# nx=13
+# ny=13
 nu=9
 nv=9
 nx=9
 ny=9
+# nu=7
+# nv=7
+# nx=7
+# ny=7
+# nu=11
+# nv=11
+# nx=11
+# ny=11
 # nu=31
 # nv=31
 # nx=31
 # ny=31
+# nu=21
+# nv=21
+# nx=21
+# ny=21
 
 use_uniform_prior_on_min_k_bin = False
 # use_uniform_prior_on_min_k_bin = True #Don't use the min_kz voxels (eta \propto 1/B), which have significant correlation with the Fg model, in estimates of the low-k power spectrum 
@@ -43,7 +63,8 @@ box_size_21cmFAST_pix = 128 #Must match EoR_npz_path parameters
 box_size_21cmFAST_Mpc = 512 #Must match EoR_npz_path parameters
 
 # Big box 12 deg. 120 MHz higher res. (so nf=48 ~10 MHz). Downsampled from a high res. (3072 pix).
-EoR_npz_path_sc = '/users/psims/EoR/EoR_simulations/21cmFAST_2048MPc_3072pix_512pix_v2/Fits/21cm_mK_z7.600_nf0.459_useTs0.0_aveTb9.48_cube_side_pix512_cube_side_Mpc2048.npz'
+# EoR_npz_path_sc = '/users/psims/EoR/EoR_simulations/21cmFAST_2048MPc_3072pix_512pix_v2/Fits/21cm_mK_z7.600_nf0.459_useTs0.0_aveTb9.48_cube_side_pix512_cube_side_Mpc2048.npz'
+EoR_npz_path_sc = '/users/psims/EoR/EoR_simulations/21cmFAST_2048MPc_2048pix_512pix_AstroParamExploration1/Fits/npzs/Zeta10.0_Tvir1.0e+05_mfp22.2_Taue0.041_zre-1.000_delz-1.000_512_2048Mpc/21cm_mK_z7.600_nf0.883_useTs0.0_aveTb21.06_cube_side_pix512_cube_side_Mpc2048.npz'
 box_size_21cmFAST_pix_sc = 512 #Must match EoR_npz_path parameters
 box_size_21cmFAST_Mpc_sc = 2048 #Must match EoR_npz_path parameters
 
@@ -147,11 +168,19 @@ from astropy import constants
 speed_of_light = constants.c.value
 
 
+###--
 ###
-# NUDFT params
+# Instrumental effects params
 ###
 
 include_instrumental_effects = True
+# include_instrumental_effects = False
+inverse_LW_power = 1.e-8 #Include minimal prior over LW modes to ensure numerically stable posterior
+
+
+###
+# NUDFT params
+###
 
 # Load uvw_multi_time_step_array_meters_reshaped inside a function to avoid creating extraneous params variables (like files_dir, file_name etc.)
 import pickle
@@ -175,14 +204,35 @@ def load_baseline_redundancy_array(instrument_model_directory):
 if include_instrumental_effects:
 	# instrument_model_directory = '/users/psims/EoR/Python_Scripts/Calculate_HERA_UV_Coords/output_products/HERA_331_baselines_shorter_than_14d7_for_30_0d5_min_time_steps/'
 	# instrument_model_directory = '/users/psims/EoR/Python_Scripts/Calculate_HERA_UV_Coords/output_products/HERA_331_baselines_shorter_than_14d7_for_60_0d5_min_time_steps/'
-	instrument_model_directory = '/users/psims/EoR/Python_Scripts/Calculate_HERA_UV_Coords/output_products/HERA_331_baselines_shorter_than_14d7_for_120_0d5_min_time_steps/'
+	# instrument_model_directory = '/users/psims/EoR/Python_Scripts/Calculate_HERA_UV_Coords/output_products/HERA_331_baselines_shorter_than_14d7_for_120_0d5_min_time_steps/'
+	instrument_model_directory = '/users/psims/EoR/Python_Scripts/Calculate_HERA_UV_Coords/output_products/HERA_331_baselines_shorter_than_29d3_for_30_0d5_min_time_steps/'
 	uvw_multi_time_step_array_meters_reshaped = load_uvw_instrument_sampling_m(instrument_model_directory)
 	baseline_redundancy_array = load_baseline_redundancy_array(instrument_model_directory)
 	uv_pixel_width_wavelengths = 2.5 #Define a fixed pixel width in wavelengths
 	n_vis = len(uvw_multi_time_step_array_meters_reshaped) #Number of visibilities per channel (i.e. number of redundant baselines * number of time steps)
 
 
+###
+# Primary beam params
+###
 
+if include_instrumental_effects:
+	FWHM_deg_at_ref_freq_MHz = 9.0 #9 degrees
+	PB_ref_freq_MHz = 150.0 #150 MHz
+	# beam_type = 'Uniform'
+	beam_type = 'Gaussian'
+	beam_peak_amplitude = 1.0
+	beam_info_str = ''
+	if beam_type.lower() == 'Uniform'.lower():
+		beam_info_str += '{}_beam_peak_amplitude_{}'.format(beam_type, str(beam_peak_amplitude).replace('.','d'))		
+	if beam_type.lower() == 'Gaussian'.lower():
+		beam_info_str += '{}_beam_peak_amplitude_{}_beam_width_{}_deg_at_{}_MHz'.format(beam_type, str(beam_peak_amplitude).replace('.','d'), str(FWHM_deg_at_ref_freq_MHz).replace('.','d'), str(PB_ref_freq_MHz).replace('.','d'))		
+
+	# instrument_model_directory = '/users/psims/EoR/Python_Scripts/Calculate_HERA_UV_Coords/output_products/HERA_331_baselines_shorter_than_14d7_for_30_0d5_min_time_steps/'
+	# instrument_model_directory = '/users/psims/EoR/Python_Scripts/Calculate_HERA_UV_Coords/output_products/HERA_331_baselines_shorter_than_29d3_for_30_0d5_min_time_steps/'
+	instrument_model_directory = instrument_model_directory[:-1]+'_{}/'.format(beam_info_str)
+
+###--
 
 
 
