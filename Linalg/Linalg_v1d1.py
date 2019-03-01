@@ -43,6 +43,32 @@ def makeGaussian(size, fwhm = 3, center=None):
 
 
 
+###
+def make_Gaussian_beam(image_size_pix, fwhm_pix, beam_peak_amplitude, center_pix=[]):
+	""" Make a square gaussian kernel.
+	"""
+	x = np.arange(0, image_size_pix, 1, float)
+	y = x[:,np.newaxis]
+	if not center_pix:
+		x0 = y0 = image_size_pix // 2
+	else:
+		x0 = center_pix[0]
+		y0 = center_pix[1]
+	gaussian_beam = beam_peak_amplitude * np.exp(-4*np.log(2) * ((x-x0)**2 + (y-y0)**2) / fwhm_pix**2) 
+	return gaussian_beam
+
+
+
+
+###
+def make_Uniform_beam(image_size_pix, beam_peak_amplitude = 1.0):
+	""" Make a square uniform kernel.
+	"""
+	uniform_beam = beam_peak_amplitude * np.ones([image_size_pix, image_size_pix])
+	return uniform_beam
+
+
+
 
 ###
 def Produce_Full_Coordinate_Arrays(nu, nv, nx, ny):

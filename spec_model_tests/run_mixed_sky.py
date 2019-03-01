@@ -8,6 +8,17 @@ import sys
 # head,tail = os.path.split(os.getcwd())
 head,tail = os.path.split(os.path.split(os.getcwd())[0])
 sys.path.append(head)
+mpi_rank = 0
+import mpi4py
+from mpi4py import MPI
+mpi_comm = MPI.COMM_WORLD
+mpi_rank = mpi_comm.Get_rank()
+mpi_size = mpi_comm.Get_size()
+
+print 'mpi_comm', mpi_comm
+print 'mpi_rank', mpi_rank
+print 'mpi_size', mpi_size
+
 from BayesEoR import * #Make everything available for now, this can be refined later
 import BayesEoR.Params.params as p
 use_MultiNest = True #Set to false for large parameter spaces
@@ -67,7 +78,11 @@ sigma=50.e-1
 
 if p.include_instrumental_effects:
 		average_baseline_redundancy = p.baseline_redundancy_array.mean() #Keep average noise level consisitent with the non-instrumental case by normalizing sigma my the average baseline redundancy before scaling individual baselines by their respective redundancies
-		sigma = sigma*average_baseline_redundancy**0.5 *1.0
+		# sigma = sigma*average_baseline_redundancy**0.5 *1.0
+		# sigma = sigma*average_baseline_redundancy**0.5 *5.0
+		sigma = sigma*average_baseline_redundancy**0.5 *20.0
+		# sigma = sigma*average_baseline_redundancy**0.5 *40.0
+		# sigma = sigma*average_baseline_redundancy**0.5 / 20.0
 
 
 
@@ -312,7 +327,7 @@ elif use_EGS_cube:
 	s_Tot = s_EGS.copy()
 	s_fgs_only = s_EGS.copy()
 	print 'Using EGS cube'
-elif use_free_free_foreground_cube:
+elif use_freefree_foreground_cube:
 	d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(sigma, s_ff, nu,nv,nx,ny,nf,neta,nq)[0]
 	s_Tot = s_ff.copy()
 	s_fgs_only = s_ff.copy()
@@ -336,13 +351,30 @@ else:
 T_Ninv_T = BM.read_data_from_hdf5(array_save_directory+'T_Ninv_T.h5', 'T_Ninv_T')
 Npar = shape(T_Ninv_T)[0]
 
+fit_for_LW_power_spectrum = True
+# fit_for_LW_power_spectrum = False
 masked_power_spectral_modes = np.ones(Npar)
-masked_power_spectral_modes[sorted(np.hstack(k_cube_voxels_in_bin)[0])] = 0.0
+if not fit_for_LW_power_spectrum:
+	print 'Not fitting for LW power spectrum. Zeroing relevant modes in the determinant.'
+	masked_power_spectral_modes[sorted(np.hstack(k_cube_voxels_in_bin)[0])] = 0.0
+
 masked_power_spectral_modes = masked_power_spectral_modes.astype('bool')
 
 T = BM.read_data_from_hdf5(array_save_directory+'T.h5', 'T')
-s_WN, abc, scidata1 = generate_white_noise_signal(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z, T,Show,chan_selection,masked_power_spectral_modes)
-d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_WN, nu,nv,nx,ny,nf,neta,nq,random_seed=2123)[0]
+Finv = BM.read_data_from_hdf5(array_save_directory+'Finv.h5', 'Finv')
+
+
+overwrite_data_with_WN = False
+if p.include_instrumental_effects:
+	if overwrite_data_with_WN:
+		# s_WN, abc, scidata1 = generate_white_noise_signal_instrumental_k_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z, T,Show,chan_selection,masked_power_spectral_modes)
+		s_WN, abc, scidata1 = generate_white_noise_signal_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z, Finv,Show,chan_selection,masked_power_spectral_modes, mod_k)
+		d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_WN, nu,nv,nx,ny,nf,neta,nq,random_seed=2123)[0]
+	else:
+		if use_EoR_cube:
+			s_EoR, abc, scidata1 = generate_EoR_signal_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z, Finv,Show,chan_selection,masked_power_spectral_modes, mod_k, p.EoR_npz_path_sc)
+			# d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,random_seed=2123)[0]
+			d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,random_seed=2123)[0]
 
 
 
@@ -360,6 +392,9 @@ dbar = np.dot(T.conjugate().T,Ninv_d)
 Ninv=[]
 Sigma_Diag_Indices=np.diag_indices(shape(T_Ninv_T)[0])
 nDims = len(k_cube_voxels_in_bin)
+
+nDims = nDims+3
+
 x=[100.e0]*nDims
 nuv = (nu*nv-1)
 block_T_Ninv_T = np.array([np.hsplit(block,nuv) for block in np.vsplit(T_Ninv_T,nuv)])
@@ -367,7 +402,7 @@ if p.include_instrumental_effects:
 	block_T_Ninv_T=[]
 
 
-
+# multi_chan_P = BM.read_data_from_hdf5(array_save_directory+'multi_chan_P.h5', 'multi_chan_P')
 
 
 # run_nudft_test=True
@@ -646,7 +681,8 @@ if small_cube:
 
 if sub_MLLWM:
 	pre_sub_dbar = PSPP_block_diag.dbar
-	maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper([1.e-20]*nDims, T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
+	PSPP_block_diag.inverse_LW_power=p.inverse_LW_power #Include minimal prior over LW modes to ensure numerical stability
+	maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper([1.e2]*3+[1.e-20]*(nDims-3), T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
 	maxL_LW_signal = np.dot(T,maxL_LW_fit)
 	Ninv = BM.read_data_from_hdf5(array_save_directory+'Ninv.h5', 'Ninv')
 	Ninv_maxL_LW_signal = np.dot(Ninv,maxL_LW_signal)
@@ -660,9 +696,10 @@ if sub_MLLWM:
 
 if sub_ML_monopole_term_model:
 	pre_sub_dbar = PSPP_block_diag.dbar
+	PSPP_block_diag.inverse_LW_power=p.inverse_LW_power #Include minimal prior over LW modes to ensure numerical stability
 	PSPP_block_diag.inverse_LW_power_first_LW_term=1.e20 #Don't fit for the first LW term (since only fitting for the monopole)
 	PSPP_block_diag.inverse_LW_power_second_LW_term=1.e20  #Don't fit for the second LW term (since only fitting for the monopole)
-	maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper([1.e-20]*nDims, T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
+	maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper([1.e2]*1+[1.e-20]*(nDims-1), T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
 	maxL_LW_signal = np.dot(T,maxL_LW_fit)
 	Ninv = BM.read_data_from_hdf5(array_save_directory+'Ninv.h5', 'Ninv')
 	Ninv_maxL_LW_signal = np.dot(Ninv,maxL_LW_signal)
@@ -677,8 +714,9 @@ if sub_ML_monopole_term_model:
 
 if sub_ML_monopole_plus_first_LW_term_model:
 	pre_sub_dbar = PSPP_block_diag.dbar
+	PSPP_block_diag.inverse_LW_power=p.inverse_LW_power #Include minimal prior over LW modes to ensure numerical stability
 	PSPP_block_diag.inverse_LW_power_second_LW_term=1.e20  #Don't fit for the second LW term (since only fitting for the monopole and first LW term)
-	maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper([1.e-20]*nDims, T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
+	maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper([1.e2]*2+[1.e-20]*(nDims-2), T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
 	maxL_LW_signal = np.dot(T,maxL_LW_fit)
 	Ninv = BM.read_data_from_hdf5(array_save_directory+'Ninv.h5', 'Ninv')
 	Ninv_maxL_LW_signal = np.dot(Ninv,maxL_LW_signal)
@@ -713,7 +751,7 @@ Show=False
 if not use_EoR_cube:
 	maxL_k_cube_signal = PSPP_block_diag.calc_SigmaI_dbar_wrapper(np.array(k_sigma)**2., T_Ninv_T, dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
 else:
-	maxL_k_cube_signal = PSPP_block_diag.calc_SigmaI_dbar_wrapper(np.array([100.0]*nDims)**2, T_Ninv_T, dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
+	maxL_k_cube_signal = PSPP_block_diag.calc_SigmaI_dbar_wrapper(np.array([10.0]*nDims)**2, T_Ninv_T, dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
 
 maxL_f_plus_q_signal = np.dot(T,maxL_k_cube_signal)
 save_path = save_dir+'Total_signal_model_fit_and_residuals_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}_beta_{}.png'.format(nu,nv,neta,nq,npl,sigma,p.beta)
@@ -742,7 +780,7 @@ if small_cube and not use_EoR_cube and nq==2 and not p.include_instrumental_effe
 No_large_spectral_scale_model_fit = False
 if No_large_spectral_scale_model_fit:
 	PSPP_block_diag.inverse_LW_power=1.e10
-	maxL_k_cube_signal = PSPP_block_diag.calc_SigmaI_dbar_wrapper(np.array([100.0]*nDims)**2, T_Ninv_T, dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
+	maxL_k_cube_signal = PSPP_block_diag.calc_SigmaI_dbar_wrapper(np.array([10.0]*nDims)**2, T_Ninv_T, dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
 
 	maxL_f_plus_q_signal = np.dot(T,maxL_k_cube_signal)
 	save_path = save_dir+'Total_signal_model_fit_and_residuals_NQ.png'
@@ -759,12 +797,23 @@ if No_large_spectral_scale_model_fit:
 # Sample from the posterior
 #--------------------------------------------###
 # PolyChord setup
-log_priors_min_max = [[-5.0, 4.0] for _ in range(nDims)]
+# log_priors_min_max = [[-5.0, 4.0] for _ in range(nDims)]
+log_priors_min_max = [[-5.0, 3.0] for _ in range(nDims)]
 # log_priors_min_max = [[-10.1, -10.0] for _ in range(nDims)]
 # log_priors_min_max[0][1] = 4.0
+
+
+log_priors_min_max[0][1] = 2.0
+log_priors_min_max[1][1] = 2.0
+log_priors_min_max[2][1] = 2.0
+
+
 prior_c = PriorC(log_priors_min_max)
 nDerived = 0
 nDims = len(k_cube_voxels_in_bin)
+
+nDims = nDims+3
+
 # base_dir = 'chains/'
 # outputfiles_base_dir = 'chains/'
 outputfiles_base_dir = 'chains/'
@@ -774,8 +823,10 @@ if not os.path.isdir(base_dir):
 		os.makedirs(base_dir)
 
 log_priors = True
-# dimensionless_PS = True
-dimensionless_PS = False
+dimensionless_PS = True
+if overwrite_data_with_WN:
+	dimensionless_PS = False
+# dimensionless_PS = False
 # zero_the_LW_modes = True
 zero_the_LW_modes = False
 
@@ -804,16 +855,35 @@ if use_MultiNest:
 # if npl==2:
 # 	file_root=file_root.replace('-v1', '_b1_{:.2F}_b2_{:.2F}-v1'.format(p.beta[0], p.beta[1]))
 
+# if mpi_rank == 0:
+#     file_root = generate_output_file_base(file_root, version_number='1')
+# else:
+#     file_root = ''
+
+# file_root = mpi_comm.bcast(file_root, root=0)
 file_root = generate_output_file_base(file_root, version_number='1')
+
+print 'Rank', mpi_rank
 print 'Output file_root = ', file_root
 
 PSPP_block_diag_Polychord = PowerSpectrumPosteriorProbability(T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes, modk_vis_ordered_list, block_T_Ninv_T=block_T_Ninv_T, log_priors=log_priors, dimensionless_PS=dimensionless_PS, Print=True)
 if p.include_instrumental_effects and not zero_the_LW_modes:
-	PSPP_block_diag_Polychord.inverse_LW_power=1.e-10 #Include minimal prior over LW modes required for numerical stability
-if zero_the_LW_modes: PSPP_block_diag_Polychord.inverse_LW_power=1.e20
+	PSPP_block_diag_Polychord.inverse_LW_power=p.inverse_LW_power #Include minimal prior over LW modes required for numerical stability
+if zero_the_LW_modes:
+	PSPP_block_diag_Polychord.inverse_LW_power=1.e20
+	print 'Setting PSPP_block_diag_Polychord.inverse_LW_power to:', PSPP_block_diag_Polychord.inverse_LW_power
 if sub_MLLWM: PSPP_block_diag_Polychord.dbar = q_sub_dbar
 if sub_ML_monopole_term_model: PSPP_block_diag_Polychord.dbar = q_sub_dbar
 if sub_ML_monopole_plus_first_LW_term_model: PSPP_block_diag_Polychord.dbar = q_sub_dbar
+
+
+# PSPP_block_diag_Polychord.inverse_LW_power=1.e20 #Include minimal prior over LW modes to ensure numerical stability
+# PSPP_block_diag_Polychord.inverse_LW_power_first_LW_term=1.e-8  #Don't fit for the second LW term (since only fitting for the monopole and first LW term)
+# PSPP_block_diag_Polychord.inverse_LW_power_second_LW_term=1.e-8  #Don't fit for the second LW term (since only fitting for the monopole and first LW term)
+# PSPP_block_diag_Polychord.inverse_LW_power_third_LW_term=1.e-8  #Don't fit for the second LW term (since only fitting for the monopole and first LW term)
+
+
+# a=[ 0.76864195, -3.56754428,  3.59115839, -0.67613316, -0.8910768,  -4.0383755, 3.69170207,  1.42023581, -3.53892028,  0.87552208]
 
 # PSPP_block_diag_Polychord.inverse_LW_power=1.e5
 
@@ -831,20 +901,32 @@ def likelihood(theta, calc_likelihood=PSPP_block_diag_Polychord.posterior_probab
 def MultiNest_likelihood(theta, calc_likelihood=PSPP_block_diag_Polychord.posterior_probability):
 	return calc_likelihood(theta)[0]
 
-if use_MultiNest:
-	MN_nlive = nDims*25
-	# Run MultiNest
-	result = solve(LogLikelihood=MultiNest_likelihood, Prior=prior_c.prior_func, n_dims=nDims, outputfiles_basename=outputfiles_base_dir+file_root, n_live_points=MN_nlive)
-else:
-	precision_criterion = 0.05
-	#precision_criterion = 0.001 #PolyChord default value
-	nlive=nDims*10
-	#nlive=nDims*25 #PolyChord default value
-	# Run PolyChord
-	PolyChord.mpi_notification()
-	PolyChord.run_nested_sampling(PSPP_block_diag_Polychord.posterior_probability, nDims, nDerived, file_root=file_root, read_resume=False, prior=prior_c.prior_func, precision_criterion=precision_criterion, nlive=nlive)
 
-print 'Sampling complete!'
+run_single_node_analysis = False
+print 'mpi_size =', mpi_size
+if mpi_size>1:
+	print 'mpi_size greater than 1, running multi-node analysis\n'
+else:
+	print 'mpi_size = {}, analysis will only be run if run_single_node_analysis is set to True'.format(mpi_size)
+	print 'run_single_node_analysis = {}\n'.format(run_single_node_analysis)
+
+if run_single_node_analysis or mpi_size>1:
+	if use_MultiNest:
+		MN_nlive = nDims*25
+		# Run MultiNest
+		result = solve(LogLikelihood=MultiNest_likelihood, Prior=prior_c.prior_func, n_dims=nDims, outputfiles_basename=outputfiles_base_dir+file_root, n_live_points=MN_nlive)
+	else:
+		precision_criterion = 0.05
+		#precision_criterion = 0.001 #PolyChord default value
+		nlive=nDims*10
+		#nlive=nDims*25 #PolyChord default value
+		# Run PolyChord
+		PolyChord.mpi_notification()
+		PolyChord.run_nested_sampling(PSPP_block_diag_Polychord.posterior_probability, nDims, nDerived, file_root=file_root, read_resume=False, prior=prior_c.prior_func, precision_criterion=precision_criterion, nlive=nlive)
+
+	print 'Sampling complete!'
+else:
+	print 'Skipping sampling, exiting...'
 #######################
 
 

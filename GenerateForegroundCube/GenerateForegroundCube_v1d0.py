@@ -462,12 +462,12 @@ def generate_data_from_loaded_EoR_cube_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z
 ## ======================================================================================================
 ## ======================================================================================================
 
-def generate_white_noise_signal(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,T,Show,chan_selection,masked_power_spectral_modes):
+def generate_white_noise_signal_instrumental_k_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,T,Show,chan_selection,masked_power_spectral_modes):
 
 	print 'Using use_WN_cube data'
 
 
-	EoR_npz_path = p.EoR_npz_path
+	EoR_npz_path = p.EoR_npz_path_sc
 
 
 	#----------------------
@@ -505,8 +505,9 @@ def generate_white_noise_signal(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,T,Show,chan
 	scidata1_kcube_subset_ZM = scidata1_kcube_subset_before_ZM[ZM_chan_ordered_mask]
 
 	###
-	# Zero all modes that correspond to / are replaced with foreground parameters (in the parameter vector that T is desiged to operate on) before applying T!
+	# Zero modes that correspond to / are replaced with foreground parameters (in the parameter vector that T is desiged to operate on) before applying T!
 	###
+	# Note: to apply masked_power_spectral_modes (which is vis_ordered) correctly scidata1_kcube_subset_ZM should also be vis_ordered however here it's vis_ordered. The only reason this isn't breaking things is because it's white noise which means the ordering makes no difference here.....
 	scidata1_kcube_subset_ZM[masked_power_spectral_modes] = 0.0
 
 	# T = BM.read_data_from_hdf5(array_save_directory+'T.h5', 'T')
@@ -514,6 +515,192 @@ def generate_white_noise_signal(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,T,Show,chan
 	abc = s
 
 	return s, abc, scidata1
+
+
+
+
+## ======================================================================================================
+## ======================================================================================================
+
+def generate_white_noise_signal_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Finv,Show,chan_selection,masked_power_spectral_modes,mod_k):
+
+	print 'Using use_WN_cube data'
+
+
+	EoR_npz_path = p.EoR_npz_path_sc
+
+
+	#----------------------
+	###
+	# Replace Gaussian signal with EoR cube
+	###
+	scidata1 = np.load(EoR_npz_path)['arr_0']
+
+	#Overwrite EoR cube with white noise
+	# np.random.seed(21287254)
+	# np.random.seed(4123)
+	# np.random.seed(54123)
+	# np.random.seed(154123)
+	np.random.seed(123)
+	scidata1 = np.random.normal(0,scidata1.std()*1.,[nf,nu,nv])*0.5
+
+
+
+
+	axes_tuple = (0,1,2)
+	scidata1_kcube=numpy.fft.ifftshift(scidata1[0:38]-scidata1[0:38].mean()+0j, axes=axes_tuple)
+	scidata1_kcube=numpy.fft.fftn(scidata1_kcube, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
+	scidata1_kcube=numpy.fft.fftshift(scidata1_kcube, axes=axes_tuple)
+
+	sci_f, sci_v, sci_u = scidata1_kcube.shape
+	sci_v_centre = sci_v/2
+	sci_u_centre = sci_u/2
+	scidata1_kcube_subset = scidata1_kcube[0:nf,sci_u_centre-nu/2:sci_u_centre+nu/2+1,sci_v_centre-nv/2:sci_v_centre+nv/2+1]
+
+	red_noise_power_law_coefficient = 3.0
+	print 'Using red_noise_power_law_coefficient:', red_noise_power_law_coefficient
+	red_noise_scaling_cube = 1./(mod_k**(red_noise_power_law_coefficient/2.0))
+	red_noise_scaling_cube[np.isinf(red_noise_scaling_cube)] = 1.0
+	scidata1_kcube_subset_scaled = scidata1_kcube_subset*red_noise_scaling_cube
+
+	ZM_vis_ordered_mask = np.ones(nu*nv*nf)
+	ZM_vis_ordered_mask[nf*((nu*nv)/2):nf*((nu*nv)/2+1)]=0
+	ZM_vis_ordered_mask = ZM_vis_ordered_mask.astype('bool')
+	ZM_chan_ordered_mask = ZM_vis_ordered_mask.reshape(-1, neta+nq).T.flatten()
+
+	total_masked_power_spectral_modes = np.ones_like(ZM_chan_ordered_mask)
+	unmasked_power_spectral_modes_chan_ordered = np.logical_not(masked_power_spectral_modes).reshape(-1,neta+nq).T
+	#Make mask symmetric for real model image
+	centre_chan = (nf/2)
+	if centre_chan%2 != 0:
+		centre_chan=centre_chan-1
+	for i, chan in enumerate(unmasked_power_spectral_modes_chan_ordered):
+		if np.sum(chan)==0.0 and i!=centre_chan:
+			unmasked_power_spectral_modes_chan_ordered[-1-i] = chan
+	total_masked_power_spectral_modes[ZM_chan_ordered_mask] = unmasked_power_spectral_modes_chan_ordered.flatten()
+	total_masked_power_spectral_modes = np.logical_and(total_masked_power_spectral_modes, ZM_chan_ordered_mask)
+
+	###
+	# Zero modes that are not part of the data model
+	###
+	# scidata1_kcube_subset_scaled[total_masked_power_spectral_modes.reshape(scidata1_kcube_subset_scaled.shape)] = 0.0
+
+	axes_tuple = (0,1,2)
+	scidata1_subset_scaled=numpy.fft.ifftshift(scidata1_kcube_subset_scaled+0j, axes=axes_tuple)
+	scidata1_subset_scaled=numpy.fft.ifftn(scidata1_subset_scaled, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
+	scidata1_subset_scaled=numpy.fft.fftshift(scidata1_subset_scaled, axes=axes_tuple)
+
+	###
+	# Apply correct normalisation in the image domain for the relavent invariance testing
+	# Correct invariance - RMS of a (white...) noise cube should be constant as a function of resolution
+	###
+
+	preset_cube_rms = 100.e0
+	scidata1_subset_scaled = scidata1_subset_scaled*preset_cube_rms/scidata1_subset_scaled.std()
+
+	s = np.dot(Finv,scidata1_subset_scaled.reshape(-1,1)).flatten()
+	abc = s
+
+	return s, abc, scidata1
+
+
+
+
+
+# for i in range(len(scidata1_kcube_subset_scaled)):
+# 	print i, scidata1_kcube_subset_scaled[i].std()
+
+# scidata1_kcube_subset_scaled
+
+# ZM_vis_ordered_mask = np.ones(nu*nv*nf)
+# ZM_vis_ordered_mask[nf*((nu*nv)/2):nf*((nu*nv)/2+1)]=0
+# ZM_vis_ordered_mask = ZM_vis_ordered_mask.astype('bool')
+# ZM_chan_ordered_mask = ZM_vis_ordered_mask.reshape(-1, neta+nq).T.flatten()
+
+
+# scidata1_kcube_subset_scaled.flatten()[ZM_chan_ordered_mask]
+
+# mod_k.flatten()[ZM_chan_ordered_mask]
+
+# k_cube_voxels_in_bin
+
+# modkbins_containing_voxels
+
+# chan_ordered_bin_pixels_list = [np.where(np.logical_and(mod_k.flatten()[ZM_chan_ordered_mask]>modkbins_containing_voxels[i][0][0], mod_k.flatten()[ZM_chan_ordered_mask]<=modkbins_containing_voxels[i][0][1])) for i in range(len(modkbins_containing_voxels))]
+
+
+# mean_ks = []
+# variances = []
+# for i in range(len(chan_ordered_bin_pixels_list)):
+# 	mean_k = mod_k.flatten()[ZM_chan_ordered_mask][chan_ordered_bin_pixels_list[i]].mean()
+# 	variance = scidata1_kcube_subset_scaled.flatten()[ZM_chan_ordered_mask][chan_ordered_bin_pixels_list[i]].var()
+# 	print i, mean_k, variance
+# 	mean_ks.append(mean_k)
+# 	variances.append(variance)
+
+# print np.polyfit(np.log10(mean_ks)[:], np.log10(variances)[:], 1)
+# # print np.polyfit(np.log10(mean_ks)[:-1], np.log10(variances)[:-1], 1)
+
+
+
+## ======================================================================================================
+## ======================================================================================================
+
+def generate_EoR_signal_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Finv,Show,chan_selection,masked_power_spectral_modes,mod_k,EoR_npz_path):
+
+	print 'Using use_EoR_cube data'
+
+
+	#----------------------
+	###
+	# Replace Gaussian signal with EoR cube
+	###
+	scidata1 = np.load(EoR_npz_path)['arr_0']
+
+	#Overwrite EoR cube with white noise
+	# np.random.seed(21287254)
+	# np.random.seed(123)
+	# scidata1 = np.random.normal(0,scidata1.std()*1.,[nf,nu,nv])*0.5
+
+
+
+
+	axes_tuple = (0,1,2)
+	scidata1_kcube=numpy.fft.ifftshift(scidata1[0:nf]-scidata1[0:nf].mean()+0j, axes=axes_tuple)
+	scidata1_kcube=numpy.fft.fftn(scidata1_kcube, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
+	scidata1_kcube=numpy.fft.fftshift(scidata1_kcube, axes=axes_tuple)
+
+	sci_f, sci_v, sci_u = scidata1_kcube.shape
+	sci_v_centre = sci_v/2
+	sci_u_centre = sci_u/2
+	scidata1_kcube_subset = scidata1_kcube[0:nf,sci_u_centre-nu/2:sci_u_centre+nu/2+1,sci_v_centre-nv/2:sci_v_centre+nv/2+1]
+
+	###
+	#Zero modes that are not currently fit for until intrinsic noise fitting (which models these terms) has been implemented
+	###
+	Hermitian_small_spacial_scale_mask = np.zeros(scidata1_kcube_subset.shape)
+	Hermitian_small_spacial_scale_mask[0] = 1 #Nyquist mode
+	Hermitian_small_spacial_scale_mask[1] = 1 #2nd highest freq
+	# Hermitian_small_spacial_scale_mask[2] = 1 #3nd highest freq
+	# Hermitian_small_spacial_scale_mask[-2] = 1 #3nd highest freq
+	Hermitian_small_spacial_scale_mask[-1] = 1 #2nd highest freq
+
+	scidata1_kcube_subset[Hermitian_small_spacial_scale_mask.astype('bool')] = 0.0
+
+	axes_tuple = (0,1,2)
+	scidata1_subset=numpy.fft.ifftshift(scidata1_kcube_subset+0j, axes=axes_tuple)
+	scidata1_subset=numpy.fft.ifftn(scidata1_subset, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
+	scidata1_subset=numpy.fft.fftshift(scidata1_subset, axes=axes_tuple)
+
+	# scidata1_subset = scidata1_subset/scidata1_kcube.size**0.5
+
+	s = np.dot(Finv,scidata1_subset.reshape(-1,1)).flatten()
+	abc = s
+
+
+	return s, abc, scidata1
+
+
 
 
 
