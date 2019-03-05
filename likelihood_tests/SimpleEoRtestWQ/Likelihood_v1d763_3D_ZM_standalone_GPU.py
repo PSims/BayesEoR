@@ -133,6 +133,7 @@ class PowerSpectrumPosteriorProbability(object):
 			start = time.time()
 			dbar_blocks = np.split(dbar, self.nuv)
 			if p.useGPU:
+				if self.Print:print 'Computing block diagonal inversion on GPU'
 				SigmaI_dbar_blocks_and_logdet_Sigma = np.array([self.calc_SigmaI_dbar(Sigma_block_diagonals[i_block], dbar_blocks[i_block], x_for_error_checking=x)  for i_block in range(self.nuv)])
 				SigmaI_dbar_blocks = np.array([SigmaI_dbar_block for SigmaI_dbar_block, logdet_Sigma in SigmaI_dbar_blocks_and_logdet_Sigma])
 				# SigmaI_dbar_blocks = SigmaI_dbar_blocks_and_logdet_Sigma[:,0] #This doesn't work because the array size is lost / flatten fails
@@ -163,6 +164,7 @@ class PowerSpectrumPosteriorProbability(object):
 
 			start = time.time()
 			if p.useGPU:
+				if self.Print:print 'Computing matrix inversion inversion on GPU'
 				SigmaI_dbar_and_logdet_Sigma = self.calc_SigmaI_dbar(Sigma, dbar, x_for_error_checking=x)
 				SigmaI_dbar = SigmaI_dbar_and_logdet_Sigma[0]
 				logdet_Sigma = SigmaI_dbar_and_logdet_Sigma[1]
@@ -201,6 +203,7 @@ class PowerSpectrumPosteriorProbability(object):
 			return SigmaI_dbar
 
 		else:
+			# brk()
 			dbar_copy = dbar.copy()
 			dbar_copy_copy = dbar.copy()
 			self.GPU_error_flag = np.array([0])
