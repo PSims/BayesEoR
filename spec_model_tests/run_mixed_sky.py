@@ -62,7 +62,7 @@ print 'nq', nq
 print 'npl', npl
 sub_ML_monopole_term_model = False #Improve numerical precision. Can be used for improving numerical precision when performing evidence comparison.
 sub_ML_monopole_plus_first_LW_term_model = False #Improve numerical precision. Can be used for improving numerical precision when performing evidence comparison.
-sub_MLLWM = False #Improve numerical precision. DO NOT USE WHEN PERFORMING EVIDENCE COMPARISON! Can only be used for parameter estimation not evidence comparison since subtracting different MLLWM (with different evidences) from the data when comparing different LWMs will alter the relative evidences of the subtracted models. In effect subtracting a higher evidence MLLWM1 reduces the evidence for the fit to the residuals with MLLWM1 relative to fitting low evidence MLLWM2 and refitting with MLLWM2. It is only correct to compare evidences when doing no qsub or when the qsub model is fixed such as with sub_ML_monopole_term_model.
+sub_MLLWM = True #Improve numerical precision. DO NOT USE WHEN PERFORMING EVIDENCE COMPARISON! Can only be used for parameter estimation not evidence comparison since subtracting different MLLWM (with different evidences) from the data when comparing different LWMs will alter the relative evidences of the subtracted models. In effect subtracting a higher evidence MLLWM1 reduces the evidence for the fit to the residuals with MLLWM1 relative to fitting low evidence MLLWM2 and refitting with MLLWM2. It is only correct to compare evidences when doing no qsub or when the qsub model is fixed such as with sub_ML_monopole_term_model.
 # Cube size
 nf=p.nf
 neta=p.neta
@@ -80,8 +80,14 @@ if p.include_instrumental_effects:
 		average_baseline_redundancy = p.baseline_redundancy_array.mean() #Keep average noise level consisitent with the non-instrumental case by normalizing sigma my the average baseline redundancy before scaling individual baselines by their respective redundancies
 		# sigma = sigma*average_baseline_redundancy**0.5 *1.0
 		# sigma = sigma*average_baseline_redundancy**0.5 *5.0
-		sigma = sigma*average_baseline_redundancy**0.5 *20.0
+		# sigma = sigma*average_baseline_redundancy**0.5 *20.0
 		# sigma = sigma*average_baseline_redundancy**0.5 *40.0
+		# sigma = sigma*average_baseline_redundancy**0.5 *100.0
+		# sigma = sigma*average_baseline_redundancy**0.5 *200.0
+		# sigma = sigma*average_baseline_redundancy**0.5 *250.0
+		sigma = sigma*average_baseline_redundancy**0.5 *500.0
+		# sigma = sigma*average_baseline_redundancy**0.5 *1000.0
+		# sigma = sigma*average_baseline_redundancy**0.5 *2000.0
 		# sigma = sigma*average_baseline_redundancy**0.5 / 20.0
 
 
@@ -163,7 +169,8 @@ k_y_masked = generate_masked_coordinate_cubes(k_y, nu,nv,nx,ny,nf,neta,nq)
 k_z_masked = generate_masked_coordinate_cubes(k_z, nu,nv,nx,ny,nf,neta,nq)
 mod_k_masked = generate_masked_coordinate_cubes(mod_k, nu,nv,nx,ny,nf,neta,nq)
 
-k_cube_voxels_in_bin, modkbins_containing_voxels = generate_k_cube_model_spherical_binning(mod_k_masked, k_z_masked, nu,nv,nx,ny,nf,neta,nq)
+# k_cube_voxels_in_bin, modkbins_containing_voxels = generate_k_cube_model_spherical_binning(mod_k_masked, k_z_masked, nu,nv,nx,ny,nf,neta,nq)
+k_cube_voxels_in_bin, modkbins_containing_voxels = generate_k_cube_model_spherical_binning_v2d0(mod_k_masked, k_z_masked, nu,nv,nx,ny,nf,neta,nq)
 
 if p.use_uniform_prior_on_min_k_bin:
 	print 'Excluding min-kz bin...'
@@ -171,7 +178,8 @@ if p.use_uniform_prior_on_min_k_bin:
 	modkbins_containing_voxels = modkbins_containing_voxels[1:]
 
 modk_vis_ordered_list = [mod_k_masked[k_cube_voxels_in_bin[i_bin]] for i_bin in range(len(k_cube_voxels_in_bin))]
-k_vals_file_name = 'k_vals_nu_{}_nv_{}_nf_{}_nq_{}.txt'.format(nu,nv,nf,nq)
+# k_vals_file_name = 'k_vals_nu_{}_nv_{}_nf_{}_nq_{}.txt'.format(nu,nv,nf,nq)
+k_vals_file_name = 'k_vals_nu_{}_nv_{}_nf_{}_nq_{}_binning v2d0.txt'.format(nu,nv,nf,nq)
 k_vals = calc_mean_binned_k_vals(mod_k_masked, k_cube_voxels_in_bin, save_k_vals=True, k_vals_file=k_vals_file_name)
 
 do_cylindrical_binning = False
@@ -370,12 +378,40 @@ if p.include_instrumental_effects:
 		# s_WN, abc, scidata1 = generate_white_noise_signal_instrumental_k_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z, T,Show,chan_selection,masked_power_spectral_modes)
 		s_WN, abc, scidata1 = generate_white_noise_signal_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z, Finv,Show,chan_selection,masked_power_spectral_modes, mod_k)
 		d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_WN, nu,nv,nx,ny,nf,neta,nq,random_seed=2123)[0]
+		effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_WN, nu,nv,nx,ny,nf,neta,nq,random_seed=2123)[1]
 	else:
 		if use_EoR_cube:
 			s_EoR, abc, scidata1 = generate_EoR_signal_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z, Finv,Show,chan_selection,masked_power_spectral_modes, mod_k, p.EoR_npz_path_sc)
 			# d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,random_seed=2123)[0]
 			d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,random_seed=2123)[0]
+			effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,random_seed=2123)[1].std()
 
+
+		use_GDSE_foreground_cube = True
+		# use_GDSE_foreground_cube = False
+		if use_GDSE_foreground_cube:
+			foreground_outputs = generate_Jelic_cube_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, p.beta_experimental_mean,p.beta_experimental_std,p.gamma_mean,p.gamma_sigma,p.Tb_experimental_mean_K,p.Tb_experimental_std_K,p.nu_min_MHz,p.channel_width_MHz,Finv, generate_additional_extrapolated_HF_foreground_cube=True, fits_storage_dir=p.fits_storage_dir, HF_nu_min_MHz_array=p.HF_nu_min_MHz_array, simulation_FoV_deg=p.simulation_FoV_deg, simulation_resolution_deg=p.simulation_resolution_deg,random_seed=314211)
+
+
+			fg_GDSE, s_GDSE, Tb_nu, beta_experimental_mean,beta_experimental_std,gamma_mean,gamma_sigma,Tb_experimental_mean_K,Tb_experimental_std_K,nu_min_MHz,channel_width_MHz, HF_Tb_nu = foreground_outputs
+			foreground_outputs = []
+
+			d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(0.0, s_GDSE, nu,nv,nx,ny,nf,neta,nq,random_seed=2123)[0]
+			# d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_GDSE, nu,nv,nx,ny,nf,neta,nq,random_seed=2123)[0]
+			# d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_GDSE/10., nu,nv,nx,ny,nf,neta,nq,random_seed=2123)[0]
+			effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_GDSE, nu,nv,nx,ny,nf,neta,nq,random_seed=2123)[1].std()
+
+
+# foreground_outputs = generate_Jelic_cube_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, p.beta_experimental_mean,1.e-10,p.gamma_mean,p.gamma_sigma,p.Tb_experimental_mean_K,p.Tb_experimental_std_K,p.nu_min_MHz,p.channel_width_MHz,Finv, generate_additional_extrapolated_HF_foreground_cube=True, fits_storage_dir=p.fits_storage_dir, HF_nu_min_MHz_array=p.HF_nu_min_MHz_array, simulation_FoV_deg=p.simulation_FoV_deg, simulation_resolution_deg=p.simulation_resolution_deg,random_seed=314211)
+
+# beta_experimental_mean,beta_experimental_std,gamma_mean,gamma_sigma,Tb_experimental_mean_K,Tb_experimental_std_K,nu_min_MHz,channel_width_MHz = p.beta_experimental_mean,1.e-10,p.gamma_mean,p.gamma_sigma,p.Tb_experimental_mean_K,p.Tb_experimental_std_K,p.nu_min_MHz,p.channel_width_MHz
+
+# generate_additional_extrapolated_HF_foreground_cube=True
+# fits_storage_dir=p.fits_storage_dir
+# HF_nu_min_MHz_array=p.HF_nu_min_MHz_array
+# simulation_FoV_deg=p.simulation_FoV_deg
+# simulation_resolution_deg=p.simulation_resolution_deg
+# random_seed=314211
 
 
 
@@ -679,27 +715,94 @@ if small_cube:
 	# print PSPP.posterior_probability([1.e0]*nDims, diagonal_sigma=False)[0]
 	print PSPP_block_diag.posterior_probability([1.e0]*nDims, diagonal_sigma=False, block_T_Ninv_T=block_T_Ninv_T)[0]
 
+
+iterative_sub_MLLWM = True #Fit iteratively to sidestep numerical limitations (complex double precision) of the inversion
+# iterative_sub_MLLWM = False #Fit iteratively to sidestep numerical limitations (complex double precision) of the inversion
 if sub_MLLWM:
-	pre_sub_dbar = PSPP_block_diag.dbar
-	PSPP_block_diag.inverse_LW_power=p.inverse_LW_power #Include minimal prior over LW modes to ensure numerical stability
-	maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper([1.e2]*3+[1.e-20]*(nDims-3), T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
-	maxL_LW_signal = np.dot(T,maxL_LW_fit)
-	Ninv = BM.read_data_from_hdf5(array_save_directory+'Ninv.h5', 'Ninv')
-	Ninv_maxL_LW_signal = np.dot(Ninv,maxL_LW_signal)
-	ML_qbar = np.dot(T.conjugate().T,Ninv_maxL_LW_signal)
-	q_sub_dbar = pre_sub_dbar-ML_qbar
-	if small_cube: PSPP.dbar = q_sub_dbar
-	PSPP_block_diag.dbar = q_sub_dbar
-	if small_cube:
-		print PSPP.posterior_probability([1.e0]*nDims, diagonal_sigma=False)[0]
-		print PSPP_block_diag.posterior_probability([1.e0]*nDims, diagonal_sigma=False, block_T_Ninv_T=block_T_Ninv_T)[0]
+	if not iterative_sub_MLLWM:
+		pre_sub_dbar = PSPP_block_diag.dbar
+		PSPP_block_diag.dimensionless_PS=True
+		PSPP_block_diag.inverse_LW_power=p.inverse_LW_power #Include minimal prior over LW modes to ensure numerical stability
+		# maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper([5.e9,5.e9,5.e9]+[1.e-20]*(nDims-3), T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
+		# maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper([1.e9,1.e9,1.e9]+[1.e-20]*(nDims-3), T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
+		maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper([5.e8,5.e8,5.e8]+[1.e-20]*(nDims-3), T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
+		maxL_LW_signal = np.dot(T,maxL_LW_fit)
+		Ninv = BM.read_data_from_hdf5(array_save_directory+'Ninv.h5', 'Ninv')
+		Ninv_maxL_LW_signal = np.dot(Ninv,maxL_LW_signal)
+		ML_qbar = np.dot(T.conjugate().T,Ninv_maxL_LW_signal)
+		q_sub_dbar = pre_sub_dbar-ML_qbar
+		if small_cube: PSPP.dbar = q_sub_dbar
+		PSPP_block_diag.dbar = q_sub_dbar
+		if small_cube:
+			print PSPP.posterior_probability([1.e0]*nDims, diagonal_sigma=False)[0]
+			print PSPP_block_diag.posterior_probability([1.e0]*nDims, diagonal_sigma=False, block_T_Ninv_T=block_T_Ninv_T)[0]
+
+	else:
+		Ninv = BM.read_data_from_hdf5(array_save_directory+'Ninv.h5', 'Ninv')
+		maxL_LW_fit_array = []
+		maxL_LW_signal_array = []
+		pre_sub_dbar = PSPP_block_diag.dbar
+		PSPP_block_diag.dimensionless_PS=True
+		PSPP_block_diag.inverse_LW_power=p.inverse_LW_power #Include minimal prior over LW modes to ensure numerical stability
+		dbar_prime_i = dbar.copy()
+		d_prime_i = d.copy()
+
+		PSPP_block_diag.Print = True
+		# effective_noise = (d - s_GDSE).std()
+		print '(d - s_GDSE).std()', effective_noise
+
+		count=0
+		count_max = 20
+		maxL_LW_signal = np.zeros(len(d))
+		bias_threshold = 0.0
+
+		# for i in range(7):
+		while count<=count_max and (d_prime_i - maxL_LW_signal).std() >= (1.0+bias_threshold)*effective_noise:
+			# maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper([1.e9,1.e9,1.e9]+[1.e-20]*(nDims-3), T_Ninv_T, dbar_prime_i, block_T_Ninv_T=block_T_Ninv_T)[0]
+			maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper([5.e8,5.e8,5.e8]+[1.e-20]*(nDims-3), T_Ninv_T, dbar_prime_i, block_T_Ninv_T=block_T_Ninv_T)[0]
+			maxL_LW_signal = np.dot(T,maxL_LW_fit)
+
+			maxL_LW_fit_array.append(maxL_LW_fit)
+			maxL_LW_signal_array.append(maxL_LW_signal)
+
+			print count, (d_prime_i - maxL_LW_signal).std(), '\n'
+
+			d_prime_i = (d_prime_i - maxL_LW_signal)
+			Ninv_d_prime_i = np.dot(Ninv,d_prime_i)
+			dbar_prime_i = np.dot(T.conjugate().T,Ninv_d_prime_i)
+			count+=1
+
+
+		maxL_LW_fit_array = np.array(maxL_LW_fit_array)
+		maxL_LW_signal_array = np.array(maxL_LW_signal_array)
+
+		total_maxL_LW_fit = np.sum(maxL_LW_fit_array, axis=0)
+		total_maxL_LW_signal = np.dot(T,total_maxL_LW_fit)
+
+		Ninv_total_maxL_LW_signal = np.dot(Ninv,total_maxL_LW_signal)
+		ML_qbar = np.dot(T.conjugate().T,Ninv_total_maxL_LW_signal)
+		q_sub_dbar = pre_sub_dbar-ML_qbar
+		if small_cube: PSPP.dbar = q_sub_dbar
+		PSPP_block_diag.dbar = q_sub_dbar
+
+		print 'Iterative foreground pre-subtraction complete, {} orders of magnitude foreground supression achieved.\n'.format(np.log10(dbar.std()/q_sub_dbar.std()))
+
+		if small_cube:
+			print PSPP.posterior_probability([1.e0]*nDims, diagonal_sigma=False)[0]
+			print PSPP_block_diag.posterior_probability([1.e0]*nDims, diagonal_sigma=False, block_T_Ninv_T=block_T_Ninv_T)[0]
+
+
+
+
+
 
 if sub_ML_monopole_term_model:
 	pre_sub_dbar = PSPP_block_diag.dbar
 	PSPP_block_diag.inverse_LW_power=p.inverse_LW_power #Include minimal prior over LW modes to ensure numerical stability
 	PSPP_block_diag.inverse_LW_power_first_LW_term=1.e20 #Don't fit for the first LW term (since only fitting for the monopole)
 	PSPP_block_diag.inverse_LW_power_second_LW_term=1.e20  #Don't fit for the second LW term (since only fitting for the monopole)
-	maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper([1.e2]*1+[1.e-20]*(nDims-1), T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
+	# maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper([1.e-5]*1+[1.e-20]*(nDims-1), T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
+	maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper([5.e4]*1+[1.e-20]*(nDims-1), T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
 	maxL_LW_signal = np.dot(T,maxL_LW_fit)
 	Ninv = BM.read_data_from_hdf5(array_save_directory+'Ninv.h5', 'Ninv')
 	Ninv_maxL_LW_signal = np.dot(Ninv,maxL_LW_signal)
@@ -716,7 +819,7 @@ if sub_ML_monopole_plus_first_LW_term_model:
 	pre_sub_dbar = PSPP_block_diag.dbar
 	PSPP_block_diag.inverse_LW_power=p.inverse_LW_power #Include minimal prior over LW modes to ensure numerical stability
 	PSPP_block_diag.inverse_LW_power_second_LW_term=1.e20  #Don't fit for the second LW term (since only fitting for the monopole and first LW term)
-	maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper([1.e2]*2+[1.e-20]*(nDims-2), T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
+	maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper([1.e-5]*2+[1.e-20]*(nDims-2), T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
 	maxL_LW_signal = np.dot(T,maxL_LW_fit)
 	Ninv = BM.read_data_from_hdf5(array_save_directory+'Ninv.h5', 'Ninv')
 	Ninv_maxL_LW_signal = np.dot(Ninv,maxL_LW_signal)
@@ -751,6 +854,7 @@ Show=False
 if not use_EoR_cube:
 	maxL_k_cube_signal = PSPP_block_diag.calc_SigmaI_dbar_wrapper(np.array(k_sigma)**2., T_Ninv_T, dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
 else:
+	# maxL_k_cube_signal = PSPP_block_diag.calc_SigmaI_dbar_wrapper(np.array([10.0]*nDims)**2, T_Ninv_T, dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
 	maxL_k_cube_signal = PSPP_block_diag.calc_SigmaI_dbar_wrapper(np.array([10.0]*nDims)**2, T_Ninv_T, dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
 
 maxL_f_plus_q_signal = np.dot(T,maxL_k_cube_signal)
@@ -799,13 +903,19 @@ if No_large_spectral_scale_model_fit:
 # PolyChord setup
 # log_priors_min_max = [[-5.0, 4.0] for _ in range(nDims)]
 log_priors_min_max = [[-5.0, 3.0] for _ in range(nDims)]
-# log_priors_min_max = [[-10.1, -10.0] for _ in range(nDims)]
-# log_priors_min_max[0][1] = 4.0
+# log_priors_min_max = [[-5.0, -5.01] for _ in range(nDims)]
 
 
-log_priors_min_max[0][1] = 2.0
-log_priors_min_max[1][1] = 2.0
-log_priors_min_max[2][1] = 2.0
+# fg_log_priors_min = -5.0
+fg_log_priors_min = np.log10(1.e5) #Set minimum LW model priors using LW power spectrum in fit to white noise (i.e the prior min should incorporate knowledge of signal-loss in iterative pre-subtraction in order to eliminate the bias that would result from not removing this when re-fitting in the full analysis.)
+# fg_log_priors_max = 2.0
+# fg_log_priors_max = np.log10(5.e5)
+fg_log_priors_max = 6.0 #Set minimum LW model prior max using numerical stability constraint at the given signal-to-noise in the data.
+# log_priors_min_max[0] = [fg_log_priors_min, 8.0] #Set 
+log_priors_min_max[0] = [fg_log_priors_min, fg_log_priors_max] #Calibrate LW model priors using white noise fitting 
+log_priors_min_max[1] = [fg_log_priors_min, fg_log_priors_max] #Calibrate LW model priors using white noise fitting
+log_priors_min_max[2] = [fg_log_priors_min, fg_log_priors_max] #Calibrate LW model priors using white noise fitting
+
 
 
 prior_c = PriorC(log_priors_min_max)
@@ -928,6 +1038,27 @@ if run_single_node_analysis or mpi_size>1:
 else:
 	print 'Skipping sampling, exiting...'
 #######################
+
+
+
+
+
+
+
+# PSPP_block_diag_Polychord.posterior_probability([7.9631231807,5.0394200835,5.0425874228,2.2689673560,0.7791988092,0.6723172688,0.6606033702,0.5711088827,0.6731069466,0.7407744581])[0]
+
+
+
+
+# PSPP_block_diag_Polychord.posterior_probability([-3.5518589975,-4.8220236256,-4.8143529400,1.61553428663,0.44234689688,0.52510363652,0.56171184685,0.60297168230,0.65063673640,0.73457133339])[0]
+
+
+# PSPP_block_diag_Polychord.posterior_probability([7.9631231807,5.0394200835,5.0425874228,1.61553428663,0.44234689688,0.52510363652,0.56171184685,0.60297168230,0.65063673640,0.73457133339])[0]
+
+
+
+
+
 
 
 

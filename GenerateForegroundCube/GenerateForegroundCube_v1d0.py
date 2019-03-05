@@ -292,6 +292,223 @@ def generate_Jelic_cube(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, beta_experime
 ## ======================================================================================================
 ## ======================================================================================================
 
+
+
+
+
+
+
+def generate_Jelic_cube_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, beta_experimental_mean,beta_experimental_std,gamma_mean,gamma_sigma,Tb_experimental_mean_K,Tb_experimental_std_K,nu_min_MHz,channel_width_MHz,Finv, **kwargs):
+
+	##===== Defaults =======
+	default_generate_additional_extrapolated_HF_foreground_cube = False
+	default_HF_nu_min_MHz = 225
+	default_fits_storage_dir = 'fits_storage/Jelic/'
+	default_HF_nu_min_MHz_array = [205,215,225]
+	default_simulation_FoV_deg = 12.0
+	default_simulation_resolution_deg = 12.0/127
+	default_random_seed = 3142
+	default_cube_side_Mpc = 2048.0 #Size of EoR cube foreground simulation should match (used when calculating fits header variables)
+	default_redshift = 7.6 #Redshift of EoR cube foreground simulation should match (used when calculating fits header variables)
+
+	
+	##===== Inputs =======
+	generate_additional_extrapolated_HF_foreground_cube=kwargs.pop('generate_additional_extrapolated_HF_foreground_cube',default_generate_additional_extrapolated_HF_foreground_cube)
+	HF_nu_min_MHz=kwargs.pop('HF_nu_min_MHz',default_HF_nu_min_MHz)
+	fits_storage_dir=kwargs.pop('fits_storage_dir',default_fits_storage_dir)
+	HF_nu_min_MHz_array=kwargs.pop('HF_nu_min_MHz_array',default_fits_storage_dir)
+	simulation_FoV_deg=kwargs.pop('simulation_FoV_deg',default_simulation_FoV_deg)
+	simulation_resolution_deg=kwargs.pop('simulation_resolution_deg',default_simulation_resolution_deg)
+	random_seed=kwargs.pop('random_seed',default_random_seed)
+	cube_side_Mpc=kwargs.pop('random_seed',default_cube_side_Mpc)
+	redshift=kwargs.pop('random_seed',default_redshift)
+
+	n_sim_pix = int(simulation_FoV_deg/simulation_resolution_deg + 0.5)
+
+	low_res_to_high_res_std_conversion_factor = update_Tb_experimental_std_K_to_correct_for_normalisation_resolution(Tb_experimental_std_K, simulation_FoV_deg, simulation_resolution_deg)
+	Tb_experimental_std_K = Tb_experimental_std_K*low_res_to_high_res_std_conversion_factor
+
+	GFC = GenerateForegroundCube(nu,nv,neta,nq, beta_experimental_mean, beta_experimental_std, gamma_mean, gamma_sigma, Tb_experimental_mean_K, Tb_experimental_std_K, nu_min_MHz, channel_width_MHz,random_seed=random_seed)
+
+	Tb_nu, A, beta, Tb, nu_array_MHz = GFC.generate_normalised_Tb_A_and_beta_fields(n_sim_pix,n_sim_pix,n_sim_pix,n_sim_pix,nf,neta,nq)
+
+	HF_Tb_nu = []
+	beta=A=Tb=[]
+
+	###
+
+	ED = ExtractDataFrom21cmFASTCube(plot_data=False)
+	bandwidth_MHz, central_frequency_MHz, output_21cmFast_box_width_deg = ED.calculate_box_size_in_degrees_and_MHz(cube_side_Mpc, redshift)
+	
+	DUC = DataUnitConversionmkandJyperpix()
+	Data_mK = Tb_nu*1.e3
+
+	
+	Channel_Frequencies_Array_Hz = nu_array_MHz*1.e6
+	Pixel_Height_rad = output_21cmFast_box_width_deg*(np.pi/180.)/Tb_nu.shape[1]
+	DUC.convert_from_mK_to_Jy_per_pix(Data_mK, Channel_Frequencies_Array_Hz, Pixel_Height_rad)
+	Data_Jy_per_Pixel = ED.convert_from_mK_to_Jy_per_pix(Data_mK, Channel_Frequencies_Array_Hz, Pixel_Height_rad)
+	
+	output_fits_file_name = 'Jelic_GDSE_cube_{:d}MHz.fits'.format(int(nu_min_MHz))
+	output_fits_path1 = fits_storage_dir+output_fits_file_name
+	output_fits_path2 = fits_storage_dir+'/ZNPS{:d}/'.format(int(nu_min_MHz))+output_fits_file_name
+	print output_fits_path1, '\n'+ output_fits_path2
+	WD2F = WriteDataToFits()
+	WD2F.write_data(Data_Jy_per_Pixel, output_fits_path1, Box_Side_cMpc=cube_side_Mpc, simulation_redshift=redshift)
+	WD2F.write_data(Data_Jy_per_Pixel, output_fits_path2, Box_Side_cMpc=cube_side_Mpc, simulation_redshift=redshift)
+
+	output_fits_file_name = 'Jelic_GDSE_cube_{:d}MHz_mK.fits'.format(int(nu_min_MHz))
+	output_fits_path1 = fits_storage_dir+output_fits_file_name
+	output_fits_path2 = fits_storage_dir+'/ZNPS{:d}/'.format(int(nu_min_MHz))+output_fits_file_name
+	print output_fits_path1, '\n'+ output_fits_path2
+	WD2F = WriteDataToFits()
+	WD2F.write_data(Data_mK, output_fits_path1, Box_Side_cMpc=cube_side_Mpc, simulation_redshift=redshift)
+	WD2F.write_data(Data_mK, output_fits_path2, Box_Side_cMpc=cube_side_Mpc, simulation_redshift=redshift)
+
+	###
+
+
+
+	base_dir = 'Plots'
+	save_dir = base_dir+'/Likelihood_v1d75_3D_ZM/'
+	if not os.path.isdir(save_dir):
+		os.makedirs(save_dir)
+
+
+
+
+	print 'Using use_foreground_cube data'
+	#----------------------
+	###
+	# Replace Gaussian signal with foreground cube
+	###
+	# Tb_nu_mK = Tb_nu*1.e2
+	Tb_nu_mK = Tb_nu*1.e3
+	scidata1 = Tb_nu_mK
+	# scidata1 = random_quad[0:nf,0:nu,0:nv]
+
+	
+	base_dir = 'Plots'
+	save_dir = base_dir+'/Likelihood_v1d75_3D_ZM/'
+	if not os.path.isdir(save_dir):
+		os.makedirs(save_dir)
+
+
+	import numpy
+	axes_tuple = (1,2)
+	vfft1=numpy.fft.ifftshift(scidata1[0:nf]+0j, axes=axes_tuple)
+	vfft1=numpy.fft.fftn(vfft1, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
+	vfft1=numpy.fft.fftshift(vfft1, axes=axes_tuple)
+
+	pylab.close('all')
+	
+	sci_f, sci_v, sci_u = vfft1.shape
+	sci_v_centre = sci_v/2
+	sci_u_centre = sci_u/2
+	vfft1_subset = vfft1[0:nf,sci_u_centre-nu/2:sci_u_centre+nu/2+1,sci_v_centre-nv/2:sci_v_centre+nv/2+1]
+
+
+	axes_tuple = (1,2)
+	scidata1_subset=numpy.fft.ifftshift(vfft1_subset+0j, axes=axes_tuple)
+	scidata1_subset=numpy.fft.ifftn(scidata1_subset, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
+	scidata1_subset=numpy.fft.fftshift(scidata1_subset, axes=axes_tuple)
+
+
+	s = np.dot(Finv,scidata1_subset.reshape(-1,1)).flatten()
+	abc = s
+
+	fg = s
+
+
+	return fg, s, Tb_nu, beta_experimental_mean,beta_experimental_std,gamma_mean,gamma_sigma,Tb_experimental_mean_K,Tb_experimental_std_K,nu_min_MHz,channel_width_MHz, HF_Tb_nu
+
+
+## ======================================================================================================
+## ======================================================================================================
+
+
+
+
+
+
+# kwargs = {}
+
+# beta_experimental_mean,beta_experimental_std,gamma_mean,gamma_sigma,Tb_experimental_mean_K,Tb_experimental_std_K,nu_min_MHz,channel_width_MHz = p.beta_experimental_mean,1.e-10,p.gamma_mean,p.gamma_sigma,p.Tb_experimental_mean_K,p.Tb_experimental_std_K,p.nu_min_MHz,p.channel_width_MHz
+
+# generate_additional_extrapolated_HF_foreground_cube=True
+# fits_storage_dir=p.fits_storage_dir
+# HF_nu_min_MHz_array=p.HF_nu_min_MHz_array
+# simulation_FoV_deg=p.simulation_FoV_deg
+# simulation_resolution_deg=p.simulation_resolution_deg
+# random_seed=314211
+
+# from BayesEoR.SimData import GenerateForegroundCube, update_Tb_experimental_std_K_to_correct_for_normalisation_resolution
+# from BayesEoR.Utils import PriorC, ParseCommandLineArguments, DataUnitConversionmkandJyperpix, WriteDataToFits
+# from BayesEoR.Utils import ExtractDataFrom21cmFASTCube
+
+
+
+
+
+
+# y1=np.log10(Tb_nu[:,17,110])
+
+# x1 = np.log10((nu_min_MHz+np.arange(nf)*channel_width_MHz)/nu_min_MHz*1.e6)
+
+# np.polyfit(x1,y1,1)
+
+# for i in range(vfft1_subset.shape[1]):
+# 	for j in range(vfft1_subset.shape[2]):
+# 		y1=np.log10(abs(vfft1_subset[:,i,j].real))
+# 		print i,j,np.polyfit(x1,y1,1)
+
+
+# x1 = np.log10((nu_min_MHz+np.arange(nf)*channel_width_MHz)/nu_min_MHz*1.e6)
+# y1=np.log10(abs(scidata1_subset[:,1,3].real))
+# np.polyfit(x1,y1,1)
+
+# x1 = np.log10(np.arange(len(y1))+1)
+
+# for i in range(scidata1_subset.shape[1]):
+# 	for j in range(scidata1_subset.shape[2]):
+# 		y1=np.log10(abs(scidata1_subset[:,i,j].real))
+# 		print i,j,np.polyfit(x1,y1,1)
+
+
+
+
+
+# idft_array_1D_WQ = BM.read_data_from_hdf5(array_save_directory+'idft_array_1D_WQ.h5', 'idft_array_1D_WQ')
+
+# y1 = np.log10(idft_array_1D_WQ[-2].real)
+# np.polyfit(x1,y1,1)
+
+
+
+# scidata1_subset[:,8,8].real = idft_array_1D_WQ[-2].real * 1.e9
+
+# # m = T.theta
+# # theta_hat = (T.conjugate().T . Ninv . T)**-1 T . Ninv . d
+
+# scidata1_subset[:,8,8].real/idft_array_1D_WQ[-2].real
+
+
+# idft_array_1D_WQ = BM.read_data_from_hdf5(array_save_directory+'idft_array_1D_WQ.h5', 'idft_array_1D_WQ')*1.e5
+# idft_array_1D_WQ = idft_array_1D_WQ[-2:]
+
+# d_test = scidata1_subset[:,8,8]
+# Ninv_test = np.identity(len(scidata1_subset[:,8,8].real))
+# theta_hat = np.dot(np.linalg.inv(np.dot(idft_array_1D_WQ.conjugate(), np.dot(Ninv_test, idft_array_1D_WQ.T))), np.dot(idft_array_1D_WQ, np.dot(Ninv_test, d_test.reshape(-1,1))))
+
+
+# print scidata1_subset[:,8,8]/idft_array_1D_WQ[-2].real
+# print theta_hat
+
+
+
+
+
+
 def generate_additional_HF_Jelic_cube(A,HF_nu_min_MHz,beta,fits_storage_dir,nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, beta_experimental_mean,beta_experimental_std,gamma_mean,gamma_sigma,Tb_experimental_mean_K,Tb_experimental_std_K,nu_min_MHz,channel_width_MHz, **kwargs):
 
 	# HF_nu_min_MHz = 225
@@ -699,6 +916,84 @@ def generate_EoR_signal_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k
 
 
 	return s, abc, scidata1
+
+
+
+
+
+## ======================================================================================================
+## ======================================================================================================
+
+def calculate_subset_cube_power_spectrum_v1d0(nu,nv,nx,ny,nf,neta,nq,scidata1_kcube_subset,k_cube_voxels_in_bin,modkbins_containing_voxels):
+
+	scidata1_kcube_subset
+
+	k_cube_voxels_in_bin
+	modkbins_containing_voxels
+
+
+	# EoR_npz_path = '/users/psims/EoR/EoR_simulations/21cmFAST_2048MPc_2048pix_512pix_AstroParamExploration1/Fits/npzs/Zeta10.0_Tvir1.0e+05_mfp22.2_Taue0.041_zre-1.000_delz-1.000_512_2048Mpc/21cm_mK_z7.600_nf0.883_useTs0.0_aveTb21.06_cube_side_pix512_cube_side_Mpc2048.npz'
+
+	for i in range(len(scidata1_kcube_subset)):
+		print i, scidata1_kcube_subset[i].std()
+
+	scidata1_kcube_subset
+
+	ZM_vis_ordered_mask = np.ones(nu*nv*nf)
+	ZM_vis_ordered_mask[nf*((nu*nv)/2):nf*((nu*nv)/2+1)]=0
+	ZM_vis_ordered_mask = ZM_vis_ordered_mask.astype('bool')
+	ZM_chan_ordered_mask = ZM_vis_ordered_mask.reshape(-1, neta+nq).T.flatten()
+
+
+	scidata1_kcube_subset.flatten()[ZM_chan_ordered_mask]
+
+	mod_k.flatten()[ZM_chan_ordered_mask]
+
+	chan_ordered_bin_pixels_list = [np.where(np.logical_and(mod_k.flatten()[ZM_chan_ordered_mask]>modkbins_containing_voxels[i][0][0], mod_k.flatten()[ZM_chan_ordered_mask]<=modkbins_containing_voxels[i][0][1])) for i in range(len(modkbins_containing_voxels))]
+
+	excluded_zeroed_voxels = np.where(scidata1_kcube_subset.flatten()[ZM_chan_ordered_mask]==0.0)
+
+	excluded_zeroed_voxel_locations_in_chan_ordered_bin_pixels_list = [[np.where(chan_ordered_bin_pixels_list[i_bin][0]==excluded_zeroed_voxels[0][i_ex])[0] for i_ex in range(len(excluded_zeroed_voxels[0])) if np.where(chan_ordered_bin_pixels_list[i_bin][0]==excluded_zeroed_voxels[0][i_ex])[0]] for i_bin in range(len(chan_ordered_bin_pixels_list)) ]
+
+
+	chan_ordered_bin_pixels_list_without_zeroed_excluded_pixels = np.array(chan_ordered_bin_pixels_list).copy()
+
+	chan_ordered_bin_pixels_list_without_zeroed_excluded_pixels = [np.delete(chan_ordered_bin_pixels_list[i_bin][0], excluded_zeroed_voxel_locations_in_chan_ordered_bin_pixels_list[i_bin]) for i_bin in range(len(chan_ordered_bin_pixels_list))]
+
+	mean_ks = []
+	variances = []
+	powers = []
+	dimensionless_powers = []
+	for i in range(len(chan_ordered_bin_pixels_list)):
+		ks_in_bin = mod_k.flatten()[ZM_chan_ordered_mask][chan_ordered_bin_pixels_list_without_zeroed_excluded_pixels[i]]
+		amplitudes_in_bin = scidata1_kcube_subset.flatten()[ZM_chan_ordered_mask][chan_ordered_bin_pixels_list_without_zeroed_excluded_pixels[i]]
+		mean_k = ks_in_bin.mean()
+		variance = amplitudes_in_bin.var()
+		power = (abs(amplitudes_in_bin)**2.).mean()
+		dimensionless_power = (ks_in_bin**3. * abs(amplitudes_in_bin)**2.).mean()
+		print i, mean_k, variance, power, power/variance
+		mean_ks.append(mean_k)
+		variances.append(variance)
+		powers.append(power)
+		dimensionless_powers.append(dimensionless_power)
+
+
+	subset_ps_output_dir = '/users/psims/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/spec_model_tests/random/subset_ps/{}/'.format(EoR_npz_path.split('/')[-2].replace('.npz','').replace('.','d'))
+	subset_ps_output_file = EoR_npz_path.split('/')[-1].replace('.npz','').replace('.','d')
+	subset_ps_output_path = subset_ps_output_dir+subset_ps_output_file
+
+	print 'Saving unnormalised dimensionless power spectrum to: \n', subset_ps_output_path
+	if not os.path.isdir(subset_ps_output_dir):
+			os.makedirs(subset_ps_output_dir)
+	np.savetxt(subset_ps_output_path, np.vstack((mean_ks, dimensionless_powers)).T)
+
+
+
+
+
+
+
+
 
 
 

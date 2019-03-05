@@ -789,6 +789,12 @@ def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vec
 	real_noise = np.random.normal(0,sigma/2.**0.5,[nf,len(p.uvw_multi_time_step_array_meters_reshaped)])
 	if random_seed:
 		np.random.seed(random_seed*123)
+
+	if sigma == 0.0:
+		complex_noise_hermitian = np.zeros(len(s))+0.0j
+		d=s+complex_noise_hermitian.flatten()
+		return d, complex_noise_hermitian.flatten()
+
 	imag_noise = np.random.normal(0,sigma/2.**0.5,[nf,len(p.uvw_multi_time_step_array_meters_reshaped)])
 	complex_noise = real_noise + 1j*imag_noise
 	complex_noise = complex_noise* sigma/complex_noise.std()
@@ -1321,6 +1327,64 @@ def generate_k_cube_model_spherical_binning(mod_k_masked, k_z_masked, nu,nv,nx,n
 	# binsize=deltakperp*1 #Value used in 21cmFAST
 	# binsize=deltakperp*4 #Value used in BEoRfgs
 	binsize=deltakperp*2 #Value used in BEoRfgs
+
+	numKbins = 50
+	modkbins = np.zeros([numKbins,2])
+	modkbins[0,0]=0
+	modkbins[0,1]=binsize
+
+	for m1 in range(1,numKbins,1):
+		binsize=binsize*modkscaleterm
+		modkbins[m1,0]=modkbins[m1-1,1]
+		modkbins[m1,1]=modkscaleterm*modkbins[m1,0]
+			# print m1, modkbins[m1,0], modkbins[m1,1]
+
+	total_elements = 0
+	n_bins = 0
+	#
+	modkbins_containing_voxels=[]
+	#
+	for i_bin in range(numKbins):
+		#NOTE: By requiring k_z>0 the constant term in the 1D FFT is now effectively a quadratic mode!
+		# If it is to be included explicitly with the quadratic modes, then k_z==0 should be added to the quadratic selector mask
+		n_elements = np.sum(np.logical_and.reduce((mod_k_masked>modkbins[i_bin,0], mod_k_masked<=modkbins[i_bin,1], k_z_masked!=0)))
+		if n_elements>0:
+			n_bins+=1
+	 		print i_bin, modkbins[i_bin,0], modkbins[i_bin,1], n_elements 
+	 		total_elements+=n_elements
+	 		modkbins_containing_voxels.append((modkbins[i_bin], n_elements))
+
+	print total_elements, mod_k_masked.size
+
+	k_cube_voxels_in_bin=[]
+	count=0
+	for i_bin in range(len(modkbins_containing_voxels)):
+		relevant_voxels = np.where(np.logical_and.reduce((mod_k_masked>modkbins_containing_voxels[i_bin][0][0], mod_k_masked<=modkbins_containing_voxels[i_bin][0][1], k_z_masked!=0)))
+		print relevant_voxels
+		print (len(relevant_voxels[0]))
+		count += len(relevant_voxels[0])
+		k_cube_voxels_in_bin.append(relevant_voxels)
+
+	print count #should be mod_k_masked.shape[0]-3*nuv
+	return k_cube_voxels_in_bin, modkbins_containing_voxels
+
+
+## ======================================================================================================
+## ======================================================================================================
+
+def generate_k_cube_model_spherical_binning_v2d0(mod_k_masked, k_z_masked, nu,nv,nx,ny,nf,neta,nq):
+
+	###
+	# Generate k_cube physical coordinates to match the 21cmFAST input simulation
+	###
+	mod_k, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z = generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(nu,nv,nx,ny,nf,neta,p.box_size_21cmFAST_pix_sc,p.box_size_21cmFAST_Mpc_sc)
+		
+	# modkscaleterm=1.5 #Value used in BEoRfgs and in 21cmFAST binning
+	# binsize=deltakperp*1 #Value used in 21cmFAST
+	# binsize=deltakperp*4 #Value used in BEoRfgs
+	# binsize=deltakperp*2 #Value used in BEoRfgs
+	modkscaleterm=1.35
+	binsize=deltakpara*3.0
 
 	numKbins = 50
 	modkbins = np.zeros([numKbins,2])
