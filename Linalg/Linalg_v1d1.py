@@ -543,6 +543,8 @@ def IDFT_Array_IDFT_2D(nu, nv, nx, ny, X_oversampling_Factor=1.0, Y_oversampling
 ###
 def DFT_Array_DFT_2D_ZM(nu, nv, nx, ny, X_oversampling_Factor=1.0, Y_oversampling_Factor=1.0, U_oversampling_Factor=1.0, V_oversampling_Factor=1.0):
 	#
+	# exclude_mean = True
+	# if p.fit_for_intrinsic_mean_temp: exclude_mean = False
 	i_x_AV, i_y_AV, i_u_AV, i_v_AV = Produce_Coordinate_Arrays_ZM(nu, nv, nx, ny)
 	#
 	if U_oversampling_Factor!=1.0:

@@ -2,7 +2,7 @@
 # Imports
 ###
 import matplotlib
-# matplotlib.use('pdf') #No pop-ups (comment out to interact with plots)
+matplotlib.use('pdf') #No pop-ups (comment out to interact with plots)
 import numpy as np
 import numpy
 from numpy import arange, shape, log10, pi
@@ -43,10 +43,11 @@ from SimData import generate_masked_coordinate_cubes, generate_k_cube_model_cyli
 from SimData import generate_k_cube_model_spherical_binning, construct_GRN_unitary_hermitian_k_cube
 from SimData import calc_mean_binned_k_vals
 from SimData import generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1
-from SimData import generate_k_cube_model_spherical_binning_v2d0
+from SimData import generate_k_cube_model_spherical_binning_v2d0, generate_k_cube_model_spherical_binning_v2d1
 
 from likelihood_tests.SimpleEoRtestWQ.Generate_matrix_stack_v1d1 import BuildMatrices
-from likelihood_tests.SimpleEoRtestWQ.Likelihood_v1d763_3D_ZM_standalone_GPU import PowerSpectrumPosteriorProbability
+# from likelihood_tests.SimpleEoRtestWQ.Likelihood_v1d763_3D_ZM_standalone_GPU import PowerSpectrumPosteriorProbability
+from likelihood_tests.SimpleEoRtestWQ.Likelihood_v1d763_3D_ZM_standalone_GPU_v2d0 import PowerSpectrumPosteriorProbability
 
 from Utils import PriorC, ParseCommandLineArguments, DataUnitConversionmkandJyperpix, WriteDataToFits
 from Utils import ExtractDataFrom21cmFASTCube, plot_signal_vs_MLsignal_residuals
@@ -59,7 +60,10 @@ from GenerateForegroundCube import generate_test_signal_from_image_cube
 from GenerateForegroundCube import top_hat_average_temperature_cube_to_lower_res_31x31xnf_cube
 from GenerateForegroundCube import generate_data_from_loaded_EGS_cube, generate_white_noise_signal_instrumental_k_2_vis
 from GenerateForegroundCube import generate_white_noise_signal_instrumental_im_2_vis, generate_EoR_signal_instrumental_im_2_vis
-from GenerateForegroundCube import generate_Jelic_cube_instrumental_im_2_vis
+from GenerateForegroundCube import generate_Jelic_cube_instrumental_im_2_vis, calculate_subset_cube_power_spectrum_v1d0
+from GenerateForegroundCube import calculate_subset_cube_power_spectrum_v2d0, generate_data_from_loaded_EGS_cube_im_2_vis
+from GenerateForegroundCube import calculate_21cmFAST_EoR_cube_power_spectrum_in_subset_cube_bins_v1d0
+from GenerateForegroundCube import generate_Jelic_cube_instrumental_im_2_vis_v2d0, generate_data_from_loaded_EGS_cube_im_2_vis_v2d0
 
 
 
