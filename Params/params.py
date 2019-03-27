@@ -63,8 +63,15 @@ box_size_21cmFAST_pix = 128 #Must match EoR_npz_path parameters
 box_size_21cmFAST_Mpc = 512 #Must match EoR_npz_path parameters
 
 # Big box 12 deg. 120 MHz higher res. (so nf=48 ~10 MHz). Downsampled from a high res. (3072 pix).
-EoR_npz_path_sc = '/users/psims/EoR/EoR_simulations/21cmFAST_2048MPc_3072pix_512pix_v2/Fits/21cm_mK_z7.600_nf0.459_useTs0.0_aveTb9.48_cube_side_pix512_cube_side_Mpc2048.npz'
-# EoR_npz_path_sc = '/users/psims/EoR/EoR_simulations/21cmFAST_2048MPc_2048pix_512pix_AstroParamExploration1/Fits/npzs/Zeta10.0_Tvir1.0e+05_mfp22.2_Taue0.041_zre-1.000_delz-1.000_512_2048Mpc/21cm_mK_z7.600_nf0.883_useTs0.0_aveTb21.06_cube_side_pix512_cube_side_Mpc2048.npz'
+# EoR_npz_path_sc = '/users/psims/EoR/EoR_simulations/21cmFAST_2048MPc_3072pix_512pix_v2/Fits/21cm_mK_z7.600_nf0.459_useTs0.0_aveTb9.48_cube_side_pix512_cube_side_Mpc2048.npz'
+EoR_npz_path_sc = '/users/psims/EoR/EoR_simulations/21cmFAST_2048MPc_2048pix_512pix_AstroParamExploration1/Fits/npzs/Zeta10.0_Tvir1.0e+05_mfp22.2_Taue0.041_zre-1.000_delz-1.000_512_2048Mpc/21cm_mK_z7.600_nf0.883_useTs0.0_aveTb21.06_cube_side_pix512_cube_side_Mpc2048.npz'
+
+# EoR_npz_path_sc = '/users/psims/EoR/EoR_simulations/21cmFAST_2048MPc_2048pix_512pix_AstroParamExploration1/Fits/npzs/Zeta10.0_Tvir1.0e+05_mfp3.0_Taue0.040_zre-1.000_delz-1.000_512_2048Mpc/21cm_mK_z7.600_nf0.888_useTs0.0_aveTb21.24_cube_side_pix512_cube_side_Mpc2048.npz'
+# EoR_npz_path_sc = '/users/psims/EoR/EoR_simulations/21cmFAST_2048MPc_2048pix_512pix_AstroParamExploration1_without_redshif_space_distortions/Fits/npzs/Zeta10.0_Tvir1.0e+05_mfp22.2_Taue0.041_zre-1.000_delz-1.000_512_2048Mpc/21cm_mK_z7.600_nf0.883_useTs0.0_aveTb20.90_cube_side_pix512_cube_side_Mpc2048.npz'
+
+
+
+
 box_size_21cmFAST_pix_sc = 512 #Must match EoR_npz_path parameters
 box_size_21cmFAST_Mpc_sc = 2048 #Must match EoR_npz_path parameters
 
@@ -134,7 +141,9 @@ channel_width_MHz = channel_width_MHz #Match spectral range of simulated signals
 # beta = 2.63
 # beta = -2.0
 # beta = [2.63, 2.82, 2.0]
+
 beta = [2.63, 2.82]
+
 # beta = [-1.0, -2.0]
 # beta = [2.4, 3.0]
 # beta = False
@@ -175,7 +184,10 @@ speed_of_light = constants.c.value
 
 include_instrumental_effects = True
 # include_instrumental_effects = False
-inverse_LW_power = 1.e-8 #Include minimal prior over LW modes to ensure numerically stable posterior
+inverse_LW_power = 1.e-18 #Include minimal prior over LW modes to ensure numerically stable posterior
+# inverse_LW_power = 1.e20 #Include minimal prior over LW modes to ensure numerically stable posterior
+# inverse_LW_power = 8e-20 #Include minimal prior over LW modes to ensure numerically stable posterior
+# inverse_LW_power = 8e-18 #Include minimal prior over LW modes to ensure numerically stable posterior
 
 
 ###
@@ -210,6 +222,11 @@ if include_instrumental_effects:
 	baseline_redundancy_array = load_baseline_redundancy_array(instrument_model_directory)
 	uv_pixel_width_wavelengths = 2.5 #Define a fixed pixel width in wavelengths
 	n_vis = len(uvw_multi_time_step_array_meters_reshaped) #Number of visibilities per channel (i.e. number of redundant baselines * number of time steps)
+	###---------
+	# Re-weight baseline_redundancy_array (downweight to minimum redundance baseline) to provide uniformly weighted data as input to the analysis, so that the quick intrinsic noise fitting approximation is valid, until generalised intrinsic noise fitting is implemented.
+	###
+	baseline_redundancy_array = baseline_redundancy_array*0 + baseline_redundancy_array.min()
+	###---------
 
 
 ###
@@ -218,10 +235,12 @@ if include_instrumental_effects:
 
 if include_instrumental_effects:
 	FWHM_deg_at_ref_freq_MHz = 9.0 #9 degrees
+	# FWHM_deg_at_ref_freq_MHz = 5.0 #9 degrees
 	PB_ref_freq_MHz = 150.0 #150 MHz
 	# beam_type = 'Uniform'
 	beam_type = 'Gaussian'
 	beam_peak_amplitude = 1.0
+	# beam_peak_amplitude = 2.0
 	beam_info_str = ''
 	if beam_type.lower() == 'Uniform'.lower():
 		beam_info_str += '{}_beam_peak_amplitude_{}'.format(beam_type, str(beam_peak_amplitude).replace('.','d'))		
@@ -232,7 +251,33 @@ if include_instrumental_effects:
 	# instrument_model_directory = '/users/psims/EoR/Python_Scripts/Calculate_HERA_UV_Coords/output_products/HERA_331_baselines_shorter_than_29d3_for_30_0d5_min_time_steps/'
 	instrument_model_directory = instrument_model_directory[:-1]+'_{}/'.format(beam_info_str)
 
+
 ###--
+
+
+###
+# Intrinsic noise fitting params
+###
+use_intrinsic_noise_fitting = False
+
+
+###
+# Simulated signals in analysis
+###
+use_EoR_cube = True
+use_GDSE_foreground_cube = False
+use_freefree_foreground_cube = False
+use_EGS_cube = False
+
+
+###
+# Prior on long wavelength modes
+###
+use_LWM_Gaussian_prior = False
+
+
+
+
 
 
 

@@ -50,7 +50,7 @@ except Exception as e:
 #--------------------------------------------
 
 class PowerSpectrumPosteriorProbability(object):
-	def __init__(self, T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes, modk_vis_ordered_list, Ninv, fit_single_elems=False, **kwargs):
+	def __init__(self, T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes, modk_vis_ordered_list, Ninv, d_Ninv_d, fit_single_elems=False, **kwargs):
 		##===== Defaults =======
 		default_diagonal_sigma = False
 		default_block_T_Ninv_T=[]
@@ -63,6 +63,7 @@ class PowerSpectrumPosteriorProbability(object):
 		default_Print=False
 		default_debug=False
 		default_Print_debug=False
+		default_intrinsic_noise_fitting=False
 		
 		##===== Inputs =======
 		self.diagonal_sigma=kwargs.pop('diagonal_sigma',default_diagonal_sigma)
@@ -78,6 +79,7 @@ class PowerSpectrumPosteriorProbability(object):
 		self.Print=kwargs.pop('Print',default_Print)
 		self.debug=kwargs.pop('debug',default_debug)
 		self.Print_debug=kwargs.pop('Print_debug',default_Print_debug)
+		self.intrinsic_noise_fitting=kwargs.pop('intrinsic_noise_fitting',default_intrinsic_noise_fitting)
 
 		self.fit_single_elems = fit_single_elems
 		self.T_Ninv_T = T_Ninv_T
@@ -100,7 +102,9 @@ class PowerSpectrumPosteriorProbability(object):
 		self.masked_power_spectral_modes = masked_power_spectral_modes
 		self.modk_vis_ordered_list = modk_vis_ordered_list
 		self.Ninv = Ninv
+		self.d_Ninv_d = d_Ninv_d
 		self.print_rate = 1000
+		self.alpha_prime = 1.0
 
 
 	def add_power_to_diagonals(self, T_Ninv_T_block, PhiI_block, **kwargs):
@@ -127,7 +131,10 @@ class PowerSpectrumPosteriorProbability(object):
 		if do_block_diagonal_inversion:
 			if self.Print:print 'Using block-diagonal inversion'
 			start = time.time()
-			Sigma_block_diagonals = self.calc_Sigma_block_diagonals(T_Ninv_T, PhiI)
+			if self.intrinsic_noise_fitting:
+				Sigma_block_diagonals = self.calc_Sigma_block_diagonals(T_Ninv_T/self.alpha_prime**2., PhiI) #This is only valid if the data is uniformly weighted
+			else:
+				Sigma_block_diagonals = self.calc_Sigma_block_diagonals(T_Ninv_T, PhiI)
 			if self.Print:print 'Time taken: {}'.format(time.time()-start)
 			if self.Print:print 'nuv', self.nuv
 
@@ -160,12 +167,15 @@ class PowerSpectrumPosteriorProbability(object):
 			# Note: the following two lines can probably be speeded up by adding T_Ninv_T and np.diag(PhiI). (Should test this!) but this else statement only occurs on the GPU inversion so will deal with it later.
 			###
 			Sigma=T_Ninv_T.copy()
+			if self.intrinsic_noise_fitting:
+				Sigma = Sigma/self.alpha_prime**2.0
+
 			Sigma[self.Sigma_Diag_Indices]+=PhiI
 			if self.Print:print 'Time taken: {}'.format(time.time()-start)
 
 			start = time.time()
 			if p.useGPU:
-				if self.Print:print 'Computing matrix inversion inversion on GPU'
+				if self.Print:print 'Computing matrix inversion on GPU'
 				SigmaI_dbar_and_logdet_Sigma = self.calc_SigmaI_dbar(Sigma, dbar, x_for_error_checking=x)
 				SigmaI_dbar = SigmaI_dbar_and_logdet_Sigma[0]
 				logdet_Sigma = SigmaI_dbar_and_logdet_Sigma[1]
@@ -264,6 +274,102 @@ class PowerSpectrumPosteriorProbability(object):
 			Omega_beam_Gaussian_sr = (p.FWHM_deg_at_ref_freq_MHz*np.pi/180.)**2. * np.pi/(4.*np.log(2.0))
 			dimensionless_PS_scaling = dimensionless_PS_scaling * Omega_beam_Gaussian_sr**4.0
 
+		return dimensionless_PS_scaling
+	def calc_dimensionless_power_spectral_normalisation_21cmFAST_v2d0(self, i_bin, **kwargs):
+		###
+		# NOTE: the physical size of the cosmological box is simulation dependent. The values here are matched to the following 21cmFAST simulation:
+		# /users/psims/EoR/EoR_simulations/21cmFAST_512MPc_512pix_128pix/ and will require updating if the input signal is changed to a new source
+		# 21cmFAST normalisation:
+		#define BOX_LEN (float) 512 // in Mpc
+		#define VOLUME (BOX_LEN*BOX_LEN*BOX_LEN) // in Mpc^3
+		# p_box[ct] += pow(k_mag,3)*pow(cabs(deldel_T[HII_C_INDEX(n_x, n_y, n_z)]), 2)/(2.0*PI*PI*VOLUME);
+		###
+		EoR_x_full_pix = float(p.box_size_21cmFAST_pix_sc) #pix (defined by input to 21cmFAST simulation)
+		EoR_y_full_pix = float(p.box_size_21cmFAST_pix_sc) #pix (defined by input to 21cmFAST simulation)
+		EoR_z_full_pix = float(p.box_size_21cmFAST_pix_sc) #pix (defined by input to 21cmFAST simulation)
+		EoR_x_full_Mpc = float(p.box_size_21cmFAST_Mpc_sc) #Mpc (defined by input to 21cmFAST simulation)
+		EoR_y_full_Mpc = float(p.box_size_21cmFAST_Mpc_sc) #Mpc (defined by input to 21cmFAST simulation)
+		EoR_z_full_Mpc = float(p.box_size_21cmFAST_Mpc_sc) #Mpc (defined by input to 21cmFAST simulation)
+		# EoR_analysis_cube_x_pix = EoR_x_full_pix #Mpc Analysing the full FoV in x
+		# EoR_analysis_cube_y_pix = EoR_y_full_pix #Mpc Analysing the full FoV in y
+		# EoR_analysis_cube_z_pix = 38 #Mpc Analysing 38 of the 128 channels of the full EoR_simulations 
+		EoR_analysis_cube_x_pix = float(p.EoR_analysis_cube_x_pix) #pix Analysing the full FoV in x
+		EoR_analysis_cube_y_pix = float(p.EoR_analysis_cube_y_pix) #pix Analysing the full FoV in y
+		EoR_analysis_cube_z_pix = self.nf #Mpc Analysing 38 of the 128 channels of the full EoR_simulations 
+		EoR_analysis_cube_x_Mpc = float(p.EoR_analysis_cube_x_Mpc) #Mpc Analysing the full FoV in x
+		EoR_analysis_cube_y_Mpc = float(p.EoR_analysis_cube_y_Mpc) #Mpc Analysing the full FoV in y
+		EoR_analysis_cube_z_Mpc = EoR_z_full_Mpc*(float(EoR_analysis_cube_z_pix)/EoR_z_full_pix) #Mpc Analysing 38 of the 128 channels of the full simulation
+		EoRVolume = EoR_analysis_cube_x_Mpc*EoR_analysis_cube_y_Mpc*EoR_analysis_cube_z_Mpc
+		pixel_volume = EoR_analysis_cube_x_pix*EoR_analysis_cube_y_pix*EoR_analysis_cube_z_pix
+		cosmo_fft_norm_factor = (2.*np.pi)**2. #This needs to be verified / replaced........!
+
+		# dimensionless_PS_scaling = (self.modk_vis_ordered_list[i_bin]**3.)*(EoRVolume**1.0)/(2.*(np.pi**2)*pixel_volume**1.)
+
+		###
+		# 21cmFast normalisation code
+		###
+		# // do the FFTs
+		# plan = fftwf_plan_dft_r2c_3d(HII_DIM, HII_DIM, HII_DIM, (float *)deltax, (fftwf_complex *)deltax, FFTW_ESTIMATE);
+		# fftwf_execute(plan);
+		# fftwf_destroy_plan(plan);
+		# fftwf_cleanup();
+		# for (ct=0; ct<HII_KSPACE_NUM_PIXELS; ct++){
+		#    deltax[ct] *= VOLUME/(HII_TOT_NUM_PIXELS+0.0);
+		# }
+		# p_box[ct] +=  pow(k_mag,3)*pow(cabs(deltax[HII_C_INDEX(n_x, n_y, n_z)]), 2) / (2.0*PI*PI*VOLUME);
+
+		dimensionless_PS_scaling = (self.modk_vis_ordered_list[i_bin]**3.)*(EoRVolume/pixel_volume)**2./(2.*(np.pi**2)*EoRVolume)
+
+		if p.include_instrumental_effects:
+			# e.g. http://www.mrao.cam.ac.uk/~kjbg1/lectures/lect1_1.pdf
+			Omega_beam_Gaussian_sr = (p.FWHM_deg_at_ref_freq_MHz*np.pi/180.)**2. * np.pi/(4.*np.log(2.0))
+			dimensionless_PS_scaling = dimensionless_PS_scaling * Omega_beam_Gaussian_sr**4.0
+
+		return dimensionless_PS_scaling
+		
+	def calc_dimensionless_power_spectral_normalisation_21cmFAST_v3d0(self, i_bin, **kwargs):
+		###
+		# NOTE: the physical size of the cosmological box is simulation dependent.
+		# 21cmFAST normalisation:
+		#define BOX_LEN (float) 512 // in Mpc
+		#define VOLUME (BOX_LEN*BOX_LEN*BOX_LEN) // in Mpc^3
+		# p_box[ct] += pow(k_mag,3)*pow(cabs(deldel_T[HII_C_INDEX(n_x, n_y, n_z)]), 2)/(2.0*PI*PI*VOLUME);
+		###
+		EoR_x_full_pix = float(p.box_size_21cmFAST_pix_sc) #pix (defined by input to 21cmFAST simulation)
+		EoR_y_full_pix = float(p.box_size_21cmFAST_pix_sc) #pix (defined by input to 21cmFAST simulation)
+		EoR_z_full_pix = float(p.box_size_21cmFAST_pix_sc) #pix (defined by input to 21cmFAST simulation)
+		EoR_x_full_Mpc = float(p.box_size_21cmFAST_Mpc_sc) #Mpc (defined by input to 21cmFAST simulation)
+		EoR_y_full_Mpc = float(p.box_size_21cmFAST_Mpc_sc) #Mpc (defined by input to 21cmFAST simulation)
+		EoR_z_full_Mpc = float(p.box_size_21cmFAST_Mpc_sc) #Mpc (defined by input to 21cmFAST simulation)
+
+		VOLUME = p.box_size_21cmFAST_Mpc_sc**3. #Full cube volume in Mpc^3
+		HII_TOT_NUM_PIXELS = p.box_size_21cmFAST_pix_sc**3. #Full cube Npix
+		amplitude_normalisation_21cmFast = (VOLUME/HII_TOT_NUM_PIXELS)
+		explicit_21cmFast_power_spectrum_normalisation = 1./(2.0*np.pi**2.*VOLUME)
+		full_21cmFast_power_spectrum_normalisation = VOLUME / (2.0*np.pi**2.*HII_TOT_NUM_PIXELS**2.)#amplitude_normalisation_21cmFast**2. * explicit_power_spectrum_normalisation = (VOLUME/HII_TOT_NUM_PIXELS)**2. / (2.0*np.pi**2.*VOLUME)
+
+		############
+		# subset_power_spectrum_normalisation:
+		# 1. Image space full cube -> k-space subset cube,
+		# values are (nf/512.)**0.5 times smaller than in 21cmFast.
+		# Thus, to normalise, the amplitude spectrum should be scaled by (512./nf)**0.5 (subset cube component)
+		# 
+		# 2. k-space subset cube -> image space subset cube -> data = np.dot(Finv, image space subset cube),
+		# values are nf**0.5 times larger than in np.dot(T, k-space subset cube) -> data.
+		#[This is because in the k-space subset cube -> image space subset cube step (1) with a numpy ifft there is an effective division by nf**0.5 where as in the equivalent k-space subset cube -> image space subset cube component of T there is a division by nf**1.0, thus the values in np.dot(T, k-space subset cube) -> data end up being nf**0.5 times smaller.]
+		# Thus, to normalise, the amplitude spectrum should be scaled by 1./nf**0.5  (matrix encoding component)
+		# 
+		# Thus, the overall subset + matrix encoding amplitude normalisation is: (512./nf)**0.5/nf**0.5 = 512**0.5
+		############
+		subset_power_spectrum_normalisation = float(p.box_size_21cmFAST_pix_sc) #See /home/peter/OSCAR_mnt/rdata/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/spec_model_tests/random/normalisation_testing/dimensionless_power_spectrum_21cmFast_comparison_normalisation_v2d0.py
+
+		full_power_spectrum_normalisation = subset_power_spectrum_normalisation * full_21cmFast_power_spectrum_normalisation
+		dimensionless_PS_scaling = (self.modk_vis_ordered_list[i_bin]**3.)*full_power_spectrum_normalisation
+
+		# if p.include_instrumental_effects:
+		# 	# e.g. http://www.mrao.cam.ac.uk/~kjbg1/lectures/lect1_1.pdf
+		# 	Omega_beam_Gaussian_sr = (p.FWHM_deg_at_ref_freq_MHz*np.pi/180.)**2. * np.pi/(4.*np.log(2.0))
+		# 	dimensionless_PS_scaling = dimensionless_PS_scaling * Omega_beam_Gaussian_sr**4.0
 
 		return dimensionless_PS_scaling
 
@@ -311,49 +417,44 @@ class PowerSpectrumPosteriorProbability(object):
 		###
 		
 		PowerI=np.zeros(self.Npar)
-		# PowerI=np.zeros(self.Npar)+self.inverse_LW_power 
-		# # PowerI=np.zeros(self.Npar)
-		# # PowerI[self.nf/2-1::self.nf]=self.inverse_LW_power 
-		# # PowerI[self.nf-2::self.nf]=self.inverse_LW_power 
-		# # PowerI[self.nf-1::self.nf]=self.inverse_LW_power 
-		# PowerI[self.nf/2-1::self.nf]=self.inverse_LW_power_zeroth_LW_term #set to zero for a uniform distribution
-		# PowerI[self.nf-2::self.nf]=self.inverse_LW_power_first_LW_term #set to zero for a uniform distribution
-		# PowerI[self.nf-1::self.nf]=self.inverse_LW_power_second_LW_term #set to zero for a uniform distribution
-		# # print 'self.inverse_LW_power', self.inverse_LW_power
-		# # print 'self.inverse_LW_power_first_LW_term', self.inverse_LW_power_first_LW_term
-		# # print 'self.inverse_LW_power_second_LW_term', self.inverse_LW_power_second_LW_term
-		# if self.inverse_LW_power==0.0:
-		# 	PowerI[self.nf/2-1::self.nf]=self.inverse_LW_power_zeroth_LW_term #set to zero for a uniform distribution
-		# 	PowerI[self.nf-2::self.nf]=self.inverse_LW_power_first_LW_term #set to zero for a uniform distribution
-		# 	PowerI[self.nf-1::self.nf]=self.inverse_LW_power_second_LW_term #set to zero for a uniform distribution
+
+		if p.include_instrumental_effects:
+			q0_index = self.neta/2
+		else:
+			q0_index = self.nf/2-1
+		q1_index = self.neta
+		q2_index = self.neta+1
+
+		# Constrain LW mode amplitude distribution
+		dimensionless_PS_scaling = self.calc_dimensionless_power_spectral_normalisation_21cmFAST_v3d0(0)
+		if p.use_LWM_Gaussian_prior:
+			Fourier_mode_start_index = 3
+			# PowerI[self.nf/2-1::self.nf]=np.mean(dimensionless_PS_scaling)/x[0] #set to zero for a uniform distribution
+			# PowerI[self.nf-2::self.nf]=np.mean(dimensionless_PS_scaling)/x[1] #set to zero for a uniform distribution
+			# PowerI[self.nf-1::self.nf]=np.mean(dimensionless_PS_scaling)/x[2] #set to zero for a uniform distribution
+			PowerI[q0_index::(self.neta+self.nq)]=np.mean(dimensionless_PS_scaling)/x[0] #set to zero for a uniform distribution
+			PowerI[q1_index::(self.neta+self.nq)]=np.mean(dimensionless_PS_scaling)/x[1] #set to zero for a uniform distribution
+			PowerI[q2_index::(self.neta+self.nq)]=np.mean(dimensionless_PS_scaling)/x[2] #set to zero for a uniform distribution
+		else:
+			Fourier_mode_start_index = 0
+			PowerI[q0_index::(self.neta+self.nq)]=self.inverse_LW_power #set to zero for a uniform distribution
+			PowerI[q1_index::(self.neta+self.nq)]=self.inverse_LW_power #set to zero for a uniform distribution
+			PowerI[q2_index::(self.neta+self.nq)]=self.inverse_LW_power #set to zero for a uniform distribution
+			if self.inverse_LW_power==0.0:
+				PowerI[q0_index::(self.neta+self.nq)]=self.inverse_LW_power_zeroth_LW_term #set to zero for a uniform distribution
+				PowerI[q1_index::(self.neta+self.nq)]=self.inverse_LW_power_first_LW_term #set to zero for a uniform distribution
+				PowerI[q2_index::(self.neta+self.nq)]=self.inverse_LW_power_second_LW_term #set to zero for a uniform distribution
 
 		if self.dimensionless_PS:
-			# Constrain LW mode amplitude distribution
-			# for i_bin_LW in range(3):
-			dimensionless_PS_scaling = self.calc_dimensionless_power_spectral_normalisation_21cmFAST(0)
-			PowerI[self.nf/2-1::self.nf]=np.mean(dimensionless_PS_scaling)/x[0] #set to zero for a uniform distribution
-			PowerI[self.nf-2::self.nf]=np.mean(dimensionless_PS_scaling)/x[1] #set to zero for a uniform distribution
-			PowerI[self.nf-1::self.nf]=np.mean(dimensionless_PS_scaling)/x[2] #set to zero for a uniform distribution
-
-			# Fit for Fourier mode power spectrum
-			for i_bin in range(len(self.k_cube_voxels_in_bin)):
-				dimensionless_PS_scaling = self.calc_dimensionless_power_spectral_normalisation_21cmFAST(i_bin)
-				# PowerI[self.k_cube_voxels_in_bin[i_bin]] = dimensionless_PS_scaling/x[i_bin] #NOTE: fitting for power not std here
-				PowerI[self.k_cube_voxels_in_bin[i_bin]] = dimensionless_PS_scaling/x[3+i_bin] #NOTE: fitting for power not std here
+			self.power_spectrum_normalisation_func = self.calc_dimensionless_power_spectral_normalisation_21cmFAST_v3d0
 		else:
-			# Constrain LW mode amplitude distribution
-			# for i_bin_LW in range(3):
-			dimensionless_PS_scaling = self.calc_dimensionless_power_spectral_normalisation_21cmFAST(0)
-			PowerI[self.nf/2-1::self.nf]=np.mean(dimensionless_PS_scaling)/x[0] #set to zero for a uniform distribution
-			PowerI[self.nf-2::self.nf]=np.mean(dimensionless_PS_scaling)/x[1] #set to zero for a uniform distribution
-			PowerI[self.nf-1::self.nf]=np.mean(dimensionless_PS_scaling)/x[2] #set to zero for a uniform distribution
-			# Fit for Fourier mode power spectrum
-			for i_bin in range(len(self.k_cube_voxels_in_bin)):
-				physical_PS_scaling = self.calc_Npix_physical_power_spectrum_normalisation(i_bin)
-				# PowerI[self.k_cube_voxels_in_bin[i_bin]] = physical_PS_scaling*1./x[i_bin]  #NOTE: fitting for power not std here
-				PowerI[self.k_cube_voxels_in_bin[i_bin]] = physical_PS_scaling*1./x[3+i_bin]  #NOTE: fitting for power not std here
+			self.power_spectrum_normalisation_func = self.calc_Npix_physical_power_spectrum_normalisation
+			
+		# Fit for Fourier mode power spectrum
+		for i_bin in range(len(self.k_cube_voxels_in_bin)):
+			power_spectrum_normalisation = self.power_spectrum_normalisation_func(i_bin)
+			PowerI[self.k_cube_voxels_in_bin[i_bin]] = power_spectrum_normalisation/x[Fourier_mode_start_index+i_bin] #NOTE: fitting for power not std here
 
-		# brk()
 		return PowerI
 
 	def posterior_probability(self, x, **kwargs):
@@ -368,6 +469,14 @@ class PowerSpectrumPosteriorProbability(object):
 		##===== Inputs =======
 		if 'block_T_Ninv_T' in kwargs:
 			block_T_Ninv_T=kwargs['block_T_Ninv_T']
+
+		if self.intrinsic_noise_fitting:
+			self.alpha_prime = x[0]
+			x = x[1:]
+			Ndat = len(np.diagonal(self.Ninv))
+			log_det_N = Ndat*np.log(self.alpha_prime**2.0) #This is only valid if the data is uniformly weighted
+			d_Ninv_d = self.d_Ninv_d/(self.alpha_prime**2.0) #This is only valid if the data is uniformly weighted
+			dbar = dbar/(self.alpha_prime**2.0) #This is only valid if the data is uniformly weighted
 
 		if self.log_priors:
 			# print 'Using log-priors'
@@ -391,11 +500,19 @@ class PowerSpectrumPosteriorProbability(object):
 
 			MargLogL =  -0.5*logSigmaDet -0.5*logPhiDet + 0.5*dbarSigmaIdbar
 			vals = map(real, (-0.5*logSigmaDet, -0.5*logPhiDet, 0.5*dbarSigmaIdbar, MargLogL))
+			if self.intrinsic_noise_fitting:
+				MargLogL = MargLogL -0.5*d_Ninv_d -0.5*log_det_N
 			MargLogL =  MargLogL.real
 			if self.Print_debug:
-				print 'MargLogL =  -0.5*logSigmaDet -0.5*logPhiDet + 0.5*dbarSigmaIdbar', MargLogL
+				MargLogL_equation_string = 'MargLogL =  -0.5*logSigmaDet -0.5*logPhiDet + 0.5*dbarSigmaIdbar'
+				if self.intrinsic_noise_fitting:
+					print 'Using intrinsic noise fitting'
+					MargLogL_equation_string+=' - 0.5*d_Ninv_d -0.5*log_det_N'
+					print 'logSigmaDet, logPhiDet, dbarSigmaIdbar, d_Ninv_d, log_det_N', logSigmaDet, logPhiDet, dbarSigmaIdbar, d_Ninv_d, log_det_N
+				else:
+					print 'logSigmaDet, logPhiDet, dbarSigmaIdbar', logSigmaDet, logPhiDet, dbarSigmaIdbar
+				print MargLogL_equation_string, MargLogL
 				print 'MargLogL.real', MargLogL.real
-				print 'logSigmaDet, logPhiDet, dbarSigmaIdbar', logSigmaDet, logPhiDet, dbarSigmaIdbar
 
 			# brk()
 			
