@@ -64,6 +64,7 @@ box_size_21cmFAST_Mpc = 512 #Must match EoR_npz_path parameters
 
 # Big box 12 deg. 120 MHz higher res. (so nf=48 ~10 MHz). Downsampled from a high res. (3072 pix).
 # EoR_npz_path_sc = '/users/psims/EoR/EoR_simulations/21cmFAST_2048MPc_3072pix_512pix_v2/Fits/21cm_mK_z7.600_nf0.459_useTs0.0_aveTb9.48_cube_side_pix512_cube_side_Mpc2048.npz'
+
 EoR_npz_path_sc = '/users/psims/EoR/EoR_simulations/21cmFAST_2048MPc_2048pix_512pix_AstroParamExploration1/Fits/npzs/Zeta10.0_Tvir1.0e+05_mfp22.2_Taue0.041_zre-1.000_delz-1.000_512_2048Mpc/21cm_mK_z7.600_nf0.883_useTs0.0_aveTb21.06_cube_side_pix512_cube_side_Mpc2048.npz'
 
 # EoR_npz_path_sc = '/users/psims/EoR/EoR_simulations/21cmFAST_2048MPc_2048pix_512pix_AstroParamExploration1/Fits/npzs/Zeta10.0_Tvir1.0e+05_mfp3.0_Taue0.040_zre-1.000_delz-1.000_512_2048Mpc/21cm_mK_z7.600_nf0.888_useTs0.0_aveTb21.24_cube_side_pix512_cube_side_Mpc2048.npz'
@@ -97,7 +98,8 @@ beta_experimental_std  = 0.02      #A conservative over-estimate of the dbeta_15
 # beta_experimental_std  = 1.e-10      #A conservative over-estimate of the dbeta_150_408=0.01 (dbeta_90_190=0.02) in Mozden, Bowman et al. 2016
 gamma_mean             = -2.7     #Revise to match published values
 gamma_sigma            = 0.3      #Revise to match published values
-Tb_experimental_mean_K = 194.0    #Matches GSM mean in region A
+# Tb_experimental_mean_K = 194.0    #Matches GSM mean in region A
+Tb_experimental_mean_K = 471.0    #Matches GSM mean in region considered in S19a (see GSM_map_std_at_-30_dec_v1d3.ipynb)
 Tb_experimental_std_K  = 62.0     #70th percentile 12 deg.**2 region at 56 arcmin res. centered on -30. deg declination (see GSM_map_std_at_-30_dec_v1d0.ipynb)
 # Tb_experimental_std_K  = 62.0   #Median std at at 0.333 degree resolution in 50 deg by 50 deg maps centered on Dec=-30.0
 nu_min_MHz             = 163.0-4.0
@@ -131,7 +133,16 @@ HF_nu_min_MHz_array_ff = [210]
 ###
 # Extragalactic source foreground params
 ###
-EGS_npz_path = '/users/psims/Cav/EoR/Missing_Radio_Flux/Surveys/Flux_Variance_Maps/S_Cubed/S_163_10nJy_Image_Cube_v34_18_deg_NV_15JyCN_With_Synchrotron_Self_Absorption/Fits/Flux_Density_Upper_Lim_15.0__Flux_Density_Lower_Lim_0.0/mk_cube/151_Flux_values_10NanoJansky_limit_data_result_18_Degree_Cube_RA_Dec_Degrees_and__10_pow_LogFlux_Columns_and_Source_Redshifts_and_Source_SI_and_Source_AGN_Type_Comb__mk.npz'
+# EGS_npz_path = '/users/psims/Cav/EoR/Missing_Radio_Flux/Surveys/Flux_Variance_Maps/S_Cubed/S_163_10nJy_Image_Cube_v34_18_deg_NV_15JyCN_With_Synchrotron_Self_Absorption/Fits/Flux_Density_Upper_Lim_15.0__Flux_Density_Lower_Lim_0.0/mk_cube/151_Flux_values_10NanoJansky_limit_data_result_18_Degree_Cube_RA_Dec_Degrees_and__10_pow_LogFlux_Columns_and_Source_Redshifts_and_Source_SI_and_Source_AGN_Type_Comb__mk.npz'
+
+# EGS_npz_path = '/users/psims/Cav/EoR/Missing_Radio_Flux/Surveys/Flux_Variance_Maps/S_Cubed/S_163_10nJy_Image_Cube_v34_18_deg_NV_3JyCN_With_Synchrotron_Self_Absorption/Fits/Flux_Density_Upper_Lim_3.0__Flux_Density_Lower_Lim_0.0/mk_cube/151_Flux_values_10NanoJansky_limit_data_result_18_Degree_Cube_RA_Dec_Degrees_and__10_pow_LogFlux_Columns_and_Source_Redshifts_and_Source_SI_and_Source_AGN_Type_Comb__mk.npz'
+
+# EGS_npz_path = '/users/psims/Cav/EoR/Missing_Radio_Flux/Surveys/Flux_Variance_Maps/S_Cubed/S_163_10nJy_Image_Cube_v34_18_deg_NV_1JyCN_With_Synchrotron_Self_Absorption/Fits/Flux_Density_Upper_Lim_1.0__Flux_Density_Lower_Lim_0.0/mk_cube/151_Flux_values_10NanoJansky_limit_data_result_18_Degree_Cube_RA_Dec_Degrees_and__10_pow_LogFlux_Columns_and_Source_Redshifts_and_Source_SI_and_Source_AGN_Type_Comb__mk.npz'
+
+EGS_npz_path = '/users/psims/Cav/EoR/Missing_Radio_Flux/Surveys/Flux_Variance_Maps/S_Cubed/S_163_10nJy_Image_Cube_v34_18_deg_NV_40JyCN_With_Synchrotron_Self_Absorption/Fits/Flux_Density_Upper_Lim_40.0__Flux_Density_Lower_Lim_0.0/mk_cube/151_Flux_values_10NanoJansky_limit_data_result_18_Degree_Cube_RA_Dec_Degrees_and__10_pow_LogFlux_Columns_and_Source_Redshifts_and_Source_SI_and_Source_AGN_Type_Comb__mk.npz'
+
+
+
 
 ###
 # Spectral model params
@@ -139,13 +150,16 @@ EGS_npz_path = '/users/psims/Cav/EoR/Missing_Radio_Flux/Surveys/Flux_Variance_Ma
 nu_min_MHz = nu_min_MHz #Match spectral range of simulated signals
 channel_width_MHz = channel_width_MHz #Match spectral range of simulated signals
 # beta = 2.63
+# beta = 2.82
+#beta = 5.0
 # beta = -2.0
 # beta = [2.63, 2.82, 2.0]
 
-beta = [2.63, 2.82]
+# beta = [2.63, 2.82]
 
-# beta = [-1.0, -2.0]
+beta = [-1.0, -2.0]
 # beta = [2.4, 3.0]
+# beta = [1.4, 2.4]
 # beta = False
 
 if beta:
@@ -184,7 +198,38 @@ speed_of_light = constants.c.value
 
 include_instrumental_effects = True
 # include_instrumental_effects = False
-inverse_LW_power = 1.e-18 #Include minimal prior over LW modes to ensure numerically stable posterior
+# inverse_LW_power = 1.e-17 #Include minimal prior over LW modes to ensure numerically stable posterior *250 
+
+# inverse_LW_power = 1.e-16 #Include minimal prior over LW modes to ensure numerically stable posterior *250 
+
+
+# inverse_LW_power = 1.e-13 #Include minimal prior over LW modes to ensure numerically stable posterior *250 quadratic
+# inverse_LW_power = 1.e-12 #Include minimal prior over LW modes to ensure numerically stable posterior *250 quadratic
+# inverse_LW_power = 4.e-12 #Include minimal prior over LW modes to ensure numerically stable posterior *250 quadratic
+# inverse_LW_power = 4.e-11 #Include minimal prior over LW modes to ensure numerically stable posterior *250 quadratic
+# inverse_LW_power = 1.e-14 #Include minimal prior over LW modes to ensure numerically stable posterior *250 quadratic
+# inverse_LW_power = 1.e-15 #Include minimal prior over LW modes to ensure numerically stable posterior *250 quadratic
+# inverse_LW_power = 4.e-14 #Include minimal prior over LW modes to ensure numerically stable posterior *250 quadratic
+# inverse_LW_power = 2.e-14 #Include minimal prior over LW modes to ensure numerically stable posterior *250 quadratic
+# inverse_LW_power = 1.e-14 #Include minimal prior over LW modes to ensure numerically stable posterior *250 quadratic
+# inverse_LW_power = 8.e-13 #Include minimal prior over LW modes to ensure numerically stable posterior *250 quadratic
+# inverse_LW_power = 4.e-13 #Include minimal prior over LW modes to ensure numerically stable posterior *250 quadratic
+# inverse_LW_power = 8.e-12 #Include minimal prior over LW modes to ensure numerically stable posterior *250 quadratic
+# inverse_LW_power = 2.e-13 #Include minimal prior over LW modes to ensure numerically stable posterior *250 quadratic
+# inverse_LW_power = 8.e14 #Include minimal prior over LW modes to ensure numerically stable posterior *250 quadratic
+# inverse_LW_power = 8.e-8 #Include minimal prior over LW modes to ensure numerically stable posterior *250 quadratic
+# inverse_LW_power = 8.e-9 #Include minimal prior over LW modes to ensure numerically stable posterior *250 quadratic
+# inverse_LW_power = 8.e-5 #Include minimal prior over LW modes to ensure numerically stable posterior *250 quadratic
+# inverse_LW_power = 2.e-13 #Include minimal prior over LW modes to ensure numerically stable posterior *250 quadratic
+# inverse_LW_power = 2.e-12 #Include minimal prior over LW modes to ensure numerically stable posterior *250 quadratic
+# inverse_LW_power = 2.e-10 #Include minimal prior over LW modes to ensure numerically stable posterior *250 quadratic
+
+inverse_LW_power = 8.e-14 #Include minimal prior over LW modes to ensure numerically stable posterior *250 quadratic
+
+# inverse_LW_power = 4.e-14 #Include minimal prior over LW modes to ensure numerically stable posterior *250 
+# inverse_LW_power = 2.e-16 #Include minimal prior over LW modes to ensure numerically stable posterior *250
+# inverse_LW_power = 4.e-18 #Include minimal prior over LW modes to ensure numerically stable posterior
+# inverse_LW_power = 8.e-18 #Include minimal prior over LW modes to ensure numerically stable posterior *1000
 # inverse_LW_power = 1.e20 #Include minimal prior over LW modes to ensure numerically stable posterior
 # inverse_LW_power = 8e-20 #Include minimal prior over LW modes to ensure numerically stable posterior
 # inverse_LW_power = 8e-18 #Include minimal prior over LW modes to ensure numerically stable posterior
@@ -217,7 +262,12 @@ if include_instrumental_effects:
 	# instrument_model_directory = '/users/psims/EoR/Python_Scripts/Calculate_HERA_UV_Coords/output_products/HERA_331_baselines_shorter_than_14d7_for_30_0d5_min_time_steps/'
 	# instrument_model_directory = '/users/psims/EoR/Python_Scripts/Calculate_HERA_UV_Coords/output_products/HERA_331_baselines_shorter_than_14d7_for_60_0d5_min_time_steps/'
 	# instrument_model_directory = '/users/psims/EoR/Python_Scripts/Calculate_HERA_UV_Coords/output_products/HERA_331_baselines_shorter_than_14d7_for_120_0d5_min_time_steps/'
-	instrument_model_directory = '/users/psims/EoR/Python_Scripts/Calculate_HERA_UV_Coords/output_products/HERA_331_baselines_shorter_than_29d3_for_30_0d5_min_time_steps/'
+
+	# instrument_model_directory = '/users/psims/EoR/Python_Scripts/Calculate_HERA_UV_Coords/output_products/HERA_331_baselines_shorter_than_29d3_for_60_0d5_min_time_steps/'
+	#instrument_model_directory = '/users/psims/EoR/Python_Scripts/Calculate_HERA_UV_Coords/output_products/Random_baselines_shorter_than_29d3_for_2_0d5_min_time_steps/'
+
+	instrument_model_directory = '/users/psims/EoR/Python_Scripts/Calculate_HERA_UV_Coords/output_products/HERA_331_baselines_shorter_than_29d3_for_30_0d5_min_time_steps/' #This is the instrument model I've been using for my the default EoRSpecM analysis.
+
 	uvw_multi_time_step_array_meters_reshaped = load_uvw_instrument_sampling_m(instrument_model_directory)
 	baseline_redundancy_array = load_baseline_redundancy_array(instrument_model_directory)
 	uv_pixel_width_wavelengths = 2.5 #Define a fixed pixel width in wavelengths
@@ -235,9 +285,9 @@ if include_instrumental_effects:
 
 if include_instrumental_effects:
 	FWHM_deg_at_ref_freq_MHz = 9.0 #9 degrees
-	# FWHM_deg_at_ref_freq_MHz = 5.0 #9 degrees
+	# FWHM_deg_at_ref_freq_MHz = 5.0 #5 degrees
 	PB_ref_freq_MHz = 150.0 #150 MHz
-	# beam_type = 'Uniform'
+	#beam_type = 'Uniform'
 	beam_type = 'Gaussian'
 	beam_peak_amplitude = 1.0
 	# beam_peak_amplitude = 2.0
@@ -274,6 +324,14 @@ use_EGS_cube = False
 # Prior on long wavelength modes
 ###
 use_LWM_Gaussian_prior = False
+
+
+###
+# Fit for global signal jointly with the power spectrum
+# See e.g. http://adsabs.harvard.edu/abs/2015ApJ...809...18P
+###
+# fit_for_monopole = True
+fit_for_monopole = False
 
 
 

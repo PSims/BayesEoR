@@ -370,7 +370,10 @@ class BuildMatrices(BuildMatrixTree):
 		pmd = self.load_prerequisites(matrix_name)
 		start = time.time()
 		print 'Performing matrix algebra'
-		multi_vis_idft_array_1D = block_diag(*[pmd['idft_array_1D'] for i in range(self.nu*self.nv-1)])
+		if p.fit_for_monopole:
+			multi_vis_idft_array_1D = block_diag(*[pmd['idft_array_1D'] for i in range(self.nu*self.nv)])
+		else:
+			multi_vis_idft_array_1D = block_diag(*[pmd['idft_array_1D'] for i in range(self.nu*self.nv-1)])
 		print 'Time taken: {}'.format(time.time()-start)
 		###
 		# Save matrix to HDF5
@@ -382,7 +385,10 @@ class BuildMatrices(BuildMatrixTree):
 		pmd = self.load_prerequisites(matrix_name)
 		start = time.time()
 		print 'Performing matrix algebra'
-		multi_vis_idft_array_1D_WQ = block_diag(*[pmd['idft_array_1D_WQ'].T for i in range(self.nu*self.nv-1)])
+		if p.fit_for_monopole:
+			multi_vis_idft_array_1D_WQ = block_diag(*[pmd['idft_array_1D_WQ'].T for i in range(self.nu*self.nv)])
+		else:
+			multi_vis_idft_array_1D_WQ = block_diag(*[pmd['idft_array_1D_WQ'].T for i in range(self.nu*self.nv-1)])
 		print 'Time taken: {}'.format(time.time()-start)
 		###
 		# Save matrix to HDF5
@@ -528,7 +534,10 @@ class BuildMatrices(BuildMatrixTree):
 		pmd = self.load_prerequisites(matrix_name)
 		start = time.time()
 		print 'Performing matrix algebra'
-		self.nuv = (self.nu*self.nv-1)
+		if p.fit_for_monopole:
+			self.nuv = (self.nu*self.nv)
+		else:
+			self.nuv = (self.nu*self.nv-1)
 		block_T_Ninv_T = np.array([np.hsplit(block,self.nuv) for block in np.vsplit(pmd['T_Ninv_T'],self.nuv)])
 		print 'Time taken: {}'.format(time.time()-start)
 		###

@@ -60,7 +60,8 @@ def construct_aplpy_image_from_fits(Output_Fits_Directory, Fits_File_Name, **kwa
 	if run_convert_from_mK_to_K: Fits_File_Name = convert_from_mK_to_K(Output_Fits_Directory, Fits_File_Name)
 	if run_remove_unused_header_variables: Fits_File_Name = remove_unused_header_variables(Output_Fits_Directory, Fits_File_Name)
 	#
-	from pyfits import getheader
+	# from pyfits import getheader
+	from astropy.io.fits import getheader
 	Template = Output_Fits_Directory+Fits_File_Name+'.fits'
 	Template_hdr = getheader(Template, 0)
 	for key in Template_hdr:print key, Template_hdr[key]
@@ -70,7 +71,7 @@ def construct_aplpy_image_from_fits(Output_Fits_Directory, Fits_File_Name, **kwa
 	import pylab as plt
 	from pylab import cm
 	# EGSIm = aplpy.FITSFigure(Output_Fits_Directory+Fits_File_Name+'.fits', dimensions=[1,2], slices=[0], convention='wells')
-	EGSIm = aplpy.FITSFigure(Output_Fits_Directory+Fits_File_Name+'.fits', dimensions=[0,1], slices=[0])
+	EGSIm = aplpy.FITSFigure(Output_Fits_Directory+Fits_File_Name+'.fits', dimensions=[0,1], slices=[0], figsize=(6,6))
 	EGSIm.show_colorscale(cmap=cm.jet)
 	#EGSIm.show_colorscale(cmap=cm.gray)
 	EGSIm.show_colorbar()
@@ -81,6 +82,7 @@ def construct_aplpy_image_from_fits(Output_Fits_Directory, Fits_File_Name, **kwa
 	from pdb import set_trace
 	# set_trace()
 	EGSIm.save(Output_Fits_Directory+Fits_File_Name+'.png')
+	print 'Outputting figure to:', Output_Fits_Directory+Fits_File_Name+'.png'
 	#
 	Show=True
 	print 'hi3'

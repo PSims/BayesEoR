@@ -2,7 +2,7 @@
 # Imports
 ###
 import matplotlib
-matplotlib.use('pdf') #No pop-ups (comment out to interact with plots)
+# matplotlib.use('pdf') #No pop-ups (comment out to interact with plots)
 import numpy as np
 import numpy
 from numpy import arange, shape, log10, pi

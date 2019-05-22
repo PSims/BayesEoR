@@ -8,24 +8,27 @@ import sys
 # head,tail = os.path.split(os.getcwd())
 head,tail = os.path.split(os.path.split(os.getcwd())[0])
 sys.path.append(head)
-mpi_rank = 0
-import mpi4py
-from mpi4py import MPI
-mpi_comm = MPI.COMM_WORLD
-mpi_rank = mpi_comm.Get_rank()
-mpi_size = mpi_comm.Get_size()
-
-print 'mpi_comm', mpi_comm
-print 'mpi_rank', mpi_rank
-print 'mpi_size', mpi_size
-
 from BayesEoR import * #Make everything available for now, this can be refined later
 import BayesEoR.Params.params as p
-use_MultiNest = True #Set to false for large parameter spaces
-if use_MultiNest:
-	from pymultinest.solve import solve
-else:
-	import PyPolyChord.PyPolyChord as PolyChord
+
+mpi_rank = 0
+# run_full_analysis = False #False skips mpi and other imports that can cause crashes in ipython (note: in ipython apparently __name__ == '__main__' whis is why this if statement is here instead)
+run_full_analysis = True #When running an analysis this should be True.
+# if __name__ == '__main__':
+if run_full_analysis:
+	import mpi4py
+	from mpi4py import MPI
+	mpi_comm = MPI.COMM_WORLD
+	mpi_rank = mpi_comm.Get_rank()
+	mpi_size = mpi_comm.Get_size()
+	print 'mpi_comm', mpi_comm
+	print 'mpi_rank', mpi_rank
+	print 'mpi_size', mpi_size
+	use_MultiNest = True #Set to false for large parameter spaces
+	if use_MultiNest:
+		from pymultinest.solve import solve
+	else:
+		import PyPolyChord.PyPolyChord as PolyChord
 
 #--------------------------------------------
 # Set analysis parameters
@@ -36,26 +39,28 @@ print args
 npl = p.npl
 print 'p.beta', p.beta
 if args.beta:
-	if args.beta.count('[') and args.beta.count(']'):
-		p.beta = map(float, args.beta.replace('[','').replace(']','').split(',')) #Overwrite parameter file beta with value chosen from the command line if it is included
-		npl = len(p.beta) #Overwrites quadratic term when nq=2, otherwise unused.
+	if type(args.beta)==str:
+		if args.beta.count('[') and args.beta.count(']'):
+			p.beta = map(float, args.beta.replace('[','').replace(']','').split(',')) #Overwrite parameter file beta with value chosen from the command line if it is included
+			npl = len(p.beta) #Overwrites quadratic term when nq=2, otherwise unused.
+		else:
+			p.beta = float(args.beta) #Overwrite parameter file beta with value chosen from the command line if it is included 
+			npl = 1
 	elif type(args.beta)==list:
 		p.beta = args.beta #Overwrite parameter file beta with value chosen from the command line if it is included 
 		npl = len(p.beta)
 	else:
-		p.beta = float(args.beta) #Overwrite parameter file beta with value chosen from the command line if it is included 
-		npl = 1
+		print 'No value for betas given, using defaults.'
 
 print 'args.beta', args.beta
 print 'p.beta', p.beta
 print 'args.nq', args.nq
 
-# raw_input()
-
 nq = int(args.nq)
+if nq>npl:
+	nq=npl
 # nq = 2 #Overwrite PCLA selection
-#npl = 0 #Overwrites quadratic term when nq=2, otherwise unused.
-
+# npl = 0 #Overwrites quadratic term when nq=2, otherwise unused.
 # nq=npl=p.nq=p.npl = 0
 
 print 'nq', nq
@@ -73,7 +78,6 @@ nv=p.nv
 nx=p.nx
 ny=p.ny
 # Data noise
-# sigma=100.e-1
 sigma=50.e-1
 
 
@@ -85,17 +89,20 @@ if p.include_instrumental_effects:
 		# sigma = sigma*average_baseline_redundancy**0.5 *40.0
 		# sigma = sigma*average_baseline_redundancy**0.5 *100.0
 		# sigma = sigma*average_baseline_redundancy**0.5 *200.0
-		# sigma = sigma*average_baseline_redundancy**0.5 *250.0
+		sigma = sigma*average_baseline_redundancy**0.5 *250.0
 
 		# sigma = sigma*average_baseline_redundancy**0.5 *700.0
 
+		# sigma = sigma*average_baseline_redundancy**0.5 *500.0
 		# sigma = sigma*average_baseline_redundancy**0.5 *1000.0
-		sigma = sigma*average_baseline_redundancy**0.5 *2000.0
+		# sigma = sigma*average_baseline_redundancy**0.5 *2000.0
 		# sigma = sigma*average_baseline_redundancy**0.5 *4000.0
 		# sigma = sigma*average_baseline_redundancy**0.5 *8000.0
 		# sigma = sigma*average_baseline_redundancy**0.5 *20000.0
 		# sigma = sigma*average_baseline_redundancy**0.5 / 20.0
-
+else:
+	sigma = sigma*1.
+	# sigma = sigma*8.
 
 
 # Auxiliary and derived params
@@ -124,6 +131,8 @@ if npl==1:
 if npl==2:
 	array_save_directory=array_save_directory.replace('_sigma', '_b1_{:.2E}_b2_{:.2E}_sigma'.format(p.beta[0], p.beta[1]))
 
+if p.fit_for_monopole:
+	array_save_directory = array_save_directory[:-1]+'_fit_for_monopole_eq_True/'
 
 
 #--------------------------------------------
@@ -218,7 +227,8 @@ if not p.include_instrumental_effects:
 	#--------------------------------------------
 	# Generate mock-GDSE data
 	#--------------------------------------------
-	# use_GDSE_foreground_cube = False
+	# p.use_GDSE_foreground_cube = False
+	p.use_GDSE_foreground_cube = True
 	use_GDSE_foreground_cube = p.use_GDSE_foreground_cube
 	if use_GDSE_foreground_cube:
 		###
@@ -236,7 +246,8 @@ if not p.include_instrumental_effects:
 	#--------------------------------------------
 	# Generate mock-free-free data
 	#--------------------------------------------
-	# use_freefree_foreground_cube = False
+	p.use_freefree_foreground_cube = False
+	# p.use_freefree_foreground_cube = True
 	use_freefree_foreground_cube = p.use_freefree_foreground_cube
 	if use_freefree_foreground_cube:
 		###
@@ -253,7 +264,8 @@ if not p.include_instrumental_effects:
 	#--------------------------------------------
 	# Load EGS data
 	#--------------------------------------------
-	# use_EGS_cube = False
+	p.use_EGS_cube = False
+	# p.use_EGS_cube = True
 	use_EGS_cube = p.use_EGS_cube
 	if use_EGS_cube:
 		print 'Using use_EGS_cube data'
@@ -262,11 +274,17 @@ if not p.include_instrumental_effects:
 	#--------------------------------------------
 	# Load EoR data
 	#--------------------------------------------
-	# use_EoR_cube = True
+	# p.use_EoR_cube = True
+	p.use_EoR_cube = False
 	use_EoR_cube = p.use_EoR_cube
 	if use_EoR_cube:
 		print 'Using use_EoR_cube data'
 		s_EoR, abc, scidata1 = generate_data_from_loaded_EoR_cube_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show,chan_selection,p.EoR_npz_path_sc)
+
+		plot_figure = False
+		if plot_figure:
+			construct_aplpy_image_from_fits('/users/psims/EoR/EoR_simulations/21cmFAST_2048MPc_2048pix_512pix_AstroParamExploration1/Fits/output_fits/nf0d888/', '21cm_mK_z7.600_nf0.888_useTs0.0_aveTb21.24_cube_side_pix512_cube_side_Mpc2048_mK', run_convert_from_mK_to_K=False, run_remove_unused_header_variables=True)
+			
 
 
 
@@ -324,54 +342,60 @@ if not p.include_instrumental_effects:
 	#--------------------------------------------
 	# Define data vector
 	#--------------------------------------------
-	if use_EoR_cube:
+	non_instrmental_noise_seed = 42123
+	if p.use_EoR_cube:
 		print 'Using EoR cube'
-		d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq)[0]
+		d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq, random_seed=non_instrmental_noise_seed)[0]
 		s_Tot = s_EoR.copy()
-		if use_GDSE_foreground_cube:
+		if p.use_GDSE_foreground_cube:
 			print 'Using GDSE cube'
 			d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(0.0, fg_GDSE, nu,nv,nx,ny,nf,neta,nq)[0]
 			s_Tot += fg_GDSE
 			s_fgs_only = fg_GDSE.copy()
-		if use_freefree_foreground_cube:
+		if p.use_freefree_foreground_cube:
 			print 'Using free-free cube'
 			d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(0.0, s_ff, nu,nv,nx,ny,nf,neta,nq)[0]
 			s_Tot += s_ff
 			s_fgs_only += s_ff
-		if use_EGS_cube:
+		if p.use_EGS_cube:
 			print 'Using EGS cube'
 			d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(0.0, s_EGS, nu,nv,nx,ny,nf,neta,nq)[0]
 			s_Tot += s_EGS
 			s_fgs_only += s_EGS
-	elif use_GDSE_foreground_cube:
-		d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(sigma, fg_GDSE, nu,nv,nx,ny,nf,neta,nq)[0]
+	elif p.use_GDSE_foreground_cube:
+		d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(sigma, fg_GDSE, nu,nv,nx,ny,nf,neta,nq, random_seed=non_instrmental_noise_seed)[0]
 		s_Tot = fg_GDSE.copy()
 		s_fgs_only = fg_GDSE.copy()
 		print 'Using GDSE cube'
-		if use_freefree_foreground_cube:
+		if p.use_freefree_foreground_cube:
 			d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(0.0, s_ff, nu,nv,nx,ny,nf,neta,nq)[0]
 			s_Tot += s_ff.copy()
 			s_fgs_only += s_ff.copy()
 			print 'Using free-free cube'
-		if use_EGS_cube:
+		if p.use_EGS_cube:
 			d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(0.0, s_EGS, nu,nv,nx,ny,nf,neta,nq)[0]
 			s_Tot += s_EGS.copy()
 			s_fgs_only += s_EGS.copy()
 			print 'Using EGS cube'
-	elif use_EGS_cube:
-		d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(sigma, s_EGS, nu,nv,nx,ny,nf,neta,nq)[0]
+	elif p.use_EGS_cube:
+		d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(sigma, s_EGS, nu,nv,nx,ny,nf,neta,nq, random_seed=non_instrmental_noise_seed)[0]
 		s_Tot = s_EGS.copy()
 		s_fgs_only = s_EGS.copy()
 		print 'Using EGS cube'
-	elif use_freefree_foreground_cube:
-		d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(sigma, s_ff, nu,nv,nx,ny,nf,neta,nq)[0]
+	elif p.use_freefree_foreground_cube:
+		d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(sigma, s_ff, nu,nv,nx,ny,nf,neta,nq, random_seed=non_instrmental_noise_seed)[0]
 		s_Tot = s_ff.copy()
 		s_fgs_only = s_ff.copy()
 		print 'Using free-free cube'
 	else:
-		d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq)[0]
+		d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq, random_seed=non_instrmental_noise_seed)[0]
 		s_Tot = s_EoR.copy()
 		print 'Using EoR cube'
+
+
+	effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(sigma, np.zeros(d.shape), nu,nv,nx,ny,nf,neta,nq, random_seed=non_instrmental_noise_seed)[1]
+	effective_noise_std = effective_noise.std()
+
 
 
 
@@ -413,6 +437,22 @@ if p.include_instrumental_effects:
 			# EoR_noise_seed = 2123 #Used in v6
 			# EoR_noise_seed = 42123 #Used in v5
 
+			plot_figure = False
+			if plot_figure:
+				pylab.close('all')
+				pylab.figure(figsize=(10,10))
+				pylab.imshow(scidata1[0], cmap='gist_heat', extent=[-6.5*60,6.5*60,-6.5*60,6.5*60])
+				cbar = pylab.colorbar(fraction=1./21.2, pad=0.01)
+				cbar.ax.tick_params(labelsize=17) 
+				pylab.xlabel('$\\Delta\\mathrm{RA(arcmin)}$', fontsize=20)
+				pylab.ylabel('$\\Delta\\mathrm{Dec(arcmin)}$', fontsize=20)
+				pylab.tick_params(labelsize=20)
+				pylab.tight_layout()
+				simulation_plots_dir = '/gpfs/data/jpober/psims/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/spec_model_tests/Plots/EoRFgSpecM_foreground_images/'
+				sim_name = p.EoR_npz_path_sc.split('/')[-1].replace('.npz','').replace('.','d')+'.png'
+				pylab.savefig(simulation_plots_dir+sim_name)
+				pylab.show()
+
 			EoR_noise_seed = 742123
 
 			# EoR_noise_seed = 1742123
@@ -424,32 +464,78 @@ if p.include_instrumental_effects:
 		use_foreground_cubes = True
 		# use_foreground_cubes = False
 		if use_foreground_cubes:
+			#--------------------------------------------
+			# Generate mock GDSE data
+			#--------------------------------------------
 			p.use_GDSE_foreground_cube = True
 			# p.use_GDSE_foreground_cube = False
 			if p.use_GDSE_foreground_cube:
+				print 'Using use_GDSE_foreground_cube data'
 				# foreground_outputs = generate_Jelic_cube_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, p.beta_experimental_mean,p.beta_experimental_std,p.gamma_mean,p.gamma_sigma,p.Tb_experimental_mean_K,p.Tb_experimental_std_K,p.nu_min_MHz,p.channel_width_MHz,Finv, generate_additional_extrapolated_HF_foreground_cube=True, fits_storage_dir=p.fits_storage_dir, HF_nu_min_MHz_array=p.HF_nu_min_MHz_array, simulation_FoV_deg=p.simulation_FoV_deg, simulation_resolution_deg=p.simulation_resolution_deg,random_seed=314211)
+
+				# p.beta_experimental_mean = 2.50
+				# p.beta_experimental_mean = 2.0				
+				# p.beta_experimental_std = 0.2
+				# p.beta_experimental_mean = 2.63			
+				# p.beta_experimental_std = 1.e-10
+
+				p.Tb_experimental_mean_K = 471.
+				# p.Tb_experimental_std_K = 30.0
 				
-				foreground_outputs = generate_Jelic_cube_instrumental_im_2_vis_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, p.beta_experimental_mean,p.beta_experimental_std,p.gamma_mean,p.gamma_sigma,p.Tb_experimental_mean_K,p.Tb_experimental_std_K,p.nu_min_MHz,p.channel_width_MHz,Finv, generate_additional_extrapolated_HF_foreground_cube=True, fits_storage_dir=p.fits_storage_dir, HF_nu_min_MHz_array=p.HF_nu_min_MHz_array, simulation_FoV_deg=p.simulation_FoV_deg, simulation_resolution_deg=p.simulation_resolution_deg,random_seed=314211)
+				# foreground_outputs = generate_Jelic_cube_instrumental_im_2_vis_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, p.beta_experimental_mean,p.beta_experimental_std,p.gamma_mean,p.gamma_sigma,p.Tb_experimental_mean_K,p.Tb_experimental_std_K,p.nu_min_MHz,p.channel_width_MHz,Finv, generate_additional_extrapolated_HF_foreground_cube=True, fits_storage_dir=p.fits_storage_dir, HF_nu_min_MHz_array=p.HF_nu_min_MHz_array, simulation_FoV_deg=p.simulation_FoV_deg, simulation_resolution_deg=p.simulation_resolution_deg,random_seed=314211)
+				# gdsers = 4211
+				gdsers = 14211
+				gdsers = 1421
+				# gdsers = 31421
+				# gdsers = 331421
+				gdsers = 33142
+				gdsers = 314211
+				foreground_outputs = generate_Jelic_cube_instrumental_im_2_vis_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, p.beta_experimental_mean,p.beta_experimental_std,p.gamma_mean,p.gamma_sigma,p.Tb_experimental_mean_K,p.Tb_experimental_std_K,p.nu_min_MHz,p.channel_width_MHz,Finv, generate_additional_extrapolated_HF_foreground_cube=True, fits_storage_dir=p.fits_storage_dir, HF_nu_min_MHz_array=p.HF_nu_min_MHz_array, simulation_FoV_deg=p.simulation_FoV_deg, simulation_resolution_deg=p.simulation_resolution_deg,random_seed=gdsers)
 
 
-				fg_GDSE, s_GDSE, Tb_nu, beta_experimental_mean,beta_experimental_std,gamma_mean,gamma_sigma,Tb_experimental_mean_K,Tb_experimental_std_K,nu_min_MHz,channel_width_MHz, HF_Tb_nu = foreground_outputs
+				fg_GDSE, s_GDSE, Tb_nu, beta_experimental_mean,beta_experimental_std,gamma_mean,gamma_sigma,Tb_experimental_mean_K,Tb_experimental_std_K,nu_min_MHz,channel_width_MHz, HF_Tb_nu, scidata1_subset = foreground_outputs
 				foreground_outputs = []
+
+				plot_figure = False
+				if plot_figure:
+					# construct_aplpy_image_from_fits('/gpfs/data/jpober/psims/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/spec_model_tests/fits_storage/multi_frequency_band_pythonPStest1/Jelic_nu_min_MHz_159d0_TbStd_66d1866884116_beta_2d63_dbeta0d02//ZNPS159/','Jelic_GDSE_cube_159MHz', run_convert_from_mK_to_K=True, run_remove_unused_header_variables=True)
+
+					pylab.close('all')
+					pylab.figure(figsize=(10,10))
+					pylab.imshow(Tb_nu[0], cmap='gist_heat', extent=[-6.5*60,6.5*60,-6.5*60,6.5*60])
+					cbar = pylab.colorbar(fraction=1./21.2, pad=0.01)
+					cbar.ax.tick_params(labelsize=17) 
+					pylab.xlabel('$\\Delta\\mathrm{RA(arcmin)}$', fontsize=20)
+					pylab.ylabel('$\\Delta\\mathrm{Dec(arcmin)}$', fontsize=20)
+					pylab.tick_params(labelsize=20)
+					pylab.tight_layout()
+					simulation_plots_dir = '/gpfs/data/jpober/psims/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/spec_model_tests/Plots/EoRFgSpecM_foreground_images/'
+					sim_name = 'Jelic_GDSE_cube_{}_MHz_K_mean_T_{}_RMS_T_{}'.format(p.nu_min_MHz, np.round(p.Tb_experimental_mean_K,1), np.round(p.Tb_experimental_std_K,1)).replace('.','d')+'.png'
+					pylab.savefig(simulation_plots_dir+sim_name)
+					pylab.show()
+
 
 				# scale_factor = (80./163.)**-2.7
 				# scale_factor = (120./163.)**-2.7
 				scale_factor = 1.0
 				# noise_seed = 2123
-				# noise_seed = 742123
-				noise_seed = 42123
+				noise_seed = 742123
+
+				# noise_seed = 42123
+
 				# noise_seed = 1742123
 				# noise_seed = 81742
 				d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(0.0, s_GDSE, nu,nv,nx,ny,nf,neta,nq,random_seed=noise_seed)[0]
 				# d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_GDSE*scale_factor, nu,nv,nx,ny,nf,neta,nq,random_seed=noise_seed)[0]
 				effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_GDSE, nu,nv,nx,ny,nf,neta,nq,random_seed=noise_seed)[1]
 
+			#--------------------------------------------
+			# Generate mock EGS data
+			#--------------------------------------------
 			p.use_EGS_cube = True
 			# p.use_EGS_cube = False
 			if p.use_EGS_cube:
+				print 'Using use_EGS_cube data'
 				# foreground_outputs = generate_data_from_loaded_EGS_cube_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show,p.EGS_npz_path,Finv)
 				foreground_outputs = generate_data_from_loaded_EGS_cube_im_2_vis_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show,p.EGS_npz_path,Finv)
 
@@ -460,11 +546,43 @@ if p.include_instrumental_effects:
 				# d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_EGS*1., nu,nv,nx,ny,nf,neta,nq,random_seed=2123)[0]
 				effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_EGS, nu,nv,nx,ny,nf,neta,nq,random_seed=noise_seed)[1]
 
+			#--------------------------------------------
+			# Generate mock free-free data
+			#--------------------------------------------
+			p.use_freefree_foreground_cube = True
+			# p.use_freefree_foreground_cube = False
+			if p.use_freefree_foreground_cube:
+				print 'Using use_freefree_foreground_cube data'
+				foreground_outputs_ff = generate_Jelic_cube_instrumental_im_2_vis_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, p.beta_experimental_mean_ff,p.beta_experimental_std_ff,p.gamma_mean_ff,p.gamma_sigma_ff,p.Tb_experimental_mean_K_ff,p.Tb_experimental_std_K_ff,p.nu_min_MHz_ff,p.channel_width_MHz_ff,Finv, generate_additional_extrapolated_HF_foreground_cube=True, fits_storage_dir=p.fits_storage_dir_ff, HF_nu_min_MHz_array=p.HF_nu_min_MHz_array_ff, simulation_FoV_deg=p.simulation_FoV_deg_ff, simulation_resolution_deg=p.simulation_resolution_deg_ff,random_seed=314211)
+
+				fg_ff, s_ff, Tb_nu_ff = foreground_outputs_ff[:3]
+				foreground_outputs_ff = []
+
+				plot_figure = False
+				if plot_figure:
+					pylab.close('all')
+					pylab.figure(figsize=(10,10))
+					pylab.imshow(Tb_nu_ff[0], cmap='gist_heat', extent=[-6.5*60,6.5*60,-6.5*60,6.5*60])
+					cbar = pylab.colorbar(fraction=1./21.2, pad=0.01)
+					cbar.ax.tick_params(labelsize=17) 
+					pylab.xlabel('$\\Delta\\mathrm{RA(arcmin)}$', fontsize=20)
+					pylab.ylabel('$\\Delta\\mathrm{Dec(arcmin)}$', fontsize=20)
+					pylab.tick_params(labelsize=20)
+					pylab.tight_layout()
+					simulation_plots_dir = '/gpfs/data/jpober/psims/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/spec_model_tests/Plots/EoRFgSpecM_foreground_images/'
+					sim_name = 'Jelic_free_free_cube_{}_MHz_K_mean_T_{}_RMS_T_{}'.format(p.nu_min_MHz_ff, np.round(p.Tb_experimental_mean_K_ff,1), np.round(p.Tb_experimental_std_K_ff,1)).replace('.','d')+'.png'
+					pylab.savefig(simulation_plots_dir+sim_name)
+					pylab.show()
+
+				d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(0.0, s_ff, nu,nv,nx,ny,nf,neta,nq,random_seed=noise_seed)[0]
+				effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_ff, nu,nv,nx,ny,nf,neta,nq,random_seed=noise_seed)[1]
 
 
 
 
 effective_noise_std = effective_noise.std()
+
+
 
 
 
@@ -482,18 +600,20 @@ effective_noise_std = effective_noise.std()
 
 
 
+# calculte_PS_of_EoR_cube_directly = True
+calculte_PS_of_EoR_cube_directly = False
+if calculte_PS_of_EoR_cube_directly:
+	#--------------------------------------------
+	# Calculate power spectrum of the EoR subset cube and output it to file
+	#--------------------------------------------
+	# calculate_subset_cube_power_spectrum_v1d0(nu,nv,nx,ny,nf,neta,nq,k_cube_voxels_in_bin,modkbins_containing_voxels,p.EoR_npz_path_sc,mod_k,k_z)
+	calculate_subset_cube_power_spectrum_v2d0(nu,nv,nx,ny,nf,neta,nq,k_cube_voxels_in_bin,modkbins_containing_voxels,p.EoR_npz_path_sc,mod_k,k_z)
 
-#--------------------------------------------
-# Calculate power spectrum of the EoR subset cube and output it to file
-#--------------------------------------------
-# calculate_subset_cube_power_spectrum_v1d0(nu,nv,nx,ny,nf,neta,nq,k_cube_voxels_in_bin,modkbins_containing_voxels,p.EoR_npz_path_sc,mod_k,k_z)
-calculate_subset_cube_power_spectrum_v2d0(nu,nv,nx,ny,nf,neta,nq,k_cube_voxels_in_bin,modkbins_containing_voxels,p.EoR_npz_path_sc,mod_k,k_z)
-
-#--------------------------------------------
-# This function calculates both the power spectrum of the EoR subset cube and the (cylindrical) power spectrum of the full EoR cube in the k-space volume accessible to the subset cube in order to demonstrate that they are consistent within sample variance.
-# NOTE: while the power spectrum of the EoR subset cube is equal to the (cylindrical) power spectrum of the full EoR cube in the k-space volume accessible to the subset cube, it is not identical to the spherically averaged power specrum of the full EoR cube. This is due to the EoR cube output by 21cmFast not being spherically symmetric! (it is approximately sperically symmetric but only to within a factor of 2 in power). As mentioned above, this is solved by comparing the power spectra in matching regions of k-space (instead of comparing the small cylindrical subset of the spherical annulus to the full spherical annulus, which would only be expected to match for a truely spherically symmetric EoR power spectrum - i.e. no redshift space distortions etc.)!
-#--------------------------------------------
-calculate_21cmFAST_EoR_cube_power_spectrum_in_subset_cube_bins_v1d0(nu,nv,nx,ny,nf,neta,nq,k_cube_voxels_in_bin,modkbins_containing_voxels,p.EoR_npz_path_sc,mod_k,k_x,k_y,k_z)
+	#--------------------------------------------
+	# This function calculates both the power spectrum of the EoR subset cube and the (cylindrical) power spectrum of the full EoR cube in the k-space volume accessible to the subset cube in order to demonstrate that they are consistent within sample variance.
+	# NOTE: while the power spectrum of the EoR subset cube is equal to the (cylindrical) power spectrum of the full EoR cube in the k-space volume accessible to the subset cube, it is not identical to the spherically averaged power specrum of the full EoR cube. This is due to the EoR cube output by 21cmFast not being spherically symmetric! (it is approximately sperically symmetric but only to within a factor of 2 in power). As mentioned above, this is solved by comparing the power spectra in matching regions of k-space (instead of comparing the small cylindrical subset of the spherical annulus to the full spherical annulus, which would only be expected to match for a truely spherically symmetric EoR power spectrum - i.e. no redshift space distortions etc.)!
+	#--------------------------------------------
+	calculate_21cmFAST_EoR_cube_power_spectrum_in_subset_cube_bins_v1d0(nu,nv,nx,ny,nf,neta,nq,k_cube_voxels_in_bin,modkbins_containing_voxels,p.EoR_npz_path_sc,mod_k,k_x,k_y,k_z)
 
 
 
@@ -522,7 +642,10 @@ if p.use_LWM_Gaussian_prior:
 	nDims = nDims+3
 
 x=[100.e0]*nDims
-nuv = (nu*nv-1)
+if p.fit_for_monopole:
+	nuv = (nu*nv)
+else:
+	nuv = (nu*nv-1)
 block_T_Ninv_T = np.array([np.hsplit(block,nuv) for block in np.vsplit(T_Ninv_T,nuv)])
 if p.include_instrumental_effects:
 	block_T_Ninv_T=[]
@@ -533,8 +656,67 @@ if p.include_instrumental_effects:
 
 
 
+do_null_space_test = False
+if do_null_space_test:
+	a = np.linalg.svd(Finv)
+	U = a[0]
+	U1 = U[:,0:Finv.shape[1]]
 
+	test_im = np.random.normal(0.0,1,Finv.shape[1])
+	test_vis = np.dot(Finv, np.random.normal(test_im))
+	test_sigma = 1.e-5
+	test_n = np.random.normal(0.0,test_sigma,Finv.shape[0])+1j*np.random.normal(0.0,test_sigma,Finv.shape[0])
+	test_vis = test_vis+test_n
+	test_Ninv = np.identity(Finv.shape[0])/test_sigma**2.
 
+	U1_test_Ninv_U1 = np.dot(U1.conjugate().T, np.dot(test_Ninv,U1))
+	U1_test_Ninv_U1_inv = np.linalg.inv(U1_test_Ninv_U1)
+	U1_test_Ninv_d = np.dot(U1.conjugate().T, np.dot(test_Ninv,test_vis))
+
+	test_a = np.dot(U1_test_Ninv_U1_inv, U1_test_Ninv_d)
+	model_vis = np.dot(U1,test_a)
+
+	a1 = np.dot(a[0][:, :(len(a[1]))]*a[1], a[2])
+	print 'a1 == Finv?:', np.allclose(Finv, a1)
+	print abs(Finv-a1).max()
+
+	print np.sum((a[1]**2.))
+	print np.sum((a[1]**2.))*0.9
+	print np.sum((a[1]**2.)[0:520]) #Exclude highest weighted vectors (the highest weighted that sum to 90% of the weight)
+
+	###
+
+	singular_values_with_greater_than_10pow5_downweighting = np.where(a[1]<1.e-2)
+	# singular_values_with_greater_than_10pow5_downweighting = np.where(a[1][520:])
+	null_space_im_vectors = a[2][:,singular_values_with_greater_than_10pow5_downweighting[0]]
+	ns1 = null_space_im_vectors.copy()
+
+	ns1 = np.hstack((pl1,null_space_im_vectors))
+	# ns1 = pl1.copy()
+
+	d_im = scidata1_subset.copy()
+	# if not p.fit_for_monopole:
+	for i_chan in range(len(d_im)):
+		d_im[i_chan] = d_im[i_chan]-d_im[i_chan].mean()
+	d_im = d_im.flatten()
+
+	sigma_im = 1.e-10
+	noise = np.random.normal(0,sigma_im,d_im.size)
+	d_im = d_im+noise
+	N_im_inv = np.identity(d_im.size)/sigma_im**2.
+
+	ns1_N_im_inv_ns1 = np.dot(ns1.conjugate().T, np.dot(N_im_inv, ns1))
+	ns1_N_im_inv_ns1_inv = np.linalg.inv(ns1_N_im_inv_ns1)
+	print np.sum(abs(np.dot(ns1_N_im_inv_ns1_inv,ns1_N_im_inv_ns1) -1.0)<1.e-10)
+
+	ns1_N_im_inv_d_im = np.dot(ns1.conjugate().T, np.dot(N_im_inv, d_im))
+
+	ml_theta = np.dot(ns1_N_im_inv_ns1_inv,ns1_N_im_inv_d_im)
+	ml_null_im = np.dot(ns1,ml_theta)
+
+	print (d_im-ml_null_im).max()
+	print (d_im-ml_null_im).std()
+	print np.log10((d_im-ml_null_im).std()/d_im.std())
 
 
 
@@ -546,15 +728,17 @@ if p.include_instrumental_effects:
 ###
 ML_image_model_recovery_testing = False
 if ML_image_model_recovery_testing:
-	print s_GDSE[0:10]/T[:,38].real[0:10]
 
 	Fprime_Fz = BM.read_data_from_hdf5(array_save_directory+'Fprime_Fz.h5', 'Fprime_Fz')
 
 	###
 	# Single power law fit
 	###
-	pl1 = Fprime_Fz.T[38::40].T.copy()
-	d_im = Tb_nu[:,0:9,0:9].copy()
+	# pl1 = Fprime_Fz.T[19::neta+nq].T.copy()
+	pl1 = Fprime_Fz.T[neta/2::neta+nq].T.copy()
+	# d_im = Tb_nu[:,0:9,0:9].copy()
+	d_im = scidata1_subset.copy()
+	# if not p.fit_for_monopole:
 	for i_chan in range(len(d_im)):
 		d_im[i_chan] = d_im[i_chan]-d_im[i_chan].mean()
 	d_im = d_im.flatten()
@@ -568,6 +752,7 @@ if ML_image_model_recovery_testing:
 	pl1_N_im_inv_pl1_inv = np.linalg.inv(pl1_N_im_inv_pl1)
 	print np.sum(abs(np.dot(pl1_N_im_inv_pl1_inv,pl1_N_im_inv_pl1) -1.0)<1.e-10)
 
+	# pl1_N_im_inv_d_im = np.dot(pl1.conjugate().T, np.dot(N_im_inv, d_im))
 	pl1_N_im_inv_d_im = np.dot(pl1.conjugate().T, np.dot(N_im_inv, d_im))
 
 	ml_theta = np.dot(pl1_N_im_inv_pl1_inv,pl1_N_im_inv_d_im)
@@ -575,13 +760,17 @@ if ML_image_model_recovery_testing:
 
 	print (d_im-ml_im).max()
 	print (d_im-ml_im).std()
+	print np.log10((d_im-ml_im).std()/d_im.std())
+	# print np.log10((d_im-ml_im-	ml_null_im).std()/d_im.std())
 
 	###
 	# Constant plus single power law fit
 	###
-	cpl1 = np.array([row for i,row in enumerate(Fprime_Fz.T) if (i+(40-38))%40==0 or (i+(40-19))%40==0]).T
+	# cpl1 = np.array([row for i,row in enumerate(Fprime_Fz.T) if (i+((neta+nq)-38))%(neta+nq)==0 or (i+((neta+nq)-19))%(neta+nq)==0]).T
+	cpl1 = np.array([row for i,row in enumerate(Fprime_Fz.T) if (i+((neta+nq)-neta+0))%(neta+nq)==0 or (i+((neta+nq)-neta/2))%(neta+nq)==0]).T
 
-	d_im = Tb_nu[:,0:9,0:9].copy()
+	# d_im = Tb_nu[:,0:9,0:9].copy()
+	d_im = scidata1_subset.copy()
 	for i_chan in range(len(d_im)):
 		d_im[i_chan] = d_im[i_chan]-d_im[i_chan].mean()
 	d_im = d_im.flatten()
@@ -602,6 +791,7 @@ if ML_image_model_recovery_testing:
 
 	print (d_im-ml_im).max()
 	print (d_im-ml_im).std()
+	print np.log10((d_im-ml_im).std()/d_im.std())
 
 # -----------------------------------------------
 # -----------------------------------------------
@@ -610,7 +800,70 @@ if ML_image_model_recovery_testing:
 
 
 
+# # -----------------------------------------------
+# ###
+# # NOTE: this cross-check is not exactly in the right place in the code because it requires running sub_MLLWM (below) to derive maxL_LW_fit as well as ML_image_model_recovery_testing (above) to derive d_im first!
+# ###
+# ml_theta_vis_im = np.dot(Fprime_Fz,maxL_LW_fit)
+# np.log10((d_im-ml_theta_vis_im).std()/d_im.std())
+# np.log10((np.dot(Finv,d_im)-np.dot(Finv,ml_theta_vis_im)).std()/(np.dot(Finv,d_im).std()))
+# np.log10((np.dot(Finv,d_im)-np.dot(Finv,ml_theta_vis_im.real)).std()/(np.dot(Finv,d_im).std()))
+# np.log10((np.dot(Finv,(d_im-ml_theta_vis_im))).std()/(np.dot(Finv,d_im).std()))
 
+
+
+# base_dir = 'Plots'
+# save_dir = base_dir+'/image_vs_visibility_space_fitting/'
+# if not os.path.isdir(save_dir):
+# 		os.makedirs(save_dir)
+
+
+# pylab.close('all')
+# im_normalisation = abs(d_im).mean()
+# vis_normalisation = abs(np.dot(Finv,d_im)).mean()
+# fig, ax = pylab.subplots(nrows=6, ncols=3, figsize = (10,20))
+# ax[0,0].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),d_im.reshape(38,-1).real/im_normalisation)
+# ax[0,1].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),ml_im.reshape(38,-1).real/im_normalisation)
+# ax[0,2].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),((d_im-ml_im)).real.reshape(38,-1)/im_normalisation)
+# ax[1,0].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),np.dot(Finv,d_im).real.reshape(38,-1)/vis_normalisation)
+# ax[1,1].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),np.dot(Finv,ml_im).real.reshape(38,-1)/vis_normalisation)
+# ax[1,2].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),np.dot(Finv,(d_im-ml_im)).real.reshape(38,-1)/vis_normalisation)
+# ax[2,0].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),np.dot(Finv,d_im).imag.reshape(38,-1)/vis_normalisation)
+# ax[2,1].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),np.dot(Finv,ml_im).imag.reshape(38,-1)/vis_normalisation)
+# ax[2,2].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),np.dot(Finv,(d_im-ml_im)).imag.reshape(38,-1)/vis_normalisation)
+# ax[3,0].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),d_im.reshape(38,-1).real/im_normalisation)
+# ax[3,1].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),ml_theta_vis_im.reshape(38,-1).real/im_normalisation)
+# ax[3,2].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),((d_im-ml_theta_vis_im)).reshape(38,-1).real/im_normalisation)
+# ax[4,0].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),np.dot(Finv,d_im).real.reshape(38,-1)/vis_normalisation)
+# ax[4,1].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),np.dot(Finv,ml_theta_vis_im).real.reshape(38,-1)/vis_normalisation)
+# ax[4,2].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),np.dot(Finv,(d_im-ml_theta_vis_im)).real.reshape(38,-1)/vis_normalisation)
+# ax[5,0].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),np.dot(Finv,d_im).imag.reshape(38,-1)/vis_normalisation)
+# ax[5,1].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),np.dot(Finv,ml_theta_vis_im).imag.reshape(38,-1)/vis_normalisation)
+# ax[5,2].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),np.dot(Finv,(d_im-ml_theta_vis_im)).imag.reshape(38,-1)/vis_normalisation)
+# for ax_ in ax.ravel():
+# 	ax_.set_xlabel('$\\nu$')
+# 	ax_.set_ylabel('Amplitude')
+# fig.tight_layout()
+# fig.savefig(save_dir+'spectra_and_spectral_residuals_from_image_vs_visibility_space_fitting_v1d0.png')
+# fig.show()
+
+
+
+# pylab.close('all')
+# im_normalisation = abs(d_im).mean()
+# fig, ax = pylab.subplots(nrows=2, ncols=2, figsize = (10,10))
+# a00 = ax[0,0].imshow(((d_im-ml_theta_vis_im)).reshape(38,-1).T.real/im_normalisation)
+# fig.colorbar(a00, ax=ax[0,0])
+# a01 = ax[0,1].imshow(((d_im-ml_theta_vis_im)).reshape(38,-1)[0].reshape(9,9).real/im_normalisation)
+# fig.colorbar(a01, ax=ax[0,1])
+# a10 = ax[1,0].imshow(((d_im-ml_im)).reshape(38,-1).T.real/im_normalisation)
+# fig.colorbar(a10, ax=ax[1,0])
+# a11 = ax[1,1].imshow(((d_im-ml_im)).reshape(38,-1)[0].reshape(9,9).real/im_normalisation)
+# fig.colorbar(a11, ax=ax[1,1])
+# fig.tight_layout()
+# fig.savefig(save_dir+'image_residuals_from_image_vs_visibility_space_fitting_v1d0.png')
+# fig.show()
+# # -----------------------------------------------
 
 
 
@@ -901,7 +1154,7 @@ if sub_MLLWM:
 		if p.use_LWM_Gaussian_prior:
 			fit_constraints = [9.e9,9.e9,9.e9]+[1.e-20]*(nDims-3)
 		else:
-			PSPP_block_diag.inverse_LW_power = 1.e-20
+			PSPP_block_diag.inverse_LW_power = 2.e-20
 			fit_constraints = [1.e-20]*(nDims)
 		maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper(fit_constraints, T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
 		maxL_LW_signal = np.dot(T,maxL_LW_fit)
@@ -936,12 +1189,10 @@ if sub_MLLWM:
 		d_prime_i = d.copy()
 
 		PSPP_block_diag.Print = True
-		print '(d - s_GDSE).std()', effective_noise_std
+		print 'effective_noise_std', effective_noise_std
 
 		count=0
 		# count_max = 10
-		# count_max = 100
-		# count_max = 1
 		count_max = 0
 		maxL_LW_signal = np.zeros(len(d))
 		bias_threshold = 0.0
@@ -956,27 +1207,83 @@ if sub_MLLWM:
 			else:
 				# PSPP_block_diag.inverse_LW_power = 8.e-21 #2000
 				# PSPP_block_diag.inverse_LW_power = 2e-21 #4000
-				PSPP_block_diag.inverse_LW_power = 2e-18
-				if p.beta==[-1.0,-2.0]:
-					# PSPP_block_diag.inverse_LW_power = 2.e-21 #2000 (rather than 2e-18; quadratic can invert when closer to uniform while remaining stable)
-					PSPP_block_diag.inverse_LW_power = 2e-20 #2000 (rather than 2e-18; quadratic can invert when closer to uniform while remaining stable)
+				# PSPP_block_diag.inverse_LW_power = 2e-18
+				PSPP_block_diag.inverse_LW_power = p.inverse_LW_power
+				# PSPP_block_diag.inverse_LW_power = 8e-18
+				# PSPP_block_diag.inverse_LW_power = 8e-19
+				# PSPP_block_diag.inverse_LW_power = 8e-20
+				# if p.beta==[-1.0,-2.0]:
+				# 	# PSPP_block_diag.inverse_LW_power = 2.e-21 #2000 (rather than 2e-18; quadratic can invert when closer to uniform while remaining stable)
+				# 	PSPP_block_diag.inverse_LW_power = 2e-20 #2000 (rather than 2e-18; quadratic can invert when closer to uniform while remaining stable)
 				print 'PSPP_block_diag.inverse_LW_power:', PSPP_block_diag.inverse_LW_power
 				#
 				# PSPP_block_diag.inverse_LW_power = 0.0
-				# PSPP_block_diag.inverse_LW_power_zeroth_LW_term = 1.e20
-				# PSPP_block_diag.inverse_LW_power_first_LW_term = 1.e-20
-				# PSPP_block_diag.inverse_LW_power_second_LW_term = 1.e-20
+				# PSPP_block_diag.inverse_LW_power_zeroth_LW_term = 2e-20
+				# PSPP_block_diag.inverse_LW_power_first_LW_term = 2e-20
+				# PSPP_block_diag.inverse_LW_power_second_LW_term = 2.e20
 				# if count==count_max:
 				# 	print 'count_max param update'
 				# 	PSPP_block_diag.inverse_LW_power = 2e-21 #4000
 
-				fit_constraints = [1.e-100]*(nDims)
+				# fit_constraints = [1.e-100]*(nDims)
+				# fit_constraints = [1.e-20]*(nDims)
+
+				fit_constraints = [1.e2]*(nDims)
+
+				# fit_constraints = [1.e-1]*(nDims)
+
 
 			maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper(fit_constraints, T_Ninv_T, dbar_prime_i, block_T_Ninv_T=block_T_Ninv_T)[0]
-			maxL_LW_signal = np.dot(T,maxL_LW_fit)
+			# maxL_LW_signal = np.dot(T,maxL_LW_fit)
+
+			use_only_the_mean_component_of_the_foreground_model = False
+			if use_only_the_mean_component_of_the_foreground_model:
+				if type(p.beta)==list:
+					Q_T = np.array([row for i,row in enumerate(T.T) if (i+((neta+nq)-neta/2))%(neta+nq)==0]).T
+					maxL_LW_fit = np.array([row for i,row in enumerate(maxL_LW_fit) if (i+((neta+nq)-neta/2))%(neta+nq)==0]).T
+				else:
+					Q_T = np.array([row for i,row in enumerate(T.T) if (i+((neta+nq)-neta/2))%(neta+nq)==0]).T
+					maxL_LW_fit = np.array([row for i,row in enumerate(maxL_LW_fit) if (i+((neta+nq)-neta/2))%(neta+nq)==0]).T
+			else:
+				if type(p.beta)==list:
+					Q_T = np.array([row for i,row in enumerate(T.T) if (i+((neta+nq)-neta+0))%(neta+nq)==0 or (i+((neta+nq)-neta/2))%(neta+nq)==0 or (i+((neta+nq)-neta-1))%(neta+nq)==0]).T
+					maxL_LW_fit = np.array([row for i,row in enumerate(maxL_LW_fit) if (i+((neta+nq)-neta+0))%(neta+nq)==0 or (i+((neta+nq)-neta/2))%(neta+nq)==0 or (i+((neta+nq)-neta-1))%(neta+nq)==0]).T
+				else:
+					Q_T = np.array([row for i,row in enumerate(T.T) if (i+((neta+nq)-neta+0))%(neta+nq)==0 or (i+((neta+nq)-neta/2))%(neta+nq)==0]).T
+					maxL_LW_fit = np.array([row for i,row in enumerate(maxL_LW_fit) if (i+((neta+nq)-neta+0))%(neta+nq)==0 or (i+((neta+nq)-neta/2))%(neta+nq)==0]).T
+	
+
+
+			Q_T.imag=0.0
+			Q_T_Ninv_Q_T = np.dot(Q_T.conjugate().T, np.dot(Ninv, Q_T))
+			# Q_T_Ninv_Q_T[np.diag_indices(Q_T_Ninv_Q_T.shape[0])] += 8.e-20
+			# Q_T_Ninv_Q_T[np.diag_indices(Q_T_Ninv_Q_T.shape[0])] += 4.e-20
+			# Q_T_Ninv_Q_T[np.diag_indices(Q_T_Ninv_Q_T.shape[0])] += 2.e-20
+			Ninv_d = np.dot(Ninv,d)
+			Qdbar = np.dot(Q_T.conjugate().T,Ninv_d)
+			maxL_LW_fit2 = np.linalg.solve(Q_T_Ninv_Q_T, Qdbar)
+			# print 'Iterative foreground pre-subtraction complete, {} orders of magnitude foreground supression achieved.\n'.format(np.log10((d-effective_noise).std()/(d-np.dot(T, maxL_LW_fit)-effective_noise).std()))
+			print 'Iterative foreground pre-subtraction complete, {} orders of magnitude foreground supression achieved.\n'.format(np.log10((d-effective_noise).std()/(d-np.dot(Q_T, maxL_LW_fit)-effective_noise).std()))
+			print 'Iterative foreground pre-subtraction2 complete, {} orders of magnitude foreground supression achieved.\n'.format(np.log10((d-effective_noise).std()/(d-np.dot(Q_T, maxL_LW_fit2)-effective_noise).std()))
+			maxL_LW_signal2 = np.dot(Q_T, maxL_LW_fit2)
+
+			# use_joint_fit_foreground_model = True #Set to True for power law analyses
+			use_joint_fit_foreground_model = False #Set to True for power law analyses
+			if not use_joint_fit_foreground_model:
+				print 'Using independent foreground fitting for foreground prior'
+				maxL_LW_fit = maxL_LW_fit2
+				maxL_LW_signal = maxL_LW_signal2
+			else:
+				print 'Using foreground component of joint foreground + Fourier mode fitting for foreground prior'
+
+
+			maxL_LW_signal = np.dot(Q_T,maxL_LW_fit)
 
 			maxL_LW_fit_array.append(maxL_LW_fit)
 			maxL_LW_signal_array.append(maxL_LW_signal)
+
+			# maxL_LW_fit_array.append(maxL_LW_fit2)
+			# maxL_LW_signal_array.append(maxL_LW_signal2)
 
 			print count, (d_prime_i - maxL_LW_signal).std(), '\n'
 
@@ -990,7 +1297,21 @@ if sub_MLLWM:
 		maxL_LW_signal_array = np.array(maxL_LW_signal_array)
 
 		total_maxL_LW_fit = np.sum(maxL_LW_fit_array, axis=0)
-		total_maxL_LW_signal = np.dot(T,total_maxL_LW_fit)
+		# total_maxL_LW_signal = np.dot(T,total_maxL_LW_fit)
+		total_maxL_LW_signal = np.dot(Q_T,total_maxL_LW_fit)
+		# total_maxL_LW_signal = np.dot(Q_T,total_maxL_LW_fit) * (1.0-2.e-2)
+
+		# ###
+		# # Save total_maxL_LW_signal for inspection
+		# ###
+		# total_maxL_LW_signal_save_dir = 'random/total_maxL_LW_signal_storage/'+'/'.join(array_save_directory.split('/')[2:]).replace('.','d').replace('+', '')
+		# if not os.path.isdir(total_maxL_LW_signal_save_dir):
+		# 	os.makedirs(total_maxL_LW_signal_save_dir)
+		# total_maxL_LW_signal_save_path = total_maxL_LW_signal_save_dir+'total_maxL_LW_signal'
+		# # np.savez(total_maxL_LW_signal_save_path, total_maxL_LW_signal)
+		# if p.beta==[-1.0,-2.0]:
+		# 	print 'Loading total_maxL_LW_signal from file:', total_maxL_LW_signal_save_path+'.npz'
+		# 	total_maxL_LW_signal = np.load(total_maxL_LW_signal_save_path+'.npz')['arr_0']
 
 		Ninv_total_maxL_LW_signal = np.dot(Ninv,total_maxL_LW_signal)
 		ML_qbar = np.dot(T.conjugate().T,Ninv_total_maxL_LW_signal)
@@ -1011,6 +1332,214 @@ if sub_MLLWM:
 			q_sub_d_Ninv_q_sub_d = np.dot(q_sub_d, Ninv_q_sub_d)
 			PSPP_block_diag.d_Ninv_d = 	q_sub_d_Ninv_q_sub_d
 
+
+
+
+
+# Q_T.imag=0.0
+# Q_T_Ninv_Q_T = np.dot(Q_T.conjugate().T, np.dot(Ninv, Q_T))
+# Ninv_d = np.dot(Ninv,d)
+# Qdbar = np.dot(Q_T.conjugate().T,Ninv_d)
+# maxL_LW_fit2 = np.linalg.solve(Q_T_Ninv_Q_T, Qdbar)
+
+
+# # maxL_LW_fit3 = np.linalg.solve(map(np.complex256, Q_T_Ninv_Q_T), map(np.complex256, Qdbar))
+
+# a = np.dot(Qdbar.conjugate().reshape(1,-1), maxL_LW_fit2)
+# print a
+# np.linalg.slogdet(Q_T_Ninv_Q_T)
+
+
+
+
+# # # Let A be the matrix we're trying to invert, and X be our estimate of the inverse. An iteration of Newton's method simply consists of:
+# # # X = X*(2I - AX)
+
+# # # X1 = np.linalg.pinv(Q_T_Ninv_Q_T, rcond=1.e-16)
+# # # X1c256 = X1.astype(np.complex256)
+# # # Ic256 = np.identity(X1.shape[0]).astype(np.complex256)
+
+# # # t1 = np.dot(X1c256, Q_T_Ninv_Q_T.astype(np.complex256))
+
+# # # X2c256 = np.dot(X1c256, (2*Ic256 - np.dot(Q_T_Ninv_Q_T.astype(np.complex256), X1c256)))
+# # # t2 = np.dot(X2c256, Q_T_Ninv_Q_T.astype(np.complex256))
+
+# # # X2c256 = 2*X1c256 -  np.dot(X1c256.conjugate(), np.dot(Q_T_Ninv_Q_T.astype(np.complex256), X1c256))
+# # # t2 = np.dot(X2c256, Q_T_Ninv_Q_T.astype(np.complex256))
+
+# # # X3c256 = 2*X2c256 -  np.dot(X2c256.conjugate(), np.dot(Q_T_Ninv_Q_T.astype(np.complex256), X2c256))
+# # # t3 = np.dot(X3c256, Q_T_Ninv_Q_T.astype(np.complex256))
+
+
+
+
+
+
+# # # A generalization of Newton's method as used for a multiplicative inverse algorithm may be convenient, if it is convenient to find a suitable starting seed:
+
+# # #  X_{k+1}=2X_{k}-X_{k}AX_{k}.} X_{k+1}=2X_{k}-X_{k}AX_{k}.
+
+# # import mpmath
+# # import mpmath as mp
+# # mp.dps = 50
+
+
+# from mpmath import mp
+# mp.dps = 50
+# print(mp.quad(lambda x: mp.exp(-x**2), [-mp.inf, mp.inf]) ** 2)
+
+# import time
+# start = time.time()
+# # mpmath_Q_T_Ninv_Q_T = mpmath.matrix(Q_T_Ninv_Q_T)
+
+# Q_T_tc = (mp.matrix(Q_T).T).conjugate()
+
+
+# start = time.time()
+# mpmath_Q_T_Ninv_Q_T = Q_T_tc*mp.matrix(Ninv)*mp.matrix(Q_T)
+# print 'hi0'
+# print time.time()-start
+# # a = mpmath.inverse(mpmath.matrix(Q_T_Ninv_Q_T))
+# a = mp.inverse(mpmath_Q_T_Ninv_Q_T)
+# print 'hi1'
+# print time.time()-start
+# a2 = a*mp.matrix(Qdbar)
+# print 'hi2'
+# print time.time()-start
+# a3 = mp.matrix(Qdbar.conjugate().reshape(1,-1))*a2
+# print 'hi3'
+# print time.time()-start
+# a4 = a * mp.matrix(Q_T_Ninv_Q_T)
+# print 'hi4'
+# print time.time()-start
+
+# a5 = np.array(a.tolist(), dtype=np.complex256)
+# a6 = np.array(a4.tolist(), dtype=np.complex128)
+
+
+# # maxL_LW_fit3 = mpmath.qr_solve(mpmath.matrix(Q_T_Ninv_Q_T), mpmath.matrix(Qdbar))
+# # Q_T_Ninv_Q_T_inv = np.linalg.inv(Q_T_Ninv_Q_T)
+# # np.dot(Qdbar.conjugate().reshape(1,-1), np.dot(Q_T_Ninv_Q_T_inv, Qdbar))
+
+
+
+
+
+# # The 'gauss' function takes two matrices, 'a' and 'b', with 'a' square, and it return the determinant of 'a' and a matrix 'x' such that a*x = b.
+# # If 'b' is the identity, then 'x' is the inverse of 'a'.
+ 
+# import copy
+# from fractions import Fraction
+ 
+# def gauss(a, b):
+#     a = copy.deepcopy(a)
+#     b = copy.deepcopy(b)
+#     n = len(a)
+#     p = len(b[0])
+#     det = 1
+#     for i in range(n - 1):
+#         k = i
+#         for j in range(i + 1, n):
+#             if abs(a[j][i]) > abs(a[k][i]):
+#                 k = j
+#         if k != i:
+#             a[i], a[k] = a[k], a[i]
+#             b[i], b[k] = b[k], b[i]
+#             det = -det
+ 
+#         for j in range(i + 1, n):
+#             t = a[j][i]/a[i][i]
+#             # print 'i, j, t, a[i][i]', i, j, t, a[i][i]
+#             for k in range(i + 1, n):
+#                 a[j][k] -= t*a[i][k]
+#             for k in range(p):
+#                 b[j][k] -= t*b[i][k]
+ 
+#     for i in range(n - 1, -1, -1):
+#         for j in range(i + 1, n):
+#             t = a[i][j]
+#             for k in range(p):
+#                 b[i][k] -= t*b[j][k]
+#         t = 1/a[i][i]
+#         print 'i, j, t, a[i][i]', i, j, t, a[i][i]
+#         det *= a[i][i]
+#         for j in range(p):
+#             b[i][j] *= t
+#     return det, b
+
+
+# def gauss(A):
+#     m = len(A)
+#     assert all([len(row) == m + 1 for row in A[1:]]), "Matrix rows have non-uniform length"
+#     n = m + 1
+    
+#     for k in range(m):
+#         pivots = [abs(A[i][k]) for i in range(k, m)]
+#         i_max = pivots.index(max(pivots)) + k
+        
+#         # Check for singular matrix
+#         assert A[i_max][k] != 0, "Matrix is singular!"
+        
+#         # Swap rows
+#         A[k], A[i_max] = A[i_max], A[k]
+
+        
+#         for i in range(k + 1, m):
+#             f = A[i][k] / A[k][k]
+#             for j in range(k + 1, n):
+#                 A[i][j] -= A[k][j] * f
+
+#             # Fill lower triangular matrix with zeros:
+#             A[i][k] = 0
+    
+#     # Solve equation Ax=b for an upper triangular matrix A         
+#     x = []
+#     for i in range(m - 1, -1, -1):
+#         x.insert(0, A[i][m] / A[i][i])
+#         for k in range(i - 1, -1, -1):
+#             A[k][m] -= A[k][i] * x[0]
+#     return x
+
+# a = [[2, 9, 4], [7, 5, 3], [6, 1, 8]]
+# # a = np.array([[2, 9, 4], [7, 5, 3], [6, 1, 8]])
+# b=np.identity(a.shape[0])
+
+# det, c = gauss(a, b)
+
+
+
+
+
+
+# Iterative foreground pre-subtraction complete, 5.84397064726 orders of magnitude foreground supression achieved.
+
+
+
+
+# ## -- End pasted text --
+# (d - s_GDSE).std() 10072.322461606145
+# PSPP_block_diag.inverse_LW_power: 2e-18
+# Time taken: 0.000308990478516
+# Not using block-diagonal inversion
+# Time taken: 0.0292520523071
+# Computing matrix inversion on GPU
+# Time taken: 0.266988039017
+# Time taken: 0.267060041428
+# Time taken: 0.267066001892
+# 0 10037.258836280089 
+
+
+# GDSE beta = 5.0
+# effective_noise_std 10072.322461606145
+# PSPP_block_diag.inverse_LW_power: 2e-18
+# Time taken: 0.000300884246826
+# Not using block-diagonal inversion
+# Time taken: 0.0287418365479
+# Computing matrix inversion on GPU
+# Time taken: 0.264206171036
+# Time taken: 0.264281988144
+# Time taken: 0.26428604126
+# 0 17021.51620335814 
 
 
 
@@ -1090,11 +1619,12 @@ if sub_MLLWM:
 
 if sub_ML_monopole_term_model:
 	pre_sub_dbar = PSPP_block_diag.dbar
-	PSPP_block_diag.inverse_LW_power=p.inverse_LW_power #Include minimal prior over LW modes to ensure numerical stability
-	PSPP_block_diag.inverse_LW_power_first_LW_term=1.e20 #Don't fit for the first LW term (since only fitting for the monopole)
-	PSPP_block_diag.inverse_LW_power_second_LW_term=1.e20  #Don't fit for the second LW term (since only fitting for the monopole)
+	PSPP_block_diag.inverse_LW_power=0.0
+	PSPP_block_diag.inverse_LW_power_zeroth_LW_term=2.e-18 #Don't fit for the first LW term (since only fitting for the monopole)
+	PSPP_block_diag.inverse_LW_power_first_LW_term=2.e18 #Don't fit for the first LW term (since only fitting for the monopole)
+	PSPP_block_diag.inverse_LW_power_second_LW_term=2.e18  #Don't fit for the second LW term (since only fitting for the monopole)
 	if p.use_LWM_Gaussian_prior:
-		fit_constraints = [5.e8]*1+[1.e-20]*(nDims-1)	
+		fit_constraints = [2.e18]*1+[1.e-20]*(nDims-1)	
 	else:
 		fit_constraints = [1.e-20]*(nDims)
 	maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper(fit_constraints, T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]	
@@ -1107,16 +1637,19 @@ if sub_ML_monopole_term_model:
 	PSPP_block_diag.dbar = q_sub_dbar
 	# PSPP_block_diag.inverse_LW_power=0.0 #Remove the constraints on the LW model for subsequent parts of the analysis
 	PSPP_block_diag.inverse_LW_power=p.inverse_LW_power #Remove the constraints on the LW model for subsequent parts of the analysis
+	print 'Foreground pre-subtraction complete, {} orders of magnitude foreground supression achieved.\n'.format(np.log10((d-effective_noise).std()/(d-maxL_LW_signal-effective_noise).std()))
 	if small_cube:
 		print PSPP.posterior_probability([1.e0]*nDims, diagonal_sigma=False)[0]
 		print PSPP_block_diag.posterior_probability([1.e0]*nDims, diagonal_sigma=False, block_T_Ninv_T=block_T_Ninv_T)[0]
 
 if sub_ML_monopole_plus_first_LW_term_model:
 	pre_sub_dbar = PSPP_block_diag.dbar
-	PSPP_block_diag.inverse_LW_power=p.inverse_LW_power #Include minimal prior over LW modes to ensure numerical stability
-	PSPP_block_diag.inverse_LW_power_second_LW_term=1.e20  #Don't fit for the second LW term (since only fitting for the monopole and first LW term)
+	PSPP_block_diag.inverse_LW_power=0.0
+	PSPP_block_diag.inverse_LW_power_zeroth_LW_term=2.e-18 #Don't fit for the first LW term (since only fitting for the monopole)
+	PSPP_block_diag.inverse_LW_power_first_LW_term=2.e-18 #Don't fit for the first LW term (since only fitting for the monopole)
+	PSPP_block_diag.inverse_LW_power_second_LW_term=2.e18  #Don't fit for the second LW term (since only fitting for the monopole)
 	if p.use_LWM_Gaussian_prior:
-		fit_constraints = [5.e8]*2+[1.e-20]*(nDims-2)
+		fit_constraints = [2.e18]*2+[1.e-20]*(nDims-2)
 	else:
 		fit_constraints = [1.e-20]*(nDims)
 	maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper(fit_constraints, T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
@@ -1129,6 +1662,7 @@ if sub_ML_monopole_plus_first_LW_term_model:
 	PSPP_block_diag.dbar = q_sub_dbar
 	# PSPP_block_diag.inverse_LW_power=0.0 #Remove the constraints on the LW model for subsequent parts of the analysis
 	PSPP_block_diag.inverse_LW_power=p.inverse_LW_power #Remove the constraints on the LW model for subsequent parts of the analysis
+	print 'Foreground pre-subtraction complete, {} orders of magnitude foreground supression achieved.\n'.format(np.log10((d-effective_noise).std()/(d-maxL_LW_signal-effective_noise).std()))
 	if small_cube:
 		print PSPP.posterior_probability([1.e0]*nDims, diagonal_sigma=False)[0]
 		print PSPP_block_diag.posterior_probability([1.e0]*nDims, diagonal_sigma=False, block_T_Ninv_T=block_T_Ninv_T)[0]
@@ -1153,7 +1687,10 @@ if not os.path.isdir(save_dir):
 
 Show=False
 if not p.use_EoR_cube:
-	maxL_k_cube_signal = PSPP_block_diag.calc_SigmaI_dbar_wrapper(np.array(k_sigma)**2., T_Ninv_T, dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
+	try:
+		maxL_k_cube_signal = PSPP_block_diag.calc_SigmaI_dbar_wrapper(np.array(k_sigma)**2., T_Ninv_T, dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
+	except:
+		maxL_k_cube_signal = PSPP_block_diag.calc_SigmaI_dbar_wrapper(np.array([10.0]*nDims), T_Ninv_T, dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
 else:
 	# maxL_k_cube_signal = PSPP_block_diag.calc_SigmaI_dbar_wrapper(np.array([10.0]*nDims)**2, T_Ninv_T, dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
 	maxL_k_cube_signal = PSPP_block_diag.calc_SigmaI_dbar_wrapper(np.array([10.0]*nDims), T_Ninv_T, dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
@@ -1206,8 +1743,12 @@ if No_large_spectral_scale_model_fit:
 log_priors_min_max = [[-5.0, 3.0] for _ in range(nDims)]
 # log_priors_min_max = [[-5.0, -5.01] for _ in range(nDims)]
 
-#Fundamental harmonic is highly correlated with the LWM so don't fit for it.
-log_priors_min_max[0] = [-20.0, -20.0] 
+
+
+# #Fundamental harmonic is highly correlated with the LWM so don't fit for it.
+# log_priors_min_max[0] = [-20.0, -20.0] 
+
+
 
 
 if p.use_LWM_Gaussian_prior:
@@ -1312,9 +1853,9 @@ if p.use_intrinsic_noise_fitting and (sub_MLLWM or sub_ML_monopole_term_model or
 run_limit_foreground_modes_test = False
 if run_limit_foreground_modes_test:
 	PSPP_block_diag_Polychord.inverse_LW_power=0.0
-	PSPP_block_diag_Polychord.inverse_LW_power_zeroth_LW_term=1.e-20
-	PSPP_block_diag_Polychord.inverse_LW_power_first_LW_term=1.e20  
-	PSPP_block_diag_Polychord.inverse_LW_power_second_LW_term=1.e20  
+	PSPP_block_diag_Polychord.inverse_LW_power_zeroth_LW_term=2.e-20
+	PSPP_block_diag_Polychord.inverse_LW_power_first_LW_term=2.e-20  
+	PSPP_block_diag_Polychord.inverse_LW_power_second_LW_term=2.e20  
 
 
 # a=[ 0.76864195, -3.56754428,  3.59115839, -0.67613316, -0.8910768,  -4.0383755, 3.69170207,  1.42023581, -3.53892028,  0.87552208]
@@ -1329,9 +1870,12 @@ start = time.time()
 PSPP_block_diag_Polychord.Print=False
 Nit=20
 for _ in range(Nit):
-	L =  PSPP_block_diag_Polychord.posterior_probability([1.e0]*nDims)[0]
+	L =  PSPP_block_diag_Polychord.posterior_probability([3.e0]*nDims)[0]
 PSPP_block_diag_Polychord.Print=False
 print 'Average evaluation time: %f'%((time.time()-start)/float(Nit))
+
+print 'PSPP_block_diag_Polychord.inverse_LW_power', PSPP_block_diag_Polychord.inverse_LW_power
+print 'p.Tb_experimental_std_K', p.Tb_experimental_std_K
 
 def likelihood(theta, calc_likelihood=PSPP_block_diag_Polychord.posterior_probability):
 	return calc_likelihood(theta)
