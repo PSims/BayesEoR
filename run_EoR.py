@@ -5,38 +5,82 @@
 #--------------------------------------------
 from subprocess import os
 import sys
-# head,tail = os.path.split(os.getcwd())
 head,tail = os.path.split(os.path.split(os.getcwd())[0])
 sys.path.append(head)
 from BayesEoR import * #Make everything available for now, this can be refined later
 import BayesEoR.Params.params as p
-use_MultiNest = True #Set to false for large parameter spaces
-if use_MultiNest:
-	from pymultinest.solve import solve
-else:
-	import PyPolyChord.PyPolyChord as PolyChord
+
+mpi_rank = 0
+# run_full_analysis = False #False skips mpi and other imports that can cause crashes in ipython (note: in ipython apparently __name__ == '__main__' which is why this if statement is here instead)
+run_full_analysis = True #When running an analysis this should be True.
+# if __name__ == '__main__':
+if run_full_analysis:
+	import mpi4py
+	from mpi4py import MPI
+	mpi_comm = MPI.COMM_WORLD
+	mpi_rank = mpi_comm.Get_rank()
+	mpi_size = mpi_comm.Get_size()
+	print 'mpi_comm', mpi_comm
+	print 'mpi_rank', mpi_rank
+	print 'mpi_size', mpi_size
+	use_MultiNest = True #Set to false for large parameter spaces
+	if use_MultiNest:
+		from pymultinest.solve import solve
+	else:
+		import PyPolyChord.PyPolyChord as PolyChord
 
 #--------------------------------------------
 # Set analysis parameters
 #--------------------------------------------
 # Model Params
 args = p.BayesEoRParser()
-if args.beta: p.beta = float(args.beta) #Overwrite parameter file beta with value chosen from the command line if it is included 
+print args
+npl = p.npl
+print 'p.beta', p.beta
+if args.beta:
+	if type(args.beta)==str:
+		if args.beta.count('[') and args.beta.count(']'):
+			p.beta = map(float, args.beta.replace('[','').replace(']','').split(',')) #Overwrite parameter file beta with value chosen from the command line if it is included
+			npl = len(p.beta) #Overwrites quadratic term when nq=2, otherwise unused.
+		else:
+			p.beta = float(args.beta) #Overwrite parameter file beta with value chosen from the command line if it is included 
+			npl = 1
+	elif type(args.beta)==list:
+		p.beta = args.beta #Overwrite parameter file beta with value chosen from the command line if it is included 
+		npl = len(p.beta)
+	else:
+		print 'No value for betas given, using defaults.'
 
-nq = 2 #Overwrite PCLA selection
-npl = 0 
+print 'args.beta', args.beta
+print 'p.beta', p.beta
+print 'args.nq', args.nq
+
+nq = int(args.nq)
+if nq>npl:
+	nq=npl
+
 print 'nq', nq
-sub_ML_monopole_plus_first_LW_term_model = True #Improve numerical precision. Can be used for improving numerical precision when performing evidence comparison.
-
+print 'npl', npl
+sub_ML_monopole_term_model = False #Improve numerical precision. Can be used for improving numerical precision when performing evidence comparison.
 nf=p.nf
 neta=p.neta
-neta=neta -nq
+if not p.include_instrumental_effects:
+	neta=neta -nq
 nu=p.nu
 nv=p.nv
 nx=p.nx
 ny=p.ny
 # Data noise
-sigma=100.e-1
+sigma=50.e-1
+
+if p.include_instrumental_effects:
+		average_baseline_redundancy = p.baseline_redundancy_array.mean() #Keep average noise level consisitent with the non-instrumental case by normalizing sigma by the average baseline redundancy before scaling individual baselines by their respective redundancies
+		sigma = sigma*average_baseline_redundancy**0.5 *250.0 #Noise level in S19b
+		# sigma = sigma*average_baseline_redundancy**0.5 *500.0
+		# sigma = sigma*average_baseline_redundancy**0.5 *1000.0
+else:
+	sigma = sigma*1.
+
 # Auxiliary and derived params
 small_cube = nu<=7 and nv<=7
 nuv = (nu*nv-1)
@@ -49,122 +93,165 @@ n_LW = (nu*nv-1)*nq
 n_model = n_Fourier+n_LW
 n_dat = n_Fourier
 current_file_version = 'Likelihood_v1d76_3D_ZM'
-array_save_directory = 'array_storage/{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(current_file_version,nu,nv,neta,nq,npl,sigma).replace('.','d')
-if npl>0:
+array_save_directory = 'array_storage/batch_1/{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(current_file_version,nu,nv,neta,nq,npl,sigma).replace('.','d')
+if p.include_instrumental_effects:
+	instrument_info = filter(None, p.instrument_model_directory.split('/'))[-1]
+	array_save_directory = array_save_directory[:-1]+'_instrumental/'+instrument_info+'/'
+	n_vis=p.n_vis
+else:
+	n_vis = 0
+if npl==1:
 	array_save_directory=array_save_directory.replace('_sigma', '_beta_{:.2E}_sigma'.format(p.beta))
+if npl==2:
+	array_save_directory=array_save_directory.replace('_sigma', '_b1_{:.2E}_b2_{:.2E}_sigma'.format(p.beta[0], p.beta[1]))
 
+if p.fit_for_monopole:
+	array_save_directory = array_save_directory[:-1]+'_fit_for_monopole_eq_True/'
 
 #--------------------------------------------
 # Construct matrices
 #--------------------------------------------
-BM = BuildMatrices(array_save_directory, nu, nv, nx, ny, neta, nf, nq, sigma, npl=npl)
-overwrite_existing_matrix_stack = False
-proceed_without_overwrite_confirmation = True #Allows overwrite_existing_matrix_stack to be run without having to manually accept the deletion of the old matrix stack
+BM = BuildMatrices(array_save_directory, nu, nv, nx, ny, n_vis, neta, nf, nq, sigma, npl=npl)
+overwrite_existing_matrix_stack = False #Can be set to False unless npl>0
+proceed_without_overwrite_confirmation = False #Allows overwrite_existing_matrix_stack to be run without having to manually accept the deletion of the old matrix stack
 BM.build_minimum_sufficient_matrix_stack(overwrite_existing_matrix_stack=overwrite_existing_matrix_stack, proceed_without_overwrite_confirmation=proceed_without_overwrite_confirmation)
-
-#--------------------------------------------
-# Generate GRN data. Currently only the bin selection component of this function is being used and should probably be spun out.
-#--------------------------------------------
-test_sim_out = generate_test_sim_signal_with_large_spectral_scales_2_21cmFAST_Binning(nu,nv,nx,ny,nf,neta,nq)
-if small_cube or True:
-	s, s_im, s_LW_only, s_im_LW_only, s_fourier_only, s_im_fourier_only, bin_selector_in_k_cube_mask, high_spatial_frequency_selector_mask, k_cube_signal, k_sigma, ZM_mask, k_z_mean_mask = test_sim_out
-	bin_selector_cube_ordered_list = bin_selector_in_k_cube_mask
-else:
-	s=test_sim_out[0]
-	bin_selector_cube_ordered_list = test_sim_out[6]
-	high_spatial_frequency_selector_mask = test_sim_out[7]
-	k_sigma = test_sim_out[9]
-	ZM_mask = test_sim_out[10]
-	k_z_mean_mask = test_sim_out[11]
-test_sim_out=0
 
 #--------------------------------------------
 # Define power spectral bins and coordinate cubes
 #--------------------------------------------
-if nq==0:
-	map_bins_out = map_out_bins_for_power_spectral_coefficients_HERA_Binning(nu,nv,nx,ny,nf,neta,nq, bin_selector_cube_ordered_list,high_spatial_frequency_selector_mask, ZM_mask, k_z_mean_mask)
-	bin_selector_in_model_mask_vis_ordered = map_bins_out
-	bin_selector_vis_ordered_list = bin_selector_in_model_mask_vis_ordered
-else:
-	map_bins_out = map_out_bins_for_power_spectral_coefficients_WQ_v2_HERA_Binning(nu,nv,nx,ny,nf,neta,nq, bin_selector_cube_ordered_list,high_spatial_frequency_selector_mask, ZM_mask, k_z_mean_mask)
-	bin_selector_in_model_mask_vis_ordered_WQ, LW_modes_only_boolean_array_vis_ordered = map_bins_out
-	bin_selector_vis_ordered_list = bin_selector_in_model_mask_vis_ordered_WQ
-map_bins_out=0
-
 mod_k, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z = generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(nu,nv,nx,ny,nf,neta,p.box_size_21cmFAST_pix_sc,p.box_size_21cmFAST_Mpc_sc)
 k=mod_k.copy()
 k_vis_ordered = k.T.flatten()
-
 k_x_masked = generate_masked_coordinate_cubes(k_x, nu,nv,nx,ny,nf,neta,nq)
 k_y_masked = generate_masked_coordinate_cubes(k_y, nu,nv,nx,ny,nf,neta,nq)
 k_z_masked = generate_masked_coordinate_cubes(k_z, nu,nv,nx,ny,nf,neta,nq)
 mod_k_masked = generate_masked_coordinate_cubes(mod_k, nu,nv,nx,ny,nf,neta,nq)
-
-k_cube_voxels_in_bin, modkbins_containing_voxels = generate_k_cube_model_spherical_binning(mod_k_masked, k_z_masked, nu,nv,nx,ny,nf,neta,nq)
+k_cube_voxels_in_bin, modkbins_containing_voxels = generate_k_cube_model_spherical_binning_v2d1(mod_k_masked, k_z_masked, nu,nv,nx,ny,nf,neta,nq)
 modk_vis_ordered_list = [mod_k_masked[k_cube_voxels_in_bin[i_bin]] for i_bin in range(len(k_cube_voxels_in_bin))]
-k_vals_file_name = 'k_vals_nu_{}_nv_{}_nf_{}_nq_{}.txt'.format(nu,nv,nf,nq)
+k_vals_file_name = 'k_vals_nu_{}_nv_{}_nf_{}_nq_{}_binning_v2d1.txt'.format(nu,nv,nf,nq)
 k_vals = calc_mean_binned_k_vals(mod_k_masked, k_cube_voxels_in_bin, save_k_vals=True, k_vals_file=k_vals_file_name)
-
 do_cylindrical_binning = False
 if do_cylindrical_binning:
 	n_k_perp_bins=2
 	k_cube_voxels_in_bin, modkbins_containing_voxels, k_perp_bins = generate_k_cube_model_cylindrical_binning(mod_k_masked, k_z_masked, k_y_masked, k_x_masked, n_k_perp_bins, nu,nv,nx,ny,nf,neta,nq)
 
 #--------------------------------------------
-# Load EoR data
+# Non-instrumental data creation
 #--------------------------------------------
-use_EoR_cube = True
-if use_EoR_cube:
-	print 'Using use_EoR_cube data'
-	s_EoR, abc, scidata1 = generate_data_from_loaded_EoR_cube_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show,chan_selection,p.EoR_npz_path_sc)
+if not p.include_instrumental_effects:
+	#--------------------------------------------
+	# Load EoR data
+	#--------------------------------------------
+	use_EoR_cube = p.use_EoR_cube
+	if use_EoR_cube:
+		print 'Using use_EoR_cube data'
+		s_EoR, abc, scidata1 = generate_data_from_loaded_EoR_cube_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show,chan_selection,p.EoR_npz_path_sc)
 
-#--------------------------------------------
-# Define data vector
-#--------------------------------------------
-if use_EoR_cube:
-	print 'Using EoR cube'
-	d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector(sigma, s_EoR)[0]
-	s_Tot = s_EoR.copy()
+		plot_figure = False
+		if plot_figure:
+			construct_aplpy_image_from_fits('/users/psims/EoR/EoR_simulations/21cmFAST_2048MPc_2048pix_512pix_AstroParamExploration1/Fits/output_fits/nf0d888/', '21cm_mK_z7.600_nf0.888_useTs0.0_aveTb21.24_cube_side_pix512_cube_side_Mpc2048_mK', run_convert_from_mK_to_K=False, run_remove_unused_header_variables=True)
+			
+	#--------------------------------------------
+	# Define data vector
+	#--------------------------------------------
+	non_instrmental_noise_seed = 42123
+	if p.use_EoR_cube:
+		print 'Using EoR cube'
+		d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq, random_seed=non_instrmental_noise_seed)[0]
+		s_Tot = s_EoR.copy()
+	else:
+		d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq, random_seed=non_instrmental_noise_seed)[0]
+		s_Tot = s_EoR.copy()
+		print 'Using EoR cube'
+
+	effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(sigma, np.zeros(d.shape), nu,nv,nx,ny,nf,neta,nq, random_seed=non_instrmental_noise_seed)[1]
+	effective_noise_std = effective_noise.std()
+
+
 
 #--------------------------------------------
 # Load base matrices used in the likelihood and define related variables
 #--------------------------------------------
 T_Ninv_T = BM.read_data_from_hdf5(array_save_directory+'T_Ninv_T.h5', 'T_Ninv_T')
+Npar = shape(T_Ninv_T)[0]
+fit_for_LW_power_spectrum = True
+masked_power_spectral_modes = np.ones(Npar)
+masked_power_spectral_modes = masked_power_spectral_modes.astype('bool')
 T = BM.read_data_from_hdf5(array_save_directory+'T.h5', 'T')
+Finv = BM.read_data_from_hdf5(array_save_directory+'Finv.h5', 'Finv')
+
+#--------------------------------------------
+# Data creation with instrumental effects
+#--------------------------------------------
+overwrite_data_with_WN = False
+if p.include_instrumental_effects:
+		if p.use_EoR_cube:
+			s_EoR, abc, scidata1 = generate_EoR_signal_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z, Finv,Show,chan_selection,masked_power_spectral_modes, mod_k, p.EoR_npz_path_sc)
+			EoR_noise_seed = 742123
+			print 'EoR_noise_seed', EoR_noise_seed
+			d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(1.0*sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,random_seed=EoR_noise_seed)[0]
+			effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(1.0*sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,random_seed=EoR_noise_seed)[1]
+
+effective_noise_std = effective_noise.std()
+
+
+#--------------------------------------------
+# Continue loading base matrices used in the likelihood and defining related variables
+#--------------------------------------------
+T = BM.read_data_from_hdf5(array_save_directory+'T.h5', 'T')
+T_Ninv_T = BM.read_data_from_hdf5(array_save_directory+'T_Ninv_T.h5', 'T_Ninv_T')
 block_T_Ninv_T = BM.read_data_from_hdf5(array_save_directory+'block_T_Ninv_T.h5', 'block_T_Ninv_T')
 Ninv = BM.read_data_from_hdf5(array_save_directory+'Ninv.h5', 'Ninv')
 Ninv_d = np.dot(Ninv,d)
 dbar = np.dot(T.conjugate().T,Ninv_d)
-Ninv=[]
+# Ninv=[]
 Sigma_Diag_Indices=np.diag_indices(shape(T_Ninv_T)[0])
-Npar = shape(T_Ninv_T)[0]
 nDims = len(k_cube_voxels_in_bin)
+d_Ninv_d = np.dot(d.conjugate(), Ninv_d)
+
+if p.use_intrinsic_noise_fitting:
+	nDims = nDims+1
+
+###
+# nDims = nDims+3 for Gaussian prior over the three long wavelength model vectors
+###
+if p.use_LWM_Gaussian_prior:
+	nDims = nDims+3
+
 x=[100.e0]*nDims
-nuv = (nu*nv-1)
+if p.fit_for_monopole:
+	nuv = (nu*nv)
+else:
+	nuv = (nu*nv-1)
 block_T_Ninv_T = np.array([np.hsplit(block,nuv) for block in np.vsplit(T_Ninv_T,nuv)])
+if p.include_instrumental_effects:
+	block_T_Ninv_T=[]
 
-
-
-masked_power_spectral_modes = np.ones(Npar)
-masked_power_spectral_modes[sorted(np.hstack(k_cube_voxels_in_bin)[0])] = 0.0
-masked_power_spectral_modes = masked_power_spectral_modes.astype('bool')
 
 from numpy import real
 #--------------------------------------------
 # Instantiate class and check that posterior_probability returns a finite probability (so no obvious binning errors etc.)
 #--------------------------------------------
-if small_cube: PSPP = PowerSpectrumPosteriorProbability(T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes, modk_vis_ordered_list)
-PSPP_block_diag = PowerSpectrumPosteriorProbability(T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes, modk_vis_ordered_list, block_T_Ninv_T=block_T_Ninv_T, Print=True)
-self = PowerSpectrumPosteriorProbability(T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes, modk_vis_ordered_list, block_T_Ninv_T=block_T_Ninv_T, Print=True)
+if small_cube: PSPP = PowerSpectrumPosteriorProbability(T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes, modk_vis_ordered_list, Ninv, d_Ninv_d, log_priors=False, intrinsic_noise_fitting=p.use_intrinsic_noise_fitting)
+PSPP_block_diag = PowerSpectrumPosteriorProbability(T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes, modk_vis_ordered_list, Ninv, d_Ninv_d, block_T_Ninv_T=block_T_Ninv_T, Print=True, log_priors=False, intrinsic_noise_fitting=p.use_intrinsic_noise_fitting)
+self = PowerSpectrumPosteriorProbability(T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes, modk_vis_ordered_list, Ninv, d_Ninv_d, block_T_Ninv_T=block_T_Ninv_T, Print=True, log_priors=False, intrinsic_noise_fitting=p.use_intrinsic_noise_fitting)
 start = time.time()
 
 if small_cube:
 	print PSPP_block_diag.posterior_probability([1.e0]*nDims, diagonal_sigma=False, block_T_Ninv_T=block_T_Ninv_T)[0]
 
-if sub_ML_monopole_plus_first_LW_term_model:
+
+if sub_ML_monopole_term_model:
 	pre_sub_dbar = PSPP_block_diag.dbar
-	PSPP_block_diag.inverse_LW_power_second_LW_term=1.e20  #Don't fit for the second LW term (since only fitting for the monopole and first LW term)
-	maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper([1.e-20]*nDims, T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
+	PSPP_block_diag.inverse_LW_power=0.0
+	PSPP_block_diag.inverse_LW_power_zeroth_LW_term=p.inverse_LW_power
+	PSPP_block_diag.inverse_LW_power_first_LW_term=2.e18 #Don't fit for the first LW term (since only fitting for the monopole)
+	PSPP_block_diag.inverse_LW_power_second_LW_term=2.e18  #Don't fit for the second LW term (since only fitting for the monopole)
+	if p.use_LWM_Gaussian_prior:
+		fit_constraints = [2.e18]*1+[1.e-20]*(nDims-1)	
+	else:
+		fit_constraints = [1.e-20]*(nDims)
+	maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper(fit_constraints, T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]	
 	maxL_LW_signal = np.dot(T,maxL_LW_fit)
 	Ninv = BM.read_data_from_hdf5(array_save_directory+'Ninv.h5', 'Ninv')
 	Ninv_maxL_LW_signal = np.dot(Ninv,maxL_LW_signal)
@@ -172,30 +259,51 @@ if sub_ML_monopole_plus_first_LW_term_model:
 	q_sub_dbar = pre_sub_dbar-ML_qbar
 	if small_cube: PSPP.dbar = q_sub_dbar
 	PSPP_block_diag.dbar = q_sub_dbar
-	PSPP_block_diag.inverse_LW_power=0.0 #Remove the constraints on the LW model for subsequent parts of the analysis
+	PSPP_block_diag.inverse_LW_power=p.inverse_LW_power #Remove the constraints on the LW model for subsequent parts of the analysis
+	print 'Foreground pre-subtraction complete, {} orders of magnitude foreground supression achieved.\n'.format(np.log10((d-effective_noise).std()/(d-maxL_LW_signal-effective_noise).std()))
 	if small_cube:
 		print PSPP.posterior_probability([1.e0]*nDims, diagonal_sigma=False)[0]
 		print PSPP_block_diag.posterior_probability([1.e0]*nDims, diagonal_sigma=False, block_T_Ninv_T=block_T_Ninv_T)[0]
 
-print 'Time taken: %f'%(time.time()-start)
-
-start = time.time()
-print PSPP_block_diag.posterior_probability([1.e0]*nDims, diagonal_sigma=False, block_T_Ninv_T=block_T_Ninv_T)[0]
-print 'Time taken: %f'%(time.time()-start)
-
-start = time.time()
-print PSPP_block_diag.posterior_probability([1.e0]*nDims)[0]
-print 'Time taken: %f'%(time.time()-start)
 
 
 #--------------------------------------------
 # Sample from the posterior
-#--------------------------------------------###
+#--------------------------------------------
+###
 # PolyChord setup
-log_priors_min_max = [[-5.0, 4.0] for _ in range(nDims)]
+###
+log_priors_min_max = [[-5.0, 3.0] for _ in range(nDims)]
+if p.use_LWM_Gaussian_prior:
+	fg_log_priors_min = np.log10(1.e5) #Set minimum LW model priors using LW power spectrum in fit to white noise (i.e the prior min should incorporate knowledge of signal-removal in iterative pre-subtraction
+	fg_log_priors_max = 6.0 #Set minimum LW model prior max using numerical stability constraint at the given signal-to-noise in the data.
+	# log_priors_min_max[0] = [fg_log_priors_min, 8.0] #Set 
+	log_priors_min_max[0] = [fg_log_priors_min, fg_log_priors_max] #Calibrate LW model priors using white noise fitting 
+	log_priors_min_max[1] = [fg_log_priors_min, fg_log_priors_max] #Calibrate LW model priors using white noise fitting
+	log_priors_min_max[2] = [fg_log_priors_min, fg_log_priors_max] #Calibrate LW model priors using white noise fitting
+	if p.use_intrinsic_noise_fitting:
+		log_priors_min_max[1] = log_priors_min_max[0]
+		log_priors_min_max[2] = log_priors_min_max[1]
+		log_priors_min_max[3] = log_priors_min_max[2]
+		log_priors_min_max[0] = [1.0, 2.0] #Linear alpha_prime range
+else:
+	if p.use_intrinsic_noise_fitting:
+		log_priors_min_max[0] = [1.0, 2.0] #Linear alpha_prime range
+
+
+print 'log_priors_min_max', log_priors_min_max
 prior_c = PriorC(log_priors_min_max)
 nDerived = 0
 nDims = len(k_cube_voxels_in_bin)
+if p.use_intrinsic_noise_fitting:
+	nDims = nDims+1
+
+###
+# nDims = nDims+3 for Gaussian prior over the three long wavelength model vectors
+###
+if p.use_LWM_Gaussian_prior:
+	nDims = nDims+3
+
 outputfiles_base_dir = 'chains/'
 base_dir = outputfiles_base_dir+'clusters/'
 if not os.path.isdir(base_dir):
@@ -203,10 +311,16 @@ if not os.path.isdir(base_dir):
 
 log_priors = True
 dimensionless_PS = True
+if overwrite_data_with_WN:
+	dimensionless_PS = False
 zero_the_LW_modes = False
 
-file_root = 'Test_mini-{}_{}_{}_{}_{}_sigma_{:.1E}-lp_F-dPS_F-v1-'.format(nu,nv,neta,nq,npl,sigma).replace('.','d')
+file_root = 'Test-{}_{}_{}_{}_{}_s_{:.1E}-lp_F-dPS_F-'.format(nu,nv,neta,nq,npl,sigma).replace('.','d')
 if chan_selection!='':file_root=chan_selection+file_root
+if npl==1:
+	file_root=file_root.replace('-dPS_F', '-dPS_F-beta_{:.2E}-v1'.format(p.beta))
+if npl==2:
+	file_root=file_root.replace('-dPS_F', '-dPS_F_b1_{:.2F}_b2_{:.2F}-v1'.format(p.beta[0], p.beta[1]))
 if log_priors:
 	file_root=file_root.replace('lp_F', 'lp_T')
 if dimensionless_PS:
@@ -215,25 +329,32 @@ if nq==0:
 	file_root=file_root.replace('mini-', 'mini-NQ-')
 elif zero_the_LW_modes:
 	file_root=file_root.replace('mini-', 'mini-ZLWM-')
-if use_EoR_cube:
-	file_root=file_root.replace('Test_mini', 'EoR_mini')
+if p.use_EoR_cube:
+	file_root=file_root.replace('Test', 'EoR')
 if use_MultiNest:
 	file_root='MN-'+file_root
-if npl>0:
-	file_root=file_root.replace('-v1', '-beta_{:.2E}-v1'.format(p.beta))
 
 file_root = generate_output_file_base(file_root, version_number='1')
+
+print 'Rank', mpi_rank
 print 'Output file_root = ', file_root
 
-PSPP_block_diag_Polychord = PowerSpectrumPosteriorProbability(T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes, modk_vis_ordered_list, block_T_Ninv_T=block_T_Ninv_T, log_priors=log_priors, dimensionless_PS=dimensionless_PS, Print=True)
-if zero_the_LW_modes: PSPP_block_diag_Polychord.inverse_LW_power=1.e20
-if sub_ML_monopole_plus_first_LW_term_model: PSPP_block_diag_Polychord.dbar = q_sub_dbar
+PSPP_block_diag_Polychord = PowerSpectrumPosteriorProbability(T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes, modk_vis_ordered_list, Ninv, d_Ninv_d, block_T_Ninv_T=block_T_Ninv_T, log_priors=log_priors, dimensionless_PS=dimensionless_PS, Print=True, intrinsic_noise_fitting=p.use_intrinsic_noise_fitting)
+if p.include_instrumental_effects and not zero_the_LW_modes:
+	PSPP_block_diag_Polychord.inverse_LW_power=p.inverse_LW_power #Include minimal prior over LW modes required for numerical stability
+if zero_the_LW_modes:
+	PSPP_block_diag_Polychord.inverse_LW_power=1.e20
+	print 'Setting PSPP_block_diag_Polychord.inverse_LW_power to:', PSPP_block_diag_Polychord.inverse_LW_power
+if sub_ML_monopole_term_model: PSPP_block_diag_Polychord.dbar = q_sub_dbar
+if p.use_intrinsic_noise_fitting and sub_ML_monopole_term_model:
+	print 'Using use_intrinsic_noise_fitting'
+	PSPP_block_diag_Polychord.d_Ninv_d = q_sub_d_Ninv_q_sub_d
 
 start = time.time()
 PSPP_block_diag_Polychord.Print=False
 Nit=20
 for _ in range(Nit):
-	L =  PSPP_block_diag_Polychord.posterior_probability([1.e0]*nDims)[0]
+	L =  PSPP_block_diag_Polychord.posterior_probability([3.e0]*nDims)[0]
 PSPP_block_diag_Polychord.Print=False
 print 'Average evaluation time: %f'%((time.time()-start)/float(Nit))
 
@@ -243,22 +364,31 @@ def likelihood(theta, calc_likelihood=PSPP_block_diag_Polychord.posterior_probab
 def MultiNest_likelihood(theta, calc_likelihood=PSPP_block_diag_Polychord.posterior_probability):
 	return calc_likelihood(theta)[0]
 
-if use_MultiNest:
-	MN_nlive = nDims*25
-	# Run MultiNest
-	result = solve(LogLikelihood=MultiNest_likelihood, Prior=prior_c.prior_func, n_dims=nDims, outputfiles_basename=outputfiles_base_dir+file_root, n_live_points=MN_nlive)
+
+run_single_node_analysis = False
+print 'mpi_size =', mpi_size
+if mpi_size>1:
+	print 'mpi_size greater than 1, running multi-node analysis\n'
 else:
-	precision_criterion = 0.05
-	#precision_criterion = 0.001 #PolyChord default value
-	nlive=nDims*10
-	#nlive=nDims*25 #PolyChord default value
-	# Run PolyChord
-	PolyChord.mpi_notification()
-	PolyChord.run_nested_sampling(PSPP_block_diag_Polychord.posterior_probability, nDims, nDerived, file_root=file_root, read_resume=False, prior=prior_c.prior_func, precision_criterion=precision_criterion, nlive=nlive)
+	print 'mpi_size = {}, analysis will only be run if run_single_node_analysis is set to True'.format(mpi_size)
+	print 'run_single_node_analysis = {}\n'.format(run_single_node_analysis)
 
-print 'Sampling complete!'
+if run_single_node_analysis or mpi_size>1:
+	if use_MultiNest:
+		MN_nlive = nDims*25
+		# Run MultiNest
+		result = solve(LogLikelihood=MultiNest_likelihood, Prior=prior_c.prior_func, n_dims=nDims, outputfiles_basename=outputfiles_base_dir+file_root, n_live_points=MN_nlive)
+	else:
+		precision_criterion = 0.05
+		nlive=nDims*10
+		# Run PolyChord
+		PolyChord.mpi_notification()
+		PolyChord.run_nested_sampling(PSPP_block_diag_Polychord.posterior_probability, nDims, nDerived, file_root=file_root, read_resume=False, prior=prior_c.prior_func, precision_criterion=precision_criterion, nlive=nlive)
+
+	print 'Sampling complete!'
+else:
+	print 'Skipping sampling, exiting...'
 #######################
-
 
 
 
