@@ -5,7 +5,6 @@
 #--------------------------------------------
 from subprocess import os
 import sys
-# head,tail = os.path.split(os.getcwd())
 head,tail = os.path.split(os.path.split(os.getcwd())[0])
 sys.path.append(head)
 from BayesEoR import * #Make everything available for now, this can be refined later
@@ -80,30 +79,13 @@ ny=p.ny
 # Data noise
 sigma=50.e-1
 
-
 if p.include_instrumental_effects:
-		average_baseline_redundancy = p.baseline_redundancy_array.mean() #Keep average noise level consisitent with the non-instrumental case by normalizing sigma my the average baseline redundancy before scaling individual baselines by their respective redundancies
-		# sigma = sigma*average_baseline_redundancy**0.5 *1.0
-		# sigma = sigma*average_baseline_redundancy**0.5 *5.0
-		# sigma = sigma*average_baseline_redundancy**0.5 *20.0
-		# sigma = sigma*average_baseline_redundancy**0.5 *40.0
-		# sigma = sigma*average_baseline_redundancy**0.5 *100.0
-		# sigma = sigma*average_baseline_redundancy**0.5 *200.0
-		sigma = sigma*average_baseline_redundancy**0.5 *250.0
-
-		# sigma = sigma*average_baseline_redundancy**0.5 *700.0
-
+		average_baseline_redundancy = p.baseline_redundancy_array.mean() #Keep average noise level consisitent with the non-instrumental case by normalizing sigma by the average baseline redundancy before scaling individual baselines by their respective redundancies
+		sigma = sigma*average_baseline_redundancy**0.5 *250.0 #Noise level in S19b
 		# sigma = sigma*average_baseline_redundancy**0.5 *500.0
 		# sigma = sigma*average_baseline_redundancy**0.5 *1000.0
-		# sigma = sigma*average_baseline_redundancy**0.5 *2000.0
-		# sigma = sigma*average_baseline_redundancy**0.5 *4000.0
-		# sigma = sigma*average_baseline_redundancy**0.5 *8000.0
-		# sigma = sigma*average_baseline_redundancy**0.5 *20000.0
-		# sigma = sigma*average_baseline_redundancy**0.5 / 20.0
 else:
 	sigma = sigma*1.
-	# sigma = sigma*8.
-
 
 # Auxiliary and derived params
 small_cube = nu<=7 and nv<=7
@@ -145,61 +127,17 @@ proceed_without_overwrite_confirmation = False #Allows overwrite_existing_matrix
 BM.build_minimum_sufficient_matrix_stack(overwrite_existing_matrix_stack=overwrite_existing_matrix_stack, proceed_without_overwrite_confirmation=proceed_without_overwrite_confirmation)
 
 
-
-
-
-
-
-
-# #--------------------------------------------
-# # Generate GRN data. Currently only the bin selection component of this function is being used and should probably be spun out.
-# #--------------------------------------------
-# test_sim_out = generate_test_sim_signal_with_large_spectral_scales_2_21cmFAST_Binning(nu,nv,nx,ny,nf,neta,nq)
-# if small_cube or True:
-# 	s, s_im, s_LW_only, s_im_LW_only, s_fourier_only, s_im_fourier_only, bin_selector_in_k_cube_mask, high_spatial_frequency_selector_mask, k_cube_signal, k_sigma, ZM_mask, k_z_mean_mask = test_sim_out
-# 	bin_selector_cube_ordered_list = bin_selector_in_k_cube_mask
-# else:
-# 	s=test_sim_out[0]
-# 	bin_selector_cube_ordered_list = test_sim_out[6]
-# 	high_spatial_frequency_selector_mask = test_sim_out[7]
-# 	k_sigma = test_sim_out[9]
-# 	ZM_mask = test_sim_out[10]
-# 	k_z_mean_mask = test_sim_out[11]
-# test_sim_out=0
-
-
-
-# #--------------------------------------------
-# # Define power spectral bins and coordinate cubes
-# #--------------------------------------------
-# if nq==0:
-# 	map_bins_out = map_out_bins_for_power_spectral_coefficients_HERA_Binning(nu,nv,nx,ny,nf,neta,nq, bin_selector_cube_ordered_list,high_spatial_frequency_selector_mask, ZM_mask, k_z_mean_mask)
-# 	bin_selector_in_model_mask_vis_ordered = map_bins_out
-# 	bin_selector_vis_ordered_list = bin_selector_in_model_mask_vis_ordered
-# else:
-# 	map_bins_out = map_out_bins_for_power_spectral_coefficients_WQ_v2_HERA_Binning(nu,nv,nx,ny,nf,neta,nq, bin_selector_cube_ordered_list,high_spatial_frequency_selector_mask, ZM_mask, k_z_mean_mask)
-# 	bin_selector_in_model_mask_vis_ordered_WQ, LW_modes_only_boolean_array_vis_ordered = map_bins_out
-# 	bin_selector_vis_ordered_list = bin_selector_in_model_mask_vis_ordered_WQ
-# map_bins_out=0
-
-
-
-
-
-
-
+#--------------------------------------------
+# Define power spectral bins and coordinate cubes
+#--------------------------------------------
 mod_k, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z = generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(nu,nv,nx,ny,nf,neta,p.box_size_21cmFAST_pix_sc,p.box_size_21cmFAST_Mpc_sc)
 k=mod_k.copy()
 k_vis_ordered = k.T.flatten()
-# modk_vis_ordered_list = [k_vis_ordered[bin_selector.T.flatten()] for bin_selector in bin_selector_cube_ordered_list]
-
 k_x_masked = generate_masked_coordinate_cubes(k_x, nu,nv,nx,ny,nf,neta,nq)
 k_y_masked = generate_masked_coordinate_cubes(k_y, nu,nv,nx,ny,nf,neta,nq)
 k_z_masked = generate_masked_coordinate_cubes(k_z, nu,nv,nx,ny,nf,neta,nq)
 mod_k_masked = generate_masked_coordinate_cubes(mod_k, nu,nv,nx,ny,nf,neta,nq)
 
-# k_cube_voxels_in_bin, modkbins_containing_voxels = generate_k_cube_model_spherical_binning(mod_k_masked, k_z_masked, nu,nv,nx,ny,nf,neta,nq)
-# k_cube_voxels_in_bin, modkbins_containing_voxels = generate_k_cube_model_spherical_binning_v2d0(mod_k_masked, k_z_masked, nu,nv,nx,ny,nf,neta,nq)
 k_cube_voxels_in_bin, modkbins_containing_voxels = generate_k_cube_model_spherical_binning_v2d1(mod_k_masked, k_z_masked, nu,nv,nx,ny,nf,neta,nq)
 
 if p.use_uniform_prior_on_min_k_bin:
@@ -208,9 +146,6 @@ if p.use_uniform_prior_on_min_k_bin:
 	modkbins_containing_voxels = modkbins_containing_voxels[1:]
 
 modk_vis_ordered_list = [mod_k_masked[k_cube_voxels_in_bin[i_bin]] for i_bin in range(len(k_cube_voxels_in_bin))]
-# k_vals_file_name = 'k_vals_nu_{}_nv_{}_nf_{}_nq_{}.txt'.format(nu,nv,nf,nq)
-# k_vals_file_name = 'k_vals_nu_{}_nv_{}_nf_{}_nq_{}_binning v2d0.txt'.format(nu,nv,nf,nq)
-# k_vals_file_name = 'k_vals_nu_{}_nv_{}_nf_{}_nq_{}_binning v2d1.txt'.format(nu,nv,nf,nq)
 k_vals_file_name = 'k_vals_nu_{}_nv_{}_nf_{}_nq_{}_binning_v2d1.txt'.format(nu,nv,nf,nq)
 k_vals = calc_mean_binned_k_vals(mod_k_masked, k_cube_voxels_in_bin, save_k_vals=True, k_vals_file=k_vals_file_name)
 
@@ -221,8 +156,9 @@ if do_cylindrical_binning:
 
 
 
-
-
+#--------------------------------------------
+# Non-instrumental data creation
+#--------------------------------------------
 if not p.include_instrumental_effects:
 	#--------------------------------------------
 	# Generate mock-GDSE data
@@ -286,8 +222,6 @@ if not p.include_instrumental_effects:
 			construct_aplpy_image_from_fits('/users/psims/EoR/EoR_simulations/21cmFAST_2048MPc_2048pix_512pix_AstroParamExploration1/Fits/output_fits/nf0d888/', '21cm_mK_z7.600_nf0.888_useTs0.0_aveTb21.24_cube_side_pix512_cube_side_Mpc2048_mK', run_convert_from_mK_to_K=False, run_remove_unused_header_variables=True)
 			
 
-
-
 	calc_im_domain_noise = False
 	if calc_im_domain_noise:
 		sigma_complex = sigma/2**0.5
@@ -310,7 +244,6 @@ if not p.include_instrumental_effects:
 		print 'Image domain equivalent noise level:', wnim.std(), 'mK'
 		print '21-cm simulation rms:', np.load('/users/psims/EoR/EoR_simulations/21cmFAST_512MPc_512pix_128pix/Fits/21cm_z10d2_mK.npz')['arr_0'].std(), 'mK'
 		print '1/(S/N) level:', wnim.std() / np.load('/users/psims/EoR/EoR_simulations/21cmFAST_512MPc_512pix_128pix/Fits/21cm_z10d2_mK.npz')['arr_0'].std()
-
 
 
 	calc_uv_domain_noise_in_Jy = False
@@ -336,7 +269,6 @@ if not p.include_instrumental_effects:
 		my_uv_points_to_HERA_uv_points_ratio = 960./666.
 		HERA_equivalent_sigma_per_vis_Jy = sigma_per_vis_Jy/my_uv_points_to_HERA_uv_points_ratio
 		print 'HERA_equivalent_sigma_per_vis_Jy:', HERA_equivalent_sigma_per_vis_Jy, 'Jy'
-
 
 
 	#--------------------------------------------
@@ -399,43 +331,30 @@ if not p.include_instrumental_effects:
 
 
 
-# if p.include_instrumental_effects:
-# 	# np.random.seed(321)
-# 	# d = np.random.normal(0,20,p.n_vis*p.nf)
-# 	# np.random.seed(4321)
-# 	# d = d+1j*np.random.normal(0,20,p.n_vis*p.nf)
-# 	T = BM.read_data_from_hdf5(array_save_directory+'T.h5', 'T')
-# 	s_WN, abc, scidata1 = generate_white_noise_signal(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z, T,Show,chan_selection,p.EoR_npz_path_sc)
-
-
 T_Ninv_T = BM.read_data_from_hdf5(array_save_directory+'T_Ninv_T.h5', 'T_Ninv_T')
 Npar = shape(T_Ninv_T)[0]
-
 fit_for_LW_power_spectrum = True
-# fit_for_LW_power_spectrum = False
 masked_power_spectral_modes = np.ones(Npar)
 if not fit_for_LW_power_spectrum:
 	print 'Not fitting for LW power spectrum. Zeroing relevant modes in the determinant.'
 	masked_power_spectral_modes[sorted(np.hstack(k_cube_voxels_in_bin)[0])] = 0.0
 
 masked_power_spectral_modes = masked_power_spectral_modes.astype('bool')
-
 T = BM.read_data_from_hdf5(array_save_directory+'T.h5', 'T')
 Finv = BM.read_data_from_hdf5(array_save_directory+'Finv.h5', 'Finv')
 
-
+#--------------------------------------------
+# Data creation with instrumental effects
+#--------------------------------------------
 overwrite_data_with_WN = False
 if p.include_instrumental_effects:
 	if overwrite_data_with_WN:
-		# s_WN, abc, scidata1 = generate_white_noise_signal_instrumental_k_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z, T,Show,chan_selection,masked_power_spectral_modes)
 		s_WN, abc, scidata1 = generate_white_noise_signal_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z, Finv,Show,chan_selection,masked_power_spectral_modes, mod_k)
 		d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_WN, nu,nv,nx,ny,nf,neta,nq,random_seed=2123)[0]
 		effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_WN, nu,nv,nx,ny,nf,neta,nq,random_seed=2123)[1]
 	else:
 		if p.use_EoR_cube:
 			s_EoR, abc, scidata1 = generate_EoR_signal_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z, Finv,Show,chan_selection,masked_power_spectral_modes, mod_k, p.EoR_npz_path_sc)
-			# EoR_noise_seed = 2123 #Used in v6
-			# EoR_noise_seed = 42123 #Used in v5
 
 			plot_figure = False
 			if plot_figure:
@@ -454,9 +373,6 @@ if p.include_instrumental_effects:
 				pylab.show()
 
 			EoR_noise_seed = 742123
-
-			# EoR_noise_seed = 1742123
-			# EoR_noise_seed = 81742
 			print 'EoR_noise_seed', EoR_noise_seed
 			d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(1.0*sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,random_seed=EoR_noise_seed)[0]
 			effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(1.0*sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,random_seed=EoR_noise_seed)[1]
@@ -471,24 +387,6 @@ if p.include_instrumental_effects:
 			# p.use_GDSE_foreground_cube = False
 			if p.use_GDSE_foreground_cube:
 				print 'Using use_GDSE_foreground_cube data'
-				# foreground_outputs = generate_Jelic_cube_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, p.beta_experimental_mean,p.beta_experimental_std,p.gamma_mean,p.gamma_sigma,p.Tb_experimental_mean_K,p.Tb_experimental_std_K,p.nu_min_MHz,p.channel_width_MHz,Finv, generate_additional_extrapolated_HF_foreground_cube=True, fits_storage_dir=p.fits_storage_dir, HF_nu_min_MHz_array=p.HF_nu_min_MHz_array, simulation_FoV_deg=p.simulation_FoV_deg, simulation_resolution_deg=p.simulation_resolution_deg,random_seed=314211)
-
-				# p.beta_experimental_mean = 2.50
-				# p.beta_experimental_mean = 2.0				
-				# p.beta_experimental_std = 0.2
-				# p.beta_experimental_mean = 2.63			
-				# p.beta_experimental_std = 1.e-10
-
-				p.Tb_experimental_mean_K = 471.
-				# p.Tb_experimental_std_K = 30.0
-				
-				# foreground_outputs = generate_Jelic_cube_instrumental_im_2_vis_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, p.beta_experimental_mean,p.beta_experimental_std,p.gamma_mean,p.gamma_sigma,p.Tb_experimental_mean_K,p.Tb_experimental_std_K,p.nu_min_MHz,p.channel_width_MHz,Finv, generate_additional_extrapolated_HF_foreground_cube=True, fits_storage_dir=p.fits_storage_dir, HF_nu_min_MHz_array=p.HF_nu_min_MHz_array, simulation_FoV_deg=p.simulation_FoV_deg, simulation_resolution_deg=p.simulation_resolution_deg,random_seed=314211)
-				# gdsers = 4211
-				gdsers = 14211
-				gdsers = 1421
-				# gdsers = 31421
-				# gdsers = 331421
-				gdsers = 33142
 				gdsers = 314211
 				foreground_outputs = generate_Jelic_cube_instrumental_im_2_vis_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, p.beta_experimental_mean,p.beta_experimental_std,p.gamma_mean,p.gamma_sigma,p.Tb_experimental_mean_K,p.Tb_experimental_std_K,p.nu_min_MHz,p.channel_width_MHz,Finv, generate_additional_extrapolated_HF_foreground_cube=True, fits_storage_dir=p.fits_storage_dir, HF_nu_min_MHz_array=p.HF_nu_min_MHz_array, simulation_FoV_deg=p.simulation_FoV_deg, simulation_resolution_deg=p.simulation_resolution_deg,random_seed=gdsers)
 
@@ -498,8 +396,6 @@ if p.include_instrumental_effects:
 
 				plot_figure = False
 				if plot_figure:
-					# construct_aplpy_image_from_fits('/gpfs/data/jpober/psims/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/spec_model_tests/fits_storage/multi_frequency_band_pythonPStest1/Jelic_nu_min_MHz_159d0_TbStd_66d1866884116_beta_2d63_dbeta0d02//ZNPS159/','Jelic_GDSE_cube_159MHz', run_convert_from_mK_to_K=True, run_remove_unused_header_variables=True)
-
 					pylab.close('all')
 					pylab.figure(figsize=(10,10))
 					pylab.imshow(Tb_nu[0], cmap='gist_heat', extent=[-6.5*60,6.5*60,-6.5*60,6.5*60])
@@ -514,19 +410,10 @@ if p.include_instrumental_effects:
 					pylab.savefig(simulation_plots_dir+sim_name)
 					pylab.show()
 
-
-				# scale_factor = (80./163.)**-2.7
-				# scale_factor = (120./163.)**-2.7
 				scale_factor = 1.0
-				# noise_seed = 2123
 				noise_seed = 742123
 
-				# noise_seed = 42123
-
-				# noise_seed = 1742123
-				# noise_seed = 81742
 				d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(0.0, s_GDSE, nu,nv,nx,ny,nf,neta,nq,random_seed=noise_seed)[0]
-				# d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_GDSE*scale_factor, nu,nv,nx,ny,nf,neta,nq,random_seed=noise_seed)[0]
 				effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_GDSE, nu,nv,nx,ny,nf,neta,nq,random_seed=noise_seed)[1]
 
 			#--------------------------------------------
@@ -536,14 +423,12 @@ if p.include_instrumental_effects:
 			# p.use_EGS_cube = False
 			if p.use_EGS_cube:
 				print 'Using use_EGS_cube data'
-				# foreground_outputs = generate_data_from_loaded_EGS_cube_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show,p.EGS_npz_path,Finv)
 				foreground_outputs = generate_data_from_loaded_EGS_cube_im_2_vis_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show,p.EGS_npz_path,Finv)
 
 				s_EGS, abc_EGS, scidata1_EGS = foreground_outputs
 				foreground_outputs = []
 
 				d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(0.0, s_EGS, nu,nv,nx,ny,nf,neta,nq,random_seed=noise_seed)[0]
-				# d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_EGS*1., nu,nv,nx,ny,nf,neta,nq,random_seed=2123)[0]
 				effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_EGS, nu,nv,nx,ny,nf,neta,nq,random_seed=noise_seed)[1]
 
 			#--------------------------------------------
@@ -577,26 +462,10 @@ if p.include_instrumental_effects:
 				d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(0.0, s_ff, nu,nv,nx,ny,nf,neta,nq,random_seed=noise_seed)[0]
 				effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_ff, nu,nv,nx,ny,nf,neta,nq,random_seed=noise_seed)[1]
 
-
-
-
 effective_noise_std = effective_noise.std()
 
 
 
-
-
-
-# foreground_outputs = generate_Jelic_cube_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, p.beta_experimental_mean,1.e-10,p.gamma_mean,p.gamma_sigma,p.Tb_experimental_mean_K,p.Tb_experimental_std_K,p.nu_min_MHz,p.channel_width_MHz,Finv, generate_additional_extrapolated_HF_foreground_cube=True, fits_storage_dir=p.fits_storage_dir, HF_nu_min_MHz_array=p.HF_nu_min_MHz_array, simulation_FoV_deg=p.simulation_FoV_deg, simulation_resolution_deg=p.simulation_resolution_deg,random_seed=314211)
-
-# beta_experimental_mean,beta_experimental_std,gamma_mean,gamma_sigma,Tb_experimental_mean_K,Tb_experimental_std_K,nu_min_MHz,channel_width_MHz = p.beta_experimental_mean,1.e-10,p.gamma_mean,p.gamma_sigma,p.Tb_experimental_mean_K,p.Tb_experimental_std_K,p.nu_min_MHz,p.channel_width_MHz
-
-# generate_additional_extrapolated_HF_foreground_cube=True
-# fits_storage_dir=p.fits_storage_dir
-# HF_nu_min_MHz_array=p.HF_nu_min_MHz_array
-# simulation_FoV_deg=p.simulation_FoV_deg
-# simulation_resolution_deg=p.simulation_resolution_deg
-# random_seed=314211
 
 
 
@@ -651,7 +520,6 @@ if p.include_instrumental_effects:
 	block_T_Ninv_T=[]
 
 
-# multi_chan_P = BM.read_data_from_hdf5(array_save_directory+'multi_chan_P.h5', 'multi_chan_P')
 
 
 
@@ -800,73 +668,6 @@ if ML_image_model_recovery_testing:
 
 
 
-# # -----------------------------------------------
-# ###
-# # NOTE: this cross-check is not exactly in the right place in the code because it requires running sub_MLLWM (below) to derive maxL_LW_fit as well as ML_image_model_recovery_testing (above) to derive d_im first!
-# ###
-# ml_theta_vis_im = np.dot(Fprime_Fz,maxL_LW_fit)
-# np.log10((d_im-ml_theta_vis_im).std()/d_im.std())
-# np.log10((np.dot(Finv,d_im)-np.dot(Finv,ml_theta_vis_im)).std()/(np.dot(Finv,d_im).std()))
-# np.log10((np.dot(Finv,d_im)-np.dot(Finv,ml_theta_vis_im.real)).std()/(np.dot(Finv,d_im).std()))
-# np.log10((np.dot(Finv,(d_im-ml_theta_vis_im))).std()/(np.dot(Finv,d_im).std()))
-
-
-
-# base_dir = 'Plots'
-# save_dir = base_dir+'/image_vs_visibility_space_fitting/'
-# if not os.path.isdir(save_dir):
-# 		os.makedirs(save_dir)
-
-
-# pylab.close('all')
-# im_normalisation = abs(d_im).mean()
-# vis_normalisation = abs(np.dot(Finv,d_im)).mean()
-# fig, ax = pylab.subplots(nrows=6, ncols=3, figsize = (10,20))
-# ax[0,0].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),d_im.reshape(38,-1).real/im_normalisation)
-# ax[0,1].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),ml_im.reshape(38,-1).real/im_normalisation)
-# ax[0,2].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),((d_im-ml_im)).real.reshape(38,-1)/im_normalisation)
-# ax[1,0].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),np.dot(Finv,d_im).real.reshape(38,-1)/vis_normalisation)
-# ax[1,1].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),np.dot(Finv,ml_im).real.reshape(38,-1)/vis_normalisation)
-# ax[1,2].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),np.dot(Finv,(d_im-ml_im)).real.reshape(38,-1)/vis_normalisation)
-# ax[2,0].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),np.dot(Finv,d_im).imag.reshape(38,-1)/vis_normalisation)
-# ax[2,1].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),np.dot(Finv,ml_im).imag.reshape(38,-1)/vis_normalisation)
-# ax[2,2].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),np.dot(Finv,(d_im-ml_im)).imag.reshape(38,-1)/vis_normalisation)
-# ax[3,0].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),d_im.reshape(38,-1).real/im_normalisation)
-# ax[3,1].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),ml_theta_vis_im.reshape(38,-1).real/im_normalisation)
-# ax[3,2].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),((d_im-ml_theta_vis_im)).reshape(38,-1).real/im_normalisation)
-# ax[4,0].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),np.dot(Finv,d_im).real.reshape(38,-1)/vis_normalisation)
-# ax[4,1].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),np.dot(Finv,ml_theta_vis_im).real.reshape(38,-1)/vis_normalisation)
-# ax[4,2].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),np.dot(Finv,(d_im-ml_theta_vis_im)).real.reshape(38,-1)/vis_normalisation)
-# ax[5,0].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),np.dot(Finv,d_im).imag.reshape(38,-1)/vis_normalisation)
-# ax[5,1].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),np.dot(Finv,ml_theta_vis_im).imag.reshape(38,-1)/vis_normalisation)
-# ax[5,2].plot((p.nu_min_MHz+np.arange(38)*p.channel_width_MHz),np.dot(Finv,(d_im-ml_theta_vis_im)).imag.reshape(38,-1)/vis_normalisation)
-# for ax_ in ax.ravel():
-# 	ax_.set_xlabel('$\\nu$')
-# 	ax_.set_ylabel('Amplitude')
-# fig.tight_layout()
-# fig.savefig(save_dir+'spectra_and_spectral_residuals_from_image_vs_visibility_space_fitting_v1d0.png')
-# fig.show()
-
-
-
-# pylab.close('all')
-# im_normalisation = abs(d_im).mean()
-# fig, ax = pylab.subplots(nrows=2, ncols=2, figsize = (10,10))
-# a00 = ax[0,0].imshow(((d_im-ml_theta_vis_im)).reshape(38,-1).T.real/im_normalisation)
-# fig.colorbar(a00, ax=ax[0,0])
-# a01 = ax[0,1].imshow(((d_im-ml_theta_vis_im)).reshape(38,-1)[0].reshape(9,9).real/im_normalisation)
-# fig.colorbar(a01, ax=ax[0,1])
-# a10 = ax[1,0].imshow(((d_im-ml_im)).reshape(38,-1).T.real/im_normalisation)
-# fig.colorbar(a10, ax=ax[1,0])
-# a11 = ax[1,1].imshow(((d_im-ml_im)).reshape(38,-1)[0].reshape(9,9).real/im_normalisation)
-# fig.colorbar(a11, ax=ax[1,1])
-# fig.tight_layout()
-# fig.savefig(save_dir+'image_residuals_from_image_vs_visibility_space_fitting_v1d0.png')
-# fig.show()
-# # -----------------------------------------------
-
-
-
 
 
 # run_nudft_test=True
@@ -925,7 +726,6 @@ if run_nudft_test:
 		return ExponentArray
 
 
-
 	use_HERA_uv_coverage = True
 	# use_HERA_uv_coverage = False
 	if use_HERA_uv_coverage:
@@ -939,7 +739,6 @@ if run_nudft_test:
 		for uv in uv_array['uvw_array'][:,:2]:                                 
 		    if not (uv in uv_array['uvw_array'][:,:2] and -uv in uv_array['uvw_array'][:,:2]):
 		    	print 'ERROR, uv_array is not Hermitian'
-
 
 	else:
 		i_x_AV, i_y_AV, i_u_AV, i_v_AV = Produce_Coordinate_Arrays_ZM(nu, nv, nx, ny)
@@ -957,12 +756,7 @@ if run_nudft_test:
 	pylab.scatter(i_u_AV, i_v_AV)
 	pylab.show()
 
-
 	dft_array = np.exp(-2.0*np.pi*1j*( (i_x_AV*i_u_AV/float(nx)) +  (i_v_AV*i_y_AV/float(ny)) ))
-
-
-
-
 
 	# dft_array = BM.read_data_from_hdf5(array_save_directory+'dft_array.h5', 'dft_array')
 	Finv = block_diag(*[dft_array.T for i in range(p.nf)])
@@ -975,14 +769,11 @@ if run_nudft_test:
 	Ninv_T = np.dot(Ninv,T)
 	T_Ninv_T = np.dot(T.conjugate().T,Ninv_T)
 
-
-
 	pylab.close('all')
 	pylab.figure()
 	pylab.imshow((dft_array.real))
 	pylab.colorbar()
 	pylab.show()
-
 
 	pylab.close('all')
 	pylab.figure()
@@ -990,13 +781,11 @@ if run_nudft_test:
 	pylab.colorbar()
 	pylab.show()
 
-
 	pylab.close('all')
 	pylab.figure()
 	pylab.imshow(np.log10(abs(T)))
 	pylab.colorbar()
 	pylab.show()
-
 
 	theta_test = np.zeros(T.shape[1])
 	# theta_test[38*0+17] = 1.0
@@ -1010,7 +799,6 @@ if run_nudft_test:
 	pylab.colorbar()
 	pylab.show()
 
-
 	pylab.figure()
 	pylab.errorbar(arange(38), m_test.reshape(38,-1)[:,0].real)
 	pylab.errorbar(arange(38), m_test.reshape(38,-1)[:,0].imag)
@@ -1020,12 +808,10 @@ if run_nudft_test:
 	pylab.errorbar(arange(38), abs(m_test.reshape(38,-1)[:,0]))
 	pylab.show()
 
-
 	Sigma = T_Ninv_T.copy()
 	Sigma[np.diag_indices(len(T_Ninv_T))] += 1.e-10
 	Sigma_inv = np.linalg.inv(Sigma)
 	a = np.dot(Sigma_inv, Sigma)
-
 
 	pylab.figure()
 	pylab.imshow(abs(a))
@@ -1091,44 +877,9 @@ if run_nudft_test:
 
 
 
-# Fz = BM.read_data_from_hdf5(array_save_directory+'Fz.h5', 'Fz')
-
-# import pylab
-# pylab.imshow(np.log10(abs(Fz)))
-# pylab.colorbar()
-# pylab.show()
-
-# import pylab
-# pylab.figure()
-# pylab.errorbar(arange(len(Fz[:,0][::8])), Fz[:,30][0::8].real)
-# pylab.figure()
-# pylab.errorbar(arange(len(Fz[:,0][::8])), Fz[:,30][0::8].imag)
-# pylab.show()
-
-# dt1 = np.dot(Fz,np.ones(len(Fz)))
-# pylab.figure()
-# pylab.errorbar(arange(len(dt1)), dt1.real)
-# pylab.figure()
-# pylab.errorbar(arange(len(dt1)), dt1.imag)
-# pylab.show()
-
-# Fz_Ninv_Fz = np.dot(Fz.conjugate().T, np.dot(Ninv, Fz))
-# Fz_Ninv_d  = np.dot(Fz.conjugate().T, np.dot(Ninv, dt1))
-# print np.dot(np.linalg.inv(Fz_Ninv_Fz), Fz_Ninv_d)
 
 
 
-
-
-
-
-
-
-
-# if nq==0:
-# 	masked_power_spectral_modes = np.logical_not(np.logical_or.reduce(bin_selector_in_model_mask_vis_ordered).reshape(-1,neta)).flatten()
-# else:
-# 	masked_power_spectral_modes = LW_modes_only_boolean_array_vis_ordered
 from numpy import real
 
 #--------------------------------------------
@@ -1140,7 +891,6 @@ self = PowerSpectrumPosteriorProbability(T_Ninv_T, dbar, Sigma_Diag_Indices, Npa
 start = time.time()
 
 if small_cube:
-	# print PSPP.posterior_probability([1.e0]*nDims, diagonal_sigma=False)[0]
 	print PSPP_block_diag.posterior_probability([1.e0]*nDims, diagonal_sigma=False, block_T_Ninv_T=block_T_Ninv_T)[0]
 
 
@@ -1205,33 +955,14 @@ if sub_MLLWM:
 			if p.use_LWM_Gaussian_prior:
 				fit_constraints = [1.e9,1.e9,1.e9]+[1.e-20]*(nDims-3)
 			else:
-				# PSPP_block_diag.inverse_LW_power = 8.e-21 #2000
-				# PSPP_block_diag.inverse_LW_power = 2e-21 #4000
-				# PSPP_block_diag.inverse_LW_power = 2e-18
 				PSPP_block_diag.inverse_LW_power = p.inverse_LW_power
-				# PSPP_block_diag.inverse_LW_power = 8e-18
-				# PSPP_block_diag.inverse_LW_power = 8e-19
-				# PSPP_block_diag.inverse_LW_power = 8e-20
-				# if p.beta==[-1.0,-2.0]:
-				# 	# PSPP_block_diag.inverse_LW_power = 2.e-21 #2000 (rather than 2e-18; quadratic can invert when closer to uniform while remaining stable)
-				# 	PSPP_block_diag.inverse_LW_power = 2e-20 #2000 (rather than 2e-18; quadratic can invert when closer to uniform while remaining stable)
 				print 'PSPP_block_diag.inverse_LW_power:', PSPP_block_diag.inverse_LW_power
-				#
-				# PSPP_block_diag.inverse_LW_power = 0.0
-				# PSPP_block_diag.inverse_LW_power_zeroth_LW_term = 2e-20
-				# PSPP_block_diag.inverse_LW_power_first_LW_term = 2e-20
-				# PSPP_block_diag.inverse_LW_power_second_LW_term = 2.e20
-				# if count==count_max:
-				# 	print 'count_max param update'
-				# 	PSPP_block_diag.inverse_LW_power = 2e-21 #4000
+
 
 				# fit_constraints = [1.e-100]*(nDims)
 				# fit_constraints = [1.e-20]*(nDims)
-
 				fit_constraints = [1.e2]*(nDims)
-
 				# fit_constraints = [1.e-1]*(nDims)
-
 
 			maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper(fit_constraints, T_Ninv_T, dbar_prime_i, block_T_Ninv_T=block_T_Ninv_T)[0]
 			# maxL_LW_signal = np.dot(T,maxL_LW_fit)
@@ -1256,19 +987,16 @@ if sub_MLLWM:
 
 			Q_T.imag=0.0
 			Q_T_Ninv_Q_T = np.dot(Q_T.conjugate().T, np.dot(Ninv, Q_T))
-			# Q_T_Ninv_Q_T[np.diag_indices(Q_T_Ninv_Q_T.shape[0])] += 8.e-20
-			# Q_T_Ninv_Q_T[np.diag_indices(Q_T_Ninv_Q_T.shape[0])] += 4.e-20
 			# Q_T_Ninv_Q_T[np.diag_indices(Q_T_Ninv_Q_T.shape[0])] += 2.e-20
 			Ninv_d = np.dot(Ninv,d)
 			Qdbar = np.dot(Q_T.conjugate().T,Ninv_d)
 			maxL_LW_fit2 = np.linalg.solve(Q_T_Ninv_Q_T, Qdbar)
-			# print 'Iterative foreground pre-subtraction complete, {} orders of magnitude foreground supression achieved.\n'.format(np.log10((d-effective_noise).std()/(d-np.dot(T, maxL_LW_fit)-effective_noise).std()))
 			print 'Iterative foreground pre-subtraction complete, {} orders of magnitude foreground supression achieved.\n'.format(np.log10((d-effective_noise).std()/(d-np.dot(Q_T, maxL_LW_fit)-effective_noise).std()))
 			print 'Iterative foreground pre-subtraction2 complete, {} orders of magnitude foreground supression achieved.\n'.format(np.log10((d-effective_noise).std()/(d-np.dot(Q_T, maxL_LW_fit2)-effective_noise).std()))
 			maxL_LW_signal2 = np.dot(Q_T, maxL_LW_fit2)
 
-			# use_joint_fit_foreground_model = True #Set to True for power law analyses
-			use_joint_fit_foreground_model = False #Set to True for power law analyses
+			use_joint_fit_foreground_model = True #Set to True for power law analyses
+			# use_joint_fit_foreground_model = False #Set to True for power law analyses
 			if not use_joint_fit_foreground_model:
 				print 'Using independent foreground fitting for foreground prior'
 				maxL_LW_fit = maxL_LW_fit2
@@ -1276,22 +1004,14 @@ if sub_MLLWM:
 			else:
 				print 'Using foreground component of joint foreground + Fourier mode fitting for foreground prior'
 
-
 			maxL_LW_signal = np.dot(Q_T,maxL_LW_fit)
-
 			maxL_LW_fit_array.append(maxL_LW_fit)
 			maxL_LW_signal_array.append(maxL_LW_signal)
-
-			# maxL_LW_fit_array.append(maxL_LW_fit2)
-			# maxL_LW_signal_array.append(maxL_LW_signal2)
-
 			print count, (d_prime_i - maxL_LW_signal).std(), '\n'
-
 			d_prime_i = (d_prime_i - maxL_LW_signal)
 			Ninv_d_prime_i = np.dot(Ninv,d_prime_i)
 			dbar_prime_i = np.dot(T.conjugate().T,Ninv_d_prime_i)
 			count+=1
-
 
 		maxL_LW_fit_array = np.array(maxL_LW_fit_array)
 		maxL_LW_signal_array = np.array(maxL_LW_signal_array)
@@ -1334,284 +1054,6 @@ if sub_MLLWM:
 
 
 
-
-
-# Q_T.imag=0.0
-# Q_T_Ninv_Q_T = np.dot(Q_T.conjugate().T, np.dot(Ninv, Q_T))
-# Ninv_d = np.dot(Ninv,d)
-# Qdbar = np.dot(Q_T.conjugate().T,Ninv_d)
-# maxL_LW_fit2 = np.linalg.solve(Q_T_Ninv_Q_T, Qdbar)
-
-
-# # maxL_LW_fit3 = np.linalg.solve(map(np.complex256, Q_T_Ninv_Q_T), map(np.complex256, Qdbar))
-
-# a = np.dot(Qdbar.conjugate().reshape(1,-1), maxL_LW_fit2)
-# print a
-# np.linalg.slogdet(Q_T_Ninv_Q_T)
-
-
-
-
-# # # Let A be the matrix we're trying to invert, and X be our estimate of the inverse. An iteration of Newton's method simply consists of:
-# # # X = X*(2I - AX)
-
-# # # X1 = np.linalg.pinv(Q_T_Ninv_Q_T, rcond=1.e-16)
-# # # X1c256 = X1.astype(np.complex256)
-# # # Ic256 = np.identity(X1.shape[0]).astype(np.complex256)
-
-# # # t1 = np.dot(X1c256, Q_T_Ninv_Q_T.astype(np.complex256))
-
-# # # X2c256 = np.dot(X1c256, (2*Ic256 - np.dot(Q_T_Ninv_Q_T.astype(np.complex256), X1c256)))
-# # # t2 = np.dot(X2c256, Q_T_Ninv_Q_T.astype(np.complex256))
-
-# # # X2c256 = 2*X1c256 -  np.dot(X1c256.conjugate(), np.dot(Q_T_Ninv_Q_T.astype(np.complex256), X1c256))
-# # # t2 = np.dot(X2c256, Q_T_Ninv_Q_T.astype(np.complex256))
-
-# # # X3c256 = 2*X2c256 -  np.dot(X2c256.conjugate(), np.dot(Q_T_Ninv_Q_T.astype(np.complex256), X2c256))
-# # # t3 = np.dot(X3c256, Q_T_Ninv_Q_T.astype(np.complex256))
-
-
-
-
-
-
-# # # A generalization of Newton's method as used for a multiplicative inverse algorithm may be convenient, if it is convenient to find a suitable starting seed:
-
-# # #  X_{k+1}=2X_{k}-X_{k}AX_{k}.} X_{k+1}=2X_{k}-X_{k}AX_{k}.
-
-# # import mpmath
-# # import mpmath as mp
-# # mp.dps = 50
-
-
-# from mpmath import mp
-# mp.dps = 50
-# print(mp.quad(lambda x: mp.exp(-x**2), [-mp.inf, mp.inf]) ** 2)
-
-# import time
-# start = time.time()
-# # mpmath_Q_T_Ninv_Q_T = mpmath.matrix(Q_T_Ninv_Q_T)
-
-# Q_T_tc = (mp.matrix(Q_T).T).conjugate()
-
-
-# start = time.time()
-# mpmath_Q_T_Ninv_Q_T = Q_T_tc*mp.matrix(Ninv)*mp.matrix(Q_T)
-# print 'hi0'
-# print time.time()-start
-# # a = mpmath.inverse(mpmath.matrix(Q_T_Ninv_Q_T))
-# a = mp.inverse(mpmath_Q_T_Ninv_Q_T)
-# print 'hi1'
-# print time.time()-start
-# a2 = a*mp.matrix(Qdbar)
-# print 'hi2'
-# print time.time()-start
-# a3 = mp.matrix(Qdbar.conjugate().reshape(1,-1))*a2
-# print 'hi3'
-# print time.time()-start
-# a4 = a * mp.matrix(Q_T_Ninv_Q_T)
-# print 'hi4'
-# print time.time()-start
-
-# a5 = np.array(a.tolist(), dtype=np.complex256)
-# a6 = np.array(a4.tolist(), dtype=np.complex128)
-
-
-# # maxL_LW_fit3 = mpmath.qr_solve(mpmath.matrix(Q_T_Ninv_Q_T), mpmath.matrix(Qdbar))
-# # Q_T_Ninv_Q_T_inv = np.linalg.inv(Q_T_Ninv_Q_T)
-# # np.dot(Qdbar.conjugate().reshape(1,-1), np.dot(Q_T_Ninv_Q_T_inv, Qdbar))
-
-
-
-
-
-# # The 'gauss' function takes two matrices, 'a' and 'b', with 'a' square, and it return the determinant of 'a' and a matrix 'x' such that a*x = b.
-# # If 'b' is the identity, then 'x' is the inverse of 'a'.
- 
-# import copy
-# from fractions import Fraction
- 
-# def gauss(a, b):
-#     a = copy.deepcopy(a)
-#     b = copy.deepcopy(b)
-#     n = len(a)
-#     p = len(b[0])
-#     det = 1
-#     for i in range(n - 1):
-#         k = i
-#         for j in range(i + 1, n):
-#             if abs(a[j][i]) > abs(a[k][i]):
-#                 k = j
-#         if k != i:
-#             a[i], a[k] = a[k], a[i]
-#             b[i], b[k] = b[k], b[i]
-#             det = -det
- 
-#         for j in range(i + 1, n):
-#             t = a[j][i]/a[i][i]
-#             # print 'i, j, t, a[i][i]', i, j, t, a[i][i]
-#             for k in range(i + 1, n):
-#                 a[j][k] -= t*a[i][k]
-#             for k in range(p):
-#                 b[j][k] -= t*b[i][k]
- 
-#     for i in range(n - 1, -1, -1):
-#         for j in range(i + 1, n):
-#             t = a[i][j]
-#             for k in range(p):
-#                 b[i][k] -= t*b[j][k]
-#         t = 1/a[i][i]
-#         print 'i, j, t, a[i][i]', i, j, t, a[i][i]
-#         det *= a[i][i]
-#         for j in range(p):
-#             b[i][j] *= t
-#     return det, b
-
-
-# def gauss(A):
-#     m = len(A)
-#     assert all([len(row) == m + 1 for row in A[1:]]), "Matrix rows have non-uniform length"
-#     n = m + 1
-    
-#     for k in range(m):
-#         pivots = [abs(A[i][k]) for i in range(k, m)]
-#         i_max = pivots.index(max(pivots)) + k
-        
-#         # Check for singular matrix
-#         assert A[i_max][k] != 0, "Matrix is singular!"
-        
-#         # Swap rows
-#         A[k], A[i_max] = A[i_max], A[k]
-
-        
-#         for i in range(k + 1, m):
-#             f = A[i][k] / A[k][k]
-#             for j in range(k + 1, n):
-#                 A[i][j] -= A[k][j] * f
-
-#             # Fill lower triangular matrix with zeros:
-#             A[i][k] = 0
-    
-#     # Solve equation Ax=b for an upper triangular matrix A         
-#     x = []
-#     for i in range(m - 1, -1, -1):
-#         x.insert(0, A[i][m] / A[i][i])
-#         for k in range(i - 1, -1, -1):
-#             A[k][m] -= A[k][i] * x[0]
-#     return x
-
-# a = [[2, 9, 4], [7, 5, 3], [6, 1, 8]]
-# # a = np.array([[2, 9, 4], [7, 5, 3], [6, 1, 8]])
-# b=np.identity(a.shape[0])
-
-# det, c = gauss(a, b)
-
-
-
-
-
-
-# Iterative foreground pre-subtraction complete, 5.84397064726 orders of magnitude foreground supression achieved.
-
-
-
-
-# ## -- End pasted text --
-# (d - s_GDSE).std() 10072.322461606145
-# PSPP_block_diag.inverse_LW_power: 2e-18
-# Time taken: 0.000308990478516
-# Not using block-diagonal inversion
-# Time taken: 0.0292520523071
-# Computing matrix inversion on GPU
-# Time taken: 0.266988039017
-# Time taken: 0.267060041428
-# Time taken: 0.267066001892
-# 0 10037.258836280089 
-
-
-# GDSE beta = 5.0
-# effective_noise_std 10072.322461606145
-# PSPP_block_diag.inverse_LW_power: 2e-18
-# Time taken: 0.000300884246826
-# Not using block-diagonal inversion
-# Time taken: 0.0287418365479
-# Computing matrix inversion on GPU
-# Time taken: 0.264206171036
-# Time taken: 0.264281988144
-# Time taken: 0.26428604126
-# 0 17021.51620335814 
-
-
-
-
-# (d - s_GDSE).std() 20144.64492321229
-# Time taken: 0.000301122665405
-# Not using block-diagonal inversion
-# Time taken: 0.0283000469208
-# Computing matrix inversion on GPU
-# Time taken: 0.945247173309
-# Time taken: 0.945322036743
-# Time taken: 0.945326089859
-# 0 20350.84110094137 
-
-# Iterative foreground pre-subtraction complete, 5.12186789617 orders of magnitude foreground supression achieved.
-
-
-
-# (d - s_GDSE).std() 19865.718185815946
-# Time taken: 0.000311136245728
-# Not using block-diagonal inversion
-# Time taken: 0.0275411605835
-# Computing matrix inversion on GPU
-# Time taken: 0.258544921875
-# Time taken: 0.258619070053
-# Time taken: 0.258624076843
-# 0 19854.0123990672 
-
-# Iterative foreground pre-subtraction complete, 5.26077758364 orders of magnitude foreground supression achieved.
-
-
-
-
-# 1000
-# (d - s_GDSE).std() 4966.429546453986
-# (d - maxL_LW_signal).std() 6642.418030791331
-
-# 2000
-# (d - s_GDSE).std() 9932.859092907973
-# (d - maxL_LW_signal).std() 10846.824488337359
-
-
-# ## -- End pasted text --
-# (d - s_GDSE).std() 9932.859092907973
-# Time taken: 0.000277996063232
-# Not using block-diagonal inversion
-# Time taken: 0.0272989273071
-# Computing matrix inversion on GPU
-# Time taken: 0.919137954712
-# Time taken: 0.91920876503
-# Time taken: 0.91921377182
-# 0 10104.119167898963 
-
-# Time taken: 0.000277042388916
-# Not using block-diagonal inversion
-# Time taken: 0.0271320343018
-# Computing matrix inversion on GPU
-# Time taken: 0.258898019791
-# Time taken: 0.258964061737
-# Time taken: 0.258969068527
-# 1 9914.28746034233 
-
-# Time taken: 0.000273942947388
-# Not using block-diagonal inversion
-# Time taken: 0.0270881652832
-# Computing matrix inversion on GPU
-# Time taken: 0.257788896561
-# Time taken: 0.257858991623
-# Time taken: 0.25786280632
-# 2 9887.571602434584 
-
-# Iterative foreground pre-subtraction complete, 7.14794295526 orders of magnitude foreground supression achieved.
 
 
 
@@ -1739,12 +1181,7 @@ if No_large_spectral_scale_model_fit:
 # Sample from the posterior
 #--------------------------------------------###
 # PolyChord setup
-# log_priors_min_max = [[-5.0, 4.0] for _ in range(nDims)]
 log_priors_min_max = [[-5.0, 3.0] for _ in range(nDims)]
-# log_priors_min_max = [[-5.0, -5.01] for _ in range(nDims)]
-
-
-
 # #Fundamental harmonic is highly correlated with the LWM so don't fit for it.
 # log_priors_min_max[0] = [-20.0, -20.0] 
 
@@ -1783,10 +1220,8 @@ if p.use_intrinsic_noise_fitting:
 if p.use_LWM_Gaussian_prior:
 	nDims = nDims+3
 
-# base_dir = 'chains/'
-# outputfiles_base_dir = 'chains/'
+
 outputfiles_base_dir = 'chains/'
-# outputfiles_base_dir = 'chains/nu5nv5/'
 base_dir = outputfiles_base_dir+'clusters/'
 if not os.path.isdir(base_dir):
 		os.makedirs(base_dir)
@@ -1819,17 +1254,7 @@ if p.use_EoR_cube:
 	file_root=file_root.replace('Test', 'EoR')
 if use_MultiNest:
 	file_root='MN-'+file_root
-# if npl==1:
-# 	file_root=file_root.replace('-v1', '-beta_{:.2E}-v1'.format(p.beta))
-# if npl==2:
-# 	file_root=file_root.replace('-v1', '_b1_{:.2F}_b2_{:.2F}-v1'.format(p.beta[0], p.beta[1]))
 
-# if mpi_rank == 0:
-#     file_root = generate_output_file_base(file_root, version_number='1')
-# else:
-#     file_root = ''
-
-# file_root = mpi_comm.bcast(file_root, root=0)
 file_root = generate_output_file_base(file_root, version_number='1')
 
 print 'Rank', mpi_rank
@@ -1849,7 +1274,6 @@ if p.use_intrinsic_noise_fitting and (sub_MLLWM or sub_ML_monopole_term_model or
 	PSPP_block_diag_Polychord.d_Ninv_d = q_sub_d_Ninv_q_sub_d
 
 
-# run_limit_foreground_modes_test = True
 run_limit_foreground_modes_test = False
 if run_limit_foreground_modes_test:
 	PSPP_block_diag_Polychord.inverse_LW_power=0.0
@@ -1858,13 +1282,6 @@ if run_limit_foreground_modes_test:
 	PSPP_block_diag_Polychord.inverse_LW_power_second_LW_term=2.e20  
 
 
-# a=[ 0.76864195, -3.56754428,  3.59115839, -0.67613316, -0.8910768,  -4.0383755, 3.69170207,  1.42023581, -3.53892028,  0.87552208]
-
-# PSPP_block_diag_Polychord.inverse_LW_power=1.e5
-
-a = np.loadtxt('chains/Stats/MN-EoR-9_9_38_2_2_s_3d4E+05-lp_T-dPS_T_b1_2.63_b2_2.82-v1-_posterior_weighted_means_and_standard_deviations.dat')
-a2 = np.loadtxt('chains/Stats/MN-EoR-9_9_38_2_2_s_3d4E+05-lp_T-dPS_T_b1_2.63_b2_2.82-v2-_posterior_weighted_means_and_standard_deviations.dat')
-a = np.loadtxt('chains/Stats/MN-EoR-9_9_38_2_2_s_6d8E+05-lp_T-dPS_T_b1_2.63_b2_2.82-v1-_posterior_weighted_means_and_standard_deviations.dat')
 
 start = time.time()
 PSPP_block_diag_Polychord.Print=False
@@ -1914,34 +1331,6 @@ else:
 
 
 
-
-
-
-# PSPP_block_diag_Polychord.posterior_probability([7.9631231807,5.0394200835,5.0425874228,2.2689673560,0.7791988092,0.6723172688,0.6606033702,0.5711088827,0.6731069466,0.7407744581])[0]
-
-# PSPP_block_diag_Polychord.posterior_probability([-3.5518589975,-4.8220236256,-4.8143529400,1.61553428663,0.44234689688,0.52510363652,0.56171184685,0.60297168230,0.65063673640,0.73457133339])[0]
-
-# PSPP_block_diag_Polychord.posterior_probability([7.9631231807,5.0394200835,5.0425874228,1.61553428663,0.44234689688,0.52510363652,0.56171184685,0.60297168230,0.65063673640,0.73457133339])[0]
-
-
-# PSPP_block_diag_Polychord.Print_debug = True
-# PSPP_block_diag_Polychord.posterior_probability([1.0]+[1.e0]*(nDims-1))[0]
-
-
-# ps = [-10.e0]*(nDims-1)
-# PSPP_block_diag_Polychord.posterior_probability([1.0]+ps)[0]
-
-# PSPP_block_diag.dimensionless_PS = True
-# maxL_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper(10.**np.array(ps), T_Ninv_T, dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
-# maxL_signal = np.dot(T,maxL_fit)
-
-# L_1 = np.dot((d-maxL_signal).conjugate(),np.dot(Ninv, (d-maxL_signal)))
-# Psi = np.diag(PSPP_block_diag.calc_PowerI(10.**np.array(ps)))
-# L_2 = np.dot(maxL_fit.conjugate(), np.dot(Psi, maxL_fit))
-
-# print L_1 + L_2
-
-# print np.dot(d.conjugate(),np.dot(Ninv,d))
 
 
 
