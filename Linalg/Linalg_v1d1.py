@@ -111,9 +111,12 @@ def Produce_Full_Coordinate_Arrays(nu, nv, nx, ny):
 
 
 ###
-def Produce_Coordinate_Arrays_ZM(nu, nv, nx, ny):
-	#U_oversampling_Factor=nu/float(nx) #Keeps uv-plane size constant and oversampled rather than DFTing to a larger uv-plane
-	#V_oversampling_Factor=nv/float(ny) #Keeps uv-plane size constant and oversampled rather than DFTing to a larger uv-plane
+def Produce_Coordinate_Arrays_ZM(nu, nv, nx, ny, **kwargs):
+	##===== Defaults =======
+	default_exclude_mean = True
+
+	##===== Inputs =======
+	exclude_mean=kwargs.pop('exclude_mean',default_exclude_mean)
 	#
 	i_y_Vector=(np.arange(ny)-ny/2)
 	#i_y_Vector=numpy.fft.fftshift(arange(ny)) #This puts the centre of x,y grid: 0,0 at the centre of the vector rather than the start
@@ -135,7 +138,8 @@ def Produce_Coordinate_Arrays_ZM(nu, nv, nx, ny):
 	i_v_Array=np.tile(i_v_Vector,nv)
 	i_v_Array_Vectorised=i_v_Array.reshape(1,nu*nv)
 	i_v_AV=i_v_Array_Vectorised
-	i_v_AV=numpy.delete(i_v_AV,[i_v_AV.size/2]) #Remove the centre uv-pix
+	if exclude_mean:
+		i_v_AV=numpy.delete(i_v_AV,[i_v_AV.size/2]) #Remove the centre uv-pix
 	#
 	i_u_Vector=(np.arange(nv)-nv/2)
 	#i_u_Vector=numpy.fft.fftshift(arange(nv)) #This puts the centre of u,v grid: 0,0 at the centre of the vector rather than the start
@@ -143,7 +147,8 @@ def Produce_Coordinate_Arrays_ZM(nu, nv, nx, ny):
 	i_u_Array=np.tile(i_u_Vector,nu)
 	i_u_Array_Vectorised=i_u_Array.reshape(1,nv*nu)
 	i_u_AV=i_u_Array_Vectorised
-	i_u_AV=numpy.delete(i_u_AV,[i_u_AV.size/2]) #Remove the centre uv-pix
+	if exclude_mean:
+		i_u_AV=numpy.delete(i_u_AV,[i_u_AV.size/2]) #Remove the centre uv-pix
 	#
 	#
 	#ExponentArray=np.exp(-2.0*np.pi*1j*( (i_x_AV*i_u_AV/float(nx)) +  (i_v_AV*i_y_AV/float(ny)) ))
@@ -543,9 +548,10 @@ def IDFT_Array_IDFT_2D(nu, nv, nx, ny, X_oversampling_Factor=1.0, Y_oversampling
 ###
 def DFT_Array_DFT_2D_ZM(nu, nv, nx, ny, X_oversampling_Factor=1.0, Y_oversampling_Factor=1.0, U_oversampling_Factor=1.0, V_oversampling_Factor=1.0):
 	#
-	# exclude_mean = True
-	# if p.fit_for_intrinsic_mean_temp: exclude_mean = False
-	i_x_AV, i_y_AV, i_u_AV, i_v_AV = Produce_Coordinate_Arrays_ZM(nu, nv, nx, ny)
+	exclude_mean = True
+	if p.fit_for_monopole:
+		exclude_mean = False
+	i_x_AV, i_y_AV, i_u_AV, i_v_AV = Produce_Coordinate_Arrays_ZM(nu, nv, nx, ny, exclude_mean = exclude_mean)
 	#
 	if U_oversampling_Factor!=1.0:
 		i_x_AV, i_y_AV, i_u_AV, i_v_AV = Calc_Coords_Large_Im_to_High_Res_uv(i_x_AV, i_y_AV, i_u_AV, i_v_AV, U_oversampling_Factor, V_oversampling_Factor)
@@ -562,7 +568,10 @@ def DFT_Array_DFT_2D_ZM(nu, nv, nx, ny, X_oversampling_Factor=1.0, Y_oversamplin
 ###
 def IDFT_Array_IDFT_2D_ZM(nu, nv, nx, ny, X_oversampling_Factor=1.0, Y_oversampling_Factor=1.0, U_oversampling_Factor=1.0, V_oversampling_Factor=1.0):
 	#
-	i_x_AV, i_y_AV, i_u_AV, i_v_AV = Produce_Coordinate_Arrays_ZM(nu, nv, nx, ny)
+	exclude_mean = True
+	if p.fit_for_monopole:
+		exclude_mean = False
+	i_x_AV, i_y_AV, i_u_AV, i_v_AV = Produce_Coordinate_Arrays_ZM(nu, nv, nx, ny, exclude_mean = exclude_mean)
 	#
 	if U_oversampling_Factor!=1.0:
 		i_x_AV, i_y_AV, i_u_AV, i_v_AV = Calc_Coords_Large_Im_to_High_Res_uv(i_x_AV, i_y_AV, i_u_AV, i_v_AV, U_oversampling_Factor, V_oversampling_Factor)
@@ -895,7 +904,7 @@ def IDFT_Array_IDFT_1D_WQ(nf, neta, nq, **kwargs):
 	
 	##===== Inputs =======
 	npl=kwargs.pop('npl',default_npl)
-	nu_min_MHz=kwargs.pop('nu_min_MHz)',default_nu_min_MHz)
+	nu_min_MHz=kwargs.pop('nu_min_MHz',default_nu_min_MHz)
 	channel_width_MHz=kwargs.pop('channel_width_MHz',default_channel_width_MHz)
 	beta=kwargs.pop('beta',default_beta)
 	
@@ -967,6 +976,15 @@ def calc_vis_selection_numbers(nu,nv):
 	grab_order_for_visibility_spectrum_ordered_to_chan_ordered_reordering = visibility_spectrum_order.argsort()
 	return grab_order_for_visibility_spectrum_ordered_to_chan_ordered_reordering
 
+def calc_vis_selection_numbers_v2d0(nu,nv):
+	required_chan_order = arange(nu*nv).reshape(nu,nv)
+	visibility_spectrum_order = required_chan_order.T
+	r = ((np.arange(nu)-nu/2).reshape(-1,1)**2. + (np.arange(nv)-nv/2).reshape(1,-1)**2.)**0.5
+	non_excluded_values_mask = r>=0.0 #No values should be masked if the mean is included
+	visibility_spectrum_order_ZM = visibility_spectrum_order[non_excluded_values_mask]
+	grab_order_for_visibility_spectrum_ordered_to_chan_ordered_reordering_ZM = visibility_spectrum_order_ZM.argsort()
+	return grab_order_for_visibility_spectrum_ordered_to_chan_ordered_reordering_ZM
+
 def calc_vis_selection_numbers_ZM(nu,nv):
 	required_chan_order = arange(nu*nv).reshape(nu,nv)
 	visibility_spectrum_order = required_chan_order.T
@@ -989,7 +1007,10 @@ def calc_vis_selection_numbers_SH(nu,nv, U_oversampling_Factor=1.0, V_oversampli
 
 
 def generate_gridding_matrix_vis_ordered_to_chan_ordered(nu,nv,nf):
-	vis_grab_order = calc_vis_selection_numbers_ZM(nu,nv)
+	if p.fit_for_monopole:
+		vis_grab_order = calc_vis_selection_numbers_v2d0(nu,nv)
+	else:
+		vis_grab_order = calc_vis_selection_numbers_ZM(nu,nv)
 	vals_per_chan = vis_grab_order.size
 
 	gridding_matrix_vis_ordered_to_chan_ordered = np.zeros([vals_per_chan*(nf), vals_per_chan*(nf)])
@@ -1005,7 +1026,10 @@ def generate_gridding_matrix_vis_ordered_to_chan_ordered(nu,nv,nf):
 
 
 def generate_gridding_matrix_vis_ordered_to_chan_ordered_ZM(nu,nv,nf):
-	vis_grab_order = calc_vis_selection_numbers_ZM(nu,nv)
+	if p.fit_for_monopole:
+		vis_grab_order = calc_vis_selection_numbers_v2d0(nu,nv)
+	else:
+		vis_grab_order = calc_vis_selection_numbers_ZM(nu,nv)
 	vals_per_chan = vis_grab_order.size
 
 	gridding_matrix_vis_ordered_to_chan_ordered = np.zeros([vals_per_chan*(nf-1), vals_per_chan*(nf-1)])
@@ -1024,7 +1048,10 @@ def generate_gridding_matrix_vis_ordered_to_chan_ordered_WQ(nu,nv,nf):
 	"""
 	Re-order matrix from vis-ordered to chan-ordered and place Fourier modes at the top and quadratic modes at the bottom.
 	"""
-	vis_grab_order = calc_vis_selection_numbers_ZM(nu,nv)
+	if p.fit_for_monopole:
+		vis_grab_order = calc_vis_selection_numbers_v2d0(nu,nv)
+	else:
+		vis_grab_order = calc_vis_selection_numbers_ZM(nu,nv)
 	vals_per_chan = vis_grab_order.size
 	Fourier_vals_per_chan = vis_grab_order.size
 	quadratic_vals_per_chan = 2

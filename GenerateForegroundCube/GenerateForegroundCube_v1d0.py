@@ -492,7 +492,7 @@ def generate_Jelic_cube_instrumental_im_2_vis_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k
 	output_fits_path2 = fits_storage_dir+'/ZNPS{:d}/'.format(int(nu_min_MHz))+output_fits_file_name
 	print output_fits_path1, '\n'+ output_fits_path2
 	write_to_file = True
-	write_to_file = False
+	# write_to_file = False
 	WD2F = WriteDataToFits()
 	if write_to_file:
 		WD2F.write_data(Data_Jy_per_Pixel, output_fits_path1, Box_Side_cMpc=cube_side_Mpc, simulation_redshift=redshift)
@@ -558,15 +558,18 @@ def generate_Jelic_cube_instrumental_im_2_vis_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k
 
 	# s = np.dot(Finv,scidata1_subset.reshape(-1,1)).flatten()
 
-	###
-	# Remove channel means for interferometric image (not required for a gridded model but necessary when using a large FWHM PB model or small model FoV due to the non-closing nudft (i.e. for fringes with a non-integer number of wavelengths across the model image))
-	###
-	d_im = scidata1_subset.copy()
-	for i_chan in range(len(d_im)):
-		d_im[i_chan] = d_im[i_chan]-d_im[i_chan].mean()
-	# s2 = np.dot(Finv,d_im.reshape(-1,1)).flatten()
-	s = np.dot(Finv,d_im.reshape(-1,1)).flatten()
-
+	if not p.fit_for_monopole:
+		###
+		# Remove channel means for interferometric image (not required for a gridded model but necessary when using a large FWHM PB model or small model FoV due to the non-closing nudft (i.e. for fringes with a non-integer number of wavelengths across the model image))
+		###
+		d_im = scidata1_subset.copy()
+		for i_chan in range(len(d_im)):
+			d_im[i_chan] = d_im[i_chan]-d_im[i_chan].mean()
+		# s2 = np.dot(Finv,d_im.reshape(-1,1)).flatten()
+		scidata1_subset = d_im
+		s = np.dot(Finv,d_im.reshape(-1,1)).flatten()
+	else:
+		s = np.dot(Finv,scidata1_subset.reshape(-1,1)).flatten()
 
 
 	abc = s
@@ -574,7 +577,7 @@ def generate_Jelic_cube_instrumental_im_2_vis_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k
 	fg = s
 
 
-	return fg, s, Tb_nu, beta_experimental_mean,beta_experimental_std,gamma_mean,gamma_sigma,Tb_experimental_mean_K,Tb_experimental_std_K,nu_min_MHz,channel_width_MHz, HF_Tb_nu
+	return fg, s, Tb_nu, beta_experimental_mean,beta_experimental_std,gamma_mean,gamma_sigma,Tb_experimental_mean_K,Tb_experimental_std_K,nu_min_MHz,channel_width_MHz, HF_Tb_nu, scidata1_subset
 
 
 ## ======================================================================================================
@@ -799,8 +802,8 @@ def generate_data_from_loaded_EoR_cube_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z
 	# scidata1 = top_hat_average_temperature_cube_to_lower_res_31x31xnf_cube(scidata1)
 	# scidata1 = scidata1[0:nf,:124,:124]
 
-	np.random.seed(12345)
-	scidata1 = np.random.normal(0,scidata1.std()*3.,scidata1.shape)
+	# np.random.seed(12345)
+	# scidata1 = np.random.normal(0,scidata1.std()*3.,scidata1.shape)
 
 	import numpy
 	axes_tuple = (1,2)
@@ -1038,7 +1041,11 @@ def generate_EoR_signal_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k
 	# scidata1 = np.random.normal(0,scidata1.std()*1.,[nf,nu,nv])*0.5
 
 
-
+	# if not p.fit_for_monopole:
+	# 	d_im = scidata1.copy()
+	# 	for i_chan in range(len(d_im)):
+	# 		d_im[i_chan] = d_im[i_chan]-d_im[i_chan].mean()
+	# scidata1 = d_im.copy()
 
 	axes_tuple = (0,1,2)
 	scidata1_kcube=numpy.fft.ifftshift(scidata1[0:nf]-scidata1[0:nf].mean()+0j, axes=axes_tuple)
@@ -1521,6 +1528,8 @@ def generate_data_from_loaded_EGS_cube(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show
 	# scidata1 = top_hat_average_temperature_cube_to_lower_res_31x31xnf_cube(scidata1)
 	scidata1 = scidata1[0:nf,:,:]
 
+	# scidata1 = np.array([x-x.mean() for x in scidata1])
+
 	import numpy
 	axes_tuple = (1,2)
 	vfft1=numpy.fft.ifftshift(scidata1[0:nf]-scidata1[0].mean()+0j, axes=axes_tuple)
@@ -1603,6 +1612,7 @@ def generate_data_from_loaded_EGS_cube_im_2_vis_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x,
 	#----------------------
 
 	scidata1 = np.squeeze(np.load(EGS_npz_path)['arr_0'])[:,10:10+512,10:10+512] #Take 12 deg. subset to match EoR cube
+	# scidata1 = np.swapaxes(scidata1,1,2)
 
 	base_dir = 'Plots'
 	save_dir = base_dir+'/Likelihood_v1d75_3D_ZM/'
@@ -1633,14 +1643,17 @@ def generate_data_from_loaded_EGS_cube_im_2_vis_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x,
 
 	# s = np.dot(Finv,scidata1_subset.reshape(-1,1)).flatten()
 
-	###
-	# Remove channel means for interferometric image (not required for a gridded model but necessary when using a large FWHM PB model or small model FoV due to the non-closing nudft (i.e. for fringes with a non-integer number of wavelengths across the model image))
-	###
-	d_im = scidata1_subset.copy()
-	for i_chan in range(len(d_im)):
-		d_im[i_chan] = d_im[i_chan]-d_im[i_chan].mean()
-	# s2 = np.dot(Finv,d_im.reshape(-1,1)).flatten()
-	s = np.dot(Finv,d_im.reshape(-1,1)).flatten()
+	if not p.fit_for_monopole:
+		###
+		# Remove channel means for interferometric image (not required for a gridded model but necessary when using a large FWHM PB model or small model FoV due to the non-closing nudft (i.e. for fringes with a non-integer number of wavelengths across the model image))
+		###
+		d_im = scidata1_subset.copy()
+		for i_chan in range(len(d_im)):
+			d_im[i_chan] = d_im[i_chan]-d_im[i_chan].mean()
+		# s2 = np.dot(Finv,d_im.reshape(-1,1)).flatten()
+		s = np.dot(Finv,d_im.reshape(-1,1)).flatten()
+	else:
+		s = np.dot(Finv,scidata1_subset.reshape(-1,1)).flatten()
 	abc = s
 
 

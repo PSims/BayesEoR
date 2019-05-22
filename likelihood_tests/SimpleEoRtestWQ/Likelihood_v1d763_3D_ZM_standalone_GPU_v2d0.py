@@ -64,6 +64,7 @@ class PowerSpectrumPosteriorProbability(object):
 		default_debug=False
 		default_Print_debug=False
 		default_intrinsic_noise_fitting=False
+		default_return_Sigma=False
 		
 		##===== Inputs =======
 		self.diagonal_sigma=kwargs.pop('diagonal_sigma',default_diagonal_sigma)
@@ -80,6 +81,7 @@ class PowerSpectrumPosteriorProbability(object):
 		self.debug=kwargs.pop('debug',default_debug)
 		self.Print_debug=kwargs.pop('Print_debug',default_Print_debug)
 		self.intrinsic_noise_fitting=kwargs.pop('intrinsic_noise_fitting',default_intrinsic_noise_fitting)
+		self.return_Sigma=kwargs.pop('return_Sigma',default_return_Sigma)
 
 		self.fit_single_elems = fit_single_elems
 		self.T_Ninv_T = T_Ninv_T
@@ -172,6 +174,8 @@ class PowerSpectrumPosteriorProbability(object):
 
 			Sigma[self.Sigma_Diag_Indices]+=PhiI
 			if self.Print:print 'Time taken: {}'.format(time.time()-start)
+			if self.return_Sigma:
+				return Sigma
 
 			start = time.time()
 			if p.useGPU:
@@ -370,6 +374,9 @@ class PowerSpectrumPosteriorProbability(object):
 		# 	# e.g. http://www.mrao.cam.ac.uk/~kjbg1/lectures/lect1_1.pdf
 		# 	Omega_beam_Gaussian_sr = (p.FWHM_deg_at_ref_freq_MHz*np.pi/180.)**2. * np.pi/(4.*np.log(2.0))
 		# 	dimensionless_PS_scaling = dimensionless_PS_scaling * Omega_beam_Gaussian_sr**4.0
+
+		if not p.include_instrumental_effects: #Account for / undo the extra (vfft1[0].size**0.5) scaling factor that is currently in the non-instrumental data creation functions
+			dimensionless_PS_scaling = dimensionless_PS_scaling*float(p.box_size_21cmFAST_pix_sc)**2.
 
 		return dimensionless_PS_scaling
 

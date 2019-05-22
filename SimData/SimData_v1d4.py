@@ -782,6 +782,10 @@ def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vec
 	##===== Inputs =======
 	random_seed=kwargs.pop('random_seed',default_random_seed)
 
+	if sigma == 0.0:
+		complex_noise_hermitian = np.zeros(len(s))+0.0j
+		d=s+complex_noise_hermitian.flatten()
+		return d, complex_noise_hermitian.flatten()
 
 	if random_seed:
 		print 'Using the following random_seed for dataset noise:', random_seed
@@ -790,11 +794,6 @@ def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vec
 	if random_seed:
 		np.random.seed(random_seed*123)
 
-	if sigma == 0.0:
-		complex_noise_hermitian = np.zeros(len(s))+0.0j
-		d=s+complex_noise_hermitian.flatten()
-		return d, complex_noise_hermitian.flatten()
-
 	imag_noise = np.random.normal(0,sigma/2.**0.5,[nf,len(p.uvw_multi_time_step_array_meters_reshaped)])
 	complex_noise = real_noise + 1j*imag_noise
 	complex_noise = complex_noise* sigma/complex_noise.std()
@@ -802,7 +801,7 @@ def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vec
 
 	baseline_conjugate_pairs_dict_single_freq = {}
 	baseline_conjugate_pairs_array_single_freq = []
-	count = 0
+	# count = 0
 	for i, baseline in enumerate(p.uvw_multi_time_step_array_meters_reshaped):
 		if tuple(baseline*-1) in baseline_conjugate_pairs_dict_single_freq.keys():
 			baseline_conjugate_pairs_dict_single_freq[tuple(baseline)] = baseline_conjugate_pairs_dict_single_freq[tuple(baseline*-1)]
@@ -810,9 +809,9 @@ def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vec
 			complex_noise_hermitian[:,i] = complex_noise_hermitian[:,baseline_conjugate_pairs_dict_single_freq[tuple(baseline*-1)]].conjugate()
 
 		else:
-			baseline_conjugate_pairs_dict_single_freq[tuple(baseline)] = count
-			baseline_conjugate_pairs_array_single_freq.append(count)
-			count+=1
+			baseline_conjugate_pairs_dict_single_freq[tuple(baseline)] = i
+			baseline_conjugate_pairs_array_single_freq.append(i)
+			# count+=1
 
 
 	for i_freq in range(nf):
@@ -823,6 +822,31 @@ def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vec
 	return d, complex_noise_hermitian.flatten()
 
 
+
+
+
+# for i,x in enumerate(p.uvw_multi_time_step_array_meters_reshaped):
+# 	if x[0]==-p.uvw_multi_time_step_array_meters_reshaped[221][0] and x[1]==-p.uvw_multi_time_step_array_meters_reshaped[221][1]:
+# 		print i,x
+
+
+
+
+# baseline_conjugate_pairs_array_single_freq2 = np.array([[i,x] for i,x in enumerate(baseline_conjugate_pairs_array_single_freq) if i!=x])
+# for i in range(len(baseline_conjugate_pairs_array_single_freq2)):                                     
+#     n=3                                                                                               
+#     a= d[540*n+baseline_conjugate_pairs_array_single_freq2[i][0]]+d[540*n+baseline_conjugate_pairs_array_single_freq2[i][1]]
+#     print baseline_conjugate_pairs_array_single_freq2[i], np.log10(abs(a.real).mean()/abs(a.imag).mean())        
+
+
+
+# b2=[]
+# b3=[]
+# l=2**8
+# for i in range(10000):
+#     b=np.random.normal(1,10,l)
+#     b2.append(np.sum(b[0:l/2])-np.sum(b[l/2:l]))
+#     b3.append(np.sum(b[0:l/4])-np.sum(b[l/4:l/2])+np.sum(b[l/2:3*l/4])-np.sum(b[3*l/4:l]))
 
 
 
@@ -1282,7 +1306,10 @@ def generate_masked_coordinate_cubes(cube_to_mask, nu,nv,nx,ny,nf,neta,nq):
 	k_z_mean_mask = k_z!=Mean_k_z_mode
 
 	k_perp_3D = (k_x**2.+k_y**2)**0.5
-	ZM_mask = k_perp_3D>0.0
+	if p.fit_for_monopole:
+		ZM_mask = k_perp_3D>=0.0 #Don't exclude the mean from the fit
+	else:
+		ZM_mask = k_perp_3D>0.0 #Exclude (u,v)=(0,0)
 	ZM_selector_mask = np.logical_not(ZM_mask)
 
 
