@@ -589,8 +589,44 @@ class RenormaliseMatricesForScaledNoise(object):
 ## ======================================================================================================
 ## ======================================================================================================
 
+def write_log_file(array_save_directory, file_root, args):
+	import subprocess
+	
+	# make log file directory if it doesn't exist
+	log_dir = 'log_files/'
+	if not os.path.exists(log_dir):
+		os.mkdir(log_dir)
 
+	# Get git version and hash info
+	version_info = {}
+	version_info['git_origin'] = subprocess.check_output(['git', 'config', '--get', 'remote.origin.url'], stderr=subprocess.STDOUT)
+	version_info['git_hash'] = subprocess.check_output(['git', 'rev-parse', 'HEAD'], stderr=subprocess.STDOUT)
+	version_info['git_description'] = subprocess.check_output(['git', 'describe', '--dirty', '--tag', '--always'])
+	version_info['git_branch'] = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], stderr=subprocess.STDOUT)
 
+	log_file = log_dir + file_root + '.log'
+	dashed_line = '-'*44
+	
+	# Write array directories and command line arguments
+	with open(log_file, 'ab') as f:
+		f.write('#' + dashed_line + '\n# GitHub Info\n#' + dashed_line +'\n')
+		for key in version_info.keys():
+			f.write('%s: %s' %(key, version_info[key]))
+		f.write('\n\n')
+		f.write('#' + dashed_line + '\n# Directories\n#' + dashed_line +'\n')
+		f.write('Array save directory:\t%s\n' %(array_save_directory))
+		f.write('Multinest output file root:\t%s\n' %(file_root))
+		f.write('\n\n')
+		f.write('#' + dashed_line + '\n# Command Line Arguments\n#' + dashed_line +'\n')
+		for key in vars(args).keys():
+			f.write(' %s = %s\n' %(key, vars(args)[key]))
+		f.write('\n\n')
+		f.write('#' + dashed_line + '\n# Params/params.py\n#' + dashed_line +'\n')
+	
+	# Write params file to log file
+	subprocess.Popen('cat Params/params.py >> %s' %log_file, shell=True)
+	
+	print 'Log file written successfully to %s' %(log_file)
 
 
 
