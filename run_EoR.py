@@ -340,13 +340,6 @@ file_root = generate_output_file_base(file_root, version_number='1')
 print 'Rank', mpi_rank
 print 'Output file_root = ', file_root
 
-if run_full_analysis:
-	rank = MPI.COMM_WORLD.Get_rank()
-	if rank == 0:
-		write_log_file(array_save_directory, file_root, args)
-
-sys.exit()
-
 PSPP_block_diag_Polychord = PowerSpectrumPosteriorProbability(T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes, modk_vis_ordered_list, Ninv, d_Ninv_d, block_T_Ninv_T=block_T_Ninv_T, log_priors=log_priors, dimensionless_PS=dimensionless_PS, Print=True, intrinsic_noise_fitting=p.use_intrinsic_noise_fitting)
 if p.include_instrumental_effects and not zero_the_LW_modes:
 	PSPP_block_diag_Polychord.inverse_LW_power=p.inverse_LW_power #Include minimal prior over LW modes required for numerical stability
@@ -382,6 +375,10 @@ else:
 	print 'run_single_node_analysis = {}\n'.format(run_single_node_analysis)
 
 if run_single_node_analysis or mpi_size>1:
+	# Write log file
+	if MPI.COMM_WORLD.Get_rank() == 0:
+		write_log_file(array_save_directory, file_root, args)
+	
 	if use_MultiNest:
 		MN_nlive = nDims*25
 		# Run MultiNest
