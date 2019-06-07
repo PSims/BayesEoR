@@ -33,7 +33,7 @@ EoR_npz_path = '/users/psims/EoR/EoR_simulations/21cmFAST_512MPc_512pix_128pix/F
 box_size_21cmFAST_pix = 128 #Must match EoR_npz_path parameters
 box_size_21cmFAST_Mpc = 512 #Must match EoR_npz_path parameters
 
-EoR_npz_path_sc = '/users/psims/EoR/EoR_simulations/21cmFAST_2048MPc_2048pix_512pix_AstroParamExploration1/Fits/npzs/Zeta10.0_Tvir1.0e+05_mfp22.2_Taue0.041_zre-1.000_delz-1.000_512_2048Mpc/21cm_mK_z7.600_nf0.883_useTs0.0_aveTb21.06_cube_side_pix512_cube_side_Mpc2048.npz'
+EoR_npz_path_sc = '/users/jburba/data/shared/PSims/BayesEoR_files_P/EoRsims/Hoag19/21cm_mK_z7.600_nf0.883_useTs0.0_aveTb21.06_cube_side_pix512_cube_side_Mpc2048.npz'
 box_size_21cmFAST_pix_sc = 512 #Must match EoR_npz_path parameters
 box_size_21cmFAST_Mpc_sc = 2048 #Must match EoR_npz_path parameters
 
@@ -116,6 +116,40 @@ def BayesEoRParser():
 	parser = argparse.ArgumentParser()
 	parser.add_argument("-nq", "--nq", help="Number of LWM basis vectors (0-2)", default=2)
 	parser.add_argument("-beta", "--beta", help="Power law spectral index used in data model", default=beta)
+	
+	parser.add_argument('--filepath',
+						type = str,
+						help = "If passed, analyze data from filepath and compare the ML visibilities with the data + noise.")
+	
+	parser.add_argument('--sigma_val',
+					    type = float,
+						default = 250.0,
+					    help = "Constant multiplied to the baseline averaged sigma value. Defaults to 250.0.")
+	
+	parser.add_argument('--HERA_data_path',
+						type = str,
+						help = "Path to data file for analysis.")
+	
+	parser.add_argument('--beam_type',
+						type = str,
+						default = 'uniform',
+						help = "Can be either 'Gaussian' or 'Uniform'. Defaults to 'uniform'.")
+	
+	parser.add_argument('--beam_peak_amplitude',
+					    type = float,
+					    default = 1.0,
+					    help = "Peak amplitude of the beam. Defaults to 1.0.")
+	
+	parser.add_argument('--FWHM_deg_at_ref_freq_MHz',
+					    type = float,
+					    default = 9.0,
+					    help = "FWHM of beam at the reference frequency in degrees. Defaults to 9.0 deg.")
+	
+	parser.add_argument('--PB_ref_freq_MHz',
+					    type = float,
+					    default = 150.0,
+					    help = "Reference frequency for primary beam in MHz. Defaults to 150 MHz.")
+
 	args = parser.parse_args() #Parse command line arguments
 	return args
 
@@ -146,56 +180,8 @@ inverse_LW_power = 1.e-16 #Include minimal prior over LW modes to ensure numeric
 ###
 # NUDFT params
 ###
-# Load uvw_multi_time_step_array_meters_reshaped inside a function to avoid creating extraneous variables in params
-import pickle
-def load_uvw_instrument_sampling_m(instrument_model_directory):
-	file_dir = instrument_model_directory
-	file_name = "uvw_multi_time_step_array_meters_reshaped" #HERA 331 sub-100 m baselines (i.e. H37 baselines) uv-sampling in meters
-	f = open(file_dir+file_name,'r')  
-	uvw_multi_time_step_array_meters_reshaped =  pickle.load(f)
-	return uvw_multi_time_step_array_meters_reshaped
-
-def load_baseline_redundancy_array(instrument_model_directory):
-	file_dir = instrument_model_directory
-	file_name = "unique_H37_baseline_hermitian_redundancy_multi_time_step_array_reshaped" #HERA 331 sub-100 m baselines (i.e. H37 baselines) baseline redundancy
-	f = open(file_dir+file_name,'r')  
-	unique_H37_baseline_hermitian_redundancy_multi_time_step_array_reshaped =  pickle.load(f)
-	return unique_H37_baseline_hermitian_redundancy_multi_time_step_array_reshaped
-
-
-
-
-if include_instrumental_effects:
-	instrument_model_directory = '/users/psims/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/Instrument_Model/HERA_331_baselines_shorter_than_29d3_for_30_0d5_min_time_steps/'
-	
-	uvw_multi_time_step_array_meters_reshaped = load_uvw_instrument_sampling_m(instrument_model_directory)
-	baseline_redundancy_array = load_baseline_redundancy_array(instrument_model_directory)
-	uv_pixel_width_wavelengths = 2.5 #Define a fixed pixel width in wavelengths
-	n_vis = len(uvw_multi_time_step_array_meters_reshaped) #Number of visibilities per channel (i.e. number of redundant baselines * number of time steps)
-	###---------
-	# Re-weight baseline_redundancy_array (downweight to minimum redundance baseline) to provide uniformly weighted data as input to the analysis, so that the quick intrinsic noise fitting approximation is valid, until generalised intrinsic noise fitting is implemented.
-	###
-	baseline_redundancy_array = baseline_redundancy_array*0 + baseline_redundancy_array.min()
-	###---------
-
-
-###
-# Primary beam params
-###
-if include_instrumental_effects:
-	FWHM_deg_at_ref_freq_MHz = 9.0 #9 degrees
-	PB_ref_freq_MHz = 150.0 #150 MHz
-	#beam_type = 'Uniform'
-	beam_type = 'Gaussian'
-	beam_peak_amplitude = 1.0
-	beam_info_str = ''
-	if beam_type.lower() == 'Uniform'.lower():
-		beam_info_str += '{}_beam_peak_amplitude_{}'.format(beam_type, str(beam_peak_amplitude).replace('.','d'))		
-	if beam_type.lower() == 'Gaussian'.lower():
-		beam_info_str += '{}_beam_peak_amplitude_{}_beam_width_{}_deg_at_{}_MHz'.format(beam_type, str(beam_peak_amplitude).replace('.','d'), str(FWHM_deg_at_ref_freq_MHz).replace('.','d'), str(PB_ref_freq_MHz).replace('.','d'))		
-
-	instrument_model_directory = instrument_model_directory[:-1]+'_{}/'.format(beam_info_str)
-###--
+instrument_model_directory = '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/HERA_331_baselines_shorter_than_29d3_for_30_0d5_min_time_steps/'
+uv_pixel_width_wavelengths = 2.5 #Define a fixed pixel width in wavelengths
 
 
 ###

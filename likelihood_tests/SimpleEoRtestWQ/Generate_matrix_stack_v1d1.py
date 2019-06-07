@@ -123,6 +123,14 @@ class BuildMatrices(BuildMatrixTree):
 		
 		##===== Inputs =======
 		self.npl=kwargs.pop('npl',default_npl)
+		
+		##===== Instrument Model =====
+		self.sampled_uvw_coords_m = kwargs.pop('sampled_uvw_coords_m', None)
+		self.baseline_redundancy_array = kwargs.pop('baseline_redundancy_array', None) #This array is channel_ordered and the construct the covariance matrix assumes channel_ordered data set (this vector should be re-ordered if the data is in a differently ordered)
+		self.beam_type = kwargs.pop('beam_type', None)
+		self.beam_peak_amplitude = kwargs.pop('beam_peak_amplitude', None)
+		self.FWHM_deg_at_ref_freq_MHz = kwargs.pop('FWHM_deg_at_ref_freq_MHz', None)
+		self.PB_ref_freq_MHz = kwargs.pop('PB_ref_freq_MHz', None)
 
 		print self.array_save_directory 
 		print self.matrix_prerequisites_dictionary
@@ -248,7 +256,7 @@ class BuildMatrices(BuildMatrixTree):
 		start = time.time()
 		print 'Performing matrix algebra'
 		nu_array_MHz = p.nu_min_MHz+np.arange(p.nf)*p.channel_width_MHz
-		multi_chan_nudft = block_diag(*[nuDFT_Array_DFT_2D(self.nu,self.nv,self.nx,self.ny, chan_freq_MHz).T for chan_freq_MHz in nu_array_MHz])
+		multi_chan_nudft = block_diag(*[nuDFT_Array_DFT_2D(self.nu,self.nv,self.nx,self.ny, chan_freq_MHz, self.sampled_uvw_coords_m).T for chan_freq_MHz in nu_array_MHz])
 		print 'Time taken: {}'.format(time.time()-start)
 		###
 		# Save matrix to HDF5
@@ -262,16 +270,15 @@ class BuildMatrices(BuildMatrixTree):
 		print 'Performing matrix algebra'
 		nu_array_MHz = p.nu_min_MHz+np.arange(p.nf)*p.channel_width_MHz
 		image_size_pix = p.nx
-		beam_peak_amplitude = p.beam_peak_amplitude
 		deg_to_pix = image_size_pix / float(p.simulation_FoV_deg)
-		FWHM_deg_at_chan_freq_MHz = [p.FWHM_deg_at_ref_freq_MHz*(float(p.PB_ref_freq_MHz)/chan_freq_MHz) for chan_freq_MHz in nu_array_MHz]
+		FWHM_deg_at_chan_freq_MHz = [self.FWHM_deg_at_ref_freq_MHz*(float(self.PB_ref_freq_MHz)/chan_freq_MHz) for chan_freq_MHz in nu_array_MHz]
 		FWHM_pix_at_chan_freq_MHz = [FWHM_deg*deg_to_pix for FWHM_deg in FWHM_deg_at_chan_freq_MHz]
-		if p.beam_type.lower() == 'gaussian'.lower():
-			multi_chan_P = block_diag(*[np.diag(make_Gaussian_beam(image_size_pix,FWHM_pix,beam_peak_amplitude).flatten()) for FWHM_pix in FWHM_pix_at_chan_freq_MHz])
-		elif p.beam_type.lower() == 'uniform'.lower():
-			multi_chan_P = block_diag(*[np.diag(make_Uniform_beam(image_size_pix,beam_peak_amplitude).flatten()) for FWHM_pix in FWHM_pix_at_chan_freq_MHz])
+		if self.beam_type.lower() == 'gaussian'.lower():
+			multi_chan_P = block_diag(*[np.diag(make_Gaussian_beam(image_size_pix,FWHM_pix,self.beam_peak_amplitude).flatten()) for FWHM_pix in FWHM_pix_at_chan_freq_MHz])
+		elif self.beam_type.lower() == 'uniform'.lower():
+			multi_chan_P = block_diag(*[np.diag(make_Uniform_beam(image_size_pix,self.beam_peak_amplitude).flatten()) for FWHM_pix in FWHM_pix_at_chan_freq_MHz])
 		else:
-			multi_chan_P = block_diag(*[np.diag(make_Uniform_beam(image_size_pix,beam_peak_amplitude).flatten()) for FWHM_pix in FWHM_pix_at_chan_freq_MHz])
+			multi_chan_P = block_diag(*[np.diag(make_Uniform_beam(image_size_pix,1.0).flatten()) for FWHM_pix in FWHM_pix_at_chan_freq_MHz])
 		print 'Time taken: {}'.format(time.time()-start)
 		###
 		# Save matrix to HDF5
@@ -479,9 +486,8 @@ class BuildMatrices(BuildMatrixTree):
 		start = time.time()
 		print 'Performing matrix algebra'
 		if p.include_instrumental_effects:
-			baseline_redundancy_array = p.baseline_redundancy_array #This array is channel_ordered and the construct the covariance matrix assumes channel_ordered data set (this vector should be re-ordered if the data is in a differently ordered)
 			s_size = self.n_vis*self.nf
-			multifreq_baseline_redundancy_array = np.array([baseline_redundancy_array for i in range(p.nf)]).flatten()
+			multifreq_baseline_redundancy_array = np.array([self.baseline_redundancy_array for i in range(p.nf)]).flatten()
 			sigma_accounting_for_redundancy = self.sigma / multifreq_baseline_redundancy_array**0.5 #RMS drops as the squareroot of the number of redundant samples
 			sigma_squared_array = np.ones(s_size)*sigma_accounting_for_redundancy**2 + 0j*np.ones(s_size)*sigma_accounting_for_redundancy**2
 			Ninv = np.diag(1./sigma_squared_array)
@@ -501,9 +507,8 @@ class BuildMatrices(BuildMatrixTree):
 		start = time.time()
 		print 'Performing matrix algebra'
 		if p.include_instrumental_effects:
-			baseline_redundancy_array = p.baseline_redundancy_array #This array is channel_ordered and the construct the covariance matrix assumes channel_ordered data set (this vector should be re-ordered if the data is in a differently ordered)
 			s_size = self.n_vis*self.nf
-			multifreq_baseline_redundancy_array = np.array([baseline_redundancy_array for i in range(p.nf)]).flatten()
+			multifreq_baseline_redundancy_array = np.array([self.baseline_redundancy_array for i in range(p.nf)]).flatten()
 			sigma_accounting_for_redundancy = self.sigma / multifreq_baseline_redundancy_array**0.5 #RMS drops as the squareroot of the number of redundant samples
 			sigma_squared_array = np.ones(s_size)*sigma_accounting_for_redundancy**2 + 0j*np.ones(s_size)*sigma_accounting_for_redundancy**2
 			N = np.diag(sigma_squared_array)

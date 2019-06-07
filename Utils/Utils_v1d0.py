@@ -10,6 +10,7 @@ import shutil
 import pylab
 from pdb import set_trace as brk
 import argparse
+import pickle
 import BayesEoR.Params.params as p
 
 
@@ -629,13 +630,19 @@ def write_log_file(array_save_directory, file_root, args):
 	print 'Log file written successfully to %s' %(log_file)
 
 
+## ======================================================================================================
+## ======================================================================================================
 
+def load_uvw_instrument_sampling_m(instrument_model_directory):
+	file_dir = instrument_model_directory
+	file_name = "uvw_multi_time_step_array_meters_reshaped" #HERA 331 sub-100 m baselines (i.e. H37 baselines) uv-sampling in meters
+	f = open(file_dir+file_name,'r')  
+	uvw_multi_time_step_array_meters_reshaped =  pickle.load(f)
+	return uvw_multi_time_step_array_meters_reshaped
 
-
-
-
-
-
-
-
-
+def load_baseline_redundancy_array(instrument_model_directory):
+	file_dir = instrument_model_directory
+	file_name = "unique_H37_baseline_hermitian_redundancy_multi_time_step_array_reshaped" #HERA 331 sub-100 m baselines (i.e. H37 baselines) baseline redundancy
+	f = open(file_dir+file_name,'r')  
+	unique_H37_baseline_hermitian_redundancy_multi_time_step_array_reshaped =  pickle.load(f)
+	return unique_H37_baseline_hermitian_redundancy_multi_time_step_array_reshaped

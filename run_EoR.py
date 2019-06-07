@@ -8,7 +8,7 @@ import sys
 head,tail = os.path.split(os.path.split(os.getcwd())[0])
 sys.path.append(head)
 from BayesEoR import * #Make everything available for now, this can be refined later
-from BayesEoR.Utils.Utils_v1d0 import write_log_file
+from BayesEoR.Utils.Utils_v1d0 import write_log_file, load_uvw_instrument_sampling_m, load_baseline_redundancy_array
 import BayesEoR.Params.params as p
 
 mpi_rank = 0
@@ -75,10 +75,27 @@ ny=p.ny
 sigma=50.e-1
 
 if p.include_instrumental_effects:
-		average_baseline_redundancy = p.baseline_redundancy_array.mean() #Keep average noise level consisitent with the non-instrumental case by normalizing sigma by the average baseline redundancy before scaling individual baselines by their respective redundancies
-		sigma = sigma*average_baseline_redundancy**0.5 *250.0 #Noise level in S19b
-		# sigma = sigma*average_baseline_redundancy**0.5 *500.0
-		# sigma = sigma*average_baseline_redundancy**0.5 *1000.0
+	uvw_multi_time_step_array_meters_reshaped = load_uvw_instrument_sampling_m(p.instrument_model_directory)
+	baseline_redundancy_array = load_baseline_redundancy_array(p.instrument_model_directory)
+	n_vis = len(uvw_multi_time_step_array_meters_reshaped) #Number of visibilities per channel (i.e. number of redundant baselines * number of time steps)
+	###---------
+	# Re-weight baseline_redundancy_array (downweight to minimum redundance baseline) to provide uniformly weighted data as input to the analysis, so that the quick intrinsic noise fitting approximation is valid, until generalised intrinsic noise fitting is implemented.
+	###
+	baseline_redundancy_array = baseline_redundancy_array*0 + baseline_redundancy_array.min()
+	###---------
+
+	# Primary beam params
+	beam_info_str = ''
+	if args.beam_type.lower() == 'Uniform'.lower():
+		beam_info_str += '{}_beam_peak_amplitude_{}'.format(args.beam_type.lower(), str(args.beam_peak_amplitude).replace('.','d'))		
+	if args.beam_type.lower() == 'Gaussian'.lower():
+		beam_info_str += '{}_beam_peak_amplitude_{}_beam_width_{}_deg_at_{}_MHz'.format(args.beam_type.lower(), str(args.beam_peak_amplitude).replace('.','d'), str(args.FWHM_deg_at_ref_freq_MHz).replace('.','d'), str(args.PB_ref_freq_MHz).replace('.','d'))		
+
+	instrument_model_directory = p.instrument_model_directory[:-1]+'_{}/'.format(beam_info_str)
+
+	# Noise modification for baseline redundancy
+	average_baseline_redundancy = baseline_redundancy_array.mean() #Keep average noise level consisitent with the non-instrumental case by normalizing sigma by the average baseline redundancy before scaling individual baselines by their respective redundancies
+	sigma = sigma*average_baseline_redundancy**0.5 * args.sigma_val
 else:
 	sigma = sigma*1.
 
@@ -96,9 +113,8 @@ n_dat = n_Fourier
 current_file_version = 'Likelihood_v1d76_3D_ZM'
 array_save_directory = 'array_storage/batch_1/{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(current_file_version,nu,nv,neta,nq,npl,sigma).replace('.','d')
 if p.include_instrumental_effects:
-	instrument_info = filter(None, p.instrument_model_directory.split('/'))[-1]
+	instrument_info = filter(None, instrument_model_directory.split('/'))[-1]
 	array_save_directory = array_save_directory[:-1]+'_instrumental/'+instrument_info+'/'
-	n_vis=p.n_vis
 else:
 	n_vis = 0
 if npl==1:
@@ -112,7 +128,16 @@ if p.fit_for_monopole:
 #--------------------------------------------
 # Construct matrices
 #--------------------------------------------
-BM = BuildMatrices(array_save_directory, nu, nv, nx, ny, n_vis, neta, nf, nq, sigma, npl=npl)
+if p.include_instrumental_effects:
+	BM = BuildMatrices(array_save_directory, nu, nv, nx, ny, n_vis, neta, nf, nq, sigma, npl=npl,
+					   sampled_uvw_coords_m = uvw_multi_time_step_array_meters_reshaped,
+					   baseline_redundancy_array = baseline_redundancy_array,
+					   beam_type = args.beam_type,
+					   beam_peak_amplitude = args.beam_peak_amplitude,
+					   FWHM_deg_at_ref_freq_MHz = args.FWHM_deg_at_ref_freq_MHz,
+					   PB_ref_freq_MHz = args.PB_ref_freq_MHz)
+else:
+	BM = BuildMatrices(array_save_directory, nu, nv, nx, ny, n_vis, neta, nf, nq, sigma, npl=npl)
 overwrite_existing_matrix_stack = False #Can be set to False unless npl>0
 proceed_without_overwrite_confirmation = False #Allows overwrite_existing_matrix_stack to be run without having to manually accept the deletion of the old matrix stack
 BM.build_minimum_sufficient_matrix_stack(overwrite_existing_matrix_stack=overwrite_existing_matrix_stack, proceed_without_overwrite_confirmation=proceed_without_overwrite_confirmation)
@@ -190,8 +215,8 @@ if p.include_instrumental_effects:
 			s_EoR, abc, scidata1 = generate_EoR_signal_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z, Finv,Show,chan_selection,masked_power_spectral_modes, mod_k, p.EoR_npz_path_sc)
 			EoR_noise_seed = 742123
 			print 'EoR_noise_seed', EoR_noise_seed
-			d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(1.0*sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,random_seed=EoR_noise_seed)[0]
-			effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(1.0*sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,random_seed=EoR_noise_seed)[1]
+			d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(1.0*sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,random_seed=EoR_noise_seed, sampled_uvw_coords_m=uvw_multi_time_step_array_meters_reshaped, baseline_redundancy_array=baseline_redundancy_array)[0]
+			effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(1.0*sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,random_seed=EoR_noise_seed, sampled_uvw_coords_m=uvw_multi_time_step_array_meters_reshaped, baseline_redundancy_array=baseline_redundancy_array)[1]
 
 effective_noise_std = effective_noise.std()
 

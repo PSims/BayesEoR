@@ -781,6 +781,8 @@ def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vec
 	
 	##===== Inputs =======
 	random_seed=kwargs.pop('random_seed',default_random_seed)
+	sampled_uvw_coords_m = kwargs.pop('sampled_uvw_coords_m', None)
+	baseline_redundancy_array = kwargs.pop('baseline_redundancy_array', None)
 
 	if sigma == 0.0:
 		complex_noise_hermitian = np.zeros(len(s))+0.0j
@@ -790,11 +792,11 @@ def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vec
 	if random_seed:
 		print 'Using the following random_seed for dataset noise:', random_seed
 		np.random.seed(random_seed)
-	real_noise = np.random.normal(0,sigma/2.**0.5,[nf,len(p.uvw_multi_time_step_array_meters_reshaped)])
+	real_noise = np.random.normal(0,sigma/2.**0.5,[nf,len(sampled_uvw_coords_m)])
 	if random_seed:
 		np.random.seed(random_seed*123)
 
-	imag_noise = np.random.normal(0,sigma/2.**0.5,[nf,len(p.uvw_multi_time_step_array_meters_reshaped)])
+	imag_noise = np.random.normal(0,sigma/2.**0.5,[nf,len(sampled_uvw_coords_m)])
 	complex_noise = real_noise + 1j*imag_noise
 	complex_noise = complex_noise* sigma/complex_noise.std()
 	complex_noise_hermitian = complex_noise.copy()
@@ -802,7 +804,7 @@ def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vec
 	baseline_conjugate_pairs_dict_single_freq = {}
 	baseline_conjugate_pairs_array_single_freq = []
 	# count = 0
-	for i, baseline in enumerate(p.uvw_multi_time_step_array_meters_reshaped):
+	for i, baseline in enumerate(sampled_uvw_coords_m):
 		if tuple(baseline*-1) in baseline_conjugate_pairs_dict_single_freq.keys():
 			baseline_conjugate_pairs_dict_single_freq[tuple(baseline)] = baseline_conjugate_pairs_dict_single_freq[tuple(baseline*-1)]
 			baseline_conjugate_pairs_array_single_freq.append(baseline_conjugate_pairs_dict_single_freq[tuple(baseline*-1)])
@@ -815,7 +817,7 @@ def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vec
 
 
 	for i_freq in range(nf):
-		complex_noise_hermitian[i_freq] = complex_noise_hermitian[i_freq]/p.baseline_redundancy_array**0.5
+		complex_noise_hermitian[i_freq] = complex_noise_hermitian[i_freq]/baseline_redundancy_array**0.5
 
 	d=s+complex_noise_hermitian.flatten()
 
