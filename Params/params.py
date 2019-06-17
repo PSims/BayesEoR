@@ -91,9 +91,9 @@ HF_nu_min_MHz_array_ff = [210]
 ###
 # Extragalactic source foreground params
 ###
-# EGS_npz_path = '/users/psims/Cav/EoR/Missing_Radio_Flux/Surveys/Flux_Variance_Maps/S_Cubed/S_163_10nJy_Image_Cube_v34_18_deg_NV_1JyCN_With_Synchrotron_Self_Absorption/Fits/Flux_Density_Upper_Lim_1.0__Flux_Density_Lower_Lim_0.0/mk_cube/151_Flux_values_10NanoJansky_limit_data_result_18_Degree_Cube_RA_Dec_Degrees_and__10_pow_LogFlux_Columns_and_Source_Redshifts_and_Source_SI_and_Source_AGN_Type_Comb__mk.npz' #Low intensity EGS sim in S19b
+EGS_npz_path = '/users/psims/Cav/EoR/Missing_Radio_Flux/Surveys/Flux_Variance_Maps/S_Cubed/S_163_10nJy_Image_Cube_v34_18_deg_NV_1JyCN_With_Synchrotron_Self_Absorption/Fits/Flux_Density_Upper_Lim_1.0__Flux_Density_Lower_Lim_0.0/mk_cube/151_Flux_values_10NanoJansky_limit_data_result_18_Degree_Cube_RA_Dec_Degrees_and__10_pow_LogFlux_Columns_and_Source_Redshifts_and_Source_SI_and_Source_AGN_Type_Comb__mk.npz' #Low intensity EGS sim in S19b
 
-EGS_npz_path = '/users/psims/Cav/EoR/Missing_Radio_Flux/Surveys/Flux_Variance_Maps/S_Cubed/S_163_10nJy_Image_Cube_v34_18_deg_NV_40JyCN_With_Synchrotron_Self_Absorption/Fits/Flux_Density_Upper_Lim_40.0__Flux_Density_Lower_Lim_0.0/mk_cube/151_Flux_values_10NanoJansky_limit_data_result_18_Degree_Cube_RA_Dec_Degrees_and__10_pow_LogFlux_Columns_and_Source_Redshifts_and_Source_SI_and_Source_AGN_Type_Comb__mk.npz' #High intensity EGS sim in S19b
+# EGS_npz_path = '/users/psims/Cav/EoR/Missing_Radio_Flux/Surveys/Flux_Variance_Maps/S_Cubed/S_163_10nJy_Image_Cube_v34_18_deg_NV_40JyCN_With_Synchrotron_Self_Absorption/Fits/Flux_Density_Upper_Lim_40.0__Flux_Density_Lower_Lim_0.0/mk_cube/151_Flux_values_10NanoJansky_limit_data_result_18_Degree_Cube_RA_Dec_Degrees_and__10_pow_LogFlux_Columns_and_Source_Redshifts_and_Source_SI_and_Source_AGN_Type_Comb__mk.npz' #High intensity EGS sim in S19b
 
 
 ###
@@ -226,6 +226,17 @@ use_LWM_Gaussian_prior = False
 # fit_for_monopole = True
 fit_for_monopole = False
 
+###
+# Fit for the optimal the large spectral scale model parameters
+###
+# fit_for_spectral_model_parameters = False
+fit_for_spectral_model_parameters = True
+pl_min = 2.0
+pl_max = 3.0
+pl_grid_spacing = 0.1
+# pl_max = 5.20
+# pl_grid_spacing = 0.5
+# pl_grid_spacing = 1.0
 
 ###
 # Other parameter types

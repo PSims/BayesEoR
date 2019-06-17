@@ -448,6 +448,7 @@ def generate_Jelic_cube_instrumental_im_2_vis_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k
 	default_random_seed = 3142
 	default_cube_side_Mpc = 2048.0 #Size of EoR cube foreground simulation should match (used when calculating fits header variables)
 	default_redshift = 7.6 #Redshift of EoR cube foreground simulation should match (used when calculating fits header variables)
+	default_save_fits = False #Redshift of EoR cube foreground simulation should match (used when calculating fits header variables)
 
 	
 	##===== Inputs =======
@@ -460,6 +461,7 @@ def generate_Jelic_cube_instrumental_im_2_vis_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k
 	random_seed=kwargs.pop('random_seed',default_random_seed)
 	cube_side_Mpc=kwargs.pop('random_seed',default_cube_side_Mpc)
 	redshift=kwargs.pop('random_seed',default_redshift)
+	save_fits=kwargs.pop('save_fits',default_save_fits)
 
 	n_sim_pix = int(simulation_FoV_deg/simulation_resolution_deg + 0.5)
 
@@ -491,7 +493,7 @@ def generate_Jelic_cube_instrumental_im_2_vis_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k
 	output_fits_path1 = fits_storage_dir+output_fits_file_name
 	output_fits_path2 = fits_storage_dir+'/ZNPS{:d}/'.format(int(nu_min_MHz))+output_fits_file_name
 	print output_fits_path1, '\n'+ output_fits_path2
-	write_to_file = True
+	write_to_file = save_fits
 	# write_to_file = False
 	WD2F = WriteDataToFits()
 	if write_to_file:

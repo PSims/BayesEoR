@@ -4,6 +4,7 @@ from numpy import shape
 import scipy
 from numpy import real
 from pdb import set_trace as brk
+import h5py
 import BayesEoR.Params.params as p
 
 
@@ -33,17 +34,16 @@ try:
 	wrapmzpotrf.cpu_interface.argtypes = [ctypes.c_int, ctypes.c_int, ctypeslib.ndpointer(np.complex128, ndim=2, flags='C'), ctypeslib.ndpointer(np.complex128, ndim=1, flags='C'), ctypes.c_int, ctypeslib.ndpointer(np.int, ndim=1, flags='C')]
 	print 'Computing on GPU'
 
-
-
-
-
-
-
 except Exception as e:
 	print 'Exception loading GPU encountered...'
 	print e
 	print 'Computing on CPU instead...'
 	p.useGPU=False
+
+
+
+
+
 
 #--------------------------------------------
 # Define posterior
@@ -65,6 +65,7 @@ class PowerSpectrumPosteriorProbability(object):
 		default_Print_debug=False
 		default_intrinsic_noise_fitting=False
 		default_return_Sigma=False
+		default_fit_for_spectral_model_parameters=False
 		
 		##===== Inputs =======
 		self.diagonal_sigma=kwargs.pop('diagonal_sigma',default_diagonal_sigma)
@@ -82,6 +83,7 @@ class PowerSpectrumPosteriorProbability(object):
 		self.Print_debug=kwargs.pop('Print_debug',default_Print_debug)
 		self.intrinsic_noise_fitting=kwargs.pop('intrinsic_noise_fitting',default_intrinsic_noise_fitting)
 		self.return_Sigma=kwargs.pop('return_Sigma',default_return_Sigma)
+		self.fit_for_spectral_model_parameters=kwargs.pop('fit_for_spectral_model_parameters',default_fit_for_spectral_model_parameters)
 
 		self.fit_single_elems = fit_single_elems
 		self.T_Ninv_T = T_Ninv_T
@@ -107,6 +109,8 @@ class PowerSpectrumPosteriorProbability(object):
 		self.d_Ninv_d = d_Ninv_d
 		self.print_rate = 1000
 		self.alpha_prime = 1.0
+		# self.spectral_model_parameters_array_storage_dir = '/gpfs/data/jpober/psims/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/spec_model_tests/array_storage/FgSpecMOptimisation/Likelihood_v1d76_3D_ZM_nu_9_nv_9_neta_38_nq_2_npl_2_b1_2.00E+00_b2_3.00E+00_sigma_1d7E+05_instrumental/HERA_331_baselines_shorter_than_29d3_for_30_0d5_min_time_steps_Gaussian_beam_peak_amplitude_1d0_beam_width_9d0_deg_at_150d0_MHz/'
+		self.spectral_model_parameters_array_storage_dir = '/gpfs/data/jpober/psims/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/spec_model_tests/array_storage/FgSpecMOptimisation/Likelihood_v1d76_3D_ZM_nu_9_nv_9_neta_38_nq_2_npl_2_b1_2.00E+00_b2_3.00E+00_sigma_8d5E+04_instrumental/HERA_331_baselines_shorter_than_29d3_for_30_0d5_min_time_steps_Gaussian_beam_peak_amplitude_1d0_beam_width_9d0_deg_at_150d0_MHz/'
 
 
 	def add_power_to_diagonals(self, T_Ninv_T_block, PhiI_block, **kwargs):
@@ -466,6 +470,7 @@ class PowerSpectrumPosteriorProbability(object):
 
 	def posterior_probability(self, x, **kwargs):
 		if self.debug:brk()
+		phi = [0.0]
 
 		##===== Defaults =======
 		block_T_Ninv_T=self.block_T_Ninv_T
@@ -476,6 +481,44 @@ class PowerSpectrumPosteriorProbability(object):
 		##===== Inputs =======
 		if 'block_T_Ninv_T' in kwargs:
 			block_T_Ninv_T=kwargs['block_T_Ninv_T']
+
+		if self.fit_for_spectral_model_parameters:
+			Print = self.Print
+			self.Print = True
+			pl_params = x[:2]
+			x = x[2:]
+			if self.Print: print 'pl_params', pl_params
+			if self.Print: print 'p.pl_grid_spacing, p.pl_max', p.pl_grid_spacing, p.pl_max
+			b1 = pl_params[0]
+			b2 = b1 + p.pl_grid_spacing + (p.pl_max-b1-p.pl_grid_spacing)*pl_params[1]
+			b1, b2 = p.pl_grid_spacing*np.round(np.array([b1,b2])/p.pl_grid_spacing,0) #Round derived pl indices to nearest p.pl_grid_spacing
+			if self.Print: print 'b1, b2', b1, b2
+
+			###
+			# Load matrices associated with sampled beta params
+			###
+			T_Ninv_T_dataset_name = 'T_Ninv_T_b1_{}_b2_{}'.format(b1, b2).replace('.','d')
+			T_Ninv_T_file_path = self.spectral_model_parameters_array_storage_dir+T_Ninv_T_dataset_name+'.h5'
+			if self.count%self.print_rate==0: print 'Replacing T_Ninv_T with:', T_Ninv_T_file_path
+			# import time
+			start = time.time()
+			with h5py.File(T_Ninv_T_file_path, 'r') as hf:
+			    T_Ninv_T = hf[T_Ninv_T_dataset_name][:]
+			    # alpha_prime = p.sigma/170000.0
+			    # T_Ninv_T = T_Ninv_T/(alpha_prime**2.0) #This is only valid if the data is uniformly weighted
+			    if self.count%self.print_rate==0: 'Time taken: {}'.format(time.time() - start)
+
+			dbar_dataset_name = 'dbar_b1_{}_b2_{}'.format(b1, b2).replace('.','d')
+			dbar_file_path = self.spectral_model_parameters_array_storage_dir+dbar_dataset_name+'.h5'
+			if self.count%self.print_rate==0: print 'Replacing dbar with:', dbar_file_path
+			start = time.time()
+			with h5py.File(dbar_file_path, 'r') as hf:
+			    dbar = hf[dbar_dataset_name][:]
+			    # alpha_prime = p.sigma/170000.0
+			    # dbar = dbar/(alpha_prime**2.0) #This is only valid if the data is uniformly weighted
+			    # if self.count%self.print_rate==0: 'alpha_prime = ', alpha_prime
+			    if self.count%self.print_rate==0: 'Time taken: {}'.format(time.time() - start)
+			self.Print = Print
 
 		if self.intrinsic_noise_fitting:
 			self.alpha_prime = x[0]
@@ -490,7 +533,6 @@ class PowerSpectrumPosteriorProbability(object):
 			x = 10.**np.array(x)
 
 		# brk()
-		phi = [0.0]
 		do_block_diagonal_inversion = len(shape(block_T_Ninv_T))>1
 		self.count+=1
 		start = time.time()

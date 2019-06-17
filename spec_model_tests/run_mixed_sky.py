@@ -9,9 +9,10 @@ head,tail = os.path.split(os.path.split(os.getcwd())[0])
 sys.path.append(head)
 from BayesEoR import * #Make everything available for now, this can be refined later
 import BayesEoR.Params.params as p
+import time
 
 mpi_rank = 0
-# run_full_analysis = False #False skips mpi and other imports that can cause crashes in ipython (note: in ipython apparently __name__ == '__main__' whis is why this if statement is here instead)
+# run_full_analysis = False #False skips mpi and other imports that can cause crashes in ipython (note: in ipython apparently __name__ == '__main__' which is why this if statement is here instead)
 run_full_analysis = True #When running an analysis this should be True.
 # if __name__ == '__main__':
 if run_full_analysis:
@@ -66,7 +67,7 @@ print 'nq', nq
 print 'npl', npl
 sub_ML_monopole_term_model = False #Improve numerical precision. Can be used for improving numerical precision when performing evidence comparison.
 sub_ML_monopole_plus_first_LW_term_model = False #Improve numerical precision. Can be used for improving numerical precision when performing evidence comparison.
-sub_MLLWM = True #Improve numerical precision. DO NOT USE WHEN PERFORMING EVIDENCE COMPARISON! Can only be used for parameter estimation not evidence comparison since subtracting different MLLWM (with different evidences) from the data when comparing different LWMs will alter the relative evidences of the subtracted models. In effect subtracting a higher evidence MLLWM1 reduces the evidence for the fit to the residuals with MLLWM1 relative to fitting low evidence MLLWM2 and refitting with MLLWM2. It is only correct to compare evidences when doing no qsub or when the qsub model is fixed such as with sub_ML_monopole_term_model.
+sub_MLLWM = False #Improve numerical precision. DO NOT USE WHEN PERFORMING EVIDENCE COMPARISON! Can only be used for parameter estimation not evidence comparison since subtracting different MLLWM (with different evidences) from the data when comparing different LWMs will alter the relative evidences of the subtracted models. In effect subtracting a higher evidence MLLWM1 reduces the evidence for the fit to the residuals with MLLWM1 relative to fitting low evidence MLLWM2 and refitting with MLLWM2. It is only correct to compare evidences when doing no qsub or when the qsub model is fixed such as with sub_ML_monopole_term_model.
 # Cube size
 nf=p.nf
 neta=p.neta
@@ -81,11 +82,14 @@ sigma=50.e-1
 
 if p.include_instrumental_effects:
 		average_baseline_redundancy = p.baseline_redundancy_array.mean() #Keep average noise level consisitent with the non-instrumental case by normalizing sigma by the average baseline redundancy before scaling individual baselines by their respective redundancies
-		sigma = sigma*average_baseline_redundancy**0.5 *250.0 #Noise level in S19b
+		# sigma = sigma*average_baseline_redundancy**0.5 *250.0 #Noise level in S19b
 		# sigma = sigma*average_baseline_redundancy**0.5 *500.0
-		# sigma = sigma*average_baseline_redundancy**0.5 *1000.0
+		sigma = sigma*average_baseline_redundancy**0.5 *1000.0
+		# sigma = sigma*average_baseline_redundancy**0.5 *2000.0
 else:
 	sigma = sigma*1.
+
+p.sigma = sigma
 
 # Auxiliary and derived params
 small_cube = nu<=7 and nv<=7
@@ -99,9 +103,8 @@ n_LW = (nu*nv-1)*nq
 n_model = n_Fourier+n_LW
 n_dat = n_Fourier
 current_file_version = 'Likelihood_v1d76_3D_ZM'
-# array_save_directory = 'array_storage/{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(current_file_version,nu,nv,neta,nq,npl,sigma).replace('.','d')
-array_save_directory = 'array_storage/batch_1/{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(current_file_version,nu,nv,neta,nq,npl,sigma).replace('.','d')
-# array_save_directory = 'array_storage/batch_2/{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(current_file_version,nu,nv,neta,nq,npl,sigma).replace('.','d')
+# array_save_directory = 'array_storage/batch_1/{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(current_file_version,nu,nv,neta,nq,npl,sigma).replace('.','d')
+array_save_directory = 'array_storage/FgSpecMOptimisation/{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(current_file_version,nu,nv,neta,nq,npl,sigma).replace('.','d')
 if p.include_instrumental_effects:
 	instrument_info = filter(None, p.instrument_model_directory.split('/'))[-1]
 	array_save_directory = array_save_directory[:-1]+'_instrumental/'+instrument_info+'/'
@@ -170,6 +173,9 @@ if not p.include_instrumental_effects:
 		###
 		# GDSE foreground_outputs
 		###	
+
+		p.Tb_experimental_std_K = 30.0
+
 		foreground_outputs = generate_Jelic_cube(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, p.beta_experimental_mean,p.beta_experimental_std,p.gamma_mean,p.gamma_sigma,p.Tb_experimental_mean_K,p.Tb_experimental_std_K,p.nu_min_MHz,p.channel_width_MHz, generate_additional_extrapolated_HF_foreground_cube=True, fits_storage_dir=p.fits_storage_dir, HF_nu_min_MHz_array=p.HF_nu_min_MHz_array, simulation_FoV_deg=p.simulation_FoV_deg, simulation_resolution_deg=p.simulation_resolution_deg,random_seed=314211)
 
 		fg_GDSE, s_GDSE, Tb_nu, beta_experimental_mean,beta_experimental_std,gamma_mean,gamma_sigma,Tb_experimental_mean_K,Tb_experimental_std_K,nu_min_MHz,channel_width_MHz, HF_Tb_nu = foreground_outputs
@@ -373,6 +379,7 @@ if p.include_instrumental_effects:
 				pylab.show()
 
 			EoR_noise_seed = 742123
+			EoR_noise_seed = 74212
 			print 'EoR_noise_seed', EoR_noise_seed
 			d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(1.0*sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,random_seed=EoR_noise_seed)[0]
 			effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(1.0*sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,random_seed=EoR_noise_seed)[1]
@@ -388,7 +395,8 @@ if p.include_instrumental_effects:
 			if p.use_GDSE_foreground_cube:
 				print 'Using use_GDSE_foreground_cube data'
 				gdsers = 314211
-				foreground_outputs = generate_Jelic_cube_instrumental_im_2_vis_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, p.beta_experimental_mean,p.beta_experimental_std,p.gamma_mean,p.gamma_sigma,p.Tb_experimental_mean_K,p.Tb_experimental_std_K,p.nu_min_MHz,p.channel_width_MHz,Finv, generate_additional_extrapolated_HF_foreground_cube=True, fits_storage_dir=p.fits_storage_dir, HF_nu_min_MHz_array=p.HF_nu_min_MHz_array, simulation_FoV_deg=p.simulation_FoV_deg, simulation_resolution_deg=p.simulation_resolution_deg,random_seed=gdsers)
+				save_fits = False
+				foreground_outputs = generate_Jelic_cube_instrumental_im_2_vis_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, p.beta_experimental_mean,p.beta_experimental_std,p.gamma_mean,p.gamma_sigma,p.Tb_experimental_mean_K,p.Tb_experimental_std_K,p.nu_min_MHz,p.channel_width_MHz,Finv, generate_additional_extrapolated_HF_foreground_cube=True, fits_storage_dir=p.fits_storage_dir, HF_nu_min_MHz_array=p.HF_nu_min_MHz_array, simulation_FoV_deg=p.simulation_FoV_deg, simulation_resolution_deg=p.simulation_resolution_deg,random_seed=gdsers, save_fits=save_fits)
 
 
 				fg_GDSE, s_GDSE, Tb_nu, beta_experimental_mean,beta_experimental_std,gamma_mean,gamma_sigma,Tb_experimental_mean_K,Tb_experimental_std_K,nu_min_MHz,channel_width_MHz, HF_Tb_nu, scidata1_subset = foreground_outputs
@@ -438,7 +446,10 @@ if p.include_instrumental_effects:
 			# p.use_freefree_foreground_cube = False
 			if p.use_freefree_foreground_cube:
 				print 'Using use_freefree_foreground_cube data'
-				foreground_outputs_ff = generate_Jelic_cube_instrumental_im_2_vis_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, p.beta_experimental_mean_ff,p.beta_experimental_std_ff,p.gamma_mean_ff,p.gamma_sigma_ff,p.Tb_experimental_mean_K_ff,p.Tb_experimental_std_K_ff,p.nu_min_MHz_ff,p.channel_width_MHz_ff,Finv, generate_additional_extrapolated_HF_foreground_cube=True, fits_storage_dir=p.fits_storage_dir_ff, HF_nu_min_MHz_array=p.HF_nu_min_MHz_array_ff, simulation_FoV_deg=p.simulation_FoV_deg_ff, simulation_resolution_deg=p.simulation_resolution_deg_ff,random_seed=314211)
+				save_fits = False
+				# ffrs = 314211
+				ffrs = 31421
+				foreground_outputs_ff = generate_Jelic_cube_instrumental_im_2_vis_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, p.beta_experimental_mean_ff,p.beta_experimental_std_ff,p.gamma_mean_ff,p.gamma_sigma_ff,p.Tb_experimental_mean_K_ff,p.Tb_experimental_std_K_ff,p.nu_min_MHz_ff,p.channel_width_MHz_ff,Finv, generate_additional_extrapolated_HF_foreground_cube=True, fits_storage_dir=p.fits_storage_dir_ff, HF_nu_min_MHz_array=p.HF_nu_min_MHz_array_ff, simulation_FoV_deg=p.simulation_FoV_deg_ff, simulation_resolution_deg=p.simulation_resolution_deg_ff,random_seed=ffrs, save_fits=save_fits)
 
 				fg_ff, s_ff, Tb_nu_ff = foreground_outputs_ff[:3]
 				foreground_outputs_ff = []
@@ -455,7 +466,7 @@ if p.include_instrumental_effects:
 					pylab.tick_params(labelsize=20)
 					pylab.tight_layout()
 					simulation_plots_dir = '/gpfs/data/jpober/psims/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/spec_model_tests/Plots/EoRFgSpecM_foreground_images/'
-					sim_name = 'Jelic_free_free_cube_{}_MHz_K_mean_T_{}_RMS_T_{}'.format(p.nu_min_MHz_ff, np.round(p.Tb_experimental_mean_K_ff,1), np.round(p.Tb_experimental_std_K_ff,1)).replace('.','d')+'.png'
+					sim_name = 'Jelic_free_free_cube_{}_MHz_K_mean_T_{}_RMS_T_{}_v2d0'.format(p.nu_min_MHz_ff, np.round(p.Tb_experimental_mean_K_ff,1), np.round(p.Tb_experimental_std_K_ff,1)).replace('.','d')+'.png'
 					pylab.savefig(simulation_plots_dir+sim_name)
 					pylab.show()
 
@@ -485,7 +496,13 @@ if calculte_PS_of_EoR_cube_directly:
 	calculate_21cmFAST_EoR_cube_power_spectrum_in_subset_cube_bins_v1d0(nu,nv,nx,ny,nf,neta,nq,k_cube_voxels_in_bin,modkbins_containing_voxels,p.EoR_npz_path_sc,mod_k,k_x,k_y,k_z)
 
 
+# start = time.time()
+# T_Ninv_T = BM.read_data_from_hdf5(array_save_directory+'T_Ninv_T.h5', 'T_Ninv_T')
+# print 'Time taken: {}'.format(time.time()-start)
 
+# start = time.time()
+# a = np.dot(T.conjugate().T,np.dot(Ninv,T))
+# print 'Time taken: {}'.format(time.time()-start)
 
 #--------------------------------------------
 # Load base matrices used in the likelihood and define related variables
@@ -503,6 +520,9 @@ d_Ninv_d = np.dot(d.conjugate(), Ninv_d)
 
 if p.use_intrinsic_noise_fitting:
 	nDims = nDims+1
+
+if p.fit_for_spectral_model_parameters:
+	nDims = nDims+p.npl
 
 ###
 # nDims = nDims+3 for Gaussian prior over the three long wavelength model vectors
@@ -885,9 +905,9 @@ from numpy import real
 #--------------------------------------------
 # Instantiate class and check that posterior_probability returns a finite probability (so no obvious binning errors etc.)
 #--------------------------------------------
-if small_cube: PSPP = PowerSpectrumPosteriorProbability(T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes, modk_vis_ordered_list, Ninv, d_Ninv_d, log_priors=False, intrinsic_noise_fitting=p.use_intrinsic_noise_fitting)
-PSPP_block_diag = PowerSpectrumPosteriorProbability(T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes, modk_vis_ordered_list, Ninv, d_Ninv_d, block_T_Ninv_T=block_T_Ninv_T, Print=True, log_priors=False, intrinsic_noise_fitting=p.use_intrinsic_noise_fitting)
-self = PowerSpectrumPosteriorProbability(T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes, modk_vis_ordered_list, Ninv, d_Ninv_d, block_T_Ninv_T=block_T_Ninv_T, Print=True, log_priors=False, intrinsic_noise_fitting=p.use_intrinsic_noise_fitting)
+if small_cube: PSPP = PowerSpectrumPosteriorProbability(T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes, modk_vis_ordered_list, Ninv, d_Ninv_d, log_priors=False, intrinsic_noise_fitting=p.use_intrinsic_noise_fitting, fit_for_spectral_model_parameters=p.fit_for_spectral_model_parameters)
+PSPP_block_diag = PowerSpectrumPosteriorProbability(T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes, modk_vis_ordered_list, Ninv, d_Ninv_d, block_T_Ninv_T=block_T_Ninv_T, Print=True, log_priors=False, intrinsic_noise_fitting=p.use_intrinsic_noise_fitting, fit_for_spectral_model_parameters=p.fit_for_spectral_model_parameters)
+self = PowerSpectrumPosteriorProbability(T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes, modk_vis_ordered_list, Ninv, d_Ninv_d, block_T_Ninv_T=block_T_Ninv_T, Print=True, log_priors=False, intrinsic_noise_fitting=p.use_intrinsic_noise_fitting, fit_for_spectral_model_parameters=p.fit_for_spectral_model_parameters)
 start = time.time()
 
 if small_cube:
@@ -962,12 +982,12 @@ if sub_MLLWM:
 				# fit_constraints = [1.e-100]*(nDims)
 				# fit_constraints = [1.e-20]*(nDims)
 				fit_constraints = [1.e2]*(nDims)
-				# fit_constraints = [1.e-1]*(nDims)
+				fit_constraints = [1.e0]*(nDims)
 
 			maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper(fit_constraints, T_Ninv_T, dbar_prime_i, block_T_Ninv_T=block_T_Ninv_T)[0]
 			# maxL_LW_signal = np.dot(T,maxL_LW_fit)
 
-			use_only_the_mean_component_of_the_foreground_model = False
+			use_only_the_mean_component_of_the_foreground_model = True
 			if use_only_the_mean_component_of_the_foreground_model:
 				if type(p.beta)==list:
 					Q_T = np.array([row for i,row in enumerate(T.T) if (i+((neta+nq)-neta/2))%(neta+nq)==0]).T
@@ -1062,7 +1082,7 @@ if sub_MLLWM:
 if sub_ML_monopole_term_model:
 	pre_sub_dbar = PSPP_block_diag.dbar
 	PSPP_block_diag.inverse_LW_power=0.0
-	PSPP_block_diag.inverse_LW_power_zeroth_LW_term=2.e-18 #Don't fit for the first LW term (since only fitting for the monopole)
+	PSPP_block_diag.inverse_LW_power_zeroth_LW_term=p.inverse_LW_power
 	PSPP_block_diag.inverse_LW_power_first_LW_term=2.e18 #Don't fit for the first LW term (since only fitting for the monopole)
 	PSPP_block_diag.inverse_LW_power_second_LW_term=2.e18  #Don't fit for the second LW term (since only fitting for the monopole)
 	if p.use_LWM_Gaussian_prior:
@@ -1188,6 +1208,27 @@ log_priors_min_max = [[-5.0, 3.0] for _ in range(nDims)]
 
 
 
+# log_priors_min_max[-10+1] = [-1.2, -0.4]
+# log_priors_min_max[-10+2] = [-0.2, 0.3]
+# log_priors_min_max[-10+3] =  [0.25, 0.75]
+# log_priors_min_max[-10+4] =  [0.7, 1.25]
+# log_priors_min_max[-10+5] =  [0.8, 1.25]
+# log_priors_min_max[-10+6] =  [0.85, 1.3]
+# log_priors_min_max[-10+7] =  [1.1, 1.5]
+# log_priors_min_max[-10+8] =  [1.45, 1.8]
+# log_priors_min_max[-10+9] =  [1.4, 2.1]
+
+# log_priors_min_max[-10+1] = [-0.7, -0.65]
+# log_priors_min_max[-10+2] = [-0.05, 0.05]
+# log_priors_min_max[-10+3] =  [0.45, 0.50]
+# log_priors_min_max[-10+4] =  [0.73, 1.80]
+# log_priors_min_max[-10+5] =  [0.90, 0.95]
+# log_priors_min_max[-10+6] =  [1.20, 1.25]
+# log_priors_min_max[-10+7] =  [1.37, 1.42]
+# log_priors_min_max[-10+8] =  [1.47, 1.52]
+# log_priors_min_max[-10+9] =  [1.65, 1.70]
+
+
 if p.use_LWM_Gaussian_prior:
 	fg_log_priors_min = np.log10(1.e5) #Set minimum LW model priors using LW power spectrum in fit to white noise (i.e the prior min should incorporate knowledge of signal-loss in iterative pre-subtraction in order to eliminate the bias that would result from not removing this when re-fitting in the full analysis.)
 	fg_log_priors_max = 6.0 #Set minimum LW model prior max using numerical stability constraint at the given signal-to-noise in the data.
@@ -1201,9 +1242,22 @@ if p.use_LWM_Gaussian_prior:
 		log_priors_min_max[3] = log_priors_min_max[2]
 		log_priors_min_max[0] = [1.0, 2.0] #Linear alpha_prime range
 else:
-	if p.use_intrinsic_noise_fitting:
-		log_priors_min_max[0] = [1.0, 2.0] #Linear alpha_prime range
+	if p.fit_for_spectral_model_parameters:
+		if p.use_intrinsic_noise_fitting:
+				log_priors_min_max[0] = [0.30, 4.70] #Linear b1 range
+				log_priors_min_max[1] = [0.0, 1.0] # b2 = b1(p0) + (5.25-b1(p0))*p1
+				log_priors_min_max[2] = [1.0, 2.0] #Linear alpha_prime range
+		else:
+			# b1_min = (p.pl_grid_spacing/2.)+0.05 #+0.05 is to avoid rounding to below the model range
+			b1_min = p.pl_min #+0.05 is to avoid rounding to below the model range
+			b1_max = p.pl_max-p.pl_grid_spacing-0.05 #-0.05 is to avoid rounding to above the model range
+			log_priors_min_max[0] = [b1_min, b1_max] #Linear b1 range 
+			log_priors_min_max[1] = [0.0, 1.0] # b2 = b1(p0) + (b1_max-b1(p0))*p1
+	else:
+		if p.use_intrinsic_noise_fitting:
+				log_priors_min_max[0] = [1.0, 2.0] #Linear alpha_prime range
 
+	
 
 print 'log_priors_min_max', log_priors_min_max
 
@@ -1213,6 +1267,9 @@ nDims = len(k_cube_voxels_in_bin)
 
 if p.use_intrinsic_noise_fitting:
 	nDims = nDims+1
+
+if p.fit_for_spectral_model_parameters:
+	nDims = nDims+2
 
 ###
 # nDims = nDims+3 for Gaussian prior over the three long wavelength model vectors
@@ -1257,10 +1314,13 @@ if use_MultiNest:
 
 file_root = generate_output_file_base(file_root, version_number='1')
 
+# file_root = 'MN-EoR-9_9_38_2_2_s_8d5E+04-lp_T-dPS_T_b1_2.63_b2_2.82-v5-'
+file_root = 'MN-EoR-9_9_38_2_2_s_8d5E+04-lp_T-dPS_T_b1_2.63_b2_2.82-v6-'
+
 print 'Rank', mpi_rank
 print 'Output file_root = ', file_root
 
-PSPP_block_diag_Polychord = PowerSpectrumPosteriorProbability(T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes, modk_vis_ordered_list, Ninv, d_Ninv_d, block_T_Ninv_T=block_T_Ninv_T, log_priors=log_priors, dimensionless_PS=dimensionless_PS, Print=True, intrinsic_noise_fitting=p.use_intrinsic_noise_fitting)
+PSPP_block_diag_Polychord = PowerSpectrumPosteriorProbability(T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes, modk_vis_ordered_list, Ninv, d_Ninv_d, block_T_Ninv_T=block_T_Ninv_T, log_priors=log_priors, dimensionless_PS=dimensionless_PS, Print=True, intrinsic_noise_fitting=p.use_intrinsic_noise_fitting,fit_for_spectral_model_parameters=p.fit_for_spectral_model_parameters)
 if p.include_instrumental_effects and not zero_the_LW_modes:
 	PSPP_block_diag_Polychord.inverse_LW_power=p.inverse_LW_power #Include minimal prior over LW modes required for numerical stability
 if zero_the_LW_modes:
@@ -1287,7 +1347,7 @@ start = time.time()
 PSPP_block_diag_Polychord.Print=False
 Nit=20
 for _ in range(Nit):
-	L =  PSPP_block_diag_Polychord.posterior_probability([3.e0]*nDims)[0]
+	L =  PSPP_block_diag_Polychord.posterior_probability([1.e0]*nDims)[0]
 PSPP_block_diag_Polychord.Print=False
 print 'Average evaluation time: %f'%((time.time()-start)/float(Nit))
 
@@ -1312,8 +1372,10 @@ else:
 if run_single_node_analysis or mpi_size>1:
 	if use_MultiNest:
 		MN_nlive = nDims*25
+		const_efficiency_mode = False #Use for exploring a slowly converging posterior (should be False for reliable evidence estimation).
+		importance_nested_sampling = False
 		# Run MultiNest
-		result = solve(LogLikelihood=MultiNest_likelihood, Prior=prior_c.prior_func, n_dims=nDims, outputfiles_basename=outputfiles_base_dir+file_root, n_live_points=MN_nlive)
+		result = solve(LogLikelihood=MultiNest_likelihood, Prior=prior_c.prior_func, n_dims=nDims, outputfiles_basename=outputfiles_base_dir+file_root, n_live_points=MN_nlive, const_efficiency_mode=const_efficiency_mode, importance_nested_sampling=importance_nested_sampling)
 	else:
 		precision_criterion = 0.05
 		#precision_criterion = 0.001 #PolyChord default value
@@ -1331,8 +1393,10 @@ else:
 
 
 
-
-
+# from scipy import sparse
+# a = sparse.diags(np.arange(10))
+# b = a * np.ones([10,10])
+# print b
 
 
 
