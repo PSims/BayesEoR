@@ -21,6 +21,11 @@ nv=9
 nx=9
 ny=9
 
+###
+#Use sparse matrices to reduce storage requirements when constructing the data model
+###
+use_sparse_matrices = True
+
 
 use_uniform_prior_on_min_k_bin = False
 # use_uniform_prior_on_min_k_bin = True #Don't use the min_kz voxels (eta \propto 1/B), which have significant correlation with the Fg model, in estimates of the low-k power spectrum 
@@ -166,10 +171,16 @@ def load_baseline_redundancy_array(instrument_model_directory):
 
 
 if include_instrumental_effects:
-	instrument_model_directory = '/users/psims/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/Instrument_Model/HERA_331_baselines_shorter_than_29d3_for_30_0d5_min_time_steps/'
+	nt = 30
+	integration_time_minutes = 0.5
+	integration_time_minutes_str = '{}'.format(integration_time_minutes).replace('.','d')
+	# instrument_model_directory = '/users/psims/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/Instrument_Model/HERA_331_baselines_shorter_than_29d3_for_30_0d5_min_time_steps/'
+	instrument_model_directory = '/users/psims/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/Instrument_Model/HERA_331_baselines_shorter_than_29d3_for_{}_{}_min_time_steps/'.format(nt, integration_time_minutes_str)
 	
 	uvw_multi_time_step_array_meters_reshaped = load_uvw_instrument_sampling_m(instrument_model_directory)
+	uvw_multi_time_step_array_meters = uvw_multi_time_step_array_meters_reshaped.reshape(nt,-1,2) #In nvis_per_chan*nchan order
 	baseline_redundancy_array = load_baseline_redundancy_array(instrument_model_directory)
+	baseline_redundancy_array_time_vis_shaped = baseline_redundancy_array.reshape(nt,-1)
 	uv_pixel_width_wavelengths = 2.5 #Define a fixed pixel width in wavelengths
 	n_vis = len(uvw_multi_time_step_array_meters_reshaped) #Number of visibilities per channel (i.e. number of redundant baselines * number of time steps)
 	###---------
@@ -195,6 +206,16 @@ if include_instrumental_effects:
 		beam_info_str += '{}_beam_peak_amplitude_{}_beam_width_{}_deg_at_{}_MHz'.format(beam_type, str(beam_peak_amplitude).replace('.','d'), str(FWHM_deg_at_ref_freq_MHz).replace('.','d'), str(PB_ref_freq_MHz).replace('.','d'))		
 
 	instrument_model_directory = instrument_model_directory[:-1]+'_{}/'.format(beam_info_str)
+
+	model_drift_scan_primary_beam = True
+	# model_drift_scan_primary_beam = False
+	use_nvis_nt_nchan_ordering = True
+	use_nvis_nchan_nt_ordering = False
+	if model_drift_scan_primary_beam:
+		use_nvis_nt_nchan_ordering = False
+		use_nvis_nchan_nt_ordering = True
+
+
 ###--
 
 
@@ -229,8 +250,8 @@ fit_for_monopole = False
 ###
 # Fit for the optimal the large spectral scale model parameters
 ###
-# fit_for_spectral_model_parameters = False
-fit_for_spectral_model_parameters = True
+fit_for_spectral_model_parameters = False
+# fit_for_spectral_model_parameters = True
 pl_min = 2.0
 pl_max = 3.0
 pl_grid_spacing = 0.1

@@ -45,7 +45,8 @@ def makeGaussian(size, fwhm = 3, center=None):
 
 ###
 def make_Gaussian_beam(image_size_pix, fwhm_pix, beam_peak_amplitude, center_pix=[]):
-	""" Make a square gaussian kernel.
+	""" 
+	Make a square gaussian kernel centered on center_pix=[x0, y0].
 	"""
 	x = np.arange(0, image_size_pix, 1, float)
 	y = x[:,np.newaxis]
@@ -489,6 +490,27 @@ def nuDFT_Array_DFT_2D(nu, nv, nx, ny, chan_freq_MHz, X_oversampling_Factor=1.0,
 	sampled_uvw_coords_m = p.uvw_multi_time_step_array_meters_reshaped
 	sampled_uvw_coords_wavelengths = sampled_uvw_coords_m/(p.speed_of_light/(chan_freq_MHz*1.e6)) # Convert uv-coordinates from meters to wavelengths at frequency chan_freq_MHz
 	sampled_uvw_coords_inverse_pixel_units = sampled_uvw_coords_wavelengths/p.uv_pixel_width_wavelengths #Convert uv-coordinates from wavelengths to inverse pixel units
+
+	i_x_AV, i_y_AV, i_u_AV, i_v_AV = Produce_Full_Coordinate_Arrays(nu, nv, nx, ny)
+	# Overwrite gridded uv coords with instrumental uv coords loaded in params
+	i_u_AV = sampled_uvw_coords_inverse_pixel_units[:,0].reshape(1,-1)
+	i_v_AV = sampled_uvw_coords_inverse_pixel_units[:,1].reshape(1,-1)
+	#
+	if U_oversampling_Factor!=1.0:
+		i_x_AV, i_y_AV, i_u_AV, i_v_AV = Calc_Coords_Large_Im_to_High_Res_uv(i_x_AV, i_y_AV, i_u_AV, i_v_AV, U_oversampling_Factor, V_oversampling_Factor)
+	if X_oversampling_Factor!=1.0:
+		i_x_AV, i_y_AV, i_u_AV, i_v_AV = Calc_Coords_High_Res_Im_to_Large_uv(i_x_AV, i_y_AV, i_u_AV, i_v_AV, U_oversampling_Factor, V_oversampling_Factor)
+	#
+	ExponentArray=np.exp(+2.0*np.pi*1j*( (i_x_AV*i_u_AV/float(nx)) +  (i_v_AV*i_y_AV/float(ny)) ))
+	return ExponentArray
+
+
+
+
+###
+# non-uniform DFT from image space to uv-coordinates given by sampled_uvw_coords_inverse_pixel_units (for examples, the sub-100m baselines sampled by HERA 331).
+###
+def nuDFT_Array_DFT_2D_v2d0(nu, nv, nx, ny, sampled_uvw_coords_inverse_pixel_units, X_oversampling_Factor=1.0, Y_oversampling_Factor=1.0, U_oversampling_Factor=1.0, V_oversampling_Factor=1.0):
 
 	i_x_AV, i_y_AV, i_u_AV, i_v_AV = Produce_Full_Coordinate_Arrays(nu, nv, nx, ny)
 	# Overwrite gridded uv coords with instrumental uv coords loaded in params

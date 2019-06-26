@@ -75,9 +75,7 @@ sigma=50.e-1
 
 if p.include_instrumental_effects:
 		average_baseline_redundancy = p.baseline_redundancy_array.mean() #Keep average noise level consisitent with the non-instrumental case by normalizing sigma by the average baseline redundancy before scaling individual baselines by their respective redundancies
-		sigma = sigma*average_baseline_redundancy**0.5 *250.0 #Noise level in S19b
-		# sigma = sigma*average_baseline_redundancy**0.5 *500.0
-		# sigma = sigma*average_baseline_redundancy**0.5 *1000.0
+		sigma = sigma*average_baseline_redundancy**0.5 *1000.0
 else:
 	sigma = sigma*1.
 
@@ -96,6 +94,8 @@ current_file_version = 'Likelihood_v1d76_3D_ZM'
 array_save_directory = 'array_storage/batch_1/{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(current_file_version,nu,nv,neta,nq,npl,sigma).replace('.','d')
 if p.include_instrumental_effects:
 	instrument_info = filter(None, p.instrument_model_directory.split('/'))[-1]
+	if 	p.model_drift_scan_primary_beam:
+		instrument_info = instrument_info+'_dspb'
 	array_save_directory = array_save_directory[:-1]+'_instrumental/'+instrument_info+'/'
 	n_vis=p.n_vis
 else:
@@ -172,13 +172,13 @@ if not p.include_instrumental_effects:
 #--------------------------------------------
 # Load base matrices used in the likelihood and define related variables
 #--------------------------------------------
-T_Ninv_T = BM.read_data_from_hdf5(array_save_directory+'T_Ninv_T.h5', 'T_Ninv_T')
+T_Ninv_T = BM.read_data_s2d(array_save_directory+'T_Ninv_T', 'T_Ninv_T')
 Npar = shape(T_Ninv_T)[0]
 fit_for_LW_power_spectrum = True
 masked_power_spectral_modes = np.ones(Npar)
 masked_power_spectral_modes = masked_power_spectral_modes.astype('bool')
-T = BM.read_data_from_hdf5(array_save_directory+'T.h5', 'T')
-Finv = BM.read_data_from_hdf5(array_save_directory+'Finv.h5', 'Finv')
+T = BM.read_data_s2d(array_save_directory+'T', 'T')
+Finv = BM.read_data_s2d(array_save_directory+'Finv', 'Finv')
 
 #--------------------------------------------
 # Data creation with instrumental effects
@@ -198,10 +198,8 @@ effective_noise_std = effective_noise.std()
 #--------------------------------------------
 # Continue loading base matrices used in the likelihood and defining related variables
 #--------------------------------------------
-T = BM.read_data_from_hdf5(array_save_directory+'T.h5', 'T')
-T_Ninv_T = BM.read_data_from_hdf5(array_save_directory+'T_Ninv_T.h5', 'T_Ninv_T')
-block_T_Ninv_T = BM.read_data_from_hdf5(array_save_directory+'block_T_Ninv_T.h5', 'block_T_Ninv_T')
-Ninv = BM.read_data_from_hdf5(array_save_directory+'Ninv.h5', 'Ninv')
+block_T_Ninv_T = BM.read_data_s2d(array_save_directory+'block_T_Ninv_T', 'block_T_Ninv_T')
+Ninv = BM.read_data_s2d(array_save_directory+'Ninv', 'Ninv')
 Ninv_d = np.dot(Ninv,d)
 dbar = np.dot(T.conjugate().T,Ninv_d)
 # Ninv=[]

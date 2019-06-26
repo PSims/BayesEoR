@@ -85,6 +85,7 @@ if p.include_instrumental_effects:
 		# sigma = sigma*average_baseline_redundancy**0.5 *250.0 #Noise level in S19b
 		# sigma = sigma*average_baseline_redundancy**0.5 *500.0
 		sigma = sigma*average_baseline_redundancy**0.5 *1000.0
+		# sigma = sigma*average_baseline_redundancy**0.5 *1500.0
 		# sigma = sigma*average_baseline_redundancy**0.5 *2000.0
 else:
 	sigma = sigma*1.
@@ -107,6 +108,8 @@ current_file_version = 'Likelihood_v1d76_3D_ZM'
 array_save_directory = 'array_storage/FgSpecMOptimisation/{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(current_file_version,nu,nv,neta,nq,npl,sigma).replace('.','d')
 if p.include_instrumental_effects:
 	instrument_info = filter(None, p.instrument_model_directory.split('/'))[-1]
+	if 	p.model_drift_scan_primary_beam:
+		instrument_info = instrument_info+'_dspb'
 	array_save_directory = array_save_directory[:-1]+'_instrumental/'+instrument_info+'/'
 	n_vis=p.n_vis
 else:
@@ -337,7 +340,7 @@ if not p.include_instrumental_effects:
 
 
 
-T_Ninv_T = BM.read_data_from_hdf5(array_save_directory+'T_Ninv_T.h5', 'T_Ninv_T')
+T_Ninv_T = BM.read_data_s2d(array_save_directory+'T_Ninv_T', 'T_Ninv_T')
 Npar = shape(T_Ninv_T)[0]
 fit_for_LW_power_spectrum = True
 masked_power_spectral_modes = np.ones(Npar)
@@ -346,8 +349,8 @@ if not fit_for_LW_power_spectrum:
 	masked_power_spectral_modes[sorted(np.hstack(k_cube_voxels_in_bin)[0])] = 0.0
 
 masked_power_spectral_modes = masked_power_spectral_modes.astype('bool')
-T = BM.read_data_from_hdf5(array_save_directory+'T.h5', 'T')
-Finv = BM.read_data_from_hdf5(array_save_directory+'Finv.h5', 'Finv')
+T = BM.read_data_s2d(array_save_directory+'T', 'T')
+Finv = BM.read_data_s2d(array_save_directory+'Finv', 'Finv')
 
 #--------------------------------------------
 # Data creation with instrumental effects
@@ -507,10 +510,13 @@ if calculte_PS_of_EoR_cube_directly:
 #--------------------------------------------
 # Load base matrices used in the likelihood and define related variables
 #--------------------------------------------
-T = BM.read_data_from_hdf5(array_save_directory+'T.h5', 'T')
-T_Ninv_T = BM.read_data_from_hdf5(array_save_directory+'T_Ninv_T.h5', 'T_Ninv_T')
-block_T_Ninv_T = BM.read_data_from_hdf5(array_save_directory+'block_T_Ninv_T.h5', 'block_T_Ninv_T')
-Ninv = BM.read_data_from_hdf5(array_save_directory+'Ninv.h5', 'Ninv')
+T = BM.read_data_s2d(array_save_directory+'T', 'T')
+T_Ninv_T = BM.read_data_s2d(array_save_directory+'T_Ninv_T', 'T_Ninv_T')
+block_T_Ninv_T = BM.read_data_s2d(array_save_directory+'block_T_Ninv_T', 'block_T_Ninv_T')
+Ninv = BM.read_data_s2d(array_save_directory+'Ninv', 'Ninv')
+
+# Ninv = BM.convert_sparse_matrix_to_dense_numpy_array(Ninv)
+
 Ninv_d = np.dot(Ninv,d)
 dbar = np.dot(T.conjugate().T,Ninv_d)
 # Ninv=[]
@@ -617,7 +623,7 @@ if do_null_space_test:
 ML_image_model_recovery_testing = False
 if ML_image_model_recovery_testing:
 
-	Fprime_Fz = BM.read_data_from_hdf5(array_save_directory+'Fprime_Fz.h5', 'Fprime_Fz')
+	Fprime_Fz = BM.read_data_s2d(array_save_directory+'Fprime_Fz', 'Fprime_Fz')
 
 	###
 	# Single power law fit
@@ -782,7 +788,7 @@ if run_nudft_test:
 	Finv = block_diag(*[dft_array.T for i in range(p.nf)])
 
 	# Finv = BM.read_data_from_hdf5(array_save_directory+'Finv.h5', 'Finv')
-	Fprime_Fz = BM.read_data_from_hdf5(array_save_directory+'Fprime_Fz.h5', 'Fprime_Fz')
+	Fprime_Fz = BM.read_data_s2d(array_save_directory+'Fprime_Fz', 'Fprime_Fz')
 	T = np.dot(Finv, Fprime_Fz)
 	# Ninv = BM.read_data_from_hdf5(array_save_directory+'Ninv.h5', 'Ninv')
 	Ninv = np.identity(T.shape[0])*1./sigma**2.	+0j
@@ -928,7 +934,7 @@ if sub_MLLWM:
 			fit_constraints = [1.e-20]*(nDims)
 		maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper(fit_constraints, T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
 		maxL_LW_signal = np.dot(T,maxL_LW_fit)
-		Ninv = BM.read_data_from_hdf5(array_save_directory+'Ninv.h5', 'Ninv')
+		Ninv = BM.read_data_s2d(array_save_directory+'Ninv', 'Ninv')
 		Ninv_maxL_LW_signal = np.dot(Ninv,maxL_LW_signal)
 		ML_qbar = np.dot(T.conjugate().T,Ninv_maxL_LW_signal)
 		q_sub_dbar = pre_sub_dbar-ML_qbar
@@ -949,7 +955,7 @@ if sub_MLLWM:
 
 
 	else:
-		Ninv = BM.read_data_from_hdf5(array_save_directory+'Ninv.h5', 'Ninv')
+		Ninv = BM.read_data_s2d(array_save_directory+'Ninv', 'Ninv')
 		maxL_LW_fit_array = []
 		maxL_LW_signal_array = []
 		pre_sub_dbar = PSPP_block_diag.dbar
@@ -987,7 +993,7 @@ if sub_MLLWM:
 			maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper(fit_constraints, T_Ninv_T, dbar_prime_i, block_T_Ninv_T=block_T_Ninv_T)[0]
 			# maxL_LW_signal = np.dot(T,maxL_LW_fit)
 
-			use_only_the_mean_component_of_the_foreground_model = True
+			use_only_the_mean_component_of_the_foreground_model = False
 			if use_only_the_mean_component_of_the_foreground_model:
 				if type(p.beta)==list:
 					Q_T = np.array([row for i,row in enumerate(T.T) if (i+((neta+nq)-neta/2))%(neta+nq)==0]).T
@@ -1091,7 +1097,7 @@ if sub_ML_monopole_term_model:
 		fit_constraints = [1.e-20]*(nDims)
 	maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper(fit_constraints, T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]	
 	maxL_LW_signal = np.dot(T,maxL_LW_fit)
-	Ninv = BM.read_data_from_hdf5(array_save_directory+'Ninv.h5', 'Ninv')
+	Ninv = BM.read_data_s2d(array_save_directory+'Ninv', 'Ninv')
 	Ninv_maxL_LW_signal = np.dot(Ninv,maxL_LW_signal)
 	ML_qbar = np.dot(T.conjugate().T,Ninv_maxL_LW_signal)
 	q_sub_dbar = pre_sub_dbar-ML_qbar
@@ -1116,7 +1122,7 @@ if sub_ML_monopole_plus_first_LW_term_model:
 		fit_constraints = [1.e-20]*(nDims)
 	maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper(fit_constraints, T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
 	maxL_LW_signal = np.dot(T,maxL_LW_fit)
-	Ninv = BM.read_data_from_hdf5(array_save_directory+'Ninv.h5', 'Ninv')
+	Ninv = BM.read_data_s2d(array_save_directory+'Ninv', 'Ninv')
 	Ninv_maxL_LW_signal = np.dot(Ninv,maxL_LW_signal)
 	ML_qbar = np.dot(T.conjugate().T,Ninv_maxL_LW_signal)
 	q_sub_dbar = pre_sub_dbar-ML_qbar
@@ -1315,7 +1321,7 @@ if use_MultiNest:
 file_root = generate_output_file_base(file_root, version_number='1')
 
 # file_root = 'MN-EoR-9_9_38_2_2_s_8d5E+04-lp_T-dPS_T_b1_2.63_b2_2.82-v5-'
-file_root = 'MN-EoR-9_9_38_2_2_s_8d5E+04-lp_T-dPS_T_b1_2.63_b2_2.82-v6-'
+# file_root = 'MN-EoR-9_9_38_2_2_s_8d5E+04-lp_T-dPS_T_b1_2.63_b2_2.82-v6-'
 
 print 'Rank', mpi_rank
 print 'Output file_root = ', file_root
