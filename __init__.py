@@ -52,6 +52,7 @@ from likelihood_tests.SimpleEoRtestWQ.Likelihood_v1d763_3D_ZM_standalone_GPU_v2d
 from Utils import PriorC, ParseCommandLineArguments, DataUnitConversionmkandJyperpix, WriteDataToFits
 from Utils import ExtractDataFrom21cmFASTCube, plot_signal_vs_MLsignal_residuals
 from Utils import generate_output_file_base, RenormaliseMatricesForScaledNoise
+from Utils import write_log_file
 
 from Utils import remove_unused_header_variables, construct_aplpy_image_from_fits
 

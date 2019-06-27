@@ -590,8 +590,6 @@ class RenormaliseMatricesForScaledNoise(object):
 ## ======================================================================================================
 
 def write_log_file(array_save_directory, file_root, args):
-	import subprocess
-	
 	# make log file directory if it doesn't exist
 	log_dir = 'log_files/'
 	if not os.path.exists(log_dir):

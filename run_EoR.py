@@ -8,7 +8,6 @@ import sys
 head,tail = os.path.split(os.path.split(os.getcwd())[0])
 sys.path.append(head)
 from BayesEoR import * #Make everything available for now, this can be refined later
-from BayesEoR.Utils.Utils_v1d0 import write_log_file
 import BayesEoR.Params.params as p
 
 mpi_rank = 0
