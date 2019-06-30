@@ -485,9 +485,9 @@ def DFT_Array_DFT_2D(nu, nv, nx, ny, X_oversampling_Factor=1.0, Y_oversampling_F
 ###
 # non-uniform DFT from image space to uv-coordinates given by p.uvw_multi_time_step_array_meters_reshaped (for examples, the sub-100m baselines sampled by HERA 331).
 ###
-def nuDFT_Array_DFT_2D(nu, nv, nx, ny, chan_freq_MHz, X_oversampling_Factor=1.0, Y_oversampling_Factor=1.0, U_oversampling_Factor=1.0, V_oversampling_Factor=1.0):
+def nuDFT_Array_DFT_2D(nu, nv, nx, ny, chan_freq_MHz, sampled_uvw_coords_m, X_oversampling_Factor=1.0, Y_oversampling_Factor=1.0, U_oversampling_Factor=1.0, V_oversampling_Factor=1.0):
 	#
-	sampled_uvw_coords_m = p.uvw_multi_time_step_array_meters_reshaped
+	# sampled_uvw_coords_m = p.uvw_multi_time_step_array_meters_reshaped
 	sampled_uvw_coords_wavelengths = sampled_uvw_coords_m/(p.speed_of_light/(chan_freq_MHz*1.e6)) # Convert uv-coordinates from meters to wavelengths at frequency chan_freq_MHz
 	sampled_uvw_coords_inverse_pixel_units = sampled_uvw_coords_wavelengths/p.uv_pixel_width_wavelengths #Convert uv-coordinates from wavelengths to inverse pixel units
 

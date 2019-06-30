@@ -20,15 +20,13 @@ nu=9
 nv=9
 nx=9
 ny=9
+nq=2
 
 ###
-#Use sparse matrices to reduce storage requirements when constructing the data model
+# Data noise estimate
 ###
-use_sparse_matrices = True
-
-
-use_uniform_prior_on_min_k_bin = False
-# use_uniform_prior_on_min_k_bin = True #Don't use the min_kz voxels (eta \propto 1/B), which have significant correlation with the Fg model, in estimates of the low-k power spectrum 
+# sigma=50.e-1*250.0 #Noise level in S19b
+sigma=50.e-1*1000.0
 
 
 ###
@@ -42,13 +40,7 @@ EoR_npz_path_sc = '/users/psims/EoR/EoR_simulations/21cmFAST_2048MPc_2048pix_512
 box_size_21cmFAST_pix_sc = 512 #Must match EoR_npz_path parameters
 box_size_21cmFAST_Mpc_sc = 2048 #Must match EoR_npz_path parameters
 
-###
-# Normalisation params
-###
-EoR_analysis_cube_x_pix = box_size_21cmFAST_pix_sc #pix Analysing the full FoV in x
-EoR_analysis_cube_y_pix = box_size_21cmFAST_pix_sc #pix Analysing the full FoV in y
-EoR_analysis_cube_x_Mpc = box_size_21cmFAST_Mpc_sc #Mpc Analysing the full FoV in x
-EoR_analysis_cube_y_Mpc = box_size_21cmFAST_Mpc_sc #Mpc Analysing the full FoV in y
+
 
 #--------------------------------------------
 # Parameters below this shouldn't require editing
@@ -72,6 +64,7 @@ simulation_resolution_deg = simulation_FoV_deg/511. #Matches EoR sim (note: use 
 fits_storage_dir = 'fits_storage/multi_frequency_band_pythonPStest1/Jelic_nu_min_MHz_{}_TbStd_{}_beta_{}_dbeta{}/'.format(nu_min_MHz, Tb_experimental_std_K, beta_experimental_mean, beta_experimental_std).replace('.','d')
 # HF_nu_min_MHz_array = [210,220,230]
 HF_nu_min_MHz_array = [220]
+
 
 ###
 # diffuse free-free foreground params
@@ -107,7 +100,6 @@ EGS_npz_path = '/users/psims/Cav/EoR/Missing_Radio_Flux/Surveys/Flux_Variance_Ma
 nu_min_MHz = nu_min_MHz #Match spectral range of simulated signals
 channel_width_MHz = channel_width_MHz #Match spectral range of simulated signals
 beta = [2.63, 2.82]
-
 if beta:
 	if type(beta)==list:
 		npl = len(beta)
@@ -116,13 +108,6 @@ if beta:
 else:
 	npl=0
 
-
-def BayesEoRParser():
-	parser = argparse.ArgumentParser()
-	parser.add_argument("-nq", "--nq", help="Number of LWM basis vectors (0-2)", default=2)
-	parser.add_argument("-beta", "--beta", help="Power law spectral index used in data model", default=beta)
-	args = parser.parse_args() #Parse command line arguments
-	return args
 
 ###
 # Accelerate likelihood on GPU
@@ -137,63 +122,23 @@ from astropy import constants
 speed_of_light = constants.c.value
 
 
-###--
 ###
 # Instrumental effects params
 ###
-
 include_instrumental_effects = True
-# include_instrumental_effects = False
 inverse_LW_power = 1.e-16 #Include minimal prior over LW modes to ensure numerically stable posterior *250 
-# inverse_LW_power = 8.e-14 #Include minimal prior over LW modes to ensure numerically stable posterior *250 quadratic
-
-
-###
-# NUDFT params
-###
-# Load uvw_multi_time_step_array_meters_reshaped inside a function to avoid creating extraneous variables in params
-import pickle
-def load_uvw_instrument_sampling_m(instrument_model_directory):
-	file_dir = instrument_model_directory
-	file_name = "uvw_multi_time_step_array_meters_reshaped" #HERA 331 sub-100 m baselines (i.e. H37 baselines) uv-sampling in meters
-	f = open(file_dir+file_name,'r')  
-	uvw_multi_time_step_array_meters_reshaped =  pickle.load(f)
-	return uvw_multi_time_step_array_meters_reshaped
-
-def load_baseline_redundancy_array(instrument_model_directory):
-	file_dir = instrument_model_directory
-	file_name = "unique_H37_baseline_hermitian_redundancy_multi_time_step_array_reshaped" #HERA 331 sub-100 m baselines (i.e. H37 baselines) baseline redundancy
-	f = open(file_dir+file_name,'r')  
-	unique_H37_baseline_hermitian_redundancy_multi_time_step_array_reshaped =  pickle.load(f)
-	return unique_H37_baseline_hermitian_redundancy_multi_time_step_array_reshaped
-
-
-
-
 if include_instrumental_effects:
+	###
+	# Obs params
+	###
 	nt = 30
 	integration_time_minutes = 0.5
 	integration_time_minutes_str = '{}'.format(integration_time_minutes).replace('.','d')
-	# instrument_model_directory = '/users/psims/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/Instrument_Model/HERA_331_baselines_shorter_than_29d3_for_30_0d5_min_time_steps/'
 	instrument_model_directory = '/users/psims/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/Instrument_Model/HERA_331_baselines_shorter_than_29d3_for_{}_{}_min_time_steps/'.format(nt, integration_time_minutes_str)
-	
-	uvw_multi_time_step_array_meters_reshaped = load_uvw_instrument_sampling_m(instrument_model_directory)
-	uvw_multi_time_step_array_meters = uvw_multi_time_step_array_meters_reshaped.reshape(nt,-1,2) #In nvis_per_chan*nchan order
-	baseline_redundancy_array = load_baseline_redundancy_array(instrument_model_directory)
-	baseline_redundancy_array_time_vis_shaped = baseline_redundancy_array.reshape(nt,-1)
 	uv_pixel_width_wavelengths = 2.5 #Define a fixed pixel width in wavelengths
-	n_vis = len(uvw_multi_time_step_array_meters_reshaped) #Number of visibilities per channel (i.e. number of redundant baselines * number of time steps)
-	###---------
-	# Re-weight baseline_redundancy_array (downweight to minimum redundance baseline) to provide uniformly weighted data as input to the analysis, so that the quick intrinsic noise fitting approximation is valid, until generalised intrinsic noise fitting is implemented.
 	###
-	baseline_redundancy_array = baseline_redundancy_array*0 + baseline_redundancy_array.min()
-	###---------
-
-
-###
-# Primary beam params
-###
-if include_instrumental_effects:
+	# Primary beam params
+	###
 	FWHM_deg_at_ref_freq_MHz = 9.0 #9 degrees
 	PB_ref_freq_MHz = 150.0 #150 MHz
 	#beam_type = 'Uniform'
@@ -205,18 +150,15 @@ if include_instrumental_effects:
 	if beam_type.lower() == 'Gaussian'.lower():
 		beam_info_str += '{}_beam_peak_amplitude_{}_beam_width_{}_deg_at_{}_MHz'.format(beam_type, str(beam_peak_amplitude).replace('.','d'), str(FWHM_deg_at_ref_freq_MHz).replace('.','d'), str(PB_ref_freq_MHz).replace('.','d'))		
 
-	instrument_model_directory = instrument_model_directory[:-1]+'_{}/'.format(beam_info_str)
-
+	instrument_model_directory_plus_beam_info = instrument_model_directory[:-1]+'_{}/'.format(beam_info_str)
 	model_drift_scan_primary_beam = True
-	# model_drift_scan_primary_beam = False
-	use_nvis_nt_nchan_ordering = True
-	use_nvis_nchan_nt_ordering = False
 	if model_drift_scan_primary_beam:
 		use_nvis_nt_nchan_ordering = False
 		use_nvis_nchan_nt_ordering = True
+	else:
+		use_nvis_nt_nchan_ordering = True
+		use_nvis_nchan_nt_ordering = False
 
-
-###--
 
 
 ###
@@ -247,6 +189,23 @@ use_LWM_Gaussian_prior = False
 # fit_for_monopole = True
 fit_for_monopole = False
 
+
+###
+# Normalisation params
+###
+EoR_analysis_cube_x_pix = box_size_21cmFAST_pix_sc #pix Analysing the full FoV in x
+EoR_analysis_cube_y_pix = box_size_21cmFAST_pix_sc #pix Analysing the full FoV in y
+EoR_analysis_cube_x_Mpc = box_size_21cmFAST_Mpc_sc #Mpc Analysing the full FoV in x
+EoR_analysis_cube_y_Mpc = box_size_21cmFAST_Mpc_sc #Mpc Analysing the full FoV in y
+
+
+###
+# k_z uniform prior
+###
+use_uniform_prior_on_min_k_bin = False
+# use_uniform_prior_on_min_k_bin = True #Don't use the min_kz voxels (eta \propto 1/B), which have significant correlation with the Fg model, in estimates of the low-k power spectrum 
+
+
 ###
 # Fit for the optimal the large spectral scale model parameters
 ###
@@ -258,6 +217,15 @@ pl_grid_spacing = 0.1
 # pl_max = 5.20
 # pl_grid_spacing = 0.5
 # pl_grid_spacing = 1.0
+
+
+###
+#Use sparse matrices to reduce storage requirements when constructing the data model
+###
+use_sparse_matrices = True
+
+
+
 
 ###
 # Other parameter types

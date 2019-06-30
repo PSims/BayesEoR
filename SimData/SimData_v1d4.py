@@ -774,7 +774,7 @@ def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vec
 
 
 
-def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s, nu,nv,nx,ny,nf,neta,nq, **kwargs):
+def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s, nu,nv,nx,ny,nf,neta,nq,uvw_multi_time_step_array_meters_vectorised,baseline_redundancy_array_vectorised, **kwargs):
 
 	##===== Defaults =======
 	default_random_seed = ''
@@ -790,11 +790,11 @@ def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vec
 	if random_seed:
 		print 'Using the following random_seed for dataset noise:', random_seed
 		np.random.seed(random_seed)
-	real_noise = np.random.normal(0,sigma/2.**0.5,[nf,len(p.uvw_multi_time_step_array_meters_reshaped)])
+	real_noise = np.random.normal(0,sigma/2.**0.5,[nf,len(uvw_multi_time_step_array_meters_vectorised)])
 	if random_seed:
 		np.random.seed(random_seed*123)
 
-	imag_noise = np.random.normal(0,sigma/2.**0.5,[nf,len(p.uvw_multi_time_step_array_meters_reshaped)])
+	imag_noise = np.random.normal(0,sigma/2.**0.5,[nf,len(uvw_multi_time_step_array_meters_vectorised)])
 	complex_noise = real_noise + 1j*imag_noise
 	complex_noise = complex_noise* sigma/complex_noise.std()
 	complex_noise_hermitian = complex_noise.copy()
@@ -802,7 +802,8 @@ def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vec
 	baseline_conjugate_pairs_dict_single_freq = {}
 	baseline_conjugate_pairs_array_single_freq = []
 	# count = 0
-	for i, baseline in enumerate(p.uvw_multi_time_step_array_meters_reshaped):
+	#Only account for uv-redundancy for now so use uvw_multi_time_step_array_meters_vectorised[:,:2] and exclude w-coordinate
+	for i, baseline in enumerate(uvw_multi_time_step_array_meters_vectorised[:,:2]):
 		if tuple(baseline*-1) in baseline_conjugate_pairs_dict_single_freq.keys():
 			baseline_conjugate_pairs_dict_single_freq[tuple(baseline)] = baseline_conjugate_pairs_dict_single_freq[tuple(baseline*-1)]
 			baseline_conjugate_pairs_array_single_freq.append(baseline_conjugate_pairs_dict_single_freq[tuple(baseline*-1)])
@@ -815,7 +816,7 @@ def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vec
 
 
 	for i_freq in range(nf):
-		complex_noise_hermitian[i_freq] = complex_noise_hermitian[i_freq]/p.baseline_redundancy_array**0.5
+		complex_noise_hermitian[i_freq] = complex_noise_hermitian[i_freq]/baseline_redundancy_array_vectorised**0.5
 
 	d=s+complex_noise_hermitian.flatten()
 

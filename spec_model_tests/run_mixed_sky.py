@@ -34,34 +34,11 @@ if run_full_analysis:
 # Set analysis parameters
 #--------------------------------------------
 # Model Params
-args = p.BayesEoRParser()
-print args
+update_params_with_command_line_arguments()
 npl = p.npl
-print 'p.beta', p.beta
-if args.beta:
-	if type(args.beta)==str:
-		if args.beta.count('[') and args.beta.count(']'):
-			p.beta = map(float, args.beta.replace('[','').replace(']','').split(',')) #Overwrite parameter file beta with value chosen from the command line if it is included
-			npl = len(p.beta) #Overwrites quadratic term when nq=2, otherwise unused.
-		else:
-			p.beta = float(args.beta) #Overwrite parameter file beta with value chosen from the command line if it is included 
-			npl = 1
-	elif type(args.beta)==list:
-		p.beta = args.beta #Overwrite parameter file beta with value chosen from the command line if it is included 
-		npl = len(p.beta)
-	else:
-		print 'No value for betas given, using defaults.'
-
-print 'args.beta', args.beta
-print 'p.beta', p.beta
-print 'args.nq', args.nq
-
-nq = int(args.nq)
+nq = p.nq
 if nq>npl:
 	nq=npl
-# nq = 2 #Overwrite PCLA selection
-# npl = 0 #Overwrites quadratic term when nq=2, otherwise unused.
-# nq=npl=p.nq=p.npl = 0
 
 print 'nq', nq
 print 'npl', npl
@@ -77,20 +54,23 @@ nu=p.nu
 nv=p.nv
 nx=p.nx
 ny=p.ny
-# Data noise
-sigma=50.e-1
 
+# p.sigma = 6000.0
+# Data noise
+sigma = p.sigma
 if p.include_instrumental_effects:
-		average_baseline_redundancy = p.baseline_redundancy_array.mean() #Keep average noise level consisitent with the non-instrumental case by normalizing sigma by the average baseline redundancy before scaling individual baselines by their respective redundancies
-		# sigma = sigma*average_baseline_redundancy**0.5 *250.0 #Noise level in S19b
-		# sigma = sigma*average_baseline_redundancy**0.5 *500.0
-		sigma = sigma*average_baseline_redundancy**0.5 *1000.0
-		# sigma = sigma*average_baseline_redundancy**0.5 *1500.0
-		# sigma = sigma*average_baseline_redundancy**0.5 *2000.0
+	uvw_multi_time_step_array_meters = load_uvw_instrument_sampling_m(p.instrument_model_directory)  #In (nvis_per_chan,nchan) order
+	uvw_multi_time_step_array_meters_vectorised = uvw_multi_time_step_array_meters[:,:,:].reshape(-1,3)
+	baseline_redundancy_array_time_vis_shaped = load_baseline_redundancy_array(p.instrument_model_directory)
+	n_vis = len(uvw_multi_time_step_array_meters_vectorised) #Number of visibilities per channel (i.e. number of redundant baselines * number of time steps)
+	# Re-weight baseline_redundancy_array (downweight to minimum redundance baseline) to provide uniformly weighted data as input to the analysis, so that the quick intrinsic noise fitting approximation is valid, until generalised intrinsic noise fitting is implemented.
+	baseline_redundancy_array_time_vis_shaped = baseline_redundancy_array_time_vis_shaped*0 + baseline_redundancy_array_time_vis_shaped.min()
+	baseline_redundancy_array_vectorised = baseline_redundancy_array_time_vis_shaped.reshape(-1,1).flatten()
+	average_baseline_redundancy = baseline_redundancy_array_time_vis_shaped.mean() #Keep average noise level consisitent with the non-instrumental case by normalizing sigma by the average baseline redundancy before scaling individual baselines by their respective redundancies
+	sigma = sigma*average_baseline_redundancy**0.5
 else:
 	sigma = sigma*1.
 
-p.sigma = sigma
 
 # Auxiliary and derived params
 small_cube = nu<=7 and nv<=7
@@ -107,18 +87,16 @@ current_file_version = 'Likelihood_v1d76_3D_ZM'
 # array_save_directory = 'array_storage/batch_1/{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(current_file_version,nu,nv,neta,nq,npl,sigma).replace('.','d')
 array_save_directory = 'array_storage/FgSpecMOptimisation/{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(current_file_version,nu,nv,neta,nq,npl,sigma).replace('.','d')
 if p.include_instrumental_effects:
-	instrument_info = filter(None, p.instrument_model_directory.split('/'))[-1]
+	instrument_info = filter(None, p.instrument_model_directory_plus_beam_info.split('/'))[-1]
 	if 	p.model_drift_scan_primary_beam:
 		instrument_info = instrument_info+'_dspb'
 	array_save_directory = array_save_directory[:-1]+'_instrumental/'+instrument_info+'/'
-	n_vis=p.n_vis
 else:
 	n_vis = 0
 if npl==1:
 	array_save_directory=array_save_directory.replace('_sigma', '_beta_{:.2E}_sigma'.format(p.beta))
 if npl==2:
 	array_save_directory=array_save_directory.replace('_sigma', '_b1_{:.2E}_b2_{:.2E}_sigma'.format(p.beta[0], p.beta[1]))
-
 if p.fit_for_monopole:
 	array_save_directory = array_save_directory[:-1]+'_fit_for_monopole_eq_True/'
 
@@ -126,7 +104,11 @@ if p.fit_for_monopole:
 #--------------------------------------------
 # Construct matrices
 #--------------------------------------------
-BM = BuildMatrices(array_save_directory, nu, nv, nx, ny, n_vis, neta, nf, nq, sigma, npl=npl)
+if p.include_instrumental_effects:
+	BM = BuildMatrices(array_save_directory, nu, nv, nx, ny, n_vis, neta, nf, nq, sigma, npl=npl, uvw_multi_time_step_array_meters = uvw_multi_time_step_array_meters, uvw_multi_time_step_array_meters_vectorised=uvw_multi_time_step_array_meters_vectorised, baseline_redundancy_array_time_vis_shaped = baseline_redundancy_array_time_vis_shaped, baseline_redundancy_array_vectorised = baseline_redundancy_array_vectorised, beam_type = p.beam_type, beam_peak_amplitude = p.beam_peak_amplitude, FWHM_deg_at_ref_freq_MHz = p.FWHM_deg_at_ref_freq_MHz, PB_ref_freq_MHz = p.PB_ref_freq_MHz)
+else:
+	BM = BuildMatrices(array_save_directory, nu, nv, nx, ny, n_vis, neta, nf, nq, sigma, npl=npl)
+
 overwrite_existing_matrix_stack = False #Can be set to False unless npl>0
 # overwrite_existing_matrix_stack = True #Can be set to False unless npl>0
 proceed_without_overwrite_confirmation = False #Allows overwrite_existing_matrix_stack to be run without having to manually accept the deletion of the old matrix stack
@@ -359,8 +341,8 @@ overwrite_data_with_WN = False
 if p.include_instrumental_effects:
 	if overwrite_data_with_WN:
 		s_WN, abc, scidata1 = generate_white_noise_signal_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z, Finv,Show,chan_selection,masked_power_spectral_modes, mod_k)
-		d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_WN, nu,nv,nx,ny,nf,neta,nq,random_seed=2123)[0]
-		effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_WN, nu,nv,nx,ny,nf,neta,nq,random_seed=2123)[1]
+		d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_WN, nu,nv,nx,ny,nf,neta,nq,uvw_multi_time_step_array_meters_vectorised,baseline_redundancy_array_vectorised,random_seed=2123)[0]
+		effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_WN, nu,nv,nx,ny,nf,neta,nq,uvw_multi_time_step_array_meters_vectorised,baseline_redundancy_array_vectorised,random_seed=2123)[1]
 	else:
 		if p.use_EoR_cube:
 			s_EoR, abc, scidata1 = generate_EoR_signal_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z, Finv,Show,chan_selection,masked_power_spectral_modes, mod_k, p.EoR_npz_path_sc)
@@ -384,8 +366,8 @@ if p.include_instrumental_effects:
 			EoR_noise_seed = 742123
 			EoR_noise_seed = 74212
 			print 'EoR_noise_seed', EoR_noise_seed
-			d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(1.0*sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,random_seed=EoR_noise_seed)[0]
-			effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(1.0*sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,random_seed=EoR_noise_seed)[1]
+			d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(1.0*sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,uvw_multi_time_step_array_meters_vectorised,baseline_redundancy_array_vectorised,random_seed=EoR_noise_seed)[0]
+			effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(1.0*sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,uvw_multi_time_step_array_meters_vectorised,baseline_redundancy_array_vectorised,random_seed=EoR_noise_seed)[1]
 
 		use_foreground_cubes = True
 		# use_foreground_cubes = False
@@ -424,8 +406,9 @@ if p.include_instrumental_effects:
 				scale_factor = 1.0
 				noise_seed = 742123
 
-				d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(0.0, s_GDSE, nu,nv,nx,ny,nf,neta,nq,random_seed=noise_seed)[0]
-				effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_GDSE, nu,nv,nx,ny,nf,neta,nq,random_seed=noise_seed)[1]
+				# d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_GDSE, nu,nv,nx,ny,nf,neta,nq,uvw_multi_time_step_array_meters_vectorised,baseline_redundancy_array_vectorised,random_seed=noise_seed)[0]
+				d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(0.0, s_GDSE, nu,nv,nx,ny,nf,neta,nq,uvw_multi_time_step_array_meters_vectorised,baseline_redundancy_array_vectorised,random_seed=noise_seed)[0]
+				effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_GDSE, nu,nv,nx,ny,nf,neta,nq,uvw_multi_time_step_array_meters_vectorised,baseline_redundancy_array_vectorised,random_seed=noise_seed)[1]
 
 			#--------------------------------------------
 			# Generate mock EGS data
@@ -439,8 +422,8 @@ if p.include_instrumental_effects:
 				s_EGS, abc_EGS, scidata1_EGS = foreground_outputs
 				foreground_outputs = []
 
-				d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(0.0, s_EGS, nu,nv,nx,ny,nf,neta,nq,random_seed=noise_seed)[0]
-				effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_EGS, nu,nv,nx,ny,nf,neta,nq,random_seed=noise_seed)[1]
+				d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(0.0, s_EGS, nu,nv,nx,ny,nf,neta,nq,uvw_multi_time_step_array_meters_vectorised,baseline_redundancy_array_vectorised,random_seed=noise_seed)[0]
+				effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_EGS, nu,nv,nx,ny,nf,neta,nq,uvw_multi_time_step_array_meters_vectorised,baseline_redundancy_array_vectorised,random_seed=noise_seed)[1]
 
 			#--------------------------------------------
 			# Generate mock free-free data
@@ -473,8 +456,8 @@ if p.include_instrumental_effects:
 					pylab.savefig(simulation_plots_dir+sim_name)
 					pylab.show()
 
-				d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(0.0, s_ff, nu,nv,nx,ny,nf,neta,nq,random_seed=noise_seed)[0]
-				effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_ff, nu,nv,nx,ny,nf,neta,nq,random_seed=noise_seed)[1]
+				d += generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(0.0, s_ff, nu,nv,nx,ny,nf,neta,nq,uvw_multi_time_step_array_meters_vectorised,baseline_redundancy_array_vectorised,random_seed=noise_seed)[0]
+				effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(sigma, s_ff, nu,nv,nx,ny,nf,neta,nq,uvw_multi_time_step_array_meters_vectorised,baseline_redundancy_array_vectorised,random_seed=noise_seed)[1]
 
 effective_noise_std = effective_noise.std()
 
@@ -987,8 +970,9 @@ if sub_MLLWM:
 
 				# fit_constraints = [1.e-100]*(nDims)
 				# fit_constraints = [1.e-20]*(nDims)
+				# fit_constraints = [1.e0]*(nDims)
 				fit_constraints = [1.e2]*(nDims)
-				fit_constraints = [1.e0]*(nDims)
+				fit_constraints = [1.e-2]*(nDims)
 
 			maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper(fit_constraints, T_Ninv_T, dbar_prime_i, block_T_Ninv_T=block_T_Ninv_T)[0]
 			# maxL_LW_signal = np.dot(T,maxL_LW_fit)
@@ -1011,7 +995,8 @@ if sub_MLLWM:
 	
 
 
-			Q_T.imag=0.0
+			if not p.model_drift_scan_primary_beam: #In the non-dspb case this should be real
+				Q_T.imag=0.0
 			Q_T_Ninv_Q_T = np.dot(Q_T.conjugate().T, np.dot(Ninv, Q_T))
 			# Q_T_Ninv_Q_T[np.diag_indices(Q_T_Ninv_Q_T.shape[0])] += 2.e-20
 			Ninv_d = np.dot(Ninv,d)

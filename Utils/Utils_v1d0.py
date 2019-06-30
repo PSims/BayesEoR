@@ -11,6 +11,7 @@ import pylab
 from pdb import set_trace as brk
 import argparse
 import BayesEoR.Params.params as p
+import pickle
 
 
 ## ======================================================================================================
@@ -589,8 +590,29 @@ class RenormaliseMatricesForScaledNoise(object):
 ## ======================================================================================================
 ## ======================================================================================================
 
+def load_uvw_instrument_sampling_m(instrument_model_directory):
+	file_dir = instrument_model_directory
+	# file_name = "uvw_multi_time_step_array_meters_reshaped" #HERA 331 sub-100 m baselines (i.e. H37 baselines) uv-sampling in meters
+	file_name = "uvw_multi_time_step_array_meters" #HERA 331 sub-100 m baselines (i.e. H37 baselines) uv-sampling in meters
+	f = open(file_dir+file_name,'r')  
+	uvw_multi_time_step_array_meters =  pickle.load(f)
+	return uvw_multi_time_step_array_meters
 
 
+## ======================================================================================================
+## ======================================================================================================
+
+def load_baseline_redundancy_array(instrument_model_directory):
+	file_dir = instrument_model_directory
+	# file_name = "unique_H37_baseline_hermitian_redundancy_multi_time_step_array_reshaped" #HERA 331 sub-100 m baselines (i.e. H37 baselines) baseline redundancy
+	file_name = "unique_H37_baseline_hermitian_redundancy_multi_time_step_array" #HERA 331 sub-100 m baselines (i.e. H37 baselines) baseline redundancy
+	f = open(file_dir+file_name,'r')  
+	unique_H37_baseline_hermitian_redundancy_multi_time_step_array =  pickle.load(f)
+	return unique_H37_baseline_hermitian_redundancy_multi_time_step_array
+
+
+## ======================================================================================================
+## ======================================================================================================
 
 
 

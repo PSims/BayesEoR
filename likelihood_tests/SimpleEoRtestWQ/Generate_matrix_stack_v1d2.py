@@ -202,6 +202,23 @@ class BuildMatrices(BuildMatrixTree):
 		
 		##===== Inputs =======
 		self.npl=kwargs.pop('npl',default_npl)
+		if p.include_instrumental_effects:
+			self.uvw_multi_time_step_array_meters = kwargs.pop('uvw_multi_time_step_array_meters')
+			self.uvw_multi_time_step_array_meters_vectorised = kwargs.pop('uvw_multi_time_step_array_meters_vectorised')
+			###
+			# Currently only using uv-coordinates so exclude w for now
+			###
+			#---
+			self.uvw_multi_time_step_array_meters = self.uvw_multi_time_step_array_meters[:,:,:2]
+			self.uvw_multi_time_step_array_meters_vectorised = self.uvw_multi_time_step_array_meters_vectorised[:,:2]
+			#---
+			self.baseline_redundancy_array_time_vis_shaped = kwargs.pop('baseline_redundancy_array_time_vis_shaped')
+			self.baseline_redundancy_array_vectorised = kwargs.pop('baseline_redundancy_array_vectorised')
+			self.beam_type = kwargs.pop('beam_type')
+			self.beam_peak_amplitude = kwargs.pop('beam_peak_amplitude')
+			self.FWHM_deg_at_ref_freq_MHz = kwargs.pop('FWHM_deg_at_ref_freq_MHz')
+			self.PB_ref_freq_MHz = kwargs.pop('PB_ref_freq_MHz')
+
 
 		print self.array_save_directory 
 		print self.matrix_prerequisites_dictionary
@@ -385,16 +402,18 @@ class BuildMatrices(BuildMatrixTree):
 		print 'Performing matrix algebra'
 		nu_array_MHz = p.nu_min_MHz+np.arange(p.nf)*p.channel_width_MHz
 		if p.use_nvis_nt_nchan_ordering:
-			multi_chan_nudft = self.sd_block_diag([nuDFT_Array_DFT_2D(self.nu,self.nv,self.nx,self.ny, chan_freq_MHz).T for chan_freq_MHz in nu_array_MHz]) #Matrix shape is (nx*ny*nf,nv*nt*nf)
+			sampled_uvw_coords_m = self.uvw_multi_time_step_array_meters_vectorised.copy()
+			multi_chan_nudft = self.sd_block_diag([nuDFT_Array_DFT_2D(self.nu,self.nv,self.nx,self.ny, chan_freq_MHz, sampled_uvw_coords_m).T for chan_freq_MHz in nu_array_MHz]) #Matrix shape is (nx*ny*nf,nv*nt*nf)
 		elif p.use_nvis_nchan_nt_ordering: #This will be used if a drift scan primary beam is included in the data model (i.e. p.model_drift_scan_primary_beam=True)
-			sampled_uvw_coords_m = p.uvw_multi_time_step_array_meters.copy() #NOTE: p.uvw_multi_time_step_array_meters is in (nvis_per_chan,nchan) order (unlike p.uvw_multi_time_step_array_meters_reshaped which is used in nuDFT_Array_DFT_2D and is a vector of nvis_per_chan*nchan (u,v) coords) so that the visibilities for all frequencies at a given time step can be calculated.
+			sampled_uvw_coords_m = self.uvw_multi_time_step_array_meters.copy() #NOTE: p.uvw_multi_time_step_array_meters is in (nvis_per_chan,nchan) order (unlike p.uvw_multi_time_step_array_meters_vectorised which is used in nuDFT_Array_DFT_2D and is a vector of nvis_per_chan*nchan (u,v) coords) to make it simpler to index the array to calculate that the visibilities for all frequencies for single time steps in sampled_uvw_coords_wavelengths_all_freqs_all_times and then index over time steps to make multi_chan_nudft with nt block diagonal matrices, themselves each consisting of nchan blocks with each block the nudft from image to sampled visibilities as that time and channel frequency.
 			sampled_uvw_coords_wavelengths_all_freqs_all_times = np.array([sampled_uvw_coords_m/(p.speed_of_light/(chan_freq_MHz*1.e6)) for chan_freq_MHz in nu_array_MHz]) # Convert uv-coordinates from meters to wavelengths at frequency chan_freq_MHz for all chan_freq_MHz in nu_array_MHz
 			sampled_uvw_coords_inverse_pixel_units_all_freqs_all_times = sampled_uvw_coords_wavelengths_all_freqs_all_times/p.uv_pixel_width_wavelengths #Convert uv-coordinates from wavelengths to inverse pixel units 
 
 			multi_chan_nudft = self.sd_block_diag( [ self.sd_block_diag([nuDFT_Array_DFT_2D_v2d0(self.nu,self.nv,self.nx,self.ny, sampled_uvw_coords_inverse_pixel_units_all_freqs_all_times[freq_i,time_i,:,:].reshape(-1,2)).T for freq_i in range(p.nf)]) for time_i in range(p.nt) ] ) #Matrix shape is (nx*ny*nf*nt,nv*nf*nt)
 
 		else:
-			multi_chan_nudft = self.sd_block_diag([nuDFT_Array_DFT_2D(self.nu,self.nv,self.nx,self.ny, chan_freq_MHz).T for chan_freq_MHz in nu_array_MHz])
+			sampled_uvw_coords_m = self.uvw_multi_time_step_array_meters_vectorised
+			multi_chan_nudft = self.sd_block_diag([nuDFT_Array_DFT_2D(self.nu,self.nv,self.nx,self.ny, sampled_uvw_coords_m, chan_freq_MHz).T for chan_freq_MHz in nu_array_MHz])
 		print 'Time taken: {}'.format(time.time()-start)
 		###
 		# Save matrix to HDF5 or sparse matrix to npz
@@ -423,7 +442,7 @@ class BuildMatrices(BuildMatrixTree):
 			if p.beam_type.lower() == 'gaussian':
 				degrees_per_minute_of_time = 360./(24*60)
 				time_step_range = range(np.round(-p.nt/2),np.round(p.nt/2),1)
-				pointing_center_HA_pix_offset_array = np.array([i_min*p.integration_time_minutes*degrees_per_minute_of_time*deg_to_pix for i_min in time_step_range]) #Matches offset of pointing center from zenith as a function of time used when calculating the uv-coords in calc_UV_coords_v1d2.py (i.e. the uv-coords in p.uvw_multi_time_step_array_meters). The zenith (and hence PB center) coords will thus be the negative of this array (as used below).
+				pointing_center_HA_pix_offset_array = np.array([i_min*p.integration_time_minutes*degrees_per_minute_of_time*deg_to_pix for i_min in time_step_range]) #Matches offset of pointing center from zenith as a function of time used when calculating the uv-coords in calc_UV_coords_v1d2.py (i.e. the uv-coords in self.uvw_multi_time_step_array_meters). The zenith (and hence PB center) coords will thus be the negative of this array (as used below).
 				if not p.use_sparse_matrices:
 					multi_chan_P_drift_scan = np.vstack([block_diag(*[np.diag(make_Gaussian_beam(image_size_pix,FWHM_pix,beam_peak_amplitude,center_pix=[image_size_pix/2-pointing_center_HA_pix_offset,image_size_pix/2] ).flatten()) for FWHM_pix in FWHM_pix_at_chan_freq_MHz]) for pointing_center_HA_pix_offset in pointing_center_HA_pix_offset_array])
 				else:
@@ -627,14 +646,13 @@ class BuildMatrices(BuildMatrixTree):
 		print 'Performing matrix algebra'
 		if p.include_instrumental_effects:
 			if p.use_nvis_nt_nchan_ordering:
-				baseline_redundancy_array = p.baseline_redundancy_array #This array is channel_ordered and the covariance matrix assumes a channel_ordered data set (this vector should be re-ordered if the data is in a different order)
+				baseline_redundancy_array = self.baseline_redundancy_array_vectorised #This array is channel_ordered and the covariance matrix assumes a channel_ordered data set (this vector should be re-ordered if the data is in a different order)
 				s_size = self.n_vis*self.nf
 				multifreq_baseline_redundancy_array = np.array([baseline_redundancy_array for i in range(p.nf)]).flatten()
 				sigma_accounting_for_redundancy = self.sigma / multifreq_baseline_redundancy_array**0.5 #RMS drops as the squareroot of the number of redundant samples
 				sigma_squared_array = np.ones(s_size)*sigma_accounting_for_redundancy**2 + 0j*np.ones(s_size)*sigma_accounting_for_redundancy**2
 			elif p.use_nvis_nchan_nt_ordering:
-				baseline_redundancy_array_time_vis_shaped = p.baseline_redundancy_array_time_vis_shaped
-				# baseline_redundancy_array_freq_time_vis = np.array([baseline_redundancy_array_time_vis_shaped for i in range(p.nf)]).flatten()
+				baseline_redundancy_array_time_vis_shaped = self.baseline_redundancy_array_time_vis_shaped
 				baseline_redundancy_array_time_freq_vis = np.array([[baseline_redundancy_array_vis for i in range(p.nf)] for baseline_redundancy_array_vis in baseline_redundancy_array_time_vis_shaped]).flatten()
 				s_size = self.n_vis*self.nf
 				sigma_accounting_for_redundancy = self.sigma / baseline_redundancy_array_time_freq_vis**0.5 #RMS drops as the squareroot of the number of redundant samples
@@ -659,11 +677,18 @@ class BuildMatrices(BuildMatrixTree):
 		start = time.time()
 		print 'Performing matrix algebra'
 		if p.include_instrumental_effects:
-			baseline_redundancy_array = p.baseline_redundancy_array #This array is channel_ordered and the construct the covariance matrix assumes channel_ordered data set (this vector should be re-ordered if the data is in a differently ordered)
-			s_size = self.n_vis*self.nf
-			multifreq_baseline_redundancy_array = np.array([baseline_redundancy_array for i in range(p.nf)]).flatten()
-			sigma_accounting_for_redundancy = self.sigma / multifreq_baseline_redundancy_array**0.5 #RMS drops as the squareroot of the number of redundant samples
-			sigma_squared_array = np.ones(s_size)*sigma_accounting_for_redundancy**2 + 0j*np.ones(s_size)*sigma_accounting_for_redundancy**2
+			if p.use_nvis_nt_nchan_ordering:
+				baseline_redundancy_array = self.baseline_redundancy_array_vectorised #This array is channel_ordered and the covariance matrix assumes a channel_ordered data set (this vector should be re-ordered if the data is in a different order)
+				s_size = self.n_vis*self.nf
+				multifreq_baseline_redundancy_array = np.array([baseline_redundancy_array for i in range(p.nf)]).flatten()
+				sigma_accounting_for_redundancy = self.sigma / multifreq_baseline_redundancy_array**0.5 #RMS drops as the squareroot of the number of redundant samples
+				sigma_squared_array = np.ones(s_size)*sigma_accounting_for_redundancy**2 + 0j*np.ones(s_size)*sigma_accounting_for_redundancy**2
+			elif p.use_nvis_nchan_nt_ordering:
+				baseline_redundancy_array_time_vis_shaped = self.baseline_redundancy_array_time_vis_shaped
+				baseline_redundancy_array_time_freq_vis = np.array([[baseline_redundancy_array_vis for i in range(p.nf)] for baseline_redundancy_array_vis in baseline_redundancy_array_time_vis_shaped]).flatten()
+				s_size = self.n_vis*self.nf
+				sigma_accounting_for_redundancy = self.sigma / baseline_redundancy_array_time_freq_vis**0.5 #RMS drops as the squareroot of the number of redundant samples
+				sigma_squared_array = np.ones(s_size)*sigma_accounting_for_redundancy**2 + 0j*np.ones(s_size)*sigma_accounting_for_redundancy**2
 		else:
 			s_size = (self.nu*self.nv-1)*self.nf
 			sigma_squared_array = np.ones(s_size)*self.sigma**2 + 0j*np.ones(s_size)*self.sigma**2
