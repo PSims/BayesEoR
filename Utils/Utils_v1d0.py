@@ -212,7 +212,7 @@ class Cosmology():
 	###
 	def Convert_from_21cmFrequency_to_Redshift(self, Frequency_Array_MHz, **kwargs):
 		#
-		One_plus_z_Array=self.f_21/Frequency_Array
+		One_plus_z_Array=self.f_21/Frequency_Array_MHz
 		self.z_Array=One_plus_z_Array-1.
 		
 		return self.z_Array
