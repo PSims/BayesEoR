@@ -36,7 +36,8 @@ EoR_npz_path = '/users/psims/EoR/EoR_simulations/21cmFAST_512MPc_512pix_128pix/F
 box_size_21cmFAST_pix = 128 #Must match EoR_npz_path parameters
 box_size_21cmFAST_Mpc = 512 #Must match EoR_npz_path parameters
 
-EoR_npz_path_sc = '/users/psims/EoR/EoR_simulations/21cmFAST_2048MPc_2048pix_512pix_AstroParamExploration1/Fits/npzs/Zeta10.0_Tvir1.0e+05_mfp22.2_Taue0.041_zre-1.000_delz-1.000_512_2048Mpc/21cm_mK_z7.600_nf0.883_useTs0.0_aveTb21.06_cube_side_pix512_cube_side_Mpc2048.npz'
+# EoR_npz_path_sc = '/users/psims/EoR/EoR_simulations/21cmFAST_2048MPc_2048pix_512pix_AstroParamExploration1/Fits/npzs/Zeta10.0_Tvir1.0e+05_mfp22.2_Taue0.041_zre-1.000_delz-1.000_512_2048Mpc/21cm_mK_z7.600_nf0.883_useTs0.0_aveTb21.06_cube_side_pix512_cube_side_Mpc2048.npz'
+EoR_npz_path_sc = '/users/jburba/data/shared/PSims/BayesEoR_files_P/EoRsims/Hoag19/21cm_mK_z7.600_nf0.883_useTs0.0_aveTb21.06_cube_side_pix512_cube_side_Mpc2048.npz'
 box_size_21cmFAST_pix_sc = 512 #Must match EoR_npz_path parameters
 box_size_21cmFAST_Mpc_sc = 2048 #Must match EoR_npz_path parameters
 
@@ -134,7 +135,8 @@ if include_instrumental_effects:
 	nt = 30
 	integration_time_minutes = 0.5
 	integration_time_minutes_str = '{}'.format(integration_time_minutes).replace('.','d')
-	instrument_model_directory = '/users/psims/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/Instrument_Model/HERA_331_baselines_shorter_than_29d3_for_{}_{}_min_time_steps/'.format(nt, integration_time_minutes_str)
+	# instrument_model_directory = '/users/psims/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/Instrument_Model/HERA_331_baselines_shorter_than_29d3_for_{}_{}_min_time_steps/'.format(nt, integration_time_minutes_str)
+	instrument_model_directory = '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/HERA_331_baselines_shorter_than_29d3_for_{}_{}_min_time_steps/'.format(nt, integration_time_minutes_str)
 	uv_pixel_width_wavelengths = 2.5 #Define a fixed pixel width in wavelengths
 	###
 	# Primary beam params

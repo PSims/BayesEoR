@@ -917,7 +917,7 @@ def quadratic_array_linear_plus_quad_modes_only_v2_ZM(nf, nq=2):
 
 
 ###
-def IDFT_Array_IDFT_1D_WQ(nf, neta, nq, **kwargs):
+def IDFT_Array_IDFT_1D_WQ(nf, neta, nq, los_distances_inv_pix, **kwargs):
 	##===== Defaults =======
 	default_npl = 0
 	default_nu_min_MHz = (163.0-4.0)
@@ -930,9 +930,8 @@ def IDFT_Array_IDFT_1D_WQ(nf, neta, nq, **kwargs):
 	channel_width_MHz=kwargs.pop('channel_width_MHz',default_channel_width_MHz)
 	beta=kwargs.pop('beta',default_beta)
 	
-	i_f=(np.arange(nf)-nf/2).reshape(-1,1)
 	i_eta=(np.arange(neta)-neta/2).reshape(1,-1)
-	ExponentArray=np.exp(+2.0*np.pi*1j*( (i_eta*i_f/float(nf)) ))
+	ExponentArray = np.exp( +2.0*np.pi*1j*(i_eta * los_distances_inv_pix) )
 	ExponentArray = ExponentArray/float(nf)
 	quadratic_array = quadratic_array_linear_plus_quad_modes_only_v2(nf, nq, npl=npl, nu_min_MHz=nu_min_MHz, channel_width_MHz=channel_width_MHz, beta=beta)
 	print quadratic_array

@@ -32,6 +32,8 @@ from BayesEoR.Linalg import IDFT_Array_IDFT_1D_WQ, generate_gridding_matrix_vis_
 from BayesEoR.Linalg import IDFT_Array_IDFT_1D_WQ_ZM, generate_gridding_matrix_vis_ordered_to_chan_ordered_ZM
 from BayesEoR.Linalg import nuDFT_Array_DFT_2D, make_Gaussian_beam, make_Uniform_beam, nuDFT_Array_DFT_2D_v2d0
 
+from BayesEoR.Utils import Cosmology
+
 
 ###
 # NOTE: a (960*38)*(960*38) array requires ~10.75 GB of memory (960*38*969*38*(64./8)/1.e9 GB precisely for a numpy.float64 double precision array). With 128 GB of memory per node 11 matrices of this size to be held in memory simultaneously.
@@ -632,7 +634,21 @@ class BuildMatrices(BuildMatrixTree):
 		pmd = self.load_prerequisites(matrix_name)
 		start = time.time()
 		print 'Performing matrix algebra'
-		idft_array_1D_WQ=IDFT_Array_IDFT_1D_WQ(self.nf, self.neta, self.nq, npl=self.npl, nu_min_MHz=p.nu_min_MHz, channel_width_MHz=p.channel_width_MHz, beta=p.beta)*self.Fz_normalisation #Note: the nf**0.5 normalisation factor results in a symmetric transform and is necessary for correctly estimating the power spectrum. However, it is not consistent with Python's asymmetric DFTs, therefore this factor needs to be removed when comparing to np.fft.fftn cross-checks!
+
+		##===== Cosmology ======
+		# Construct frequency array to map to comoving line of sight (los) distance
+		nu_array_MHz = p.nu_min_MHz + np.arange(self.nf) * p.channel_width_MHz
+		cosmo = Cosmology() # cosmology class for distance conversions
+		# Get comoving los distance for a given frequency
+		los_distances_Mpc = cosmo.convert_frequency_to_comoving_los_distance_Mpc(nu_array_MHz)
+		los_distances_span_Mpc = los_distances_Mpc.max() - los_distances_Mpc.min()
+		# Subtract nf/2 distance from distances
+		los_distances_Mpc -= los_distances_Mpc[self.nf/2]
+		# Converto to inverse pixel units
+		los_distances_inv_pix = los_distances_Mpc / los_distances_span_Mpc
+		los_distances_inv_pix = los_distances_inv_pix.reshape(-1, 1)
+
+		idft_array_1D_WQ=IDFT_Array_IDFT_1D_WQ(self.nf, self.neta, self.nq, los_distances_inv_pix, npl=self.npl, nu_min_MHz=p.nu_min_MHz, channel_width_MHz=p.channel_width_MHz, beta=p.beta)*self.Fz_normalisation #Note: the nf**0.5 normalisation factor results in a symmetric transform and is necessary for correctly estimating the power spectrum. However, it is not consistent with Python's asymmetric DFTs, therefore this factor needs to be removed when comparing to np.fft.fftn cross-checks!
 		print 'Time taken: {}'.format(time.time()-start)
 		###
 		# Save matrix to HDF5 or sparse matrix to npz

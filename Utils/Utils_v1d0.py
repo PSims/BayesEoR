@@ -179,6 +179,22 @@ class Cosmology():
 		return self.Delta_f_MHz
 	
 	###
+	# Calculate line of sight distance from frequency
+	###
+	def convert_frequency_to_comoving_los_distance_Mpc(self, Frequency_Array_MHz):
+		# Frequency -> Redshift
+		redshift_array = self.Convert_from_21cmFrequency_to_Redshift(Frequency_Array_MHz)
+
+		# Redshift -> Mpc
+		line_of_sight_distances_Mpc = np.zeros_like(redshift_array)
+		for i_z, z in enumerate(redshift_array):
+			self.z2 = z
+			dist_Mpc = self.Calculate_Comoving_Distance_Mpc_Between_Redshifts_z1_and_z2()[0]
+			line_of_sight_distances_Mpc[i_z] = dist_Mpc
+
+		return line_of_sight_distances_Mpc
+	
+	###
 	#Calculate 21cmFast k_parallel - space values
 	###
 	def Convert_from_Tau_to_Kz(self, Tau_Array, **kwargs):
