@@ -267,6 +267,31 @@ class Cosmology():
 		if self.Print:
 			print 'theta_deg = ', self.theta_deg
 		return self.theta_deg
+	
+	def Convert_from_Delta_Angle_to_Comoving_Mpc_at_Redshift_z2(self, **kwargs):
+		###
+		# Inverse of Convert_from_Comoving_Mpc_to_Delta_Angle_at_Redshift_z2
+		###
+		
+		##===== Inputs =======
+		if 'theta_deg' in kwargs:
+			self.theta_deg = kwargs['theta_deg']
+			self.theta_rad = np.deg2rad(self.theta_deg)
+		elif 'theta_rad' in kwargs:
+			self.theta_rad = kwargs['theta_rad']
+				
+		Comoving_Distance_Mpc, Comoving_convergence_uncertainty = self.Calculate_Comoving_Distance_Mpc_Between_Redshifts_z1_and_z2()
+		angular_diameter_distance_Mpc = Comoving_Distance_Mpc/(1+(self.z2-self.z1))
+		
+		Box_width_proper_distance_Mpc = angular_diameter_distance_Mpc * self.theta_rad * (1 + (self.z2 - self.z1))
+		self.Box_Side_cMpc = Box_width_proper_distance_Mpc / (1 + (self.z2 - self.z1))
+
+		if self.Print:
+			print 'Convert_from_Delta_Angle_to_Comoving_Mpc_at_Redshift_z2 at \nRedshift z =', self.z2, '\nBox depth in cMpc, Box_Side_cMpc =', self.Box_Side_cMpc, '\nBox proper depth in Mpc, Box proper width =', Box_width_proper_distance_Mpc, '\nComoving distance between z1={} and z2={}: {}'.format(self.z1,self.z2,Comoving_Distance_Mpc), '\nAngular diameter distance between z1={} and z2={}: {}'.format(self.z1,self.z2,angular_diameter_distance_Mpc)
+		
+		if self.Print:
+			print 'theta_deg = ', self.theta_deg
+		return Box_width_proper_distance_Mpc
 
 
 ## ======================================================================================================
