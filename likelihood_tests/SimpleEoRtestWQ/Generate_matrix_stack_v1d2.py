@@ -65,7 +65,7 @@ class BuildMatrixTree(object):
 			self.matrix_prerequisites_dictionary['Finv'] = ['multi_chan_nudft', 'multi_chan_P']
 		else:
 			self.matrix_prerequisites_dictionary['Finv'] = ['multi_chan_dft_array_noZMchan']
-			
+
 
 	def check_for_prerequisites(self, parent_matrix):
 		prerequisites_status = {}
@@ -103,7 +103,7 @@ class BuildMatrixTree(object):
 			print 'Directory not found: \n\n'+Directory+"\n"
 			print 'Creating required directory structure..'
 			os.makedirs(Directory)
-		
+
 		return 0
 
 	def output_data(self, output_array, output_directory, file_name, dataset_name):
@@ -186,7 +186,7 @@ class BuildMatrixTree(object):
 		"""
 		data = sparse.load_npz(file_path)
 		return data
-		
+
 
 
 
@@ -199,7 +199,7 @@ class BuildMatrices(BuildMatrixTree):
 
 		##===== Defaults =======
 		default_npl = 0
-		
+
 		##===== Inputs =======
 		self.npl=kwargs.pop('npl',default_npl)
 		if p.include_instrumental_effects:
@@ -218,9 +218,11 @@ class BuildMatrices(BuildMatrixTree):
 			self.beam_peak_amplitude = kwargs.pop('beam_peak_amplitude')
 			self.FWHM_deg_at_ref_freq_MHz = kwargs.pop('FWHM_deg_at_ref_freq_MHz')
 			self.PB_ref_freq_MHz = kwargs.pop('PB_ref_freq_MHz')
+			self.effective_noise = kwargs.pop('effective_noise', None)
 
 
-		print self.array_save_directory 
+
+		print self.array_save_directory
 		print self.matrix_prerequisites_dictionary
 		self.nu = nu
 		self.nv = nv
@@ -237,7 +239,7 @@ class BuildMatrices(BuildMatrixTree):
 		self.n_quad = (self.nu*self.nv-1)*self.nq
 		self.n_model = self.n_Fourier+self.n_quad
 		self.n_dat = self.n_Fourier
-		
+
 		self.matrix_construction_methods_dictionary={}
 		self.matrix_construction_methods_dictionary['T_Ninv_T'] = self.build_T_Ninv_T
 		self.matrix_construction_methods_dictionary['idft_array_1D'] = self.build_idft_array_1D
@@ -296,7 +298,7 @@ class BuildMatrices(BuildMatrixTree):
 				data = self.read_data(file_path, dataset_name)
 				prerequisite_matrices_dictionary[child_matrix] = data
 				print 'Time taken: {}'.format(time.time()-start)
-		
+
 		return prerequisite_matrices_dictionary
 
 	def dot_product(self, matrix_A, matrix_B):
@@ -407,7 +409,7 @@ class BuildMatrices(BuildMatrixTree):
 		elif p.use_nvis_nchan_nt_ordering: #This will be used if a drift scan primary beam is included in the data model (i.e. p.model_drift_scan_primary_beam=True)
 			sampled_uvw_coords_m = self.uvw_multi_time_step_array_meters.copy() #NOTE: p.uvw_multi_time_step_array_meters is in (nvis_per_chan,nchan) order (unlike p.uvw_multi_time_step_array_meters_vectorised which is used in nuDFT_Array_DFT_2D and is a vector of nvis_per_chan*nchan (u,v) coords) to make it simpler to index the array to calculate that the visibilities for all frequencies for single time steps in sampled_uvw_coords_wavelengths_all_freqs_all_times and then index over time steps to make multi_chan_nudft with nt block diagonal matrices, themselves each consisting of nchan blocks with each block the nudft from image to sampled visibilities as that time and channel frequency.
 			sampled_uvw_coords_wavelengths_all_freqs_all_times = np.array([sampled_uvw_coords_m/(p.speed_of_light/(chan_freq_MHz*1.e6)) for chan_freq_MHz in nu_array_MHz]) # Convert uv-coordinates from meters to wavelengths at frequency chan_freq_MHz for all chan_freq_MHz in nu_array_MHz
-			sampled_uvw_coords_inverse_pixel_units_all_freqs_all_times = sampled_uvw_coords_wavelengths_all_freqs_all_times/p.uv_pixel_width_wavelengths #Convert uv-coordinates from wavelengths to inverse pixel units 
+			sampled_uvw_coords_inverse_pixel_units_all_freqs_all_times = sampled_uvw_coords_wavelengths_all_freqs_all_times/p.uv_pixel_width_wavelengths #Convert uv-coordinates from wavelengths to inverse pixel units
 
 			multi_chan_nudft = self.sd_block_diag( [ self.sd_block_diag([nuDFT_Array_DFT_2D_v2d0(self.nu,self.nv,self.nx,self.ny, sampled_uvw_coords_inverse_pixel_units_all_freqs_all_times[freq_i,time_i,:,:].reshape(-1,2)).T for freq_i in range(p.nf)]) for time_i in range(p.nt) ] ) #Matrix shape is (nx*ny*nf*nt,nv*nf*nt)
 
@@ -430,6 +432,7 @@ class BuildMatrices(BuildMatrixTree):
 		beam_peak_amplitude = p.beam_peak_amplitude
 		deg_to_pix = image_size_pix / float(p.simulation_FoV_deg)
 		FWHM_deg_at_chan_freq_MHz = [p.FWHM_deg_at_ref_freq_MHz*(float(p.PB_ref_freq_MHz)/chan_freq_MHz) for chan_freq_MHz in nu_array_MHz]
+		FWHM_deg_at_chan_freq_MHz = np.ones(p.nf)*p.FWHM_deg_at_ref_freq_MHz
 		FWHM_pix_at_chan_freq_MHz = [FWHM_deg*deg_to_pix for FWHM_deg in FWHM_deg_at_chan_freq_MHz]
 		if not p.model_drift_scan_primary_beam:
 			if p.beam_type.lower() == 'gaussian':
@@ -468,6 +471,8 @@ class BuildMatrices(BuildMatrixTree):
 		else:
 			Finv = pmd['multi_chan_dft_array_noZMchan']
 		print 'Time taken: {}'.format(time.time()-start)
+		# Temporary rescaling
+		Finv *= p.dA
 		###
 		# Save matrix to HDF5 or sparse matrix to npz
 		###
@@ -651,12 +656,15 @@ class BuildMatrices(BuildMatrixTree):
 				multifreq_baseline_redundancy_array = np.array([baseline_redundancy_array for i in range(p.nf)]).flatten()
 				sigma_accounting_for_redundancy = self.sigma / multifreq_baseline_redundancy_array**0.5 #RMS drops as the squareroot of the number of redundant samples
 				sigma_squared_array = np.ones(s_size)*sigma_accounting_for_redundancy**2 + 0j*np.ones(s_size)*sigma_accounting_for_redundancy**2
-			elif p.use_nvis_nchan_nt_ordering:
-				baseline_redundancy_array_time_vis_shaped = self.baseline_redundancy_array_time_vis_shaped
-				baseline_redundancy_array_time_freq_vis = np.array([[baseline_redundancy_array_vis for i in range(p.nf)] for baseline_redundancy_array_vis in baseline_redundancy_array_time_vis_shaped]).flatten()
-				s_size = self.n_vis*self.nf
-				sigma_accounting_for_redundancy = self.sigma / baseline_redundancy_array_time_freq_vis**0.5 #RMS drops as the squareroot of the number of redundant samples
-				sigma_squared_array = np.ones(s_size)*sigma_accounting_for_redundancy**2 + 0j*np.ones(s_size)*sigma_accounting_for_redundancy**2
+			elif p.use_nvis_nchan_nt_ordering: # drift scan primary beam
+				if self.effective_noise is None:
+					baseline_redundancy_array_time_vis_shaped = self.baseline_redundancy_array_time_vis_shaped
+					baseline_redundancy_array_time_freq_vis = np.array([[baseline_redundancy_array_vis for i in range(p.nf)] for baseline_redundancy_array_vis in baseline_redundancy_array_time_vis_shaped]).flatten()
+					s_size = self.n_vis*self.nf
+					sigma_accounting_for_redundancy = self.sigma / baseline_redundancy_array_time_freq_vis**0.5 #RMS drops as the squareroot of the number of redundant samples
+					sigma_squared_array = np.ones(s_size)*sigma_accounting_for_redundancy**2 + 0j*np.ones(s_size)*sigma_accounting_for_redundancy**2
+				else:
+					sigma_squared_array = np.abs(self.effective_noise)**2 + 0j*np.abs(self.effective_noise)**2
 		else:
 			s_size = (self.nu*self.nv-1)*self.nf
 			sigma_squared_array = np.ones(s_size)*self.sigma**2 + 0j*np.ones(s_size)*self.sigma**2
@@ -683,12 +691,15 @@ class BuildMatrices(BuildMatrixTree):
 				multifreq_baseline_redundancy_array = np.array([baseline_redundancy_array for i in range(p.nf)]).flatten()
 				sigma_accounting_for_redundancy = self.sigma / multifreq_baseline_redundancy_array**0.5 #RMS drops as the squareroot of the number of redundant samples
 				sigma_squared_array = np.ones(s_size)*sigma_accounting_for_redundancy**2 + 0j*np.ones(s_size)*sigma_accounting_for_redundancy**2
-			elif p.use_nvis_nchan_nt_ordering:
-				baseline_redundancy_array_time_vis_shaped = self.baseline_redundancy_array_time_vis_shaped
-				baseline_redundancy_array_time_freq_vis = np.array([[baseline_redundancy_array_vis for i in range(p.nf)] for baseline_redundancy_array_vis in baseline_redundancy_array_time_vis_shaped]).flatten()
-				s_size = self.n_vis*self.nf
-				sigma_accounting_for_redundancy = self.sigma / baseline_redundancy_array_time_freq_vis**0.5 #RMS drops as the squareroot of the number of redundant samples
-				sigma_squared_array = np.ones(s_size)*sigma_accounting_for_redundancy**2 + 0j*np.ones(s_size)*sigma_accounting_for_redundancy**2
+			elif p.use_nvis_nchan_nt_ordering: # drift scan primary beam
+				if self.effective_noise is None:
+					baseline_redundancy_array_time_vis_shaped = self.baseline_redundancy_array_time_vis_shaped
+					baseline_redundancy_array_time_freq_vis = np.array([[baseline_redundancy_array_vis for i in range(p.nf)] for baseline_redundancy_array_vis in baseline_redundancy_array_time_vis_shaped]).flatten()
+					s_size = self.n_vis*self.nf
+					sigma_accounting_for_redundancy = self.sigma / baseline_redundancy_array_time_freq_vis**0.5 #RMS drops as the squareroot of the number of redundant samples
+					sigma_squared_array = np.ones(s_size)*sigma_accounting_for_redundancy**2 + 0j*np.ones(s_size)*sigma_accounting_for_redundancy**2
+				else:
+					sigma_squared_array = np.abs(self.effective_noise)**2 + 0j*np.abs(self.effective_noise)**2
 		else:
 			s_size = (self.nu*self.nv-1)*self.nf
 			sigma_squared_array = np.ones(s_size)*self.sigma**2 + 0j*np.ones(s_size)*self.sigma**2
@@ -736,7 +747,7 @@ class BuildMatrices(BuildMatrixTree):
 		matrix_available = self.check_if_matrix_exists(matrix_name)
 		if not matrix_available:
 			self.matrix_construction_methods_dictionary[matrix_name]()
-		
+
 	def prepare_matrix_stack_for_deletion(self, src, overwrite_existing_matrix_stack):
 		if overwrite_existing_matrix_stack:
 			if src[-1]=='/':src=src[:-1]
@@ -761,7 +772,7 @@ class BuildMatrices(BuildMatrixTree):
 	def build_minimum_sufficient_matrix_stack(self, **kwargs):
 		default_overwrite_existing_matrix_stack = False
 		default_proceed_without_overwrite_confirmation = False #Set to true when submitting to cluster
-		
+
 		##===== Inputs =======
 		self.overwrite_existing_matrix_stack=kwargs.pop('overwrite_existing_matrix_stack',default_overwrite_existing_matrix_stack)
 		self.proceed_without_overwrite_confirmation=kwargs.pop('proceed_without_overwrite_confirmation',default_proceed_without_overwrite_confirmation)
@@ -785,10 +796,3 @@ class BuildMatrices(BuildMatrixTree):
 
 ## ======================================================================================================
 ## ======================================================================================================
-
-
-
-
-
-
-

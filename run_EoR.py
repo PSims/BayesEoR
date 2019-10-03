@@ -50,7 +50,11 @@ nv=p.nv
 nx=p.nx
 ny=p.ny
 # Data noise
-sigma = p.sigma
+if not 'noise_data_path' in p.__dict__.keys():
+	sigma = p.sigma
+else:
+	effective_noise = np.load(p.noise_data_path)
+	sigma = effective_noise.std()
 if p.include_instrumental_effects:
 	uvw_multi_time_step_array_meters = load_uvw_instrument_sampling_m(p.instrument_model_directory)  #In (nvis_per_chan,nchan) order
 	uvw_multi_time_step_array_meters_vectorised = uvw_multi_time_step_array_meters[:,:,:].reshape(-1,3)
@@ -60,9 +64,18 @@ if p.include_instrumental_effects:
 	baseline_redundancy_array_time_vis_shaped = baseline_redundancy_array_time_vis_shaped*0 + baseline_redundancy_array_time_vis_shaped.min()
 	baseline_redundancy_array_vectorised = baseline_redundancy_array_time_vis_shaped.reshape(-1,1).flatten()
 	average_baseline_redundancy = baseline_redundancy_array_time_vis_shaped.mean() #Keep average noise level consisitent with the non-instrumental case by normalizing sigma by the average baseline redundancy before scaling individual baselines by their respective redundancies
-	sigma = sigma*average_baseline_redundancy**0.5
+	if not 'noise_data_path' in p.__dict__.keys():
+		sigma = sigma*average_baseline_redundancy**0.5
+	else:
+		sigma = sigma*1.
 else:
 	sigma = sigma*1.
+
+# Check for HERA data path
+if not p.HERA_data_path is None:
+	p.use_EoR_cube = False
+else:
+	p.use_EoR_cube = True
 
 
 # Auxiliary and derived params
@@ -82,6 +95,8 @@ if p.include_instrumental_effects:
 	instrument_info = filter(None, p.instrument_model_directory_plus_beam_info.split('/'))[-1]
 	if 	p.model_drift_scan_primary_beam:
 		instrument_info = instrument_info+'_dspb'
+	if 'noise_data_path' in p.__dict__.keys():
+		instrument_info += '_noise_vec'
 	array_save_directory = array_save_directory[:-1]+'_instrumental/'+instrument_info+'/'
 else:
 	n_vis = 0
@@ -96,7 +111,10 @@ if p.fit_for_monopole:
 # Construct matrices
 #--------------------------------------------
 if p.include_instrumental_effects:
-	BM = BuildMatrices(array_save_directory, nu, nv, nx, ny, n_vis, neta, nf, nq, sigma, npl=npl, uvw_multi_time_step_array_meters = uvw_multi_time_step_array_meters, uvw_multi_time_step_array_meters_vectorised=uvw_multi_time_step_array_meters_vectorised, baseline_redundancy_array_time_vis_shaped = baseline_redundancy_array_time_vis_shaped, baseline_redundancy_array_vectorised = baseline_redundancy_array_vectorised, beam_type = p.beam_type, beam_peak_amplitude = p.beam_peak_amplitude, FWHM_deg_at_ref_freq_MHz = p.FWHM_deg_at_ref_freq_MHz, PB_ref_freq_MHz = p.PB_ref_freq_MHz)
+	if not 'noise_data_path' in p.__dict__.keys():
+		BM = BuildMatrices(array_save_directory, nu, nv, nx, ny, n_vis, neta, nf, nq, sigma, npl=npl, uvw_multi_time_step_array_meters = uvw_multi_time_step_array_meters, uvw_multi_time_step_array_meters_vectorised=uvw_multi_time_step_array_meters_vectorised, baseline_redundancy_array_time_vis_shaped = baseline_redundancy_array_time_vis_shaped, baseline_redundancy_array_vectorised = baseline_redundancy_array_vectorised, beam_type = p.beam_type, beam_peak_amplitude = p.beam_peak_amplitude, FWHM_deg_at_ref_freq_MHz = p.FWHM_deg_at_ref_freq_MHz, PB_ref_freq_MHz = p.PB_ref_freq_MHz)
+	else:
+		BM = BuildMatrices(array_save_directory, nu, nv, nx, ny, n_vis, neta, nf, nq, sigma, npl=npl, uvw_multi_time_step_array_meters = uvw_multi_time_step_array_meters, uvw_multi_time_step_array_meters_vectorised=uvw_multi_time_step_array_meters_vectorised, baseline_redundancy_array_time_vis_shaped = baseline_redundancy_array_time_vis_shaped, baseline_redundancy_array_vectorised = baseline_redundancy_array_vectorised, beam_type = p.beam_type, beam_peak_amplitude = p.beam_peak_amplitude, FWHM_deg_at_ref_freq_MHz = p.FWHM_deg_at_ref_freq_MHz, PB_ref_freq_MHz = p.PB_ref_freq_MHz, effective_noise=effective_noise)
 else:
 	BM = BuildMatrices(array_save_directory, nu, nv, nx, ny, n_vis, neta, nf, nq, sigma, npl=npl)
 overwrite_existing_matrix_stack = False #Can be set to False unless npl>0
@@ -137,7 +155,7 @@ if not p.include_instrumental_effects:
 		plot_figure = False
 		if plot_figure:
 			construct_aplpy_image_from_fits('/users/psims/EoR/EoR_simulations/21cmFAST_2048MPc_2048pix_512pix_AstroParamExploration1/Fits/output_fits/nf0d888/', '21cm_mK_z7.600_nf0.888_useTs0.0_aveTb21.24_cube_side_pix512_cube_side_Mpc2048_mK', run_convert_from_mK_to_K=False, run_remove_unused_header_variables=True)
-			
+
 	#--------------------------------------------
 	# Define data vector
 	#--------------------------------------------
@@ -172,15 +190,34 @@ Finv = BM.read_data_s2d(array_save_directory+'Finv', 'Finv')
 #--------------------------------------------
 overwrite_data_with_WN = False
 if p.include_instrumental_effects:
-		if p.use_EoR_cube:
-			s_EoR, abc, scidata1 = generate_EoR_signal_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z, Finv,Show,chan_selection,masked_power_spectral_modes, mod_k, p.EoR_npz_path_sc)
-			EoR_noise_seed = 742123
-			print 'EoR_noise_seed', EoR_noise_seed
-			d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(1.0*sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,uvw_multi_time_step_array_meters_vectorised,baseline_redundancy_array_vectorised,random_seed=EoR_noise_seed)[0]
-			effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(1.0*sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,uvw_multi_time_step_array_meters_vectorised,baseline_redundancy_array_vectorised,random_seed=EoR_noise_seed)[1]
+	if p.use_EoR_cube:
+		s_EoR, abc, scidata1 = generate_EoR_signal_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z, Finv,Show,chan_selection,masked_power_spectral_modes, mod_k, p.EoR_npz_path_sc)
+	else:
+		print 'Using HERA data at %s' %p.HERA_data_path
+		s_EoR = np.load(p.HERA_data_path)
+
+	if not 'noise_data_path' in p.__dict__.keys():
+		EoR_noise_seed = p.random_seed
+		print 'EoR_noise_seed =', EoR_noise_seed
+		d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(1.0*sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,uvw_multi_time_step_array_meters_vectorised,baseline_redundancy_array_vectorised,random_seed=EoR_noise_seed)[0]
+		effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(1.0*sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,uvw_multi_time_step_array_meters_vectorised,baseline_redundancy_array_vectorised,random_seed=EoR_noise_seed)[1]
+	else:
+		d = s_EoR.copy()
+		# temporarily add noise vector to healvis data
+		# print 'Making noise from %s...' %p.noise_data_path
+		# sigma_real = effective_noise.real / np.sqrt(2)
+		# np.random.seed(12345)
+		# noise_real = np.random.normal(0, sigma_real)
+		# np.random.seed(87654)
+		# noise_imag = np.random.normal(0, sigma_real)
+		# noise_complex = noise_real + 1j*noise_imag
+		# d = s_EoR + noise_complex
 
 effective_noise_std = effective_noise.std()
-
+print '\n\n\ns_EoR.std = %.4e' %(s_EoR.std())
+print 'effective_noise.std = %.4e' %(effective_noise_std)
+print 'dA = %.4e' %(p.dA)
+print 'effective SNR = %.4e\n\n\n' %(s_EoR.std() / effective_noise_std)
 
 #--------------------------------------------
 # Continue loading base matrices used in the likelihood and defining related variables
@@ -233,10 +270,10 @@ if sub_ML_monopole_term_model:
 	PSPP_block_diag.inverse_LW_power_first_LW_term=2.e18 #Don't fit for the first LW term (since only fitting for the monopole)
 	PSPP_block_diag.inverse_LW_power_second_LW_term=2.e18  #Don't fit for the second LW term (since only fitting for the monopole)
 	if p.use_LWM_Gaussian_prior:
-		fit_constraints = [2.e18]*1+[1.e-20]*(nDims-1)	
+		fit_constraints = [2.e18]*1+[1.e-20]*(nDims-1)
 	else:
 		fit_constraints = [1.e-20]*(nDims)
-	maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper(fit_constraints, T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]	
+	maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper(fit_constraints, T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
 	maxL_LW_signal = np.dot(T,maxL_LW_fit)
 	Ninv = BM.read_data_from_hdf5(array_save_directory+'Ninv.h5', 'Ninv')
 	Ninv_maxL_LW_signal = np.dot(Ninv,maxL_LW_signal)
@@ -258,12 +295,14 @@ if sub_ML_monopole_term_model:
 ###
 # PolyChord setup
 ###
-log_priors_min_max = [[-5.0, 3.0] for _ in range(nDims)]
+log_priors_min_max = [[-5.0, 6.0] for _ in range(nDims)]
+# log_priors_min_max[0] = [-5.0, 16.0] # temporarily increase priors for first two bins
+# log_priors_min_max[1] = [-5.0, 16.0]
 if p.use_LWM_Gaussian_prior:
 	fg_log_priors_min = np.log10(1.e5) #Set minimum LW model priors using LW power spectrum in fit to white noise (i.e the prior min should incorporate knowledge of signal-removal in iterative pre-subtraction
 	fg_log_priors_max = 6.0 #Set minimum LW model prior max using numerical stability constraint at the given signal-to-noise in the data.
-	# log_priors_min_max[0] = [fg_log_priors_min, 8.0] #Set 
-	log_priors_min_max[0] = [fg_log_priors_min, fg_log_priors_max] #Calibrate LW model priors using white noise fitting 
+	# log_priors_min_max[0] = [fg_log_priors_min, 8.0] #Set
+	log_priors_min_max[0] = [fg_log_priors_min, fg_log_priors_max] #Calibrate LW model priors using white noise fitting
 	log_priors_min_max[1] = [fg_log_priors_min, fg_log_priors_max] #Calibrate LW model priors using white noise fitting
 	log_priors_min_max[2] = [fg_log_priors_min, fg_log_priors_max] #Calibrate LW model priors using white noise fitting
 	if p.use_intrinsic_noise_fitting:
@@ -335,6 +374,7 @@ if p.use_intrinsic_noise_fitting and sub_ML_monopole_term_model:
 	print 'Using use_intrinsic_noise_fitting'
 	PSPP_block_diag_Polychord.d_Ninv_d = q_sub_d_Ninv_q_sub_d
 
+
 start = time.time()
 PSPP_block_diag_Polychord.Print=False
 Nit=20
@@ -374,13 +414,3 @@ if run_single_node_analysis or mpi_size>1:
 else:
 	print 'Skipping sampling, exiting...'
 #######################
-
-
-
-
-
-
-
-
-
-
