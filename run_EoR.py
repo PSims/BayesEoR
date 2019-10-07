@@ -77,7 +77,7 @@ if not p.HERA_data_path is None:
 else:
 	p.use_EoR_cube = True
 
-
+    
 # Auxiliary and derived params
 small_cube = nu<=7 and nv<=7
 nuv = (nu*nv-1)
@@ -90,7 +90,7 @@ n_LW = (nu*nv-1)*nq
 n_model = n_Fourier+n_LW
 n_dat = n_Fourier
 current_file_version = 'Likelihood_v1d76_3D_ZM'
-array_save_directory = 'array_storage/batch_1/{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(current_file_version,nu,nv,neta,nq,npl,sigma).replace('.','d')
+array_save_directory = 'array_storage/batch_1/{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.2E}/'.format(current_file_version,nu,nv,neta,nq,npl,sigma).replace('.','d')
 if p.include_instrumental_effects:
 	instrument_info = filter(None, p.instrument_model_directory_plus_beam_info.split('/'))[-1]
 	if 	p.model_drift_scan_primary_beam:
@@ -295,7 +295,7 @@ if sub_ML_monopole_term_model:
 ###
 # PolyChord setup
 ###
-log_priors_min_max = [[-5.0, 6.0] for _ in range(nDims)]
+log_priors_min_max = [[-5.0, 16.0] for _ in range(nDims)]
 # log_priors_min_max[0] = [-5.0, 16.0] # temporarily increase priors for first two bins
 # log_priors_min_max[1] = [-5.0, 16.0]
 if p.use_LWM_Gaussian_prior:
