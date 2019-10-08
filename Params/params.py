@@ -143,10 +143,12 @@ if include_instrumental_effects:
 	###
 	# Obs params
 	###
-	nt = 30
-	integration_time_minutes = 21.475 / 60.0
+	nt = 20
+	# integration_time_minutes = 21.475 / 60.0
+	integration_time_minutes = 43.07078763708871 / 60.0
 	# integration_time_minutes = 0.5
-	integration_time_minutes_str = '{}'.format(integration_time_minutes).replace('.','d')
+	# integration_time_minutes_str = '{}'.format(integration_time_minutes).replace('.','d')
+	integration_time_minutes_str = '0d7'
 	# instrument_model_directory = '/users/psims/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/Instrument_Model/HERA_331_baselines_shorter_than_29d3_for_{}_{}_min_time_steps/'.format(nt, integration_time_minutes_str)
 	# instrument_model_directory = '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/HERA_331_baselines_shorter_than_29d3_for_{}_{}_min_time_steps/'.format(nt, integration_time_minutes_str)
 	# instrument_model_directory = '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/HERA_19_healvis_model_for_{}_{}_min_time_steps'.format(nt, integration_time_minutes_str)
