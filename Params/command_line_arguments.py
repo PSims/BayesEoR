@@ -38,6 +38,11 @@ def BayesEoRParser():
 	parser.add_argument('--instrument_model_directory',
 						type = str,
 						help = "Path to the instrument model.")
+	parser.add_argument('--overwrite_matrices',
+						action = 'store_true',
+						default = False,
+						dest = 'overwrite_matrices',
+						help = 'If passed, overwrite existing matrices in array_save_directory.')
 
 	args = parser.parse_args() #Parse command line arguments
 	return args
