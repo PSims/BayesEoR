@@ -124,9 +124,6 @@ else:
     print('Overwriting matrix stack')
     overwrite_existing_matrix_stack = True
     proceed_without_overwrite_confirmation = True
-
-sys.exit()
-
 BM.build_minimum_sufficient_matrix_stack(overwrite_existing_matrix_stack=overwrite_existing_matrix_stack, proceed_without_overwrite_confirmation=proceed_without_overwrite_confirmation)
 
 #--------------------------------------------
