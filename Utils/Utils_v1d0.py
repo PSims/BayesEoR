@@ -43,18 +43,18 @@ class ParseCommandLineArguments(object):
 			print variable_name+' set to True'
 		else:
 			print variable_name+' set to False'
-	
+
 	def parse(self, argv):
 		print argv
 		try:
-		    opts, args = getopt.getopt(argv,'',["nq=",])
-		    print opts, args
-		    true_list = ['true', 't']
-		    for opt, arg in opts:
-		    	if opt=='--nq':
-		    		self.nq = int(arg)
+			opts, args = getopt.getopt(argv,'',["nq=",])
+			print opts, args
+			true_list = ['true', 't']
+			for opt, arg in opts:
+				if opt=='--nq':
+					self.nq = int(arg)
 		except getopt.GetoptError:
-		    sys.exit(2)
+			sys.exit(2)
 		return self.nq
 
 
@@ -66,7 +66,7 @@ class DataUnitConversionmkandJyperpix():
 		#
 		##===== Defaults =======
 		default_Print=0
-		
+
 		##===== Inputs =======
 		self.Print=kwargs.pop('Print', default_Print)
 
@@ -114,15 +114,15 @@ class Cosmology():
 		self.z1=0.
 		self.z2=10.
 		self.Print=0
-		
+
 		##===== Inputs =======
 		if 'z1' in kwargs:
-			self.z1=kwargs['z1']	
+			self.z1=kwargs['z1']
 		if 'z2' in kwargs:
-			self.z2=kwargs['z2']	
+			self.z2=kwargs['z2']
 		if 'Print' in kwargs:
-			self.Print=kwargs['Print']	
-		
+			self.Print=kwargs['Print']
+
 		self.Omega_m=0.279
 		self.Omega_lambda=0.721
 		self.Omega_k=0.0
@@ -131,62 +131,62 @@ class Cosmology():
 		self.H_0=70.0 #km/s/Mpc
 		self.f_21=1420.40575177 #1420.40575177 MHz
 		self.E_z2=(self.Omega_m*((1.+self.z2)**3) + self.Omega_lambda)**0.5 #Hubble Parameter at redshift z2
-		
+
 	def Comoving_Distance_Mpc_Integrand(self, z, **kwargs):
 		#
 		E_z=(self.Omega_m*((1.+z)**3) + self.Omega_lambda)**0.5 #Hubble parameter
 		self.Hubble_Distance=self.c_km_per_sec/self.H_0 #Distance in Mpc
 		#
 		return (self.Hubble_Distance/E_z)
-	
+
 	###
 	#Calculate 21cmFast Box size in degrees at a given redshift
 	###
 	def Calculate_Comoving_Distance_Mpc_Between_Redshifts_z1_and_z2(self, **kwargs):
 		#
 		self.Comoving_Distance_Mpc, self.Comoving_convergence_uncertainty=integrate.quad(self.Comoving_Distance_Mpc_Integrand,self.z1,self.z2)
-		
+
 		return self.Comoving_Distance_Mpc, self.Comoving_convergence_uncertainty
-	
-	
+
+
 	###
-	#Calculate 21cmFast frequency depth at a given redshift using Morales & Hewitt 2004 eqn. 
+	#Calculate 21cmFast frequency depth at a given redshift using Morales & Hewitt 2004 eqn.
 	###
 	#
 	#Example run command: Functions.Cosmology(z2=10.,Print=1).Convert_from_Comoving_Mpc_to_Delta_Frequency_at_Redshift_z2()
 	#
 	def Convert_from_Comoving_Mpc_to_Delta_Frequency_at_Redshift_z2(self, **kwargs):
-		
+
 		#
 		##===== Defaults =======
 		self.Box_Side_cMpc=3000.
-		
+
 		##===== Inputs =======
 		if 'Box_Side_cMpc' in kwargs:
-			self.Box_Side_cMpc=kwargs['Box_Side_cMpc']	
+			self.Box_Side_cMpc=kwargs['Box_Side_cMpc']
 		#
-		
+
 		if self.Print:
 			print 'Convert_from_Comoving_Mpc_to_Delta_Frequency_at_Redshift_z2 at \nRedshift z =', self.z2, '\nBox depth in cMpc, Box_Side_cMpc =', self.Box_Side_cMpc
-		
-		
+
+
 		self.Delta_f_MHz = (self.H_0*self.f_21*self.E_z2*self.Box_Side_cMpc)/(self.c_km_per_sec*(1.+self.z2)**2.)
 		self.Delta_f_Hz = self.Delta_f_MHz*1.e6
-		
+
 		if self.Print:
 			print 'Delta_f_MHz = ', self.Delta_f_MHz
-		
+
 		return self.Delta_f_MHz
-	
+
 	###
 	#Calculate 21cmFast k_parallel - space values
 	###
 	def Convert_from_Tau_to_Kz(self, Tau_Array, **kwargs):
 		#
 		self.K_z_Array = ((2.*pi*self.H_0*self.f_21*self.E_z2)/(self.c_km_per_sec*(1.+self.z2)**2.))*Tau_Array #Eta_Array=array of spatial wavelengths fitted to channels in frequency space.
-		
+
 		return self.K_z_Array
-	
+
 	###
 	#Calculate 21cmFast k_perp - space values
 	###
@@ -194,9 +194,9 @@ class Cosmology():
 		#
 		Comoving_Distance_Mpc, Comoving_convergence_uncertainty=self.Calculate_Comoving_Distance_Mpc_Between_Redshifts_z1_and_z2()
 		self.K_x_Array=((2.*pi)/Comoving_Distance_Mpc)*U_Array #h*cMPc^-1
-		
+
 		return self.K_x_Array
-	
+
 	###
 	#Calculate 21cmFast k_perp - space values
 	###
@@ -204,9 +204,9 @@ class Cosmology():
 		#
 		Comoving_Distance_Mpc, Comoving_convergence_uncertainty=self.Calculate_Comoving_Distance_Mpc_Between_Redshifts_z1_and_z2()
 		self.K_y_Array=((2.*pi)/Comoving_Distance_Mpc)*V_Array #h*cMPc^-1
-		
+
 		return self.K_y_Array
-	
+
 	###
 	#Convert from Frequency to Redshift
 	###
@@ -214,7 +214,7 @@ class Cosmology():
 		#
 		One_plus_z_Array=self.f_21/Frequency_Array_MHz
 		self.z_Array=One_plus_z_Array-1.
-		
+
 		return self.z_Array
 
 	###
@@ -224,11 +224,11 @@ class Cosmology():
 		#
 		One_plus_z=1.+Redshift
 		self.redshifted_21cm_frequency = self.f_21/One_plus_z
-		
+
 		return self.redshifted_21cm_frequency
 
 	###
-	#Calculate angular separation of 21cmFast box at a given redshift  
+	#Calculate angular separation of 21cmFast box at a given redshift
 	###
 	#
 	#Example run command: Cosmology(z1=0.0,z2=10.,Print=1).Convert_from_Comoving_Mpc_to_Delta_Angle_at_Redshift_z2(Box_Side_cMpc=512)
@@ -245,25 +245,25 @@ class Cosmology():
 		#
 		##===== Defaults =======
 		self.Box_Side_cMpc=3000.
-		
+
 		##===== Inputs =======
 		if 'Box_Side_cMpc' in kwargs:
-			self.Box_Side_cMpc=kwargs['Box_Side_cMpc']	
-				
+			self.Box_Side_cMpc=kwargs['Box_Side_cMpc']
+
 		Comoving_Distance_Mpc, Comoving_convergence_uncertainty = self.Calculate_Comoving_Distance_Mpc_Between_Redshifts_z1_and_z2()
 		angular_diameter_distance_Mpc = Comoving_Distance_Mpc/(1+(self.z2-self.z1))
 		Box_width_proper_distance_Mpc = self.Box_Side_cMpc/(1+(self.z2-self.z1))
 
 		if self.Print:
 			print 'Convert_from_Comoving_Mpc_to_Delta_Angle_at_Redshift_z2 at \nRedshift z =', self.z2, '\nBox depth in cMpc, Box_Side_cMpc =', self.Box_Side_cMpc, '\nBox proper depth in Mpc, Box proper width =', Box_width_proper_distance_Mpc, '\nComoving distance between z1={} and z2={}: {}'.format(self.z1,self.z2,Comoving_Distance_Mpc), '\nAngular diameter distance between z1={} and z2={}: {}'.format(self.z1,self.z2,angular_diameter_distance_Mpc)
-		
+
 		###
 		#tan(theta) = Box_Side_cMpc/Comoving_Distance_Mpc
 		###
 		# self.theta_rad = np.arctan2(Box_width_proper_distance_Mpc,angular_diameter_distance_Mpc)
 		self.theta_rad = (Box_width_proper_distance_Mpc/angular_diameter_distance_Mpc) #From Hogg 1999 (although no discussion of applicability for large theta there)
 		self.theta_deg = self.theta_rad*180./np.pi
-		
+
 		if self.Print:
 			print 'theta_deg = ', self.theta_deg
 		return self.theta_deg
@@ -278,7 +278,7 @@ class ExtractDataFrom21cmFASTCube():
 		##===== Defaults =======
 		default_Print=0
 		default_plot_data=False
-		
+
 		##===== Inputs =======
 		self.Print=kwargs.pop('Print', default_Print)
 		self.plot_data=kwargs.pop('plot_data', default_plot_data)
@@ -346,10 +346,10 @@ class ExtractDataFrom21cmFASTCube():
 
 class WriteDataToFits(ExtractDataFrom21cmFASTCube):
 	def __init__(self, **kwargs):
-		
+
 		##===== Defaults =======
 		default_Print=True
-		
+
 		##===== Inputs =======
 		self.Print=kwargs.pop('Print', default_Print)
 
@@ -371,12 +371,12 @@ class WriteDataToFits(ExtractDataFrom21cmFASTCube):
 
 
 	def Create_Directory(self, Directory,**kwargs):
-		
+
 		if not os.path.exists(Directory):
 			print 'Directory not found: \n\n'+Directory+"\n"
 			print 'Creating required directory structure..'
 			os.makedirs(Directory)
-		
+
 		return 0
 
 	def check_path_includes_the_directory(self, output_path):
@@ -388,13 +388,13 @@ class WriteDataToFits(ExtractDataFrom21cmFASTCube):
 		return output_path
 
 	def write_data(self, Data, output_path, **kwargs):
-		
+
 		##===== Defaults =======
 		# default_Box_Side_cMpc=4096.
 		# default_simulation_redshift=8.682
 		default_Box_Side_cMpc=3072.
 		default_simulation_redshift=7.6
-		
+
 		##===== Inputs =======
 		self.Box_Side_cMpc=kwargs.pop('Box_Side_cMpc', default_Box_Side_cMpc)
 		self.simulation_redshift=kwargs.pop('simulation_redshift', default_simulation_redshift)
@@ -435,7 +435,7 @@ class WriteDataToFits(ExtractDataFrom21cmFASTCube):
 			shutil.move(output_path, backupdir)
 
 		hdu.writeto(output_path, overwrite=True)
-	
+
 
 ## ======================================================================================================
 ## ======================================================================================================
@@ -569,10 +569,10 @@ class RenormaliseMatricesForScaledNoise(object):
 		#
 		##===== Defaults =======
 		default_matrix_renormalisation_scale_factor=self.matrix_renormalisation_scale_factor
-		
+
 		##===== Inputs =======
 		self.matrix_renormalisation_scale_factor=kwargs.pop('matrix_renormalisation_scale_factor', default_matrix_renormalisation_scale_factor)
-		
+
 		if self.have_run_calc_matrix_renormalisation_scale_factor:
 			print "About to update likelihood matrices to from a constructed noise level of {} to a newly assumed noise in the data of {} using a scale factor sigma_init**2./updated_sigma**2. = {}".format(self.sigma_init, self.updated_sigma, (self.sigma_init**2./self.updated_sigma**2.))
 		else:
@@ -594,7 +594,7 @@ def load_uvw_instrument_sampling_m(instrument_model_directory):
 	file_dir = instrument_model_directory
 	# file_name = "uvw_multi_time_step_array_meters_reshaped" #HERA 331 sub-100 m baselines (i.e. H37 baselines) uv-sampling in meters
 	file_name = "uvw_multi_time_step_array_meters" #HERA 331 sub-100 m baselines (i.e. H37 baselines) uv-sampling in meters
-	f = open(file_dir+file_name,'r')  
+	f = open(file_dir+file_name,'r')
 	uvw_multi_time_step_array_meters =  pickle.load(f)
 	return uvw_multi_time_step_array_meters
 
@@ -606,7 +606,7 @@ def load_baseline_redundancy_array(instrument_model_directory):
 	file_dir = instrument_model_directory
 	# file_name = "unique_H37_baseline_hermitian_redundancy_multi_time_step_array_reshaped" #HERA 331 sub-100 m baselines (i.e. H37 baselines) baseline redundancy
 	file_name = "unique_H37_baseline_hermitian_redundancy_multi_time_step_array" #HERA 331 sub-100 m baselines (i.e. H37 baselines) baseline redundancy
-	f = open(file_dir+file_name,'r')  
+	f = open(file_dir+file_name,'r')
 	unique_H37_baseline_hermitian_redundancy_multi_time_step_array =  pickle.load(f)
 	return unique_H37_baseline_hermitian_redundancy_multi_time_step_array
 
@@ -614,14 +614,35 @@ def load_baseline_redundancy_array(instrument_model_directory):
 ## ======================================================================================================
 ## ======================================================================================================
 
+def write_log_file(array_save_directory, file_root):
+	# make log file directory if it doesn't exist
+	log_dir = 'log_files/'
+	if not os.path.exists(log_dir):
+		os.mkdir(log_dir)
 
+	# Get git version and hash info
+	version_info = {}
+	version_info['git_origin'] = subprocess.check_output(['git', 'config', '--get', 'remote.origin.url'], stderr=subprocess.STDOUT)
+	version_info['git_hash'] = subprocess.check_output(['git', 'rev-parse', 'HEAD'], stderr=subprocess.STDOUT)
+	version_info['git_description'] = subprocess.check_output(['git', 'describe', '--dirty', '--tag', '--always'])
+	version_info['git_branch'] = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], stderr=subprocess.STDOUT)
 
+	log_file = log_dir + file_root + '.log'
+	dashed_line = '-'*44
 
+	# Write array directories and command line arguments
+	with open(log_file, 'wb') as f:
+		f.write('#' + dashed_line + '\n# GitHub Info\n#' + dashed_line +'\n')
+		for key in version_info.keys():
+			f.write('%s: %s' %(key, version_info[key]))
+		f.write('\n\n')
+		f.write('#' + dashed_line + '\n# Directories\n#' + dashed_line +'\n')
+		f.write('Array save directory:\t%s\n' %(array_save_directory))
+		f.write('Multinest output file root:\t%s\n' %(file_root))
+		f.write('\n\n')
+		f.write('#' + dashed_line + '\n# Parser / Params Variables\n#' + dashed_line +'\n')
+		for key in p.__dict__.keys():
+			if not key.startswith('_'):
+				f.write('%s = %s\n' %(key, p.__dict__[key]))
 
-
-
-
-
-
-
-
+	print 'Log file written successfully to %s' %(log_file)

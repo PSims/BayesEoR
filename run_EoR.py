@@ -118,12 +118,12 @@ if p.include_instrumental_effects:
 else:
 	BM = BuildMatrices(array_save_directory, nu, nv, nx, ny, n_vis, neta, nf, nq, sigma, npl=npl)
 if not p.overwrite_matrices:
-    overwrite_existing_matrix_stack = False #Can be set to False unless npl>0
-    proceed_without_overwrite_confirmation = False #Allows overwrite_existing_matrix_stack to be run without having to manually accept the deletion of the old matrix stack
+	overwrite_existing_matrix_stack = False #Can be set to False unless npl>0
+	proceed_without_overwrite_confirmation = False #Allows overwrite_existing_matrix_stack to be run without having to manually accept the deletion of the old matrix stack
 else:
-    print('Overwriting matrix stack')
-    overwrite_existing_matrix_stack = True
-    proceed_without_overwrite_confirmation = True
+	print('Overwriting matrix stack')
+	overwrite_existing_matrix_stack = True
+	proceed_without_overwrite_confirmation = True
 BM.build_minimum_sufficient_matrix_stack(overwrite_existing_matrix_stack=overwrite_existing_matrix_stack, proceed_without_overwrite_confirmation=proceed_without_overwrite_confirmation)
 
 #--------------------------------------------
@@ -404,6 +404,10 @@ else:
 	print 'run_single_node_analysis = {}\n'.format(run_single_node_analysis)
 
 if run_single_node_analysis or mpi_size>1:
+	# Write log file
+	if MPI.COMM_WORLD.Get_rank() == 0:
+		write_log_file(array_save_directory, file_root)
+
 	if use_MultiNest:
 		MN_nlive = nDims*25
 		# Run MultiNest
