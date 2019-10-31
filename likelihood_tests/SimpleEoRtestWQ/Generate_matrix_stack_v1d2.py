@@ -431,7 +431,7 @@ class BuildMatrices(BuildMatrixTree):
 		image_size_pix = p.nx
 		beam_peak_amplitude = p.beam_peak_amplitude
 		deg_to_pix = image_size_pix / float(p.simulation_FoV_deg)
-		FWHM_deg_at_chan_freq_MHz = [p.FWHM_deg_at_ref_freq_MHz*(float(p.PB_ref_freq_MHz)/chan_freq_MHz) for chan_freq_MHz in nu_array_MHz]
+		# FWHM_deg_at_chan_freq_MHz = [p.FWHM_deg_at_ref_freq_MHz*(float(p.PB_ref_freq_MHz)/chan_freq_MHz) for chan_freq_MHz in nu_array_MHz]
 		FWHM_deg_at_chan_freq_MHz = np.ones(p.nf)*p.FWHM_deg_at_ref_freq_MHz
 		FWHM_pix_at_chan_freq_MHz = [FWHM_deg*deg_to_pix for FWHM_deg in FWHM_deg_at_chan_freq_MHz]
 		if not p.model_drift_scan_primary_beam:
