@@ -35,6 +35,9 @@ def BayesEoRParser():
 						type = int,
 						help = "Seed to use for random noise generation (default = 742123).",
 						default = 742123)
+	parser.add_argument('--instrument_model_directory',
+						type = str,
+						help = "Path to the instrument model.")
 	parser.add_argument('--overwrite_matrices',
 						action = 'store_true',
 						default = False,
