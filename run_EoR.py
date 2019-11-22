@@ -359,6 +359,10 @@ else:
 	print 'run_single_node_analysis = {}\n'.format(run_single_node_analysis)
 
 if run_single_node_analysis or mpi_size>1:
+	# Write log file
+	if MPI.COMM_WORLD.Get_rank() == 0:
+		write_log_file(array_save_directory, file_root)  
+    
 	if use_MultiNest:
 		MN_nlive = nDims*25
 		# Run MultiNest
