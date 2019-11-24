@@ -99,8 +99,15 @@ if p.include_instrumental_effects:
 	BM = BuildMatrices(array_save_directory, nu, nv, nx, ny, n_vis, neta, nf, nq, sigma, npl=npl, uvw_multi_time_step_array_meters = uvw_multi_time_step_array_meters, uvw_multi_time_step_array_meters_vectorised=uvw_multi_time_step_array_meters_vectorised, baseline_redundancy_array_time_vis_shaped = baseline_redundancy_array_time_vis_shaped, baseline_redundancy_array_vectorised = baseline_redundancy_array_vectorised, beam_type = p.beam_type, beam_peak_amplitude = p.beam_peak_amplitude, FWHM_deg_at_ref_freq_MHz = p.FWHM_deg_at_ref_freq_MHz, PB_ref_freq_MHz = p.PB_ref_freq_MHz)
 else:
 	BM = BuildMatrices(array_save_directory, nu, nv, nx, ny, n_vis, neta, nf, nq, sigma, npl=npl)
-overwrite_existing_matrix_stack = False #Can be set to False unless npl>0
-proceed_without_overwrite_confirmation = False #Allows overwrite_existing_matrix_stack to be run without having to manually accept the deletion of the old matrix stack
+
+if not p.overwrite_matrices:
+    overwrite_existing_matrix_stack = False #Can be set to False unless npl>0
+    proceed_without_overwrite_confirmation = False #Allows overwrite_existing_matrix_stack to be run without having to manually accept the deletion of the old matrix stack
+else:
+    print('Overwriting matrix stack')
+    overwrite_existing_matrix_stack = True
+    proceed_without_overwrite_confirmation = True
+
 BM.build_minimum_sufficient_matrix_stack(overwrite_existing_matrix_stack=overwrite_existing_matrix_stack, proceed_without_overwrite_confirmation=proceed_without_overwrite_confirmation)
 
 #--------------------------------------------

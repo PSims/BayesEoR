@@ -27,6 +27,11 @@ def BayesEoRParser():
 	parser.add_argument('--PB_ref_freq_MHz',
 					    type = float,
 					    help = "Reference frequency for primary beam in MHz.")
+	parser.add_argument('--overwrite_matrices',
+						action = 'store_true',
+						default = False,
+						dest = 'overwrite_matrices',
+						help = 'If passed, overwrite existing matrices in array_save_directory.')
 
 	args = parser.parse_args() #Parse command line arguments
 	return args
