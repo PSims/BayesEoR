@@ -52,6 +52,7 @@ from Utils import ExtractDataFrom21cmFASTCube, plot_signal_vs_MLsignal_residuals
 from Utils import generate_output_file_base, RenormaliseMatricesForScaledNoise
 from Utils import remove_unused_header_variables, construct_aplpy_image_from_fits
 from Utils import load_uvw_instrument_sampling_m, load_baseline_redundancy_array
+from Utils import write_log_file
 
 from GenerateForegroundCube import generate_Jelic_cube, generate_data_from_loaded_EoR_cube, generate_data_from_loaded_EoR_cube_v2d0
 from GenerateForegroundCube import generate_test_signal_from_image_cube
