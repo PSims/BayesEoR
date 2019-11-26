@@ -24,7 +24,7 @@ import BayesEoR.Params.params as p
 #2D DFT testing
 ###
 
- 
+
 def makeGaussian(size, fwhm = 3, center=None):
 	""" Make a square gaussian kernel.
 	size is the length of a side of the square
@@ -38,14 +38,14 @@ def makeGaussian(size, fwhm = 3, center=None):
 	else:
 		x0 = center[0]
 		y0 = center[1]
-	return np.exp(-4*np.log(2) * ((x-x0)**2 + (y-y0)**2) / fwhm**2) 
+	return np.exp(-4*np.log(2) * ((x-x0)**2 + (y-y0)**2) / fwhm**2)
 
 
 
 
 ###
 def make_Gaussian_beam(image_size_pix, fwhm_pix, beam_peak_amplitude, center_pix=[]):
-	""" 
+	"""
 	Make a square gaussian kernel centered on center_pix=[x0, y0].
 	"""
 	x = np.arange(0, image_size_pix, 1, float)
@@ -55,7 +55,7 @@ def make_Gaussian_beam(image_size_pix, fwhm_pix, beam_peak_amplitude, center_pix
 	else:
 		x0 = center_pix[0]
 		y0 = center_pix[1]
-	gaussian_beam = beam_peak_amplitude * np.exp(-4*np.log(2) * ((x-x0)**2 + (y-y0)**2) / fwhm_pix**2) 
+	gaussian_beam = beam_peak_amplitude * np.exp(-4*np.log(2) * ((x-x0)**2 + (y-y0)**2) / fwhm_pix**2)
 	return gaussian_beam
 
 
@@ -292,7 +292,7 @@ def Calc_Coords_Large_Im_to_High_Res_uv(i_x_AV, i_y_AV, i_u_AV, i_v_AV, U_oversa
 def Restore_Centre_Pixel(Array, MeanVal=0.0):
 	#
 	Restored_Array=numpy.insert(Array, [Array.size/2],[MeanVal])
-	
+
 	return Restored_Array
 
 
@@ -330,7 +330,7 @@ def Delete_Centre_3x3_Grid(Array):
 def Delete_Centre_Pix(Array):
 	#
 	Array=numpy.delete(Array, [Array.size/2])
-	
+
 	return Array
 
 
@@ -385,7 +385,7 @@ def Restore_Centre_3x3_Grid(Array, MeanVal=0.0):
 	Restored_Array=Restored_Array_Unsorted[SortedIndices]
 	#
 	return Restored_Array
-	
+
 
 
 def Restore_Centre_NxN_Grid(Array1, Array2, N):
@@ -405,7 +405,7 @@ def Restore_Centre_NxN_Grid(Array1, Array2, N):
 	Restored_Array=Restored_Array_Unsorted[SortedIndices]
 	#
 	return Restored_Array
-	
+
 
 
 def Generate_Combined_Coarse_plus_Subharmic_uv_grids(nu, nv, nx, ny, X_oversampling_Factor, Y_oversampling_Factor, U_oversampling_Factor, V_oversampling_Factor, ReturnSeparateCoarseandSHarrays=False):
@@ -434,7 +434,7 @@ def Generate_Combined_Coarse_plus_Subharmic_uv_grids(nu, nv, nx, ny, X_oversampl
 		return i_u_AV, i_v_AV, i_x_AV, i_y_AV
 	else:
 		return i_u_AV_C, i_u_AV_SH, i_v_AV_C, i_v_AV_SH, i_x_AV, i_y_AV
-	
+
 
 
 def IDFT_Array_IDFT_2D_ZM_SH(nu, nv, nx, ny, X_oversampling_Factor=1.0, Y_oversampling_Factor=1.0, U_oversampling_Factor=1.0, V_oversampling_Factor=1.0):
@@ -446,16 +446,16 @@ def IDFT_Array_IDFT_2D_ZM_SH(nu, nv, nx, ny, X_oversampling_Factor=1.0, Y_oversa
 	#
 	NormalisedExponentArray=ExponentArray.T
 	NormalisedExponentArray=NormalisedExponentArray/((nu*nv))
-	
+
 	return NormalisedExponentArray
-	
+
 
 
 
 
 #######
 #Generates a DFT matrix (DFTArray) where upon dot producting with the input image (TestData) yields FFTTestData_Hermitian:
-#FFTTestData_Hermitian = np.dot(TestData.reshape(1,nx*ny), DFTArrayF2).reshape(nu,nv) 
+#FFTTestData_Hermitian = np.dot(TestData.reshape(1,nx*ny), DFTArrayF2).reshape(nu,nv)
 #(= np.dot(DFTArrayF2.T,TestData.reshape(1,nx*ny).T).reshape(nu,nv))
 
 #And is equivalent in numpy to:
@@ -538,7 +538,7 @@ def nuDFT_Array_DFT_2D_v2d0(nu, nv, nx, ny, sampled_uvw_coords_inverse_pixel_uni
 
 #######
 #Generates a IDFT matrix (IDFTArray) where upon dot producting with the input image (TestData) yields FFTTestData_Hermitian:
-#FFTTestData_Hermitian = np.dot(TestData.reshape(1,nx*ny), DFTArrayF2).reshape(nu,nv) 
+#FFTTestData_Hermitian = np.dot(TestData.reshape(1,nx*ny), DFTArrayF2).reshape(nu,nv)
 #(= np.dot(DFTArrayF2.T,TestData.reshape(1,nx*ny).T).reshape(nu,nv))
 
 #And is equivalent in numpy to:
@@ -608,6 +608,38 @@ def IDFT_Array_IDFT_2D_ZM(nu, nv, nx, ny, X_oversampling_Factor=1.0, Y_oversampl
 
 
 
+###
+def IDFT_Array_IDFT_2D_ZM_v2(nu, nv, nx, ny, dr_Mpc, X_oversampling_Factor=1.0, Y_oversampling_Factor=1.0, U_oversampling_Factor=1.0, V_oversampling_Factor=1.0, **kwargs):
+	#
+	exclude_mean = True
+	if p.fit_for_monopole:
+		exclude_mean = False
+	i_x_AV, i_y_AV, i_u_AV, i_v_AV = Produce_Coordinate_Arrays_ZM(nu, nv, nx, ny, exclude_mean = exclude_mean)
+
+	# Construct x and y vectors
+	box_side_length_Mpc_x = dr_Mpc * p.nx
+	box_side_length_Mpc_y = dr_Mpc * p.ny
+	x_vec_Mpc = np.arange(-(p.nx//2), (p.nx//2) + 1) * dr_Mpc
+	y_vec_Mpc = np.arange(-(p.ny//2), (p.ny//2) + 1) * dr_Mpc
+	Y_mg_Mpc, X_mg_Mpc = np.meshgrid(y_vec_Mpc, x_vec_Mpc)
+
+	# Convert from Mpc --> inv pix units
+	i_x_AV = X_mg_Mpc.flatten().reshape(-1, 1) / box_side_length_Mpc_x
+	i_y_AV = Y_mg_Mpc.flatten().reshape(-1, 1) / box_side_length_Mpc_y
+
+	if U_oversampling_Factor!=1.0:
+		i_x_AV, i_y_AV, i_u_AV, i_v_AV = Calc_Coords_Large_Im_to_High_Res_uv(i_x_AV, i_y_AV, i_u_AV, i_v_AV, U_oversampling_Factor, V_oversampling_Factor)
+	if X_oversampling_Factor!=1.0:
+		i_x_AV, i_y_AV, i_u_AV, i_v_AV = Calc_Coords_High_Res_Im_to_Large_uv(i_x_AV, i_y_AV, i_u_AV, i_v_AV, U_oversampling_Factor, V_oversampling_Factor)
+
+	ExponentArray = np.exp(+2.0*np.pi*1j*( (i_x_AV*i_u_AV/float(nu)) +  (i_v_AV*i_y_AV/float(nv)) ))
+
+	return ExponentArray.T.squeeze()/(nu*U_oversampling_Factor*nv*V_oversampling_Factor)
+
+
+
+
+
 
 #####
 
@@ -619,7 +651,7 @@ def Construct_Hermitian(Tri_Real, Tri_Imag):
 	Full_Imag=np.concatenate((Tri_Imag,-1.0*Tri_Imag[:-1][::-1])).reshape(Nx,Nx)
 	#
 	return Full_Real+1j*Full_Imag
-	
+
 
 
 
@@ -715,7 +747,7 @@ def Construct_Hermitian_Gridding_Matrix_CosSin_SH_v4(nu,nv, U_oversampling_Facto
 	###
 	G[n_par*2+n_par_SH:n_par*2+3*n_par_SH/2, n_par+n_par_SH/2:n_par+n_par_SH] = np.identity(n_par_SH/2) #Fill the first half of the matrix -- Upper tri (transposed) including the centre -- with the  imag param values
 	G[n_par*2+3*n_par_SH/2:n_par*2+n_par_SH*2,n_par+n_par_SH/2:n_par+n_par_SH] = -1*np.identity(n_par_SH/2)[::-1] #Fill the second half of the matrix -- Lower tri (transposed) minus the centre -- with the  imag param values in reverse order (reverse order done by the [::-1])
-	
+
 	return G
 
 
@@ -755,7 +787,7 @@ def quadratic_array_linear_plus_quad_modes_only_v2(nf, nq=2, **kwargs):
 	default_nu_min_MHz = (163.0-4.0)
 	default_channel_width_MHz = 0.2
 	default_beta = 2.63
-	
+
 	##===== Inputs =======
 	npl=kwargs.pop('npl',default_npl)
 	nu_min_MHz=kwargs.pop('nu_min_MHz',default_nu_min_MHz)
@@ -786,7 +818,7 @@ def quadratic_array_linear_plus_quad_modes_only_v2(nf, nq=2, **kwargs):
 		x=arange(nf)-(nf/2.)
 		quadratic_array[0] = x
 		quadratic_array[1] = x**2
-		# 
+		#
 		if npl==1:
 			###
 			# This function needs modifying so that the following information is passed to it rather than being hard coded!
@@ -816,20 +848,20 @@ def quadratic_array_linear_plus_quad_modes_only_v2(nf, nq=2, **kwargs):
 			m_pl1 = np.array([(nu_array_MHz[i_nu]/nu_min_MHz)**-beta[0] for i_nu in range(len(nu_array_MHz))])
 			quadratic_array[0] = m_pl1
 			print '\nLinear LW mode replaced with power-law model'
-			print 'beta1 = ', beta[0], '\n'	
+			print 'beta1 = ', beta[0], '\n'
 			m_pl2 = np.array([(nu_array_MHz[i_nu]/nu_min_MHz)**-beta[1] for i_nu in range(len(nu_array_MHz))])
 			quadratic_array[1] = m_pl2
 			print '\nQuadratic LW mode replaced with power-law model'
 			print 'nu_min_MHz = ', nu_min_MHz
 			print 'channel_width_MHz = ', channel_width_MHz
-			print 'beta2 = ', beta[1], '\n'	
-		# 
+			print 'beta2 = ', beta[1], '\n'
+		#
 	if nq==3:
 		x=arange(nf)-(nf/2.)
 		quadratic_array[0] = x
 		quadratic_array[1] = x**2
 		quadratic_array[1] = x**3
-		# 
+		#
 		if npl==1:
 			###
 			# This function needs modifying so that the following information is passed to it rather than being hard coded!
@@ -851,30 +883,30 @@ def quadratic_array_linear_plus_quad_modes_only_v2(nf, nq=2, **kwargs):
 			m_pl1 = np.array([(nu_array_MHz[i_nu]/nu_min_MHz)**-beta[0] for i_nu in range(len(nu_array_MHz))])
 			quadratic_array[0] = m_pl1
 			print '\nLinear LW mode replaced with power-law model'
-			print 'beta1 = ', beta[0], '\n'	
+			print 'beta1 = ', beta[0], '\n'
 			m_pl2 = np.array([(nu_array_MHz[i_nu]/nu_min_MHz)**-beta[1] for i_nu in range(len(nu_array_MHz))])
 			quadratic_array[1] = m_pl2
 			print '\nQuadratic LW mode replaced with power-law model'
 			print 'nu_min_MHz = ', nu_min_MHz
 			print 'channel_width_MHz = ', channel_width_MHz
-			print 'beta2 = ', beta[1], '\n'	
+			print 'beta2 = ', beta[1], '\n'
 		if npl==3:
 			nu_array_MHz = nu_min_MHz+np.arange(float(nf))*channel_width_MHz
 			m_pl1 = np.array([(nu_array_MHz[i_nu]/nu_min_MHz)**-beta[0] for i_nu in range(len(nu_array_MHz))])
 			quadratic_array[0] = m_pl1
 			print '\nLinear LW mode replaced with power-law model'
-			print 'beta1 = ', beta[0], '\n'	
+			print 'beta1 = ', beta[0], '\n'
 			m_pl2 = np.array([(nu_array_MHz[i_nu]/nu_min_MHz)**-beta[1] for i_nu in range(len(nu_array_MHz))])
 			quadratic_array[1] = m_pl2
 			print '\nQuadratic LW mode replaced with power-law model'
-			print 'beta2 = ', beta[1], '\n'	
+			print 'beta2 = ', beta[1], '\n'
 			m_pl3 = np.array([(nu_array_MHz[i_nu]/nu_min_MHz)**-beta[1] for i_nu in range(len(nu_array_MHz))])
 			quadratic_array[2] = m_pl3
 			print '\nCubic LW mode replaced with power-law model'
 			print 'nu_min_MHz = ', nu_min_MHz
 			print 'channel_width_MHz = ', channel_width_MHz
-			print 'beta3 = ', beta[2], '\n'	
-		# 
+			print 'beta3 = ', beta[2], '\n'
+		#
 	if nq==4:
 		quadratic_array[0] = arange(nf)
 		quadratic_array[1] = arange(nf)**2.0
@@ -923,13 +955,13 @@ def IDFT_Array_IDFT_1D_WQ(nf, neta, nq, **kwargs):
 	default_nu_min_MHz = (163.0-4.0)
 	default_channel_width_MHz = 0.2
 	default_beta = 2.63
-	
+
 	##===== Inputs =======
 	npl=kwargs.pop('npl',default_npl)
 	nu_min_MHz=kwargs.pop('nu_min_MHz',default_nu_min_MHz)
 	channel_width_MHz=kwargs.pop('channel_width_MHz',default_channel_width_MHz)
 	beta=kwargs.pop('beta',default_beta)
-	
+
 	i_f=(np.arange(nf)-nf/2).reshape(-1,1)
 	i_eta=(np.arange(neta)-neta/2).reshape(1,-1)
 	ExponentArray=np.exp(+2.0*np.pi*1j*( (i_eta*i_f/float(nf)) ))
@@ -1089,7 +1121,7 @@ def generate_gridding_matrix_vis_ordered_to_chan_ordered_WQ(nu,nv,nf):
 	print 'Hello'
 	for j, vis_grab_val in enumerate(vis_grab_order):
 		for i in range(2):
-				n_fourier_modes = (nf*Fourier_vals_per_chan) #Place quadratic modes after all of the Fourier modes in the resulting vector 
+				n_fourier_modes = (nf*Fourier_vals_per_chan) #Place quadratic modes after all of the Fourier modes in the resulting vector
 				row_number = n_fourier_modes+(j*quadratic_vals_per_chan)+i #Place quadratic modes after all of the Fourier modes in the resulting vector
 				grid_pix = nf+i+vis_grab_val*(nf+2) #pixel to grab from vis-ordered vector and place as next chan-ordered value
 				print i,j,vis_grab_val,row_number,grid_pix
@@ -1118,7 +1150,7 @@ def generate_gridding_matrix_vis_ordered_to_chan_ordered_WQ(nu,nv,nf):
 
 
 # correct_order_zm = np.delete(arange(nf*nu*nv),[np.where(arange(nf*nu*nv)==x) for x in (((nu*nv)/2)+arange(nf)*(nu*nv))])
-# print abs(ga2.flatten()-correct_order_zm).max() #If the printout is 0.0 then gridding_matrix_vis_ordered_to_chan_ordered is correctly constructed! 
+# print abs(ga2.flatten()-correct_order_zm).max() #If the printout is 0.0 then gridding_matrix_vis_ordered_to_chan_ordered is correctly constructed!
 
 
 
@@ -1147,10 +1179,4 @@ def generate_gridding_matrix_vis_ordered_to_chan_ordered_WQ(nu,nv,nf):
 
 
 # # correct_order_zm = np.delete(arange(nf*nu*nv),[np.where(arange(nf*nu*nv)==x) for x in (((nu*nv)/2)+arange(nf)*(nu*nv))])
-# # print abs(ga2.flatten()-correct_order_zm).max() #If the printout is 0.0 then gridding_matrix_vis_ordered_to_chan_ordered is correctly constructed! 
-
-
-
-
-
-
+# # print abs(ga2.flatten()-correct_order_zm).max() #If the printout is 0.0 then gridding_matrix_vis_ordered_to_chan_ordered is correctly constructed!

@@ -20,6 +20,7 @@ from BayesEoR.Linalg import Calc_Coords_Large_Im_to_High_Res_uv, Restore_Centre_
 from BayesEoR.Linalg import Delete_Centre_3x3_Grid, Delete_Centre_Pix, N_is_Odd, Calc_Indices_Centre_NxN_Grid, Obtain_Centre_NxN_Grid
 from BayesEoR.Linalg import Restore_Centre_3x3_Grid, Restore_Centre_NxN_Grid, Generate_Combined_Coarse_plus_Subharmic_uv_grids
 from BayesEoR.Linalg import IDFT_Array_IDFT_2D_ZM_SH, DFT_Array_DFT_2D, IDFT_Array_IDFT_2D, DFT_Array_DFT_2D_ZM, IDFT_Array_IDFT_2D_ZM
+from BayesEoR.Linalg import IDFT_Array_IDFT_2D_ZM_v2
 from BayesEoR.Linalg import Construct_Hermitian, Construct_Hermitian_Gridding_Matrix, Construct_Hermitian_Gridding_Matrix_CosSin
 from BayesEoR.Linalg import Construct_Hermitian_Gridding_Matrix_CosSin_SH_v4, IDFT_Array_IDFT_1D, IDFT_Array_IDFT_1D
 from BayesEoR.Linalg import generate_gridding_matrix_vis_ordered_to_chan_ordered
@@ -31,6 +32,8 @@ from BayesEoR.SimData import map_out_bins_for_power_spectral_coefficients_WQ_v2
 from BayesEoR.Linalg import IDFT_Array_IDFT_1D_WQ, generate_gridding_matrix_vis_ordered_to_chan_ordered_WQ
 from BayesEoR.Linalg import IDFT_Array_IDFT_1D_WQ_ZM, generate_gridding_matrix_vis_ordered_to_chan_ordered_ZM
 from BayesEoR.Linalg import nuDFT_Array_DFT_2D, make_Gaussian_beam, make_Uniform_beam, nuDFT_Array_DFT_2D_v2d0
+
+from BayesEoR.Utils import Cosmology
 
 
 ###
@@ -65,7 +68,7 @@ class BuildMatrixTree(object):
 			self.matrix_prerequisites_dictionary['Finv'] = ['multi_chan_nudft', 'multi_chan_P']
 		else:
 			self.matrix_prerequisites_dictionary['Finv'] = ['multi_chan_dft_array_noZMchan']
-			
+
 
 	def check_for_prerequisites(self, parent_matrix):
 		prerequisites_status = {}
@@ -103,7 +106,7 @@ class BuildMatrixTree(object):
 			print 'Directory not found: \n\n'+Directory+"\n"
 			print 'Creating required directory structure..'
 			os.makedirs(Directory)
-		
+
 		return 0
 
 	def output_data(self, output_array, output_directory, file_name, dataset_name):
@@ -186,7 +189,7 @@ class BuildMatrixTree(object):
 		"""
 		data = sparse.load_npz(file_path)
 		return data
-		
+
 
 
 
@@ -199,7 +202,7 @@ class BuildMatrices(BuildMatrixTree):
 
 		##===== Defaults =======
 		default_npl = 0
-		
+
 		##===== Inputs =======
 		self.npl=kwargs.pop('npl',default_npl)
 		if p.include_instrumental_effects:
@@ -220,7 +223,7 @@ class BuildMatrices(BuildMatrixTree):
 			self.PB_ref_freq_MHz = kwargs.pop('PB_ref_freq_MHz')
 
 
-		print self.array_save_directory 
+		print self.array_save_directory
 		print self.matrix_prerequisites_dictionary
 		self.nu = nu
 		self.nv = nv
@@ -237,7 +240,7 @@ class BuildMatrices(BuildMatrixTree):
 		self.n_quad = (self.nu*self.nv-1)*self.nq
 		self.n_model = self.n_Fourier+self.n_quad
 		self.n_dat = self.n_Fourier
-		
+
 		self.matrix_construction_methods_dictionary={}
 		self.matrix_construction_methods_dictionary['T_Ninv_T'] = self.build_T_Ninv_T
 		self.matrix_construction_methods_dictionary['idft_array_1D'] = self.build_idft_array_1D
@@ -296,7 +299,7 @@ class BuildMatrices(BuildMatrixTree):
 				data = self.read_data(file_path, dataset_name)
 				prerequisite_matrices_dictionary[child_matrix] = data
 				print 'Time taken: {}'.format(time.time()-start)
-		
+
 		return prerequisite_matrices_dictionary
 
 	def dot_product(self, matrix_A, matrix_B):
@@ -407,7 +410,7 @@ class BuildMatrices(BuildMatrixTree):
 		elif p.use_nvis_nchan_nt_ordering: #This will be used if a drift scan primary beam is included in the data model (i.e. p.model_drift_scan_primary_beam=True)
 			sampled_uvw_coords_m = self.uvw_multi_time_step_array_meters.copy() #NOTE: p.uvw_multi_time_step_array_meters is in (nvis_per_chan,nchan) order (unlike p.uvw_multi_time_step_array_meters_vectorised which is used in nuDFT_Array_DFT_2D and is a vector of nvis_per_chan*nchan (u,v) coords) to make it simpler to index the array to calculate that the visibilities for all frequencies for single time steps in sampled_uvw_coords_wavelengths_all_freqs_all_times and then index over time steps to make multi_chan_nudft with nt block diagonal matrices, themselves each consisting of nchan blocks with each block the nudft from image to sampled visibilities as that time and channel frequency.
 			sampled_uvw_coords_wavelengths_all_freqs_all_times = np.array([sampled_uvw_coords_m/(p.speed_of_light/(chan_freq_MHz*1.e6)) for chan_freq_MHz in nu_array_MHz]) # Convert uv-coordinates from meters to wavelengths at frequency chan_freq_MHz for all chan_freq_MHz in nu_array_MHz
-			sampled_uvw_coords_inverse_pixel_units_all_freqs_all_times = sampled_uvw_coords_wavelengths_all_freqs_all_times/p.uv_pixel_width_wavelengths #Convert uv-coordinates from wavelengths to inverse pixel units 
+			sampled_uvw_coords_inverse_pixel_units_all_freqs_all_times = sampled_uvw_coords_wavelengths_all_freqs_all_times/p.uv_pixel_width_wavelengths #Convert uv-coordinates from wavelengths to inverse pixel units
 
 			multi_chan_nudft = self.sd_block_diag( [ self.sd_block_diag([nuDFT_Array_DFT_2D_v2d0(self.nu,self.nv,self.nx,self.ny, sampled_uvw_coords_inverse_pixel_units_all_freqs_all_times[freq_i,time_i,:,:].reshape(-1,2)).T for freq_i in range(p.nf)]) for time_i in range(p.nt) ] ) #Matrix shape is (nx*ny*nf*nt,nv*nf*nt)
 
@@ -478,7 +481,17 @@ class BuildMatrices(BuildMatrixTree):
 		pmd = self.load_prerequisites(matrix_name)
 		start = time.time()
 		print 'Performing matrix algebra'
-		multi_chan_idft_array_noZMchan = self.sd_block_diag([pmd['idft_array'].T for i in range(self.nf)])
+
+		##===== Cosmology ======
+		# Construct frequency array to map to comoving line of sight (los) distance
+		nu_array_MHz = p.nu_min_MHz + np.arange(self.nf) * p.channel_width_MHz
+		cosmo = Cosmology() # cosmology class for distance conversions
+		# Get dr_Mpc for frequency array
+		theta_deg = p.simulation_FoV_deg / p.nx
+		dr_Mpcs = cosmo.convert_delta_angle_to_comoving_Mpc_per_frequency(theta_deg,
+                                                                          nu_array_MHz)
+
+		multi_chan_idft_array_noZMchan = self.sd_block_diag([IDFT_Array_IDFT_2D_ZM_v2(p.nx, p.ny, p.nu, p.nv, dr_Mpcs[i]).T for i in range(self.nf)])
 		print 'Time taken: {}'.format(time.time()-start)
 		###
 		# Save matrix to HDF5 or sparse matrix to npz
@@ -526,24 +539,24 @@ class BuildMatrices(BuildMatrixTree):
 		pmd = self.load_prerequisites(matrix_name)
 		start = time.time()
 		print 'Performing matrix algebra'
-		idft_array = IDFT_Array_IDFT_2D_ZM(self.nu,self.nv,self.nx,self.ny)
+		idft_array = IDFT_Array_IDFT_2D_ZM(self.nu, self.nv, self.nx, self.ny)
 		print 'Time taken: {}'.format(time.time()-start)
 		###
 		# Save matrix to HDF5 or sparse matrix to npz
 		###
 		self.output_data(idft_array, self.array_save_directory, matrix_name, matrix_name)
 
-	def build_multi_chan_idft_array_noZMchan(self):
-		matrix_name='multi_chan_idft_array_noZMchan'
-		pmd = self.load_prerequisites(matrix_name)
-		start = time.time()
-		print 'Performing matrix algebra'
-		multi_chan_idft_array_noZMchan = self.sd_block_diag([pmd['idft_array'].T for i in range(self.nf)])
-		print 'Time taken: {}'.format(time.time()-start)
-		###
-		# Save matrix to HDF5 or sparse matrix to npz
-		###
-		self.output_data(multi_chan_idft_array_noZMchan, self.array_save_directory, matrix_name, matrix_name)
+	# def build_multi_chan_idft_array_noZMchan(self):
+	# 	matrix_name='multi_chan_idft_array_noZMchan'
+	# 	pmd = self.load_prerequisites(matrix_name)
+	# 	start = time.time()
+	# 	print 'Performing matrix algebra'
+	# 	multi_chan_idft_array_noZMchan = self.sd_block_diag([pmd['idft_array'].T for i in range(self.nf)])
+	# 	print 'Time taken: {}'.format(time.time()-start)
+	# 	###
+	# 	# Save matrix to HDF5 or sparse matrix to npz
+	# 	###
+	# 	self.output_data(multi_chan_idft_array_noZMchan, self.array_save_directory, matrix_name, matrix_name)
 
 	def build_multi_vis_idft_array_1D(self):
 		matrix_name='multi_vis_idft_array_1D'
@@ -736,7 +749,7 @@ class BuildMatrices(BuildMatrixTree):
 		matrix_available = self.check_if_matrix_exists(matrix_name)
 		if not matrix_available:
 			self.matrix_construction_methods_dictionary[matrix_name]()
-		
+
 	def prepare_matrix_stack_for_deletion(self, src, overwrite_existing_matrix_stack):
 		if overwrite_existing_matrix_stack:
 			if src[-1]=='/':src=src[:-1]
@@ -761,7 +774,7 @@ class BuildMatrices(BuildMatrixTree):
 	def build_minimum_sufficient_matrix_stack(self, **kwargs):
 		default_overwrite_existing_matrix_stack = False
 		default_proceed_without_overwrite_confirmation = False #Set to true when submitting to cluster
-		
+
 		##===== Inputs =======
 		self.overwrite_existing_matrix_stack=kwargs.pop('overwrite_existing_matrix_stack',default_overwrite_existing_matrix_stack)
 		self.proceed_without_overwrite_confirmation=kwargs.pop('proceed_without_overwrite_confirmation',default_proceed_without_overwrite_confirmation)
@@ -785,10 +798,3 @@ class BuildMatrices(BuildMatrixTree):
 
 ## ======================================================================================================
 ## ======================================================================================================
-
-
-
-
-
-
-

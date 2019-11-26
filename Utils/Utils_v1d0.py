@@ -293,6 +293,19 @@ class Cosmology():
 			print 'theta_deg = ', self.theta_deg
 		return Box_width_proper_distance_Mpc
 
+	def convert_delta_angle_to_comoving_Mpc_per_frequency(self, theta_deg, Frequency_Array_MHz):
+		# Frequency -> redshift
+		redshift_array = self.Convert_from_21cmFrequency_to_Redshift(Frequency_Array_MHz)
+
+		# delta_angle(nu) -> delta_Mpc(nu)
+		delta_Mpcs = np.zeros_like(redshift_array)
+		for i_z, z in enumerate(redshift_array):
+			self.z2 = z
+			delta_Mpc = self.Convert_from_Delta_Angle_to_Comoving_Mpc_at_Redshift_z2(theta_deg=theta_deg)
+			delta_Mpcs[i_z] = delta_Mpc
+
+		return delta_Mpcs
+
 
 ## ======================================================================================================
 ## ======================================================================================================
