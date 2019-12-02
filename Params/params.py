@@ -1,4 +1,5 @@
 import argparse
+import numpy as np
 """
 Analysis settings
 """
@@ -36,7 +37,8 @@ EoR_npz_path = '/users/psims/EoR/EoR_simulations/21cmFAST_512MPc_512pix_128pix/F
 box_size_21cmFAST_pix = 128 #Must match EoR_npz_path parameters
 box_size_21cmFAST_Mpc = 512 #Must match EoR_npz_path parameters
 
-EoR_npz_path_sc = '/users/psims/EoR/EoR_simulations/21cmFAST_2048MPc_2048pix_512pix_AstroParamExploration1/Fits/npzs/Zeta10.0_Tvir1.0e+05_mfp22.2_Taue0.041_zre-1.000_delz-1.000_512_2048Mpc/21cm_mK_z7.600_nf0.883_useTs0.0_aveTb21.06_cube_side_pix512_cube_side_Mpc2048.npz'
+# EoR_npz_path_sc = '/users/psims/EoR/EoR_simulations/21cmFAST_2048MPc_2048pix_512pix_AstroParamExploration1/Fits/npzs/Zeta10.0_Tvir1.0e+05_mfp22.2_Taue0.041_zre-1.000_delz-1.000_512_2048Mpc/21cm_mK_z7.600_nf0.883_useTs0.0_aveTb21.06_cube_side_pix512_cube_side_Mpc2048.npz'
+EoR_npz_path_sc = '/users/jburba/data/shared/PSims/BayesEoR_files_P/EoRsims/Hoag19/21cm_mK_z7.600_nf0.883_useTs0.0_aveTb21.06_cube_side_pix512_cube_side_Mpc2048.npz'
 box_size_21cmFAST_pix_sc = 512 #Must match EoR_npz_path parameters
 box_size_21cmFAST_Mpc_sc = 2048 #Must match EoR_npz_path parameters
 
@@ -65,16 +67,17 @@ fits_storage_dir = 'fits_storage/multi_frequency_band_pythonPStest1/Jelic_nu_min
 # HF_nu_min_MHz_array = [210,220,230]
 HF_nu_min_MHz_array = [220]
 
+sky_model_pixel_area_sr = np.deg2rad(simulation_FoV_deg / nx)**2 # pixel area in steradians of the sky model
 
 ###
 # diffuse free-free foreground params
 ###
-beta_experimental_mean_ff = 2.15+0  
-beta_experimental_std_ff  = 1.e-10  
-gamma_mean_ff             = -2.59   
-gamma_sigma_ff            = 0.04    
-Tb_experimental_mean_K_ff = Tb_experimental_mean_K/100.0    
-Tb_experimental_std_K_ff  = Tb_experimental_std_K/100.0     
+beta_experimental_mean_ff = 2.15+0
+beta_experimental_std_ff  = 1.e-10
+gamma_mean_ff             = -2.59
+gamma_sigma_ff            = 0.04
+Tb_experimental_mean_K_ff = Tb_experimental_mean_K/100.0
+Tb_experimental_std_K_ff  = Tb_experimental_std_K/100.0
 print 'Hi!', Tb_experimental_std_K, Tb_experimental_std_K_ff
 nu_min_MHz_ff             = 163.0-4.0
 Tb_experimental_std_K_ff = Tb_experimental_std_K_ff*(nu_min_MHz_ff/163.)**-beta_experimental_mean_ff
@@ -126,7 +129,7 @@ speed_of_light = constants.c.value
 # Instrumental effects params
 ###
 include_instrumental_effects = True
-inverse_LW_power = 1.e-16 #Include minimal prior over LW modes to ensure numerically stable posterior *250 
+inverse_LW_power = 1.e-16 #Include minimal prior over LW modes to ensure numerically stable posterior *250
 if include_instrumental_effects:
 	###
 	# Obs params
@@ -134,7 +137,8 @@ if include_instrumental_effects:
 	nt = 30
 	integration_time_minutes = 0.5
 	integration_time_minutes_str = '{}'.format(integration_time_minutes).replace('.','d')
-	instrument_model_directory = '/users/psims/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/Instrument_Model/HERA_331_baselines_shorter_than_29d3_for_{}_{}_min_time_steps/'.format(nt, integration_time_minutes_str)
+	# instrument_model_directory = '/users/psims/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/Instrument_Model/HERA_331_baselines_shorter_than_29d3_for_{}_{}_min_time_steps/'.format(nt, integration_time_minutes_str)
+	instrument_model_directory = '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/HERA_331_baselines_shorter_than_29d3_for_{}_{}_min_time_steps/'.format(nt, integration_time_minutes_str)
 	uv_pixel_width_wavelengths = 2.5 #Define a fixed pixel width in wavelengths
 	###
 	# Primary beam params
@@ -146,9 +150,9 @@ if include_instrumental_effects:
 	beam_peak_amplitude = 1.0
 	beam_info_str = ''
 	if beam_type.lower() == 'Uniform'.lower():
-		beam_info_str += '{}_beam_peak_amplitude_{}'.format(beam_type, str(beam_peak_amplitude).replace('.','d'))		
+		beam_info_str += '{}_beam_peak_amplitude_{}'.format(beam_type, str(beam_peak_amplitude).replace('.','d'))
 	if beam_type.lower() == 'Gaussian'.lower():
-		beam_info_str += '{}_beam_peak_amplitude_{}_beam_width_{}_deg_at_{}_MHz'.format(beam_type, str(beam_peak_amplitude).replace('.','d'), str(FWHM_deg_at_ref_freq_MHz).replace('.','d'), str(PB_ref_freq_MHz).replace('.','d'))		
+		beam_info_str += '{}_beam_peak_amplitude_{}_beam_width_{}_deg_at_{}_MHz'.format(beam_type, str(beam_peak_amplitude).replace('.','d'), str(FWHM_deg_at_ref_freq_MHz).replace('.','d'), str(PB_ref_freq_MHz).replace('.','d'))
 
 	instrument_model_directory_plus_beam_info = instrument_model_directory[:-1]+'_{}/'.format(beam_info_str)
 	model_drift_scan_primary_beam = True
@@ -203,7 +207,7 @@ EoR_analysis_cube_y_Mpc = box_size_21cmFAST_Mpc_sc #Mpc Analysing the full FoV i
 # k_z uniform prior
 ###
 use_uniform_prior_on_min_k_bin = False
-# use_uniform_prior_on_min_k_bin = True #Don't use the min_kz voxels (eta \propto 1/B), which have significant correlation with the Fg model, in estimates of the low-k power spectrum 
+# use_uniform_prior_on_min_k_bin = True #Don't use the min_kz voxels (eta \propto 1/B), which have significant correlation with the Fg model, in estimates of the low-k power spectrum
 
 
 ###
@@ -231,8 +235,7 @@ use_sparse_matrices = True
 # Other parameter types
 # fg params
 # spectral params
-# uv params 
+# uv params
 # ...
 # etc.
 ###
-
