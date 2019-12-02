@@ -126,12 +126,36 @@ class Cosmology():
 		self.Omega_m=0.279
 		self.Omega_lambda=0.721
 		self.Omega_k=0.0
-		self.c=(299792458.) #km/s
+		self.c=(299792458.) #m/s
 		self.c_km_per_sec=(299792458./1.e3) #km/s
 		self.H_0=70.0 #km/s/Mpc
 		self.f_21=1420.40575177 #1420.40575177 MHz
 		self.E_z2=(self.Omega_m*((1.+self.z2)**3) + self.Omega_lambda)**0.5 #Hubble Parameter at redshift z2
 		
+	def dL_df(self, z):
+		'''
+		Comoving differential distance at redshift per frequency
+		
+		[cMpc]/Hz
+		'''
+		E_z=(self.Omega_m*((1.+z)**3) + self.Omega_lambda)**0.5 #Hubble parameter
+		return self.c_km_per_sec / (self.H_0 * E_z) * (z + 1)**2 / (self.f_21 * 1.0e6)
+	
+	def dL_dth(self, z):
+		'''
+		Comoving transverse distance per radian in Mpc
+		
+		[cMpc]/radian
+		'''
+		Comoving_Distance_Mpc, CD_uncertainty = integrate.quad(self.Comoving_Distance_Mpc_Integrand, 0, z)
+		return Comoving_Distance_Mpc
+	
+	def X2Y(self, z):
+		'''
+		Conversion factor for Mpc^3 --> sr Hz
+		'''
+		return self.dL_dth(z)**2 * self.dL_df(z)
+	
 	def Comoving_Distance_Mpc_Integrand(self, z, **kwargs):
 		#
 		E_z=(self.Omega_m*((1.+z)**3) + self.Omega_lambda)**0.5 #Hubble parameter

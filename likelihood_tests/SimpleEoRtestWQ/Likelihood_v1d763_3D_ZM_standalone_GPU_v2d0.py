@@ -6,17 +6,18 @@ from numpy import real
 from pdb import set_trace as brk
 import h5py
 import BayesEoR.Params.params as p
+from BayesEoR.Utils import Cosmology
 
 
 try:
 	import pycuda.autoinit
 	import pycuda.driver as cuda
 	for devicenum in range(cuda.Device.count()):
-	    device=cuda.Device(devicenum)
-	    attrs=device.get_attributes()
-	    print("\n===Attributes for device %d"%devicenum)
-	    for (key,value) in attrs.iteritems():
-	        print("%s:%s"%(str(key),str(value)))
+		device=cuda.Device(devicenum)
+		attrs=device.get_attributes()
+		print("\n===Attributes for device %d"%devicenum)
+		for (key,value) in attrs.iteritems():
+			print("%s:%s"%(str(key),str(value)))
 
 	import time
 	import numpy as np
@@ -66,7 +67,7 @@ class PowerSpectrumPosteriorProbability(object):
 		default_intrinsic_noise_fitting=False
 		default_return_Sigma=False
 		default_fit_for_spectral_model_parameters=False
-		
+
 		##===== Inputs =======
 		self.diagonal_sigma=kwargs.pop('diagonal_sigma',default_diagonal_sigma)
 		self.block_T_Ninv_T=kwargs.pop('block_T_Ninv_T',default_block_T_Ninv_T)
@@ -127,7 +128,7 @@ class PowerSpectrumPosteriorProbability(object):
 		##===== Inputs =======
 		if 'block_T_Ninv_T' in kwargs:
 			block_T_Ninv_T=kwargs['block_T_Ninv_T']
-		
+
 		start = time.time()
 		PowerI = self.calc_PowerI(x)
 		PhiI=PowerI
@@ -155,7 +156,7 @@ class PowerSpectrumPosteriorProbability(object):
 			else:
 				SigmaI_dbar_blocks = np.array([self.calc_SigmaI_dbar(Sigma_block_diagonals[i_block], dbar_blocks[i_block], x_for_error_checking=x)  for i_block in range(self.nuv)])
 			if self.Print:print 'Time taken: {}'.format(time.time()-start)
-			
+
 			SigmaI_dbar = SigmaI_dbar_blocks.flatten()
 			dbarSigmaIdbar=np.dot(dbar.conjugate().T,SigmaI_dbar)
 			if self.Print:print 'Time taken: {}'.format(time.time()-start)
@@ -213,7 +214,7 @@ class PowerSpectrumPosteriorProbability(object):
 			block_T_Ninv_T=kwargs['block_T_Ninv_T']
 		if 'x_for_error_checking' in kwargs:
 			x_for_error_checking=kwargs['x_for_error_checking']
-		
+
 		if not p.useGPU:
 			# Sigmacho = scipy.linalg.cholesky(Sigma, lower=True).astype(np.complex256)
 			# SigmaI_dbar = scipy.linalg.cho_solve((Sigmacho,True), dbar)
@@ -236,11 +237,11 @@ class PowerSpectrumPosteriorProbability(object):
 				print 'GPU inversion error. Setting sample posterior probability to zero.'
 				print 'Param values: ', x_for_error_checking
 			return SigmaI_dbar, logdet_Magma_Sigma
-			
 
 
 
-		
+
+
 	def calc_dimensionless_power_spectral_normalisation_ltl(self, i_bin, **kwargs):
 		EoRVolume = 770937185.063917
 		Omega_map = ((12*np.pi/180.)**2)
@@ -264,10 +265,10 @@ class PowerSpectrumPosteriorProbability(object):
 		EoR_z_full_Mpc = float(p.box_size_21cmFAST_Mpc_sc) #Mpc (defined by input to 21cmFAST simulation)
 		# EoR_analysis_cube_x_pix = EoR_x_full_pix #Mpc Analysing the full FoV in x
 		# EoR_analysis_cube_y_pix = EoR_y_full_pix #Mpc Analysing the full FoV in y
-		# EoR_analysis_cube_z_pix = 38 #Mpc Analysing 38 of the 128 channels of the full EoR_simulations 
+		# EoR_analysis_cube_z_pix = 38 #Mpc Analysing 38 of the 128 channels of the full EoR_simulations
 		EoR_analysis_cube_x_pix = float(p.EoR_analysis_cube_x_pix) #pix Analysing the full FoV in x
 		EoR_analysis_cube_y_pix = float(p.EoR_analysis_cube_y_pix) #pix Analysing the full FoV in y
-		EoR_analysis_cube_z_pix = self.nf #Mpc Analysing 38 of the 128 channels of the full EoR_simulations 
+		EoR_analysis_cube_z_pix = self.nf #Mpc Analysing 38 of the 128 channels of the full EoR_simulations
 		EoR_analysis_cube_x_Mpc = float(p.EoR_analysis_cube_x_Mpc) #Mpc Analysing the full FoV in x
 		EoR_analysis_cube_y_Mpc = float(p.EoR_analysis_cube_y_Mpc) #Mpc Analysing the full FoV in y
 		EoR_analysis_cube_z_Mpc = EoR_z_full_Mpc*(float(EoR_analysis_cube_z_pix)/EoR_z_full_pix) #Mpc Analysing 38 of the 128 channels of the full simulation
@@ -300,10 +301,10 @@ class PowerSpectrumPosteriorProbability(object):
 		EoR_z_full_Mpc = float(p.box_size_21cmFAST_Mpc_sc) #Mpc (defined by input to 21cmFAST simulation)
 		# EoR_analysis_cube_x_pix = EoR_x_full_pix #Mpc Analysing the full FoV in x
 		# EoR_analysis_cube_y_pix = EoR_y_full_pix #Mpc Analysing the full FoV in y
-		# EoR_analysis_cube_z_pix = 38 #Mpc Analysing 38 of the 128 channels of the full EoR_simulations 
+		# EoR_analysis_cube_z_pix = 38 #Mpc Analysing 38 of the 128 channels of the full EoR_simulations
 		EoR_analysis_cube_x_pix = float(p.EoR_analysis_cube_x_pix) #pix Analysing the full FoV in x
 		EoR_analysis_cube_y_pix = float(p.EoR_analysis_cube_y_pix) #pix Analysing the full FoV in y
-		EoR_analysis_cube_z_pix = self.nf #Mpc Analysing 38 of the 128 channels of the full EoR_simulations 
+		EoR_analysis_cube_z_pix = self.nf #Mpc Analysing 38 of the 128 channels of the full EoR_simulations
 		EoR_analysis_cube_x_Mpc = float(p.EoR_analysis_cube_x_Mpc) #Mpc Analysing the full FoV in x
 		EoR_analysis_cube_y_Mpc = float(p.EoR_analysis_cube_y_Mpc) #Mpc Analysing the full FoV in y
 		EoR_analysis_cube_z_Mpc = EoR_z_full_Mpc*(float(EoR_analysis_cube_z_pix)/EoR_z_full_pix) #Mpc Analysing 38 of the 128 channels of the full simulation
@@ -334,7 +335,7 @@ class PowerSpectrumPosteriorProbability(object):
 			dimensionless_PS_scaling = dimensionless_PS_scaling * Omega_beam_Gaussian_sr**4.0
 
 		return dimensionless_PS_scaling
-		
+
 	def calc_dimensionless_power_spectral_normalisation_21cmFAST_v3d0(self, i_bin, **kwargs):
 		###
 		# NOTE: the physical size of the cosmological box is simulation dependent.
@@ -361,12 +362,12 @@ class PowerSpectrumPosteriorProbability(object):
 		# 1. Image space full cube -> k-space subset cube,
 		# values are (nf/512.)**0.5 times smaller than in 21cmFast.
 		# Thus, to normalise, the amplitude spectrum should be scaled by (512./nf)**0.5 (subset cube component)
-		# 
+		#
 		# 2. k-space subset cube -> image space subset cube -> data = np.dot(Finv, image space subset cube),
 		# values are nf**0.5 times larger than in np.dot(T, k-space subset cube) -> data.
 		#[This is because in the k-space subset cube -> image space subset cube step (1) with a numpy ifft there is an effective division by nf**0.5 where as in the equivalent k-space subset cube -> image space subset cube component of T there is a division by nf**1.0, thus the values in np.dot(T, k-space subset cube) -> data end up being nf**0.5 times smaller.]
 		# Thus, to normalise, the amplitude spectrum should be scaled by 1./nf**0.5  (matrix encoding component)
-		# 
+		#
 		# Thus, the overall subset + matrix encoding amplitude normalisation is: (512./nf)**0.5/nf**0.5 = 512**0.5
 		############
 		subset_power_spectrum_normalisation = float(p.box_size_21cmFAST_pix_sc) #See /home/peter/OSCAR_mnt/rdata/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/spec_model_tests/random/normalisation_testing/dimensionless_power_spectrum_21cmFast_comparison_normalisation_v2d0.py
@@ -384,6 +385,51 @@ class PowerSpectrumPosteriorProbability(object):
 
 		return dimensionless_PS_scaling
 
+	def calc_dimensionless_power_spectral_normalisation_21cmFAST_v4d0(self, i_bin, **kwargs):
+		'''
+		This normalization will calculate PowerI in units of 1 / (mK**2 sr**2 Hz**2)
+		'''
+		
+		###
+		# NOTE: the physical size of the cosmological box is simulation dependent.
+		# 21cmFAST normalisation:
+		#define BOX_LEN (float) 512 // in Mpc
+		#define VOLUME (BOX_LEN*BOX_LEN*BOX_LEN) // in Mpc^3
+		# p_box[ct] += pow(k_mag,3)*pow(cabs(deldel_T[HII_C_INDEX(n_x, n_y, n_z)]), 2)/(2.0*PI*PI*VOLUME);
+		###
+		VOLUME = p.box_size_21cmFAST_Mpc_sc**3. #Full cube volume in Mpc^3
+		explicit_21cmFast_power_spectrum_normalisation = 1./(2.0*np.pi**2.*VOLUME)
+		full_21cmFast_power_spectrum_normalisation = 1.0 / (2.0*np.pi**2.*VOLUME)
+
+		############
+		# subset_power_spectrum_normalisation:
+		# 1. Image space full cube -> k-space subset cube,
+		# values are (nf/512.)**0.5 times smaller than in 21cmFast.
+		# Thus, to normalise, the amplitude spectrum should be scaled by (512./nf)**0.5 (subset cube component)
+		#
+		# 2. k-space subset cube -> image space subset cube -> data = np.dot(Finv, image space subset cube),
+		# values are nf**0.5 times larger than in np.dot(T, k-space subset cube) -> data.
+		#[This is because in the k-space subset cube -> image space subset cube step (1) with a numpy ifft there is an effective division by nf**0.5 where as in the equivalent k-space subset cube -> image space subset cube component of T there is a division by nf**1.0, thus the values in np.dot(T, k-space subset cube) -> data end up being nf**0.5 times smaller.]
+		# Thus, to normalise, the amplitude spectrum should be scaled by 1./nf**0.5  (matrix encoding component)
+		#
+		# Thus, the overall subset + matrix encoding amplitude normalisation is: (512./nf)**0.5/nf**0.5 = 512**0.5
+		############
+		subset_power_spectrum_normalisation = float(p.box_size_21cmFAST_pix_sc) #See /home/peter/OSCAR_mnt/rdata/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/spec_model_tests/random/normalisation_testing/dimensionless_power_spectrum_21cmFast_comparison_normalisation_v2d0.py
+
+		full_power_spectrum_normalisation = subset_power_spectrum_normalisation * full_21cmFast_power_spectrum_normalisation
+		dimensionless_PS_scaling = (self.modk_vis_ordered_list[i_bin]**3.)*full_power_spectrum_normalisation
+
+		if not p.include_instrumental_effects: #Account for / undo the extra (vfft1[0].size**0.5) scaling factor that is currently in the non-instrumental data creation functions
+			dimensionless_PS_scaling = dimensionless_PS_scaling*float(p.box_size_21cmFAST_pix_sc)**2.
+		
+		# Redshift dependent quantities
+		nu_array_MHz = p.nu_min_MHz + np.arange(p.nf) * p.channel_width_MHz
+		cosmo = Cosmology()
+		redshift = cosmo.Convert_from_21cmFrequency_to_Redshift(nu_array_MHz.mean())
+		X2Y = cosmo.X2Y(redshift)
+		
+		return dimensionless_PS_scaling * X2Y
+
 	def calc_Npix_physical_power_spectrum_normalisation(self, i_bin, **kwargs):
 		###
 		# 21cmFAST normalisation:
@@ -399,10 +445,10 @@ class PowerSpectrumPosteriorProbability(object):
 		EoR_z_full_Mpc = float(p.box_size_21cmFAST_Mpc) #Mpc (defined by input to 21cmFAST simulation)
 		# EoR_analysis_cube_x_pix = EoR_x_full_pix #Mpc Analysing the full FoV in x
 		# EoR_analysis_cube_y_pix = EoR_y_full_pix #Mpc Analysing the full FoV in y
-		# EoR_analysis_cube_z_pix = 38 #Mpc Analysing 38 of the 128 channels of the full EoR_simulations 
+		# EoR_analysis_cube_z_pix = 38 #Mpc Analysing 38 of the 128 channels of the full EoR_simulations
 		EoR_analysis_cube_x_pix = float(p.EoR_analysis_cube_x_pix) #pix Analysing the full FoV in x
 		EoR_analysis_cube_y_pix = float(p.EoR_analysis_cube_y_pix) #pix Analysing the full FoV in y
-		EoR_analysis_cube_z_pix = self.nf #Mpc Analysing 38 of the 128 channels of the full EoR_simulations 
+		EoR_analysis_cube_z_pix = self.nf #Mpc Analysing 38 of the 128 channels of the full EoR_simulations
 		EoR_analysis_cube_x_Mpc = float(p.EoR_analysis_cube_x_Mpc) #Mpc Analysing the full FoV in x
 		EoR_analysis_cube_y_Mpc = float(p.EoR_analysis_cube_y_Mpc) #Mpc Analysing the full FoV in y
 		EoR_analysis_cube_z_Mpc = EoR_z_full_Mpc*(float(EoR_analysis_cube_z_pix)/EoR_z_full_pix) #Mpc Analysing 38 of the 128 channels of the full simulation
@@ -426,7 +472,7 @@ class PowerSpectrumPosteriorProbability(object):
 		# inverse_LW_power_second_LW_term: constrain the amplitude of the model components of the 2nd LW basis vector (e.g. quad model comp.)
 		# Note: The indices used are correct for the current ordering of basis vectors when nf is an even number...
 		###
-		
+
 		PowerI=np.zeros(self.Npar)
 
 		if p.include_instrumental_effects:
@@ -457,10 +503,10 @@ class PowerSpectrumPosteriorProbability(object):
 				PowerI[q2_index::(self.neta+self.nq)]=self.inverse_LW_power_second_LW_term #set to zero for a uniform distribution
 
 		if self.dimensionless_PS:
-			self.power_spectrum_normalisation_func = self.calc_dimensionless_power_spectral_normalisation_21cmFAST_v3d0
+			self.power_spectrum_normalisation_func = self.calc_dimensionless_power_spectral_normalisation_21cmFAST_v4d0
 		else:
 			self.power_spectrum_normalisation_func = self.calc_Npix_physical_power_spectrum_normalisation
-			
+
 		# Fit for Fourier mode power spectrum
 		for i_bin in range(len(self.k_cube_voxels_in_bin)):
 			power_spectrum_normalisation = self.power_spectrum_normalisation_func(i_bin)
@@ -503,21 +549,21 @@ class PowerSpectrumPosteriorProbability(object):
 			# import time
 			start = time.time()
 			with h5py.File(T_Ninv_T_file_path, 'r') as hf:
-			    T_Ninv_T = hf[T_Ninv_T_dataset_name][:]
-			    # alpha_prime = p.sigma/170000.0
-			    # T_Ninv_T = T_Ninv_T/(alpha_prime**2.0) #This is only valid if the data is uniformly weighted
-			    if self.count%self.print_rate==0: 'Time taken: {}'.format(time.time() - start)
+				T_Ninv_T = hf[T_Ninv_T_dataset_name][:]
+				# alpha_prime = p.sigma/170000.0
+				# T_Ninv_T = T_Ninv_T/(alpha_prime**2.0) #This is only valid if the data is uniformly weighted
+				if self.count%self.print_rate==0: 'Time taken: {}'.format(time.time() - start)
 
 			dbar_dataset_name = 'dbar_b1_{}_b2_{}'.format(b1, b2).replace('.','d')
 			dbar_file_path = self.spectral_model_parameters_array_storage_dir+dbar_dataset_name+'.h5'
 			if self.count%self.print_rate==0: print 'Replacing dbar with:', dbar_file_path
 			start = time.time()
 			with h5py.File(dbar_file_path, 'r') as hf:
-			    dbar = hf[dbar_dataset_name][:]
-			    # alpha_prime = p.sigma/170000.0
-			    # dbar = dbar/(alpha_prime**2.0) #This is only valid if the data is uniformly weighted
-			    # if self.count%self.print_rate==0: 'alpha_prime = ', alpha_prime
-			    if self.count%self.print_rate==0: 'Time taken: {}'.format(time.time() - start)
+				dbar = hf[dbar_dataset_name][:]
+				# alpha_prime = p.sigma/170000.0
+				# dbar = dbar/(alpha_prime**2.0) #This is only valid if the data is uniformly weighted
+				# if self.count%self.print_rate==0: 'alpha_prime = ', alpha_prime
+				if self.count%self.print_rate==0: 'Time taken: {}'.format(time.time() - start)
 			self.Print = Print
 
 		if self.intrinsic_noise_fitting:
@@ -564,7 +610,7 @@ class PowerSpectrumPosteriorProbability(object):
 				print 'MargLogL.real', MargLogL.real
 
 			# brk()
-			
+
 			if self.nu>10:
 				self.print_rate=100
 			if self.count%self.print_rate==0:
@@ -578,10 +624,5 @@ class PowerSpectrumPosteriorProbability(object):
 			return -np.inf, phi
 
 
-# 
-# 
-
-
-
-
-
+#
+#
