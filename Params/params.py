@@ -17,17 +17,17 @@ Analysis settings
 ###
 nf=38
 neta=38
-nu=9
-nv=9
-nx=9
-ny=9
+nu=29
+nv=29
+nx=29
+ny=29
 nq=2
 
 ###
 # Data noise estimate
 ###
 # sigma=50.e-1*250.0 #Noise level in S19b
-sigma=50.e-1*1000.0
+# sigma=50.e-1*1000.0
 
 
 ###
@@ -61,13 +61,16 @@ Tb_experimental_std_K  = 62.0     #70th percentile 12 deg.**2 region at 56 arcmi
 nu_min_MHz             = 163.0-4.0
 Tb_experimental_std_K = Tb_experimental_std_K*(nu_min_MHz/163.)**-beta_experimental_mean
 channel_width_MHz      = 0.2
-simulation_FoV_deg = 12.0             #Matches EoR simulation
+# simulation_FoV_deg = 12.0             #Matches EoR simulation
+# simulation_FoV_deg = 22.918311805232932 # chosen as uv_pixel_wavelengths = 2.5 and fov = np.rad2deg(1 / 2.5) ~ 22 degrees # 12.0 deg Matches EoR simulation
+simulation_FoV_deg = 29.92
 simulation_resolution_deg = simulation_FoV_deg/511. #Matches EoR sim (note: use closest odd val., so 127 rather than 128, for easier FFT normalisation)
 fits_storage_dir = 'fits_storage/multi_frequency_band_pythonPStest1/Jelic_nu_min_MHz_{}_TbStd_{}_beta_{}_dbeta{}/'.format(nu_min_MHz, Tb_experimental_std_K, beta_experimental_mean, beta_experimental_std).replace('.','d')
 # HF_nu_min_MHz_array = [210,220,230]
 HF_nu_min_MHz_array = [220]
 
 sky_model_pixel_area_sr = np.deg2rad(simulation_FoV_deg / nx)**2 # pixel area in steradians of the sky model
+sigma = 50.e-1*1000.0 * sky_model_pixel_area_sr
 
 ###
 # diffuse free-free foreground params
@@ -134,19 +137,20 @@ if include_instrumental_effects:
 	###
 	# Obs params
 	###
-	nt = 30
+	nt = 1
 	integration_time_minutes = 0.5
 	integration_time_minutes_str = '{}'.format(integration_time_minutes).replace('.','d')
 	# instrument_model_directory = '/users/psims/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/Instrument_Model/HERA_331_baselines_shorter_than_29d3_for_{}_{}_min_time_steps/'.format(nt, integration_time_minutes_str)
-	instrument_model_directory = '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/HERA_331_baselines_shorter_than_29d3_for_{}_{}_min_time_steps/'.format(nt, integration_time_minutes_str)
-	uv_pixel_width_wavelengths = 2.5 #Define a fixed pixel width in wavelengths
+	instrument_model_directory = '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/HERA_19_healvis_model_for_{}_{}_min_time_steps/'.format(nt, integration_time_minutes_str)
+	# uv_pixel_width_wavelengths = 2.5 #Define a fixed pixel width in wavelengths
+	uv_pixel_width_wavelengths = 1.9149658928169224 # corresponds to a fov of 29.92 degrees
 	###
 	# Primary beam params
 	###
 	FWHM_deg_at_ref_freq_MHz = 9.0 #9 degrees
 	PB_ref_freq_MHz = 150.0 #150 MHz
-	#beam_type = 'Uniform'
-	beam_type = 'Gaussian'
+	beam_type = 'Uniform'
+	# beam_type = 'Gaussian'
 	beam_peak_amplitude = 1.0
 	beam_info_str = ''
 	if beam_type.lower() == 'Uniform'.lower():
