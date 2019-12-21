@@ -236,7 +236,7 @@ class BuildMatrices(BuildMatrixTree):
 		# self.delta_kz_inv_Mpc = 2 * np.pi / (p.box_size_21cmFAST_Mpc_sc * p.nf / p.box_size_21cmFAST_pix_sc)
 		# self.Fz_normalisation = self.nf**0.5 * self.delta_kz_inv_Mpc
 		# self.delta_eta_inv_Mpc = 1.0 / (p.box_size_21cmFAST_Mpc_sc * p.nf / p.box_size_21cmFAST_pix_sc)
-		self.delta_eta_inv_Hz = 1.0 / ((p.nf - 1) * p.channel_width_MHz)
+		self.delta_eta_inv_Hz = 1.0 / ((p.nf - 1) * p.channel_width_MHz * 1.0e6)
 		self.Fz_normalisation = self.nf**0.5 * self.delta_eta_inv_Hz
         
 		# Fprime normalizations
