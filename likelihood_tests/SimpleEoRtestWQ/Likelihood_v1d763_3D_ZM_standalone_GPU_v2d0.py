@@ -389,7 +389,7 @@ class PowerSpectrumPosteriorProbability(object):
 		'''
 		This normalization will calculate PowerI in units of 1 / (mK**2 sr**2 Hz**2)
 		'''
-		
+
 		###
 		# NOTE: the physical size of the cosmological box is simulation dependent.
 		# 21cmFAST normalisation:
@@ -421,14 +421,15 @@ class PowerSpectrumPosteriorProbability(object):
 
 		if not p.include_instrumental_effects: #Account for / undo the extra (vfft1[0].size**0.5) scaling factor that is currently in the non-instrumental data creation functions
 			dimensionless_PS_scaling = dimensionless_PS_scaling*float(p.box_size_21cmFAST_pix_sc)**2.
-		
+
 		# Redshift dependent quantities
 		nu_array_MHz = p.nu_min_MHz + np.arange(p.nf) * p.channel_width_MHz
 		cosmo = Cosmology()
 		redshift = cosmo.Convert_from_21cmFrequency_to_Redshift(nu_array_MHz.mean())
 		X2Y = cosmo.X2Y(redshift)
-		
-		return dimensionless_PS_scaling * X2Y
+		dimensionless_PS_scaling *= X2Y**2
+
+		return dimensionless_PS_scaling
 
 	def calc_Npix_physical_power_spectrum_normalisation(self, i_bin, **kwargs):
 		###
@@ -483,7 +484,7 @@ class PowerSpectrumPosteriorProbability(object):
 		q2_index = self.neta+1
 
 		# Constrain LW mode amplitude distribution
-		dimensionless_PS_scaling = self.calc_dimensionless_power_spectral_normalisation_21cmFAST_v3d0(0)
+		dimensionless_PS_scaling = self.calc_dimensionless_power_spectral_normalisation_21cmFAST_v4d0(0)
 		if p.use_LWM_Gaussian_prior:
 			Fourier_mode_start_index = 3
 			# PowerI[self.nf/2-1::self.nf]=np.mean(dimensionless_PS_scaling)/x[0] #set to zero for a uniform distribution
