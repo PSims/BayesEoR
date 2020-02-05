@@ -231,25 +231,27 @@ class BuildMatrices(BuildMatrixTree):
 		self.nf = nf
 		self.nq = nq
 		self.sigma = sigma
-        
+
 		# Fz normalizations
 		# self.delta_kz_inv_Mpc = 2 * np.pi / (p.box_size_21cmFAST_Mpc_sc * p.nf / p.box_size_21cmFAST_pix_sc)
 		# self.Fz_normalisation = self.nf**0.5 * self.delta_kz_inv_Mpc
 		# self.delta_eta_inv_Mpc = 1.0 / (p.box_size_21cmFAST_Mpc_sc * p.nf / p.box_size_21cmFAST_pix_sc)
-		self.delta_eta_inv_Hz = 1.0 / ((p.nf - 1) * p.channel_width_MHz * 1.0e6)
-		self.Fz_normalisation = self.nf**0.5 * self.delta_eta_inv_Hz
-        
+		# self.delta_eta_inv_Hz = 1.0 / ((p.nf - 1) * p.channel_width_MHz * 1.0e6)
+		# According to np.fft.fftfreq, deta should be equal to 1 / (nf * df)
+		self.delta_eta_inv_Hz = 1.0 / (p.nf * p.channel_width_MHz * 1.0e6)
+		self.Fz_normalisation = self.nf * self.delta_eta_inv_Hz
+
 		# Fprime normalizations
 		# self.delta_kx_inv_Mpc = 2 * np.pi / (p.box_size_21cmFAST_Mpc_sc)
 		# self.delta_ky_inv_Mpc = 2 * np.pi / (p.box_size_21cmFAST_Mpc_sc)
 		# self.Fprime_normalisation = (self.nu * self.nv - 1)**0.5 * self.delta_kx_inv_Mpc * self.delta_ky_inv_Mpc
 		self.delta_u_inv_rad = p.uv_pixel_width_wavelengths
-		self.Fprime_normalisation = (self.nu * self.nv - 1)**0.5 * self.delta_u_inv_rad**2
-        
+		self.Fprime_normalisation = (self.nu * self.nv) * self.delta_u_inv_rad**2
+
 		# Finv normalizations
 		self.dA_sr = p.sky_model_pixel_area_sr
 		self.Finv_normalisation = self.dA_sr
-        
+
 		self.DFT2D_Fz_normalisation = (self.nu*self.nv*self.nf)**0.5
 		self.n_Fourier = (self.nu*self.nv-1)*self.nf
 		self.n_quad = (self.nu*self.nv-1)*self.nq
@@ -432,10 +434,10 @@ class BuildMatrices(BuildMatrixTree):
 		else:
 			sampled_uvw_coords_m = self.uvw_multi_time_step_array_meters_vectorised
 			multi_chan_nudft = self.sd_block_diag([nuDFT_Array_DFT_2D(self.nu,self.nv,self.nx,self.ny, sampled_uvw_coords_m, chan_freq_MHz).T for chan_freq_MHz in nu_array_MHz])
-            
+
 		# Multiply by sky model pixel area to get the units of the model visibilities correct
 		multi_chan_nudft *= self.Finv_normalisation
-        
+
 		print 'Time taken: {}'.format(time.time()-start)
 		###
 		# Save matrix to HDF5 or sparse matrix to npz
