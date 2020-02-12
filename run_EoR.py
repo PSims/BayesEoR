@@ -137,7 +137,7 @@ if not p.include_instrumental_effects:
 		plot_figure = False
 		if plot_figure:
 			construct_aplpy_image_from_fits('/users/psims/EoR/EoR_simulations/21cmFAST_2048MPc_2048pix_512pix_AstroParamExploration1/Fits/output_fits/nf0d888/', '21cm_mK_z7.600_nf0.888_useTs0.0_aveTb21.24_cube_side_pix512_cube_side_Mpc2048_mK', run_convert_from_mK_to_K=False, run_remove_unused_header_variables=True)
-			
+
 	#--------------------------------------------
 	# Define data vector
 	#--------------------------------------------
@@ -233,10 +233,10 @@ if sub_ML_monopole_term_model:
 	PSPP_block_diag.inverse_LW_power_first_LW_term=2.e18 #Don't fit for the first LW term (since only fitting for the monopole)
 	PSPP_block_diag.inverse_LW_power_second_LW_term=2.e18  #Don't fit for the second LW term (since only fitting for the monopole)
 	if p.use_LWM_Gaussian_prior:
-		fit_constraints = [2.e18]*1+[1.e-20]*(nDims-1)	
+		fit_constraints = [2.e18]*1+[1.e-20]*(nDims-1)
 	else:
 		fit_constraints = [1.e-20]*(nDims)
-	maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper(fit_constraints, T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]	
+	maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper(fit_constraints, T_Ninv_T, pre_sub_dbar, block_T_Ninv_T=block_T_Ninv_T)[0]
 	maxL_LW_signal = np.dot(T,maxL_LW_fit)
 	Ninv = BM.read_data_from_hdf5(array_save_directory+'Ninv.h5', 'Ninv')
 	Ninv_maxL_LW_signal = np.dot(Ninv,maxL_LW_signal)
@@ -262,8 +262,8 @@ log_priors_min_max = [[-5.0, 3.0] for _ in range(nDims)]
 if p.use_LWM_Gaussian_prior:
 	fg_log_priors_min = np.log10(1.e5) #Set minimum LW model priors using LW power spectrum in fit to white noise (i.e the prior min should incorporate knowledge of signal-removal in iterative pre-subtraction
 	fg_log_priors_max = 6.0 #Set minimum LW model prior max using numerical stability constraint at the given signal-to-noise in the data.
-	# log_priors_min_max[0] = [fg_log_priors_min, 8.0] #Set 
-	log_priors_min_max[0] = [fg_log_priors_min, fg_log_priors_max] #Calibrate LW model priors using white noise fitting 
+	# log_priors_min_max[0] = [fg_log_priors_min, 8.0] #Set
+	log_priors_min_max[0] = [fg_log_priors_min, fg_log_priors_max] #Calibrate LW model priors using white noise fitting
 	log_priors_min_max[1] = [fg_log_priors_min, fg_log_priors_max] #Calibrate LW model priors using white noise fitting
 	log_priors_min_max[2] = [fg_log_priors_min, fg_log_priors_max] #Calibrate LW model priors using white noise fitting
 	if p.use_intrinsic_noise_fitting:
@@ -378,13 +378,3 @@ if run_single_node_analysis or mpi_size>1:
 else:
 	print 'Skipping sampling, exiting...'
 #######################
-
-
-
-
-
-
-
-
-
-
