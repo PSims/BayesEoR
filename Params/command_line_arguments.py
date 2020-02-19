@@ -14,7 +14,12 @@ def BayesEoRParser():
 					    help = "RMS of the visibility noise.")
 	parser.add_argument('--HERA_data_path',
 						type = str,
-						help = "Path to data file for analysis.")
+						help = "Path to data file for analysis.",
+						default = None)
+	parser.add_argument('--noise_data_path',
+						type = str,
+						help = "Path to noise file associated with HERA_data_path argument.",
+						default = None)
 	parser.add_argument('--beam_type',
 						type = str,
 						help = "Can be either 'Gaussian' or 'Uniform'. Defaults to 'Gaussian'.")
@@ -45,7 +50,7 @@ def update_params_with_command_line_arguments():
 						p.beta = map(float, args.beta.replace('[','').replace(']','').split(',')) #Overwrite parameter file beta with value chosen from the command line if it is included
 						p.npl = len(p.beta) #Overwrites quadratic term when nq=2, otherwise unused.
 					else:
-						p.beta = float(args.beta) #Overwrite parameter file beta with value chosen from the command line if it is included 
+						p.beta = float(args.beta) #Overwrite parameter file beta with value chosen from the command line if it is included
 						p.npl = 1
 					print 'Overwriting params p.{} = {} with command line argument {} = {}'.format(key, p.__dict__[key], key, args.__dict__[key])
 				else:

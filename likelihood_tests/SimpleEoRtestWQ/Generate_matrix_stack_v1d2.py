@@ -218,6 +218,7 @@ class BuildMatrices(BuildMatrixTree):
 			self.beam_peak_amplitude = kwargs.pop('beam_peak_amplitude')
 			self.FWHM_deg_at_ref_freq_MHz = kwargs.pop('FWHM_deg_at_ref_freq_MHz')
 			self.PB_ref_freq_MHz = kwargs.pop('PB_ref_freq_MHz')
+			self.effective_noise = kwargs.pop('effective_noise', None)
 
 
 		print self.array_save_directory
@@ -473,7 +474,12 @@ class BuildMatrices(BuildMatrixTree):
 					multi_chan_P_drift_scan = sparse.vstack([sparse.block_diag([sparse.diags(make_Gaussian_beam(image_size_pix,FWHM_pix,beam_peak_amplitude,center_pix=[image_size_pix/2-pointing_center_HA_pix_offset,image_size_pix/2] ).flatten()) for FWHM_pix in FWHM_pix_at_chan_freq_MHz]) for pointing_center_HA_pix_offset in pointing_center_HA_pix_offset_array])
 				multi_chan_P = multi_chan_P_drift_scan
 			elif p.beam_type.lower() == 'uniform': #Uniform beam is unaltered by drift scan modelling
-				multi_chan_P = self.sd_block_diag([np.diag(make_Uniform_beam(image_size_pix,beam_peak_amplitude).flatten()) for FWHM_pix in FWHM_pix_at_chan_freq_MHz])
+				# multi_chan_P = self.sd_block_diag([np.diag(make_Uniform_beam(image_size_pix,beam_peak_amplitude).flatten()) for FWHM_pix in FWHM_pix_at_chan_freq_MHz])
+				if not p.use_sparse_matrices:
+					multi_chan_P_drift_scan = np.vstack([block_diag(*[np.diag(make_Uniform_beam(image_size_pix,beam_peak_amplitude).flatten()) for _ in range(p.nf)]) for _ in range(p.nt)])
+				else:
+					multi_chan_P_drift_scan = sparse.vstack([sparse.block_diag([sparse.diags(make_Uniform_beam(image_size_pix,beam_peak_amplitude).flatten()) for _ in range(p.nf)]) for _ in range(p.nt)])
+				multi_chan_P = multi_chan_P_drift_scan
 			else: #Uniform beam is unaltered by drift scan modelling
 				multi_chan_P = self.sd_block_diag([np.diag(make_Uniform_beam(image_size_pix,beam_peak_amplitude).flatten()) for FWHM_pix in FWHM_pix_at_chan_freq_MHz])
 		print 'Time taken: {}'.format(time.time()-start)
@@ -676,11 +682,14 @@ class BuildMatrices(BuildMatrixTree):
 				sigma_accounting_for_redundancy = self.sigma / multifreq_baseline_redundancy_array**0.5 #RMS drops as the squareroot of the number of redundant samples
 				sigma_squared_array = np.ones(s_size)*sigma_accounting_for_redundancy**2 + 0j*np.ones(s_size)*sigma_accounting_for_redundancy**2
 			elif p.use_nvis_nchan_nt_ordering:
-				baseline_redundancy_array_time_vis_shaped = self.baseline_redundancy_array_time_vis_shaped
-				baseline_redundancy_array_time_freq_vis = np.array([[baseline_redundancy_array_vis for i in range(p.nf)] for baseline_redundancy_array_vis in baseline_redundancy_array_time_vis_shaped]).flatten()
-				s_size = self.n_vis*self.nf
-				sigma_accounting_for_redundancy = self.sigma / baseline_redundancy_array_time_freq_vis**0.5 #RMS drops as the squareroot of the number of redundant samples
-				sigma_squared_array = np.ones(s_size)*sigma_accounting_for_redundancy**2 + 0j*np.ones(s_size)*sigma_accounting_for_redundancy**2
+				if self.effective_noise is None:
+					baseline_redundancy_array_time_vis_shaped = self.baseline_redundancy_array_time_vis_shaped
+					baseline_redundancy_array_time_freq_vis = np.array([[baseline_redundancy_array_vis for i in range(p.nf)] for baseline_redundancy_array_vis in baseline_redundancy_array_time_vis_shaped]).flatten()
+					s_size = self.n_vis*self.nf
+					sigma_accounting_for_redundancy = self.sigma / baseline_redundancy_array_time_freq_vis**0.5 #RMS drops as the squareroot of the number of redundant samples
+					sigma_squared_array = np.ones(s_size)*sigma_accounting_for_redundancy**2 + 0j*np.ones(s_size)*sigma_accounting_for_redundancy**2
+				else:
+					sigma_squared_array = np.abs(self.effective_noise)**2 + 0j*np.abs(self.effective_noise)**2
 		else:
 			s_size = (self.nu*self.nv-1)*self.nf
 			sigma_squared_array = np.ones(s_size)*self.sigma**2 + 0j*np.ones(s_size)*self.sigma**2
@@ -708,11 +717,14 @@ class BuildMatrices(BuildMatrixTree):
 				sigma_accounting_for_redundancy = self.sigma / multifreq_baseline_redundancy_array**0.5 #RMS drops as the squareroot of the number of redundant samples
 				sigma_squared_array = np.ones(s_size)*sigma_accounting_for_redundancy**2 + 0j*np.ones(s_size)*sigma_accounting_for_redundancy**2
 			elif p.use_nvis_nchan_nt_ordering:
-				baseline_redundancy_array_time_vis_shaped = self.baseline_redundancy_array_time_vis_shaped
-				baseline_redundancy_array_time_freq_vis = np.array([[baseline_redundancy_array_vis for i in range(p.nf)] for baseline_redundancy_array_vis in baseline_redundancy_array_time_vis_shaped]).flatten()
-				s_size = self.n_vis*self.nf
-				sigma_accounting_for_redundancy = self.sigma / baseline_redundancy_array_time_freq_vis**0.5 #RMS drops as the squareroot of the number of redundant samples
-				sigma_squared_array = np.ones(s_size)*sigma_accounting_for_redundancy**2 + 0j*np.ones(s_size)*sigma_accounting_for_redundancy**2
+				if self.effective_noise is None:
+					baseline_redundancy_array_time_vis_shaped = self.baseline_redundancy_array_time_vis_shaped
+					baseline_redundancy_array_time_freq_vis = np.array([[baseline_redundancy_array_vis for i in range(p.nf)] for baseline_redundancy_array_vis in baseline_redundancy_array_time_vis_shaped]).flatten()
+					s_size = self.n_vis*self.nf
+					sigma_accounting_for_redundancy = self.sigma / baseline_redundancy_array_time_freq_vis**0.5 #RMS drops as the squareroot of the number of redundant samples
+					sigma_squared_array = np.ones(s_size)*sigma_accounting_for_redundancy**2 + 0j*np.ones(s_size)*sigma_accounting_for_redundancy**2
+				else:
+					sigma_squared_array = np.abs(self.effective_noise)**2 + 0j*np.abs(self.effective_noise)**2
 		else:
 			s_size = (self.nu*self.nv-1)*self.nf
 			sigma_squared_array = np.ones(s_size)*self.sigma**2 + 0j*np.ones(s_size)*self.sigma**2

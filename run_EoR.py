@@ -50,7 +50,11 @@ nv=p.nv
 nx=p.nx
 ny=p.ny
 # Data noise
-sigma = p.sigma
+if not 'noise_data_path' in p.__dict__.keys():
+	sigma = p.sigma
+else:
+	effective_noise = np.load(p.noise_data_path)
+	sigma = effective_noise.std()
 if p.include_instrumental_effects:
 	uvw_multi_time_step_array_meters = load_uvw_instrument_sampling_m(p.instrument_model_directory)  #In (nvis_per_chan,nchan) order
 	uvw_multi_time_step_array_meters_vectorised = uvw_multi_time_step_array_meters[:,:,:].reshape(-1,3)
@@ -60,9 +64,18 @@ if p.include_instrumental_effects:
 	baseline_redundancy_array_time_vis_shaped = baseline_redundancy_array_time_vis_shaped*0 + baseline_redundancy_array_time_vis_shaped.min()
 	baseline_redundancy_array_vectorised = baseline_redundancy_array_time_vis_shaped.reshape(-1,1).flatten()
 	average_baseline_redundancy = baseline_redundancy_array_time_vis_shaped.mean() #Keep average noise level consisitent with the non-instrumental case by normalizing sigma by the average baseline redundancy before scaling individual baselines by their respective redundancies
-	sigma = sigma*average_baseline_redundancy**0.5
+	if not 'noise_data_path' in p.__dict__.keys():
+		sigma = sigma*average_baseline_redundancy**0.5
+	else:
+		sigma = sigma*1.
 else:
 	sigma = sigma*1.
+
+# Check for HERA data path
+if 'HERA_data_path' in p.__dict__.keys():
+	p.use_EoR_cube = False
+else:
+	p.use_EoR_cube = True
 
 
 # Auxiliary and derived params
@@ -82,6 +95,8 @@ if p.include_instrumental_effects:
 	instrument_info = filter(None, p.instrument_model_directory_plus_beam_info.split('/'))[-1]
 	if 	p.model_drift_scan_primary_beam:
 		instrument_info = instrument_info+'_dspb'
+	if 'noise_data_path' in p.__dict__.keys():
+		instrument_info += '_noise_vec'
 	array_save_directory = array_save_directory[:-1]+'_instrumental/'+instrument_info+'/'
 else:
 	n_vis = 0
@@ -96,11 +111,17 @@ if p.fit_for_monopole:
 # Construct matrices
 #--------------------------------------------
 if p.include_instrumental_effects:
-	BM = BuildMatrices(array_save_directory, nu, nv, nx, ny, n_vis, neta, nf, nq, sigma, npl=npl, uvw_multi_time_step_array_meters = uvw_multi_time_step_array_meters, uvw_multi_time_step_array_meters_vectorised=uvw_multi_time_step_array_meters_vectorised, baseline_redundancy_array_time_vis_shaped = baseline_redundancy_array_time_vis_shaped, baseline_redundancy_array_vectorised = baseline_redundancy_array_vectorised, beam_type = p.beam_type, beam_peak_amplitude = p.beam_peak_amplitude, FWHM_deg_at_ref_freq_MHz = p.FWHM_deg_at_ref_freq_MHz, PB_ref_freq_MHz = p.PB_ref_freq_MHz)
+	if not 'noise_data_path' in p.__dict__.keys():
+		BM = BuildMatrices(array_save_directory, nu, nv, nx, ny, n_vis, neta, nf, nq, sigma, npl=npl, uvw_multi_time_step_array_meters = uvw_multi_time_step_array_meters, uvw_multi_time_step_array_meters_vectorised=uvw_multi_time_step_array_meters_vectorised, baseline_redundancy_array_time_vis_shaped = baseline_redundancy_array_time_vis_shaped, baseline_redundancy_array_vectorised = baseline_redundancy_array_vectorised, beam_type = p.beam_type, beam_peak_amplitude = p.beam_peak_amplitude, FWHM_deg_at_ref_freq_MHz = p.FWHM_deg_at_ref_freq_MHz, PB_ref_freq_MHz = p.PB_ref_freq_MHz)
+	else:
+		BM = BuildMatrices(array_save_directory, nu, nv, nx, ny, n_vis, neta, nf, nq, sigma, npl=npl, uvw_multi_time_step_array_meters = uvw_multi_time_step_array_meters, uvw_multi_time_step_array_meters_vectorised=uvw_multi_time_step_array_meters_vectorised, baseline_redundancy_array_time_vis_shaped = baseline_redundancy_array_time_vis_shaped, baseline_redundancy_array_vectorised = baseline_redundancy_array_vectorised, beam_type = p.beam_type, beam_peak_amplitude = p.beam_peak_amplitude, FWHM_deg_at_ref_freq_MHz = p.FWHM_deg_at_ref_freq_MHz, PB_ref_freq_MHz = p.PB_ref_freq_MHz, effective_noise=effective_noise)
 else:
 	BM = BuildMatrices(array_save_directory, nu, nv, nx, ny, n_vis, neta, nf, nq, sigma, npl=npl)
-overwrite_existing_matrix_stack = False #Can be set to False unless npl>0
-proceed_without_overwrite_confirmation = False #Allows overwrite_existing_matrix_stack to be run without having to manually accept the deletion of the old matrix stack
+
+# sys.exit()
+
+overwrite_existing_matrix_stack = True #Can be set to False unless npl>0
+proceed_without_overwrite_confirmation = True #Allows overwrite_existing_matrix_stack to be run without having to manually accept the deletion of the old matrix stack
 BM.build_minimum_sufficient_matrix_stack(overwrite_existing_matrix_stack=overwrite_existing_matrix_stack, proceed_without_overwrite_confirmation=proceed_without_overwrite_confirmation)
 
 #--------------------------------------------
@@ -172,15 +193,25 @@ Finv = BM.read_data_s2d(array_save_directory+'Finv', 'Finv')
 #--------------------------------------------
 overwrite_data_with_WN = False
 if p.include_instrumental_effects:
-		if p.use_EoR_cube:
-			s_EoR, abc, scidata1 = generate_EoR_signal_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z, Finv,Show,chan_selection,masked_power_spectral_modes, mod_k, p.EoR_npz_path_sc)
-			EoR_noise_seed = 742123
-			print 'EoR_noise_seed', EoR_noise_seed
-			d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(1.0*sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,uvw_multi_time_step_array_meters_vectorised,baseline_redundancy_array_vectorised,random_seed=EoR_noise_seed)[0]
-			effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(1.0*sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,uvw_multi_time_step_array_meters_vectorised,baseline_redundancy_array_vectorised,random_seed=EoR_noise_seed)[1]
+	if p.use_EoR_cube:
+		s_EoR, abc, scidata1 = generate_EoR_signal_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z, Finv,Show,chan_selection,masked_power_spectral_modes, mod_k, p.EoR_npz_path_sc)
+	else:
+		print 'Using HERA data at %s' %p.HERA_data_path
+		s_EoR = np.load(p.HERA_data_path)
+
+	if not 'noise_data_path' in p.__dict__.keys():
+		EoR_noise_seed = 742123
+		print 'EoR_noise_seed =', EoR_noise_seed
+		d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(1.0*sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,uvw_multi_time_step_array_meters_vectorised,baseline_redundancy_array_vectorised,random_seed=EoR_noise_seed)[0]
+		effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(1.0*sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,uvw_multi_time_step_array_meters_vectorised,baseline_redundancy_array_vectorised,random_seed=EoR_noise_seed)[1]
+	else:
+		d = s_EoR.copy()
 
 effective_noise_std = effective_noise.std()
-
+print '\n\n\ns_EoR.std = %.4e' %(s_EoR.std())
+print 'effective_noise.std = %.4e' %(effective_noise_std)
+print 'dA = %.4e' %(p.sky_model_pixel_area_sr)
+print 'effective SNR = %.4e\n\n\n' %(s_EoR.std() / effective_noise_std)
 
 #--------------------------------------------
 # Continue loading base matrices used in the likelihood and defining related variables
