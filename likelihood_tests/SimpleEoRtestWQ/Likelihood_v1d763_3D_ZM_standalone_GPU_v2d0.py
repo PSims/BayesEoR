@@ -178,6 +178,10 @@ class PowerSpectrumPosteriorProbability(object):
 				Sigma = Sigma/self.alpha_prime**2.0
 
 			Sigma[self.Sigma_Diag_Indices]+=PhiI
+			# print(x)
+			# print('PhiI (mean, stddev)    = ({}, {})'.format(PhiI.mean(), PhiI.std()))
+			# print('Sigma (mean, stddev) = ({}, {})'.format(Sigma.mean(), Sigma.std()))
+			# print('dbar (mean, stddev)   = ({}, {})'.format(dbar.mean(), dbar.std()))
 			if self.Print:print 'Time taken: {}'.format(time.time()-start)
 			if self.return_Sigma:
 				return Sigma
@@ -398,25 +402,10 @@ class PowerSpectrumPosteriorProbability(object):
 		# p_box[ct] += pow(k_mag,3)*pow(cabs(deldel_T[HII_C_INDEX(n_x, n_y, n_z)]), 2)/(2.0*PI*PI*VOLUME);
 		###
 		VOLUME = p.box_size_21cmFAST_Mpc_sc**3. #Full cube volume in Mpc^3
-		explicit_21cmFast_power_spectrum_normalisation = 1./(2.0*np.pi**2.*VOLUME)
-		full_21cmFast_power_spectrum_normalisation = 1.0 / (2.0*np.pi**2.*VOLUME)
+		VOLUME *= 1.0 * p.nf / p.box_size_21cmFAST_pix_sc # frequency axis is truncated by p.nf
 
-		############
-		# subset_power_spectrum_normalisation:
-		# 1. Image space full cube -> k-space subset cube,
-		# values are (nf/512.)**0.5 times smaller than in 21cmFast.
-		# Thus, to normalise, the amplitude spectrum should be scaled by (512./nf)**0.5 (subset cube component)
-		#
-		# 2. k-space subset cube -> image space subset cube -> data = np.dot(Finv, image space subset cube),
-		# values are nf**0.5 times larger than in np.dot(T, k-space subset cube) -> data.
-		#[This is because in the k-space subset cube -> image space subset cube step (1) with a numpy ifft there is an effective division by nf**0.5 where as in the equivalent k-space subset cube -> image space subset cube component of T there is a division by nf**1.0, thus the values in np.dot(T, k-space subset cube) -> data end up being nf**0.5 times smaller.]
-		# Thus, to normalise, the amplitude spectrum should be scaled by 1./nf**0.5  (matrix encoding component)
-		#
-		# Thus, the overall subset + matrix encoding amplitude normalisation is: (512./nf)**0.5/nf**0.5 = 512**0.5
-		############
-		subset_power_spectrum_normalisation = float(p.box_size_21cmFAST_pix_sc) #See /home/peter/OSCAR_mnt/rdata/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/spec_model_tests/random/normalisation_testing/dimensionless_power_spectrum_21cmFast_comparison_normalisation_v2d0.py
+		full_power_spectrum_normalisation = 1.0 / (2.0*np.pi**2.*VOLUME)
 
-		full_power_spectrum_normalisation = subset_power_spectrum_normalisation * full_21cmFast_power_spectrum_normalisation
 		dimensionless_PS_scaling = (self.modk_vis_ordered_list[i_bin]**3.)*full_power_spectrum_normalisation
 
 		if not p.include_instrumental_effects: #Account for / undo the extra (vfft1[0].size**0.5) scaling factor that is currently in the non-instrumental data creation functions
