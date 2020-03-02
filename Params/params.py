@@ -41,7 +41,7 @@ box_size_21cmFAST_Mpc = 512 #Must match EoR_npz_path parameters
 EoR_npz_path_sc = '/users/jburba/data/shared/PSims/BayesEoR_files_P/EoRsims/Hoag19/21cm_mK_z7.600_nf0.883_useTs0.0_aveTb21.06_cube_side_pix512_cube_side_Mpc2048.npz'
 box_size_21cmFAST_pix_sc = 512 #Must match EoR_npz_path parameters
 box_size_21cmFAST_Mpc_sc = 2048 #Must match EoR_npz_path parameters
-
+# box_size_21cmFAST_Mpc_sc = 1903.92479627 # Cosmological angular distance corresponding to a field of view of 12.0 degrees and bandwidth of 7.6 MHz centered on 162.7 MHz
 
 
 #--------------------------------------------
@@ -58,19 +58,23 @@ gamma_sigma            = 0.3      #Revise to match published values
 # Tb_experimental_mean_K = 194.0    #Matches GSM mean in region A
 Tb_experimental_mean_K = 471.0    #Matches GSM mean in region considered in S19b (see GSM_map_std_at_-30_dec_v1d3.ipynb)
 Tb_experimental_std_K  = 62.0     #70th percentile 12 deg.**2 region at 56 arcmin res. centered on -30. deg declination (see GSM_map_std_at_-30_dec_v1d0.ipynb)
-nu_min_MHz             = 163.0-4.0
+# nu_min_MHz             = 163.0-4.0
+nu_min_MHz = 158.304048743 # Corresponds to the lower edge of a ~9 MHz bandwidth centered on 162.7 MHz (z~7) for a 21cmFAST cube LOS size of 2048 * nf / 512 Mpc
 Tb_experimental_std_K = Tb_experimental_std_K*(nu_min_MHz/163.)**-beta_experimental_mean
-channel_width_MHz      = 0.2
+# channel_width_MHz      = 0.2
+channel_width_MHz = 0.237618986858 # Corresponds to the channel width for a LOS distance of 2048 * nf / 512 Mpc at redshift z~7 with nf=38 frequency channels
 # simulation_FoV_deg = 12.0             #Matches EoR simulation
 # simulation_FoV_deg = 22.918311805232932 # chosen as uv_pixel_wavelengths = 2.5 and fov = np.rad2deg(1 / 2.5) ~ 22 degrees # 12.0 deg Matches EoR simulation
-simulation_FoV_deg = 12.0
+# simulation_FoV_deg = 12.0
+simulation_FoV_deg = 12.9080728652 # Corresponds to the angular extent of a 2048 Mpc patch of sky at redshift z~7 (band centerd on 162.7 MHz)
 simulation_resolution_deg = simulation_FoV_deg/511. #Matches EoR sim (note: use closest odd val., so 127 rather than 128, for easier FFT normalisation)
 fits_storage_dir = 'fits_storage/multi_frequency_band_pythonPStest1/Jelic_nu_min_MHz_{}_TbStd_{}_beta_{}_dbeta{}/'.format(nu_min_MHz, Tb_experimental_std_K, beta_experimental_mean, beta_experimental_std).replace('.','d')
 # HF_nu_min_MHz_array = [210,220,230]
 HF_nu_min_MHz_array = [220]
 
 sky_model_pixel_area_sr = np.deg2rad(simulation_FoV_deg / nx)**2 # pixel area in steradians of the sky model
-sigma = 50.e-1*1000.0 * sky_model_pixel_area_sr
+# sigma = 50.e-1*1000.0 * sky_model_pixel_area_sr
+sigma = 0.001555210668254031 # 0.3 * np.std(hv_data in mK sr)
 
 ###
 # diffuse free-free foreground params
@@ -149,7 +153,7 @@ if include_instrumental_effects:
 	###
 	FWHM_deg_at_ref_freq_MHz = 9.0 #9 degrees
 	PB_ref_freq_MHz = 150.0 #150 MHz
-	beam_type = 'Uniform' # multi_chan_P and Finv currently incompatible shape-wise for multiple time steps and a uniform beam !!!!
+	beam_type = 'Uniform'
 	# beam_type = 'Gaussian'
 	beam_peak_amplitude = 1.0
 	beam_info_str = ''
