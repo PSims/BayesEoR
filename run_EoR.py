@@ -92,7 +92,17 @@ n_dat = n_Fourier
 current_file_version = 'Likelihood_v1d76_3D_ZM'
 array_save_directory = 'array_storage/batch_1/{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(current_file_version,nu,nv,neta,nq,npl,sigma).replace('.','d')
 if p.include_instrumental_effects:
-	instrument_info = filter(None, p.instrument_model_directory_plus_beam_info.split('/'))[-1]
+	beam_info_str = ''
+	if p.beam_type.lower() == 'Uniform'.lower():
+		beam_info_str += '{}_beam_peak_amplitude_{}'.format(p.beam_type, str(p.beam_peak_amplitude).replace('.','d'))
+	if p.beam_type.lower() == 'Gaussian'.lower():
+		beam_info_str += '{}_beam_peak_amplitude_{}_beam_width_{}_deg_at_{}_MHz'.format(p.beam_type,
+								str(p.beam_peak_amplitude).replace('.','d'),
+								str(p.FWHM_deg_at_ref_freq_MHz).replace('.','d'),
+								str(p.PB_ref_freq_MHz).replace('.','d'))
+
+	instrument_model_directory_plus_beam_info = p.instrument_model_directory[:-1]+'_{}/'.format(beam_info_str)
+	instrument_info = filter(None, instrument_model_directory_plus_beam_info.split('/'))[-1]
 	if 	p.model_drift_scan_primary_beam:
 		instrument_info = instrument_info+'_dspb'
 	if 'noise_data_path' in p.__dict__.keys():
@@ -120,8 +130,8 @@ else:
 
 # sys.exit()
 
-overwrite_existing_matrix_stack = True #Can be set to False unless npl>0
-proceed_without_overwrite_confirmation = True #Allows overwrite_existing_matrix_stack to be run without having to manually accept the deletion of the old matrix stack
+overwrite_existing_matrix_stack = False #Can be set to False unless npl>0
+proceed_without_overwrite_confirmation = False #Allows overwrite_existing_matrix_stack to be run without having to manually accept the deletion of the old matrix stack
 BM.build_minimum_sufficient_matrix_stack(overwrite_existing_matrix_stack=overwrite_existing_matrix_stack, proceed_without_overwrite_confirmation=proceed_without_overwrite_confirmation)
 
 #--------------------------------------------
@@ -289,7 +299,8 @@ if sub_ML_monopole_term_model:
 ###
 # PolyChord setup
 ###
-log_priors_min_max = [[-5.0, 3.0] for _ in range(nDims)]
+# log_priors_min_max = [[-5.0, 3.0] for _ in range(nDims)]
+log_priors_min_max = [[-1.0, 7.0] for _ in range(nDims)]
 if p.use_LWM_Gaussian_prior:
 	fg_log_priors_min = np.log10(1.e5) #Set minimum LW model priors using LW power spectrum in fit to white noise (i.e the prior min should incorporate knowledge of signal-removal in iterative pre-subtraction
 	fg_log_priors_max = 6.0 #Set minimum LW model prior max using numerical stability constraint at the given signal-to-noise in the data.
