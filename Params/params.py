@@ -65,7 +65,7 @@ Tb_experimental_std_K = Tb_experimental_std_K*(nu_min_MHz/163.)**-beta_experimen
 channel_width_MHz = 0.237618986858 # Corresponds to the channel width for a LOS distance of 2048 * nf / 512 Mpc at redshift z~7 with nf=38 frequency channels
 # simulation_FoV_deg = 12.0             #Matches EoR simulation
 # simulation_FoV_deg = 22.918311805232932 # chosen as uv_pixel_wavelengths = 2.5 and fov = np.rad2deg(1 / 2.5) ~ 22 degrees # 12.0 deg Matches EoR simulation
-# simulation_FoV_deg = 12.0
+# simulation_FoV_deg = 30.0
 simulation_FoV_deg = 12.9080728652 # Corresponds to the angular extent of a 2048 Mpc patch of sky at redshift z~7 (band centerd on 162.7 MHz)
 simulation_resolution_deg = simulation_FoV_deg/511. #Matches EoR sim (note: use closest odd val., so 127 rather than 128, for easier FFT normalisation)
 fits_storage_dir = 'fits_storage/multi_frequency_band_pythonPStest1/Jelic_nu_min_MHz_{}_TbStd_{}_beta_{}_dbeta{}/'.format(nu_min_MHz, Tb_experimental_std_K, beta_experimental_mean, beta_experimental_std).replace('.','d')
@@ -74,7 +74,24 @@ HF_nu_min_MHz_array = [220]
 
 sky_model_pixel_area_sr = np.deg2rad(simulation_FoV_deg / nx)**2 # pixel area in steradians of the sky model
 # sigma = 50.e-1*1000.0 * sky_model_pixel_area_sr
-sigma = 0.001555210668254031 # 0.3 * np.std(hv_data in mK sr)
+# sigma = 0.001555210668254031 # 0.3 * np.std(hv_data in mK sr) - calculated for flatspec/uniform beam data
+# sigma = 0.00018327540647584584 # for 1.5 deg FWHM beam data
+# sigma = 0.00019604703375601735 # for 2 deg FWHM beam data
+# sigma = 0.000019604703375601735 # for 2 deg FWHM beam data / 10
+# sigma = 0.0003413612494755223 # 0.3 * np.std(hv_data with gaussian beam in mK sr)
+# sigma = 0.0006385239458905794 # 0.9 sigma for 2 deg FWHM beam data
+# sigma = 0.001064206576484299 # 1.5 sigma for 2 deg FWHM beam data
+# sigma = 0.0014189421019790652 # 2 sigma for 2 deg FWHM beam data
+# sigma = 0.0050441458536927535 # 0.9 sigma for uniform beam data
+# sigma = 0.00840690975615459 # 1.5 sigma for uniform beam data
+sigma = 0.011209213008206119 # 2.0 sigma for uniform beam data
+# sigma = 0.014011516260257649 # 2.5 sigma for uniform beam data
+# sigma = 0.01681381951230918 # 3.0 sigma for uniform beam data
+# sigma = 0.0029141736440333335 # 0.5 sigma for internal model data
+# sigma = 0.00524551255926 # 0.9 sigma for internal model data
+# sigma = 0.0116566945761 # 2.0 sigma for internal model data
+# sigma = 0.0145708682202 # 2.5 sigma for internal model data
+# sigma = 0.0174850418642 # 3.0 sigma for internal model data
 
 ###
 # diffuse free-free foreground params
@@ -151,18 +168,18 @@ if include_instrumental_effects:
 	###
 	# Primary beam params
 	###
-	FWHM_deg_at_ref_freq_MHz = 9.0 #9 degrees
+	FWHM_deg_at_ref_freq_MHz = 2.0 # degrees
 	PB_ref_freq_MHz = 150.0 #150 MHz
 	beam_type = 'Uniform'
 	# beam_type = 'Gaussian'
 	beam_peak_amplitude = 1.0
-	beam_info_str = ''
-	if beam_type.lower() == 'Uniform'.lower():
-		beam_info_str += '{}_beam_peak_amplitude_{}'.format(beam_type, str(beam_peak_amplitude).replace('.','d'))
-	if beam_type.lower() == 'Gaussian'.lower():
-		beam_info_str += '{}_beam_peak_amplitude_{}_beam_width_{}_deg_at_{}_MHz'.format(beam_type, str(beam_peak_amplitude).replace('.','d'), str(FWHM_deg_at_ref_freq_MHz).replace('.','d'), str(PB_ref_freq_MHz).replace('.','d'))
-
-	instrument_model_directory_plus_beam_info = instrument_model_directory[:-1]+'_{}/'.format(beam_info_str)
+	# beam_info_str = ''
+	# if beam_type.lower() == 'Uniform'.lower():
+	# 	beam_info_str += '{}_beam_peak_amplitude_{}'.format(beam_type, str(beam_peak_amplitude).replace('.','d'))
+	# if beam_type.lower() == 'Gaussian'.lower():
+	# 	beam_info_str += '{}_beam_peak_amplitude_{}_beam_width_{}_deg_at_{}_MHz'.format(beam_type, str(beam_peak_amplitude).replace('.','d'), str(FWHM_deg_at_ref_freq_MHz).replace('.','d'), str(PB_ref_freq_MHz).replace('.','d'))
+	#
+	# instrument_model_directory_plus_beam_info = instrument_model_directory[:-1]+'_{}/'.format(beam_info_str)
 	model_drift_scan_primary_beam = True
 	if model_drift_scan_primary_beam:
 		use_nvis_nt_nchan_ordering = False
