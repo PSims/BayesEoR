@@ -40,7 +40,7 @@ def generate_Jelic_cube(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, beta_experime
 	default_cube_side_Mpc = 2048.0 #Size of EoR cube foreground simulation should match (used when calculating fits header variables)
 	default_redshift = 7.6 #Redshift of EoR cube foreground simulation should match (used when calculating fits header variables)
 
-	
+
 	##===== Inputs =======
 	generate_additional_extrapolated_HF_foreground_cube=kwargs.pop('generate_additional_extrapolated_HF_foreground_cube',default_generate_additional_extrapolated_HF_foreground_cube)
 	HF_nu_min_MHz=kwargs.pop('HF_nu_min_MHz',default_HF_nu_min_MHz)
@@ -82,16 +82,16 @@ def generate_Jelic_cube(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, beta_experime
 
 	ED = ExtractDataFrom21cmFASTCube(plot_data=False)
 	bandwidth_MHz, central_frequency_MHz, output_21cmFast_box_width_deg = ED.calculate_box_size_in_degrees_and_MHz(cube_side_Mpc, redshift)
-	
+
 	DUC = DataUnitConversionmkandJyperpix()
 	Data_mK = Tb_nu*1.e3
 
-	
+
 	Channel_Frequencies_Array_Hz = nu_array_MHz*1.e6
 	Pixel_Height_rad = output_21cmFast_box_width_deg*(np.pi/180.)/Tb_nu.shape[1]
 	DUC.convert_from_mK_to_Jy_per_pix(Data_mK, Channel_Frequencies_Array_Hz, Pixel_Height_rad)
 	Data_Jy_per_Pixel = ED.convert_from_mK_to_Jy_per_pix(Data_mK, Channel_Frequencies_Array_Hz, Pixel_Height_rad)
-	
+
 	output_fits_file_name = 'Jelic_GDSE_cube_{:d}MHz.fits'.format(int(nu_min_MHz))
 	output_fits_path1 = fits_storage_dir+output_fits_file_name
 	output_fits_path2 = fits_storage_dir+'/ZNPS{:d}/'.format(int(nu_min_MHz))+output_fits_file_name
@@ -110,7 +110,7 @@ def generate_Jelic_cube(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, beta_experime
 
 	###
 
-	
+
 
 	import pylab
 	pylab.figure()
@@ -134,11 +134,11 @@ def generate_Jelic_cube(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, beta_experime
 	# Inspect quadratic residuals
 	###
 	quad_coeffs = np.polyfit(nu_array_MHz, Tb_nu[:,0,0], 2)
-	quad_fit = quad_coeffs[0]*nu_array_MHz**2. + quad_coeffs[1]*nu_array_MHz**1. + quad_coeffs[2]*nu_array_MHz**0. 
+	quad_fit = quad_coeffs[0]*nu_array_MHz**2. + quad_coeffs[1]*nu_array_MHz**1. + quad_coeffs[2]*nu_array_MHz**0.
 	residuals = Tb_nu[:,0,0]-quad_fit
 
 	# quad_coeffs2 = np.polyfit(nu_array_MHz, Tb_nu2[:,0,0], 2)
-	# quad_fit2 = quad_coeffs2[0]*nu_array_MHz**2. + quad_coeffs2[1]*nu_array_MHz**1. + quad_coeffs2[2]*nu_array_MHz**0. 
+	# quad_fit2 = quad_coeffs2[0]*nu_array_MHz**2. + quad_coeffs2[1]*nu_array_MHz**1. + quad_coeffs2[2]*nu_array_MHz**0.
 	# residuals2 = Tb_nu2[:,0,0]-quad_fit2
 
 	base_dir = 'Plots'
@@ -175,7 +175,7 @@ def generate_Jelic_cube(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, beta_experime
 	scidata1 = Tb_nu_mK
 	# scidata1 = random_quad[0:nf,0:nu,0:nv]
 
-	
+
 	base_dir = 'Plots'
 	save_dir = base_dir+'/Likelihood_v1d75_3D_ZM/'
 	if not os.path.isdir(save_dir):
@@ -194,7 +194,7 @@ def generate_Jelic_cube(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, beta_experime
 	if Show: pylab.show()
 
 	pylab.close('all')
-	
+
 	sci_f, sci_v, sci_u = vfft1.shape
 	sci_v_centre = sci_v/2
 	sci_u_centre = sci_u/2
@@ -216,12 +216,12 @@ def generate_Jelic_cube(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, beta_experime
 	###
 	dat1 = fg.reshape(-1,nu*nv-1)[:,0].real[::-1]
 	quad_coeffs = np.polyfit(nu_array_MHz, dat1, 2)
-	quad_fit = quad_coeffs[0]*nu_array_MHz**2. + quad_coeffs[1]*nu_array_MHz**1. + quad_coeffs[2]*nu_array_MHz**0. 
+	quad_fit = quad_coeffs[0]*nu_array_MHz**2. + quad_coeffs[1]*nu_array_MHz**1. + quad_coeffs[2]*nu_array_MHz**0.
 	residuals = dat1-quad_fit
 
 	dat2 = fg.reshape(-1,nu*nv-1)[:,0].imag[::-1]
 	quad_coeffs2 = np.polyfit(nu_array_MHz, dat2, 2)
-	quad_fit2 = quad_coeffs2[0]*nu_array_MHz**2. + quad_coeffs2[1]*nu_array_MHz**1. + quad_coeffs2[2]*nu_array_MHz**0. 
+	quad_fit2 = quad_coeffs2[0]*nu_array_MHz**2. + quad_coeffs2[1]*nu_array_MHz**1. + quad_coeffs2[2]*nu_array_MHz**0.
 	residuals2 = dat2-quad_fit2
 
 	base_dir = 'Plots'
@@ -252,7 +252,7 @@ def generate_Jelic_cube(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, beta_experime
 	res_fft=numpy.fft.fftshift(res_fft, axes=axes_tuple)
 
 
-	
+
 	k_cubed_log_res_fft = (log10(abs(res_fft*k_z[:,0,0]**3.)))[np.fft.fftshift(np.fft.fftfreq(nf))!=0]
 
 	fig,ax = pylab.subplots(nrows=1, ncols=1, figsize=(20,20))
@@ -267,14 +267,14 @@ def generate_Jelic_cube(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z,Show, beta_experime
 	a1 = log10(k_z[:,0,0]**3.)[20:]+4.16
 	a2 = (log10(abs(res_fft)))[20:]+1.33
 	print a1+a2-0.8
-	
+
 
 	import numpy
 	axes_tuple = (0,)
 	res_fft=numpy.fft.ifftshift(residuals+0j, axes=axes_tuple)
 	res_fft=numpy.fft.fftn(res_fft, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
 	res_fft=numpy.fft.fftshift(res_fft, axes=axes_tuple)
-	
+
 	k_cubed_log_res_fft = (log10(abs(res_fft)))[np.fft.fftshift(np.fft.fftfreq(nf))!=0]
 	# k_cubed_log_res_fft = (log10(abs(res_fft*k_z[:,0,0]**3.)))[np.fft.fftshift(np.fft.fftfreq(38))!=0]
 	fig,ax = pylab.subplots(nrows=1, ncols=1, figsize=(20,20))
@@ -311,7 +311,7 @@ def generate_Jelic_cube_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k
 	default_cube_side_Mpc = 2048.0 #Size of EoR cube foreground simulation should match (used when calculating fits header variables)
 	default_redshift = 7.6 #Redshift of EoR cube foreground simulation should match (used when calculating fits header variables)
 
-	
+
 	##===== Inputs =======
 	generate_additional_extrapolated_HF_foreground_cube=kwargs.pop('generate_additional_extrapolated_HF_foreground_cube',default_generate_additional_extrapolated_HF_foreground_cube)
 	HF_nu_min_MHz=kwargs.pop('HF_nu_min_MHz',default_HF_nu_min_MHz)
@@ -339,16 +339,16 @@ def generate_Jelic_cube_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k
 
 	ED = ExtractDataFrom21cmFASTCube(plot_data=False)
 	bandwidth_MHz, central_frequency_MHz, output_21cmFast_box_width_deg = ED.calculate_box_size_in_degrees_and_MHz(cube_side_Mpc, redshift)
-	
+
 	DUC = DataUnitConversionmkandJyperpix()
 	Data_mK = Tb_nu*1.e3
 
-	
+
 	Channel_Frequencies_Array_Hz = nu_array_MHz*1.e6
 	Pixel_Height_rad = output_21cmFast_box_width_deg*(np.pi/180.)/Tb_nu.shape[1]
 	DUC.convert_from_mK_to_Jy_per_pix(Data_mK, Channel_Frequencies_Array_Hz, Pixel_Height_rad)
 	Data_Jy_per_Pixel = ED.convert_from_mK_to_Jy_per_pix(Data_mK, Channel_Frequencies_Array_Hz, Pixel_Height_rad)
-	
+
 	output_fits_file_name = 'Jelic_GDSE_cube_{:d}MHz.fits'.format(int(nu_min_MHz))
 	output_fits_path1 = fits_storage_dir+output_fits_file_name
 	output_fits_path2 = fits_storage_dir+'/ZNPS{:d}/'.format(int(nu_min_MHz))+output_fits_file_name
@@ -391,7 +391,7 @@ def generate_Jelic_cube_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k
 	scidata1 = Tb_nu_mK
 	# scidata1 = random_quad[0:nf,0:nu,0:nv]
 
-	
+
 	base_dir = 'Plots'
 	save_dir = base_dir+'/Likelihood_v1d75_3D_ZM/'
 	if not os.path.isdir(save_dir):
@@ -405,7 +405,7 @@ def generate_Jelic_cube_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k
 	vfft1=numpy.fft.fftshift(vfft1, axes=axes_tuple)
 
 	pylab.close('all')
-	
+
 	sci_f, sci_v, sci_u = vfft1.shape
 	sci_v_centre = sci_v/2
 	sci_u_centre = sci_u/2
@@ -450,7 +450,7 @@ def generate_Jelic_cube_instrumental_im_2_vis_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k
 	default_redshift = 7.6 #Redshift of EoR cube foreground simulation should match (used when calculating fits header variables)
 	default_save_fits = False #Redshift of EoR cube foreground simulation should match (used when calculating fits header variables)
 
-	
+
 	##===== Inputs =======
 	generate_additional_extrapolated_HF_foreground_cube=kwargs.pop('generate_additional_extrapolated_HF_foreground_cube',default_generate_additional_extrapolated_HF_foreground_cube)
 	HF_nu_min_MHz=kwargs.pop('HF_nu_min_MHz',default_HF_nu_min_MHz)
@@ -479,16 +479,16 @@ def generate_Jelic_cube_instrumental_im_2_vis_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k
 
 	ED = ExtractDataFrom21cmFASTCube(plot_data=False)
 	bandwidth_MHz, central_frequency_MHz, output_21cmFast_box_width_deg = ED.calculate_box_size_in_degrees_and_MHz(cube_side_Mpc, redshift)
-	
+
 	DUC = DataUnitConversionmkandJyperpix()
 	Data_mK = Tb_nu*1.e3
 
-	
+
 	Channel_Frequencies_Array_Hz = nu_array_MHz*1.e6
 	Pixel_Height_rad = output_21cmFast_box_width_deg*(np.pi/180.)/Tb_nu.shape[1]
 	DUC.convert_from_mK_to_Jy_per_pix(Data_mK, Channel_Frequencies_Array_Hz, Pixel_Height_rad)
 	Data_Jy_per_Pixel = ED.convert_from_mK_to_Jy_per_pix(Data_mK, Channel_Frequencies_Array_Hz, Pixel_Height_rad)
-	
+
 	output_fits_file_name = 'Jelic_GDSE_cube_{:d}MHz.fits'.format(int(nu_min_MHz))
 	output_fits_path1 = fits_storage_dir+output_fits_file_name
 	output_fits_path2 = fits_storage_dir+'/ZNPS{:d}/'.format(int(nu_min_MHz))+output_fits_file_name
@@ -531,7 +531,7 @@ def generate_Jelic_cube_instrumental_im_2_vis_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k
 	scidata1 = Tb_nu_mK
 	# scidata1 = random_quad[0:nf,0:nu,0:nv]
 
-	
+
 	base_dir = 'Plots'
 	save_dir = base_dir+'/Likelihood_v1d75_3D_ZM/'
 	if not os.path.isdir(save_dir):
@@ -545,7 +545,7 @@ def generate_Jelic_cube_instrumental_im_2_vis_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x, k
 	vfft1=numpy.fft.fftshift(vfft1, axes=axes_tuple)
 
 	pylab.close('all')
-	
+
 	sci_f, sci_v, sci_u = vfft1.shape
 	sci_v_centre = sci_v/2
 	sci_u_centre = sci_u/2
@@ -681,15 +681,15 @@ def generate_additional_HF_Jelic_cube(A,HF_nu_min_MHz,beta,fits_storage_dir,nu,n
 	# cube_side_Mpc = 2048.0
 	# redshift = 10.26
 	bandwidth_MHz, central_frequency_MHz, output_21cmFast_box_width_deg = ED.calculate_box_size_in_degrees_and_MHz(cube_side_Mpc, redshift)
-	
+
 	DUC = DataUnitConversionmkandJyperpix()
 	Data_mK = HF_Tb_nu*1.e3
-	
+
 	Channel_Frequencies_Array_Hz = HF_nu_array_MHz*1.e6
 	Pixel_Height_rad = output_21cmFast_box_width_deg*(np.pi/180.)/HF_Tb_nu.shape[1]
 	DUC.convert_from_mK_to_Jy_per_pix(Data_mK, Channel_Frequencies_Array_Hz, Pixel_Height_rad)
 	Data_Jy_per_Pixel = ED.convert_from_mK_to_Jy_per_pix(Data_mK, Channel_Frequencies_Array_Hz, Pixel_Height_rad)
-	
+
 	output_fits_file_name = 'Jelic_GDSE_cube_{:d}MHz_mK.fits'.format(int(HF_nu_min_MHz))
 	output_fits_path1 = fits_storage_dir+output_fits_file_name
 	output_fits_path2 = fits_storage_dir+'/ZNPS{:d}/'.format(int(HF_nu_min_MHz))+output_fits_file_name
@@ -700,7 +700,7 @@ def generate_additional_HF_Jelic_cube(A,HF_nu_min_MHz,beta,fits_storage_dir,nu,n
 	if write_to_file:
 		WD2F.write_data(Data_Jy_per_Pixel, output_fits_path1, Box_Side_cMpc=cube_side_Mpc, simulation_redshift=redshift)
 		WD2F.write_data(Data_Jy_per_Pixel, output_fits_path2, Box_Side_cMpc=cube_side_Mpc, simulation_redshift=redshift)
-	
+
 	output_fits_file_name = 'Jelic_GDSE_cube_{:d}MHz_mK.fits'.format(int(HF_nu_min_MHz))
 	output_fits_path1 = fits_storage_dir+output_fits_file_name
 	output_fits_path2 = fits_storage_dir+'/ZNPS{:d}/'.format(int(HF_nu_min_MHz))+output_fits_file_name
@@ -1035,51 +1035,62 @@ def generate_EoR_signal_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k
 	###
 	# Replace Gaussian signal with EoR cube
 	###
-	scidata1 = np.load(EoR_npz_path)['arr_0']
+	# scidata1 = np.load(EoR_npz_path)['arr_0']
+	#
+	# #Overwrite EoR cube with white noise
+	# # np.random.seed(21287254)
+	# # np.random.seed(123)
+	# # scidata1 = np.random.normal(0,scidata1.std()*1.,[nf,nu,nv])*0.5
+	# scidata1 = np.random.normal(0, scidata1.std() * 1.0, (nf, nu, nv))
+	# print('EoR cube (white noise) stddev = {} mK'.format(scidata1.std()))
+	#
+	#
+	# # if not p.fit_for_monopole:
+	# # 	d_im = scidata1.copy()
+	# # 	for i_chan in range(len(d_im)):
+	# # 		d_im[i_chan] = d_im[i_chan]-d_im[i_chan].mean()
+	# # scidata1 = d_im.copy()
+	#
+	# axes_tuple = (0,1,2)
+	# scidata1_kcube=numpy.fft.ifftshift(scidata1[0:nf]-scidata1[0:nf].mean()+0j, axes=axes_tuple)
+	# scidata1_kcube=numpy.fft.fftn(scidata1_kcube, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
+	# scidata1_kcube=numpy.fft.fftshift(scidata1_kcube, axes=axes_tuple)
+	#
+	# sci_f, sci_v, sci_u = scidata1_kcube.shape
+	# sci_v_centre = sci_v/2
+	# sci_u_centre = sci_u/2
+	# scidata1_kcube_subset = scidata1_kcube[0:nf,sci_u_centre-nu/2:sci_u_centre+nu/2+1,sci_v_centre-nv/2:sci_v_centre+nv/2+1]
+	#
+	# # if not p.use_intrinsic_noise_fitting:
+	# # 	###
+	# # 	#Zero modes that are not currently fit for until intrinsic noise fitting (which models these terms) has been implemented
+	# # 	###
+	# # 	print 'No intrinsic noise fitting model. Low-pass filtering the EoR cube'
+	# # 	Hermitian_small_spacial_scale_mask = np.zeros(scidata1_kcube_subset.shape)
+	# # 	Hermitian_small_spacial_scale_mask[0] = 1 #Nyquist mode
+	# # 	Hermitian_small_spacial_scale_mask[1] = 1 #2nd highest freq
+	# # 	# Hermitian_small_spacial_scale_mask[2] = 1 #3nd highest freq
+	# # 	# Hermitian_small_spacial_scale_mask[-2] = 1 #3nd highest freq
+	# # 	Hermitian_small_spacial_scale_mask[-1] = 1 #2nd highest freq
+	# # 	scidata1_kcube_subset[Hermitian_small_spacial_scale_mask.astype('bool')] = 0.0
+	# # 	# scidata1_kcube_subset[Hermitian_small_spacial_scale_mask.astype('bool')] *= 1.e1
+	# # else:
+	# # 	print 'Intrinsic noise fitting model included. Using full EoR cube (no low-pass filter)'
+	#
+	# axes_tuple = (0,1,2)
+	# scidata1_subset=numpy.fft.ifftshift(scidata1_kcube_subset+0j, axes=axes_tuple)
+	# scidata1_subset=numpy.fft.ifftn(scidata1_subset, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
+	# scidata1_subset=numpy.fft.fftshift(scidata1_subset, axes=axes_tuple)
 
-	#Overwrite EoR cube with white noise
-	# np.random.seed(21287254)
-	# np.random.seed(123)
-	# scidata1 = np.random.normal(0,scidata1.std()*1.,[nf,nu,nv])*0.5
-
-
-	# if not p.fit_for_monopole:
-	# 	d_im = scidata1.copy()
-	# 	for i_chan in range(len(d_im)):
-	# 		d_im[i_chan] = d_im[i_chan]-d_im[i_chan].mean()
-	# scidata1 = d_im.copy()
-
-	axes_tuple = (0,1,2)
-	scidata1_kcube=numpy.fft.ifftshift(scidata1[0:nf]-scidata1[0:nf].mean()+0j, axes=axes_tuple)
-	scidata1_kcube=numpy.fft.fftn(scidata1_kcube, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
-	scidata1_kcube=numpy.fft.fftshift(scidata1_kcube, axes=axes_tuple)
-
-	sci_f, sci_v, sci_u = scidata1_kcube.shape
-	sci_v_centre = sci_v/2
-	sci_u_centre = sci_u/2
-	scidata1_kcube_subset = scidata1_kcube[0:nf,sci_u_centre-nu/2:sci_u_centre+nu/2+1,sci_v_centre-nv/2:sci_v_centre+nv/2+1]
-
-	# if not p.use_intrinsic_noise_fitting:
-	# 	###
-	# 	#Zero modes that are not currently fit for until intrinsic noise fitting (which models these terms) has been implemented
-	# 	###
-	# 	print 'No intrinsic noise fitting model. Low-pass filtering the EoR cube'
-	# 	Hermitian_small_spacial_scale_mask = np.zeros(scidata1_kcube_subset.shape)
-	# 	Hermitian_small_spacial_scale_mask[0] = 1 #Nyquist mode
-	# 	Hermitian_small_spacial_scale_mask[1] = 1 #2nd highest freq
-	# 	# Hermitian_small_spacial_scale_mask[2] = 1 #3nd highest freq
-	# 	# Hermitian_small_spacial_scale_mask[-2] = 1 #3nd highest freq
-	# 	Hermitian_small_spacial_scale_mask[-1] = 1 #2nd highest freq
-	# 	scidata1_kcube_subset[Hermitian_small_spacial_scale_mask.astype('bool')] = 0.0
-	# 	# scidata1_kcube_subset[Hermitian_small_spacial_scale_mask.astype('bool')] *= 1.e1
-	# else:
-	# 	print 'Intrinsic noise fitting model included. Using full EoR cube (no low-pass filter)'
-
-	axes_tuple = (0,1,2)
-	scidata1_subset=numpy.fft.ifftshift(scidata1_kcube_subset+0j, axes=axes_tuple)
-	scidata1_subset=numpy.fft.ifftn(scidata1_subset, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
-	scidata1_subset=numpy.fft.fftshift(scidata1_subset, axes=axes_tuple)
-
+	# Temporary workaround
+	# Make a cube in the subset space using a stddev scaled to match the healvis sky realizations
+	np.random.seed(12346)
+	rms_mK = 1.0341928997136198 # scaled to match healvis sims for nx = 9
+	# rms_mK = 0.8043383678108019 # scaled to match healvis sims for nx = 7
+	scidata1_subset = np.random.normal(0, rms_mK, (nf, ny, nx))
+	scidata1 = scidata1_subset.copy()
+	for i_f in range(nf):
+		scidata1_subset[i_f] -= scidata1_subset[i_f].mean()
 	# scidata1_subset = scidata1_subset/scidata1_kcube.size**0.5
 
 	s = np.dot(Finv,scidata1_subset.reshape(-1,1)).flatten()
@@ -1395,7 +1406,7 @@ def calculate_21cmFAST_EoR_cube_power_spectrum_in_subset_cube_bins_v1d0(nu,nv,nx
 	k_y_max = k_y.max()
 	k_xy_subset_selector = np.logical_and(np.logical_and(full_cube_k_x>=k_x_min, full_cube_k_x<=k_x_max),np.logical_and(full_cube_k_y>=k_y_min, full_cube_k_y<=k_y_max))
 
-	
+
 	bin_limits_array = []
 	subset_cube_mean_ks = []
 	subset_cube_variances = []
@@ -1675,7 +1686,7 @@ def generate_data_from_loaded_EGS_cube_im_2_vis_v2d0(nu,nv,nx,ny,nf,neta,nq,k_x,
 # 	vfft1=numpy.fft.ifftshift(image_cube[0:nf]-image_cube[0].mean()+0j, axes=axes_tuple)
 # 	vfft1=numpy.fft.fftn(vfft1, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
 # 	vfft1=numpy.fft.fftshift(vfft1, axes=axes_tuple)
-	
+
 # 	sci_f, sci_v, sci_u = vfft1.shape
 # 	sci_v_centre = sci_v/2
 # 	sci_u_centre = sci_u/2
@@ -1710,12 +1721,12 @@ def generate_test_signal_from_image_cube(nu,nv,nx,ny,nf,neta,nq,image_cube_mK,ou
 	GFC = GenerateForegroundCube(nu,nv,neta,nq, beta_experimental_mean, beta_experimental_std, gamma_mean, gamma_sigma, Tb_experimental_mean_K, Tb_experimental_std_K, nu_min_MHz, channel_width_MHz)
 
 	Tb_nu, A, beta, Tb, nu_array_MHz = GFC.generate_normalised_Tb_A_and_beta_fields(513,513,513,513,nf,neta,nq)
-	
+
 	ED = ExtractDataFrom21cmFASTCube(plot_data=False)
 	cube_side_Mpc = 2048.0
 	redshift = 10.26
 	bandwidth_MHz, central_frequency_MHz, output_21cmFast_box_width_deg = ED.calculate_box_size_in_degrees_and_MHz(cube_side_Mpc, redshift)
-	
+
 	DUC = DataUnitConversionmkandJyperpix()
 
 	Data_mK = image_cube_mK
@@ -1724,7 +1735,7 @@ def generate_test_signal_from_image_cube(nu,nv,nx,ny,nf,neta,nq,image_cube_mK,ou
 	Pixel_Height_rad = output_21cmFast_box_width_deg*(np.pi/180.)/Tb_nu.shape[1]
 	DUC.convert_from_mK_to_Jy_per_pix(Data_mK, Channel_Frequencies_Array_Hz, Pixel_Height_rad)
 	Data_Jy_per_Pixel = ED.convert_from_mK_to_Jy_per_pix(Data_mK, Channel_Frequencies_Array_Hz, Pixel_Height_rad)
-	
+
 	# output_fits_file_name = 'Quad_only.fits'
 	# output_fits_file_name = 'White_noise_cube_with_quad.fits'
 	# output_fits_file_name = 'Jelic_GDSE_cube.fits'
@@ -1748,7 +1759,7 @@ def Generate_Poisson_Distribution_with_Exact_Input_Mean(Mean, N_Data_Points, **k
 	#
 	P = stats.poisson.rvs(Mean, size=N_Data_Points)
 	Target_Sum=int(N_Data_Points*Mean)
-	
+
 	###
 	Print=True
 	#
@@ -1756,28 +1767,28 @@ def Generate_Poisson_Distribution_with_Exact_Input_Mean(Mean, N_Data_Points, **k
 		if key==('Target_Sum'):Target_Sum=kwargs[key]
 		if key==('Print'):Print=kwargs[key]
 
-	
+
 	if Print: print 'Target_Sum', Target_Sum
 	while sum(P)>Target_Sum:
 		P = stats.poisson.rvs(Mean, size=N_Data_Points)
-	
+
 	Sum_Current_P_Dist=sum(P)
 	if Print: print 'Sum_Current_P_Dist', Sum_Current_P_Dist
 	while Sum_Current_P_Dist!=Target_Sum:
 		Updated_Mean=(Target_Sum-Sum_Current_P_Dist)/float(N_Data_Points)
-		
+
 		Sum_Current_P_Dist=sum(P)
 		Potential_Supplementary_P=stats.poisson.rvs(abs(Updated_Mean), size=N_Data_Points)
 		while (Sum_Current_P_Dist+sum(Potential_Supplementary_P))>Target_Sum:
 			Potential_Supplementary_P=stats.poisson.rvs(abs(Updated_Mean), size=N_Data_Points)
-		
+
 		P+=Potential_Supplementary_P
 		Sum_Current_P_Dist=sum(P)
 		if Print: print 'Sum_Current_P_Dist', Sum_Current_P_Dist
-	
+
 	return P
-	
-	
+
+
 
 # Poisson_16deg_1div32_res = Generate_Poisson_Distribution_with_Exact_Input_Mean(10.0, 512*512).reshape(512,512)
 # print Poisson_16deg_1div32_res.std()
@@ -1825,7 +1836,7 @@ def Generate_Poisson_Distribution_with_Exact_Input_Mean(Mean, N_Data_Points, **k
 # pylab.show()
 
 
-	
+
 ## ======================================================================================================
 ## ======================================================================================================
 
