@@ -455,7 +455,8 @@ class BuildMatrices(BuildMatrixTree):
 		beam_peak_amplitude = p.beam_peak_amplitude
 		deg_to_pix = image_size_pix / float(p.simulation_FoV_deg)
 		FWHM_deg_at_chan_freq_MHz = [p.FWHM_deg_at_ref_freq_MHz*(float(p.PB_ref_freq_MHz)/chan_freq_MHz) for chan_freq_MHz in nu_array_MHz]
-		FWHM_pix_at_chan_freq_MHz = [FWHM_deg*deg_to_pix for FWHM_deg in FWHM_deg_at_chan_freq_MHz]
+		# FWHM_pix_at_chan_freq_MHz = [FWHM_deg*deg_to_pix for FWHM_deg in FWHM_deg_at_chan_freq_MHz]
+		FWHM_pix_at_chan_freq_MHz = [p.FWHM_deg_at_ref_freq_MHz*deg_to_pix for _ in nu_array_MHz]
 		if not p.model_drift_scan_primary_beam:
 			if p.beam_type.lower() == 'gaussian':
 				multi_chan_P = self.sd_block_diag([np.diag(make_Gaussian_beam(image_size_pix,FWHM_pix,beam_peak_amplitude).flatten()) for FWHM_pix in FWHM_pix_at_chan_freq_MHz])
@@ -469,9 +470,11 @@ class BuildMatrices(BuildMatrixTree):
 				time_step_range = range(np.round(-p.nt/2),np.round(p.nt/2),1)
 				pointing_center_HA_pix_offset_array = np.array([i_min*p.integration_time_minutes*degrees_per_minute_of_time*deg_to_pix for i_min in time_step_range]) #Matches offset of pointing center from zenith as a function of time used when calculating the uv-coords in calc_UV_coords_v1d2.py (i.e. the uv-coords in self.uvw_multi_time_step_array_meters). The zenith (and hence PB center) coords will thus be the negative of this array (as used below).
 				if not p.use_sparse_matrices:
-					multi_chan_P_drift_scan = np.vstack([block_diag(*[np.diag(make_Gaussian_beam(image_size_pix,FWHM_pix,beam_peak_amplitude,center_pix=[image_size_pix/2-pointing_center_HA_pix_offset,image_size_pix/2] ).flatten()) for FWHM_pix in FWHM_pix_at_chan_freq_MHz]) for pointing_center_HA_pix_offset in pointing_center_HA_pix_offset_array])
+					# multi_chan_P_drift_scan = np.vstack([block_diag(*[np.diag(make_Gaussian_beam(image_size_pix,FWHM_pix,beam_peak_amplitude,center_pix=[image_size_pix/2-pointing_center_HA_pix_offset,image_size_pix/2] ).flatten()) for FWHM_pix in FWHM_pix_at_chan_freq_MHz]) for pointing_center_HA_pix_offset in pointing_center_HA_pix_offset_array])
+					multi_chan_P_drift_scan = np.vstack([block_diag(*[np.diag(make_Gaussian_beam(image_size_pix,FWHM_pix,beam_peak_amplitude,center_pix=[image_size_pix/2-pointing_center_HA_pix_offset,image_size_pix/2] ).flatten(order='F')) for FWHM_pix in FWHM_pix_at_chan_freq_MHz]) for pointing_center_HA_pix_offset in pointing_center_HA_pix_offset_array])
 				else:
-					multi_chan_P_drift_scan = sparse.vstack([sparse.block_diag([sparse.diags(make_Gaussian_beam(image_size_pix,FWHM_pix,beam_peak_amplitude,center_pix=[image_size_pix/2-pointing_center_HA_pix_offset,image_size_pix/2] ).flatten()) for FWHM_pix in FWHM_pix_at_chan_freq_MHz]) for pointing_center_HA_pix_offset in pointing_center_HA_pix_offset_array])
+					# multi_chan_P_drift_scan = sparse.vstack([sparse.block_diag([sparse.diags(make_Gaussian_beam(image_size_pix,FWHM_pix,beam_peak_amplitude,center_pix=[image_size_pix/2-pointing_center_HA_pix_offset,image_size_pix/2] ).flatten()) for FWHM_pix in FWHM_pix_at_chan_freq_MHz]) for pointing_center_HA_pix_offset in pointing_center_HA_pix_offset_array])
+					multi_chan_P_drift_scan = sparse.vstack([sparse.block_diag([sparse.diags(make_Gaussian_beam(image_size_pix,FWHM_pix,beam_peak_amplitude,center_pix=[image_size_pix/2-pointing_center_HA_pix_offset,image_size_pix/2] ).flatten(order='F')) for FWHM_pix in FWHM_pix_at_chan_freq_MHz]) for pointing_center_HA_pix_offset in pointing_center_HA_pix_offset_array])
 				multi_chan_P = multi_chan_P_drift_scan
 			elif p.beam_type.lower() == 'uniform': #Uniform beam is unaltered by drift scan modelling
 				# multi_chan_P = self.sd_block_diag([np.diag(make_Uniform_beam(image_size_pix,beam_peak_amplitude).flatten()) for FWHM_pix in FWHM_pix_at_chan_freq_MHz])
