@@ -12,12 +12,12 @@ from BayesEoR.Utils import Cosmology
 try:
 	import pycuda.autoinit
 	import pycuda.driver as cuda
-	for devicenum in range(cuda.Device.count()):
-		device=cuda.Device(devicenum)
-		attrs=device.get_attributes()
-		print("\n===Attributes for device %d"%devicenum)
-		for (key,value) in attrs.iteritems():
-			print("%s:%s"%(str(key),str(value)))
+	# for devicenum in range(cuda.Device.count()):
+	# 	device=cuda.Device(devicenum)
+	# 	attrs=device.get_attributes()
+	# 	print("\n===Attributes for device %d"%devicenum)
+	# 	for (key,value) in attrs.iteritems():
+	# 		print("%s:%s"%(str(key),str(value)))
 
 	import time
 	import numpy as np
@@ -85,6 +85,8 @@ class PowerSpectrumPosteriorProbability(object):
 		self.intrinsic_noise_fitting=kwargs.pop('intrinsic_noise_fitting',default_intrinsic_noise_fitting)
 		self.return_Sigma=kwargs.pop('return_Sigma',default_return_Sigma)
 		self.fit_for_spectral_model_parameters=kwargs.pop('fit_for_spectral_model_parameters',default_fit_for_spectral_model_parameters)
+		# Must pass k_vals with new normalization (v4d0)
+		self.k_vals = kwargs.pop('k_vals')
 
 		self.fit_single_elems = fit_single_elems
 		self.T_Ninv_T = T_Ninv_T
@@ -406,7 +408,8 @@ class PowerSpectrumPosteriorProbability(object):
 
 		full_power_spectrum_normalisation = 1.0 / (2.0*np.pi**2.*VOLUME)
 
-		dimensionless_PS_scaling = (self.modk_vis_ordered_list[i_bin]**3.)*full_power_spectrum_normalisation
+		# dimensionless_PS_scaling = (self.modk_vis_ordered_list[i_bin]**3.)*full_power_spectrum_normalisation
+		dimensionless_PS_scaling = (self.k_vals[i_bin]**3.)*full_power_spectrum_normalisation
 
 		if not p.include_instrumental_effects: #Account for / undo the extra (vfft1[0].size**0.5) scaling factor that is currently in the non-instrumental data creation functions
 			dimensionless_PS_scaling = dimensionless_PS_scaling*float(p.box_size_21cmFAST_pix_sc)**2.
@@ -611,8 +614,4 @@ class PowerSpectrumPosteriorProbability(object):
 		except Exception as e:
 			print 'Exception encountered...'
 			print e
-			return -np.inf, phi
-
-
-#
-#
+			return -np.inf
