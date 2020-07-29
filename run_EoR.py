@@ -49,6 +49,29 @@ nu=p.nu
 nv=p.nv
 nx=p.nx
 ny=p.ny
+
+# FoV can now be passed as a command line argument
+p.uv_pixel_width_wavelengths = 1.0 / np.deg2rad(p.simulation_FoV_deg)
+
+# Temporary healpix params and imports
+p.sky_model_pixel_area_sr = 4 * np.pi / (12 * p.nside**2)
+if p.simulation_FoV_deg == 12.9080728652 / 2:
+	# Temporary fix for FoV / 2 test
+	p.sky_model_pixel_area_sr /= 2.0**2
+
+if p.nside == 16:
+	p.n_hpx_pix = 10
+elif p.nside == 32:
+	p.n_hpx_pix = 45
+elif p.nside == 64:
+	p.n_hpx_pix = 170
+elif p.nside == 128:
+	p.n_hpx_pix = 688
+elif p.nside == 256:
+	p.n_hpx_pix = 2746
+elif p.nside == 512:
+	p.n_hpx_pix = 10927
+
 # Data noise
 if not 'noise_data_path' in p.__dict__.keys():
 	sigma = p.sigma
@@ -68,6 +91,8 @@ if p.include_instrumental_effects:
 		sigma = sigma*average_baseline_redundancy**0.5
 	else:
 		sigma = sigma*1.
+
+	phasor_vector = np.load(os.path.join(p.instrument_model_directory, 'phasor_vector.npy'))
 else:
 	sigma = sigma*1.
 
@@ -116,22 +141,50 @@ if npl==2:
 	array_save_directory=array_save_directory.replace('_sigma', '_b1_{:.2E}_b2_{:.2E}_sigma'.format(p.beta[0], p.beta[1]))
 if p.fit_for_monopole:
 	array_save_directory = array_save_directory[:-1]+'_fit_for_monopole_eq_True/'
+array_save_directory = array_save_directory[:-1] + '_nside{}_healpix_coords/'.format(p.nside)
+# Adding a FoV specific bit to the array save directory for FoV tests
+array_save_directory = array_save_directory[:-1] + '_fov_deg_{:.1f}/'.format(p.simulation_FoV_deg)
 
 #--------------------------------------------
 # Construct matrices
 #--------------------------------------------
 if p.include_instrumental_effects:
 	if not 'noise_data_path' in p.__dict__.keys():
-		BM = BuildMatrices(array_save_directory, nu, nv, nx, ny, n_vis, neta, nf, nq, sigma, npl=npl, uvw_multi_time_step_array_meters = uvw_multi_time_step_array_meters, uvw_multi_time_step_array_meters_vectorised=uvw_multi_time_step_array_meters_vectorised, baseline_redundancy_array_time_vis_shaped = baseline_redundancy_array_time_vis_shaped, baseline_redundancy_array_vectorised = baseline_redundancy_array_vectorised, beam_type = p.beam_type, beam_peak_amplitude = p.beam_peak_amplitude, FWHM_deg_at_ref_freq_MHz = p.FWHM_deg_at_ref_freq_MHz, PB_ref_freq_MHz = p.PB_ref_freq_MHz)
+		BM = BuildMatrices(array_save_directory, nu, nv, nx, ny,
+						   n_vis, neta, nf, nq, sigma, npl=npl,
+						   uvw_multi_time_step_array_meters = uvw_multi_time_step_array_meters,
+						   uvw_multi_time_step_array_meters_vectorised=uvw_multi_time_step_array_meters_vectorised,
+						   baseline_redundancy_array_time_vis_shaped = baseline_redundancy_array_time_vis_shaped,
+						   baseline_redundancy_array_vectorised = baseline_redundancy_array_vectorised,
+						   phasor_vector = phasor_vector,
+						   beam_type = p.beam_type,
+						   beam_peak_amplitude = p.beam_peak_amplitude,
+						   FWHM_deg_at_ref_freq_MHz = p.FWHM_deg_at_ref_freq_MHz,
+						   PB_ref_freq_MHz = p.PB_ref_freq_MHz)
 	else:
-		BM = BuildMatrices(array_save_directory, nu, nv, nx, ny, n_vis, neta, nf, nq, sigma, npl=npl, uvw_multi_time_step_array_meters = uvw_multi_time_step_array_meters, uvw_multi_time_step_array_meters_vectorised=uvw_multi_time_step_array_meters_vectorised, baseline_redundancy_array_time_vis_shaped = baseline_redundancy_array_time_vis_shaped, baseline_redundancy_array_vectorised = baseline_redundancy_array_vectorised, beam_type = p.beam_type, beam_peak_amplitude = p.beam_peak_amplitude, FWHM_deg_at_ref_freq_MHz = p.FWHM_deg_at_ref_freq_MHz, PB_ref_freq_MHz = p.PB_ref_freq_MHz, effective_noise=effective_noise)
+		BM = BuildMatrices(array_save_directory, nu, nv, nx, ny,
+						   n_vis, neta, nf, nq, sigma, npl=npl,
+						   uvw_multi_time_step_array_meters = uvw_multi_time_step_array_meters,
+						   uvw_multi_time_step_array_meters_vectorised=uvw_multi_time_step_array_meters_vectorised,
+						   baseline_redundancy_array_time_vis_shaped = baseline_redundancy_array_time_vis_shaped,
+						   baseline_redundancy_array_vectorised = baseline_redundancy_array_vectorised,
+						   phasor_vector = phasor_vector,
+						   beam_type = p.beam_type,
+						   beam_peak_amplitude = p.beam_peak_amplitude,
+						   FWHM_deg_at_ref_freq_MHz = p.FWHM_deg_at_ref_freq_MHz,
+						   PB_ref_freq_MHz = p.PB_ref_freq_MHz,
+						   effective_noise=effective_noise)
 else:
 	BM = BuildMatrices(array_save_directory, nu, nv, nx, ny, n_vis, neta, nf, nq, sigma, npl=npl)
 
 # sys.exit()
-
-overwrite_existing_matrix_stack = False #Can be set to False unless npl>0
-proceed_without_overwrite_confirmation = False #Allows overwrite_existing_matrix_stack to be run without having to manually accept the deletion of the old matrix stack
+if p.overwrite_matrices:
+	print('Overwriting matrix stack')
+	overwrite_existing_matrix_stack = True #Can be set to False unless npl>0
+	proceed_without_overwrite_confirmation = True #Allows overwrite_existing_
+else:
+	overwrite_existing_matrix_stack = False #Can be set to False unless npl>0
+	proceed_without_overwrite_confirmation = False #Allows overwrite_existing_matrix_stack to be run without having to manually accept the deletion of the old matrix stack
 BM.build_minimum_sufficient_matrix_stack(overwrite_existing_matrix_stack=overwrite_existing_matrix_stack, proceed_without_overwrite_confirmation=proceed_without_overwrite_confirmation)
 
 #--------------------------------------------
@@ -146,7 +199,8 @@ k_z_masked = generate_masked_coordinate_cubes(k_z, nu,nv,nx,ny,nf,neta,nq)
 mod_k_masked = generate_masked_coordinate_cubes(mod_k, nu,nv,nx,ny,nf,neta,nq)
 k_cube_voxels_in_bin, modkbins_containing_voxels = generate_k_cube_model_spherical_binning_v2d1(mod_k_masked, k_z_masked, nu,nv,nx,ny,nf,neta,nq)
 modk_vis_ordered_list = [mod_k_masked[k_cube_voxels_in_bin[i_bin]] for i_bin in range(len(k_cube_voxels_in_bin))]
-k_vals_file_name = 'k_vals_nu_{}_nv_{}_nf_{}_nq_{}_binning_v2d1.txt'.format(nu,nv,nf,nq)
+# k_vals_file_name = 'k_vals_nu_{}_nv_{}_nf_{}_nq_{}_binning_v2d1.txt'.format(nu,nv,nf,nq)
+k_vals_file_name = 'k_vals_nu_{}_nv_{}_nf_{}_nq_{}_binning_v2d1_fov{:.1f}.txt'.format(nu,nv,nf,nq, p.simulation_FoV_deg)
 k_vals = calc_mean_binned_k_vals(mod_k_masked, k_cube_voxels_in_bin, save_k_vals=True, k_vals_file=k_vals_file_name)
 do_cylindrical_binning = False
 if do_cylindrical_binning:
@@ -211,6 +265,9 @@ if p.include_instrumental_effects:
 
 	if not 'noise_data_path' in p.__dict__.keys():
 		EoR_noise_seed = 742123
+		# EoR_noise_seed = 837463
+		# EoR_noise_seed = 938475
+		# EoR_noise_seed = 182654
 		print 'EoR_noise_seed =', EoR_noise_seed
 		d = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(1.0*sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,uvw_multi_time_step_array_meters_vectorised,baseline_redundancy_array_vectorised,random_seed=EoR_noise_seed)[0]
 		effective_noise = generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(1.0*sigma, s_EoR, nu,nv,nx,ny,nf,neta,nq,uvw_multi_time_step_array_meters_vectorised,baseline_redundancy_array_vectorised,random_seed=EoR_noise_seed)[1]
@@ -300,6 +357,7 @@ if sub_ML_monopole_term_model:
 # PolyChord setup
 ###
 # log_priors_min_max = [[-5.0, 3.0] for _ in range(nDims)]
+# log_priors_min_max = [[-2.0, 6.0] for _ in range(nDims)]
 log_priors_min_max = [[-1.0, 7.0] for _ in range(nDims)]
 if p.use_LWM_Gaussian_prior:
 	fg_log_priors_min = np.log10(1.e5) #Set minimum LW model priors using LW power spectrum in fit to white noise (i.e the prior min should incorporate knowledge of signal-removal in iterative pre-subtraction

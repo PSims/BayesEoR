@@ -17,7 +17,7 @@ Analysis settings
 ###
 nf=38
 neta=38
-nu=9
+nu=9 # 9 for 12.9 deg FoV, 7 for 9.68 deg FoV, 5 for 6.45 deg FoV
 nv=9
 nx=9
 ny=9
@@ -40,7 +40,11 @@ box_size_21cmFAST_Mpc = 512 #Must match EoR_npz_path parameters
 # EoR_npz_path_sc = '/users/psims/EoR/EoR_simulations/21cmFAST_2048MPc_2048pix_512pix_AstroParamExploration1/Fits/npzs/Zeta10.0_Tvir1.0e+05_mfp22.2_Taue0.041_zre-1.000_delz-1.000_512_2048Mpc/21cm_mK_z7.600_nf0.883_useTs0.0_aveTb21.06_cube_side_pix512_cube_side_Mpc2048.npz'
 EoR_npz_path_sc = '/users/jburba/data/shared/PSims/BayesEoR_files_P/EoRsims/Hoag19/21cm_mK_z7.600_nf0.883_useTs0.0_aveTb21.06_cube_side_pix512_cube_side_Mpc2048.npz'
 box_size_21cmFAST_pix_sc = 512 #Must match EoR_npz_path parameters
-box_size_21cmFAST_Mpc_sc = 2048 #Must match EoR_npz_path parameters
+box_size_21cmFAST_Mpc_sc = 2048 #Must match EoR_npz_path parameters; matches fov = 12.9 deg
+# box_size_21cmFAST_Mpc_sc = 512 # FoV / 4
+# box_size_21cmFAST_Mpc_sc = 2560 # matches fov = 16.1350910815 deg
+# box_size_21cmFAST_Mpc_sc = 1536 # matches fov = 9.68 deg
+# box_size_21cmFAST_Mpc_sc = 1024 # matches fov = 6.45 deg
 # box_size_21cmFAST_Mpc_sc = 1903.92479627 # Cosmological angular distance corresponding to a field of view of 12.0 degrees and bandwidth of 7.6 MHz centered on 162.7 MHz
 
 
@@ -67,12 +71,16 @@ channel_width_MHz = 0.237618986858 # Corresponds to the channel width for a LOS 
 # simulation_FoV_deg = 22.918311805232932 # chosen as uv_pixel_wavelengths = 2.5 and fov = np.rad2deg(1 / 2.5) ~ 22 degrees # 12.0 deg Matches EoR simulation
 # simulation_FoV_deg = 30.0
 simulation_FoV_deg = 12.9080728652 # Corresponds to the angular extent of a 2048 Mpc patch of sky at redshift z~7 (band centerd on 162.7 MHz)
+# simulation_FoV_deg = 16.1350910815 # 125% of the 12.9 deg FoV
+# simulation_FoV_deg = 9.6810546489 # 75% of the 12.9 deg FoV
+# simulation_FoV_deg = 6.4540364326 # 50% of the 12.9 deg FoV
+# simulation_FoV_deg = 12.9080728652
 simulation_resolution_deg = simulation_FoV_deg/511. #Matches EoR sim (note: use closest odd val., so 127 rather than 128, for easier FFT normalisation)
 fits_storage_dir = 'fits_storage/multi_frequency_band_pythonPStest1/Jelic_nu_min_MHz_{}_TbStd_{}_beta_{}_dbeta{}/'.format(nu_min_MHz, Tb_experimental_std_K, beta_experimental_mean, beta_experimental_std).replace('.','d')
 # HF_nu_min_MHz_array = [210,220,230]
 HF_nu_min_MHz_array = [220]
 
-sky_model_pixel_area_sr = np.deg2rad(simulation_FoV_deg / nx)**2 # pixel area in steradians of the sky model
+# sky_model_pixel_area_sr = np.deg2rad(simulation_FoV_deg / nx)**2 # pixel area in steradians of the sky model
 # sigma = 50.e-1*1000.0 * sky_model_pixel_area_sr
 # sigma = 0.001555210668254031 # 0.3 * np.std(hv_data in mK sr) - calculated for flatspec/uniform beam data
 # sigma = 0.00018327540647584584 # for 1.5 deg FWHM beam data
@@ -82,16 +90,35 @@ sky_model_pixel_area_sr = np.deg2rad(simulation_FoV_deg / nx)**2 # pixel area in
 # sigma = 0.0006385239458905794 # 0.9 sigma for 2 deg FWHM beam data
 # sigma = 0.001064206576484299 # 1.5 sigma for 2 deg FWHM beam data
 # sigma = 0.0014189421019790652 # 2 sigma for 2 deg FWHM beam data
+# sigma = 0.0028023032520515297 # 0.5 sigma for uniform beam data
 # sigma = 0.0050441458536927535 # 0.9 sigma for uniform beam data
+# sigma = 0.0056046065041030595 # 1.0 sigma for uniform beam data
 # sigma = 0.00840690975615459 # 1.5 sigma for uniform beam data
-sigma = 0.011209213008206119 # 2.0 sigma for uniform beam data
+# sigma = 0.011209213008206119 # 2.0 sigma for uniform beam data
 # sigma = 0.014011516260257649 # 2.5 sigma for uniform beam data
-# sigma = 0.01681381951230918 # 3.0 sigma for uniform beam data
+# sigma = 0.01681381951230918 # 3.0 sigma for uniform beam data, 12.9 deg FoV
+# sigma = 0.012570646180871881 # 3.0 sigma for uniform beam data, 9.68 deg FoV
+# sigma = 0.007500935038551581 # 3.0 sigma for uniform beam data, 6.45 deg FoV
+# sigma = 0.002728991303549445 # 0.5 sigma for uniform beam data, |b| < 15.0 m
+# sigma = 0.00545798260709889 # 1.0 sigma for uniform beam data, |b| < 15.0 m
+# sigma = 0.01091596521419778 # 2.0 sigma for uniform beam data, |b| < 15.0 m
+# sigma = 0.01637394782129667 # 3.0 sigma for uniform beam data, |b| < 15.0 m
+# sigma = 0.0026709940713463766 # 0.5 sigma for uniform beam data, HERA 127-5m
+# sigma = 0.005341988142692753 # 1.0 sigma for uniform beam data, HERA 127-5m
+# sigma = 0.010683976285385506 # 2.0 sigma for uniform beam data, HERA 127-5m
+# sigma = 0.01602596442807826 # 3.0 sigma for uniform beam data, HERA 127-5m
+
+# sigma = 0.00036521282173154935 # 0.5 sigma for FWHM=2 deg gaussian beam data, HERA 127-5m
+# sigma = 0.0007304256434630987 # 1.0 sigma for FWHM=2 deg gaussian beam data, HERA 127-5m
+# sigma = 0.0014608512869261974 # 2.0 sigma for FWHM=2 deg gaussian beam data, HERA 127-5m
+# sigma = 0.0021912769303892962 # 3.0 sigma for FWHM=2 deg gaussian beam data, HERA 127-5m
+
 # sigma = 0.0029141736440333335 # 0.5 sigma for internal model data
 # sigma = 0.00524551255926 # 0.9 sigma for internal model data
 # sigma = 0.0116566945761 # 2.0 sigma for internal model data
 # sigma = 0.0145708682202 # 2.5 sigma for internal model data
 # sigma = 0.0174850418642 # 3.0 sigma for internal model data
+
 
 ###
 # diffuse free-free foreground params
@@ -158,13 +185,17 @@ if include_instrumental_effects:
 	###
 	# Obs params
 	###
-	nt = 30
+	nt = 1
 	integration_time_minutes = 0.5
 	integration_time_minutes_str = '{}'.format(integration_time_minutes).replace('.','d')
 	# instrument_model_directory = '/users/psims/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/Instrument_Model/HERA_331_baselines_shorter_than_29d3_for_{}_{}_min_time_steps/'.format(nt, integration_time_minutes_str)
-	instrument_model_directory = '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/HERA_19_healvis_model_for_{}_{}_min_time_steps/'.format(nt, integration_time_minutes_str)
+	# instrument_model_directory = '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/HERA_19_healvis_model_for_{}_{}_min_time_steps/'.format(nt, integration_time_minutes_str)
+	# instrument_model_directory = '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/HERA_19_healvis_model_for_{}_{}_min_time_steps_bl_less_than_15.0m/'.format(nt, integration_time_minutes_str)
+	instrument_model_directory = '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/HERA_127-5m_healvis_model_for_{}_{}_min_time_steps_bl_less_than_29.3m/'.format(nt, integration_time_minutes_str)
 	# uv_pixel_width_wavelengths = 2.5 #Define a fixed pixel width in wavelengths
-	uv_pixel_width_wavelengths = 1.0 / np.deg2rad(simulation_FoV_deg) # originally set to 2.5 for a 12.0 deg FoV
+	# uv_pixel_width_wavelengths = 1.0 / np.deg2rad(simulation_FoV_deg) # originally set to 2.5 for a 12.0 deg FoV
+	# Want to keep a fixed uv plane extent but vary resolution
+	# uv_pixel_width_wavelengths *= 9.0 / float(nu)
 	###
 	# Primary beam params
 	###

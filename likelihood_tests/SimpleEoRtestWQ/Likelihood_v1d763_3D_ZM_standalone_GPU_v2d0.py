@@ -403,7 +403,9 @@ class PowerSpectrumPosteriorProbability(object):
 		#define VOLUME (BOX_LEN*BOX_LEN*BOX_LEN) // in Mpc^3
 		# p_box[ct] += pow(k_mag,3)*pow(cabs(deldel_T[HII_C_INDEX(n_x, n_y, n_z)]), 2)/(2.0*PI*PI*VOLUME);
 		###
-		VOLUME = p.box_size_21cmFAST_Mpc_sc**3. #Full cube volume in Mpc^3
+		# VOLUME = p.box_size_21cmFAST_Mpc_sc**3. #Full cube volume in Mpc^3
+		# Temporary fix for varying the FoV while keeping the bandwidth fixed
+		VOLUME = p.box_size_21cmFAST_Mpc_sc**2 * 2048.0
 		VOLUME *= 1.0 * p.nf / p.box_size_21cmFAST_pix_sc # frequency axis is truncated by p.nf
 
 		full_power_spectrum_normalisation = 1.0 / (2.0*np.pi**2.*VOLUME)

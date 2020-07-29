@@ -62,7 +62,7 @@ class BuildMatrixTree(object):
 		self.matrix_prerequisites_dictionary['block_T_Ninv_T'] = ['T_Ninv_T']
 		self.matrix_prerequisites_dictionary['Fprime'] = ['multi_chan_idft_array_noZMchan']
 		if p.include_instrumental_effects:
-			self.matrix_prerequisites_dictionary['Finv'] = ['multi_chan_nudft', 'multi_chan_P']
+			self.matrix_prerequisites_dictionary['Finv'] = ['phasor_matrix', 'multi_chan_nudft', 'multi_chan_P']
 		else:
 			self.matrix_prerequisites_dictionary['Finv'] = ['multi_chan_dft_array_noZMchan']
 
@@ -214,6 +214,8 @@ class BuildMatrices(BuildMatrixTree):
 			#---
 			self.baseline_redundancy_array_time_vis_shaped = kwargs.pop('baseline_redundancy_array_time_vis_shaped')
 			self.baseline_redundancy_array_vectorised = kwargs.pop('baseline_redundancy_array_vectorised')
+			# Load in phasor data vector to phase data
+			self.phasor_vector = kwargs.pop('phasor_vector')
 			self.beam_type = kwargs.pop('beam_type')
 			self.beam_peak_amplitude = kwargs.pop('beam_peak_amplitude')
 			self.FWHM_deg_at_ref_freq_MHz = kwargs.pop('FWHM_deg_at_ref_freq_MHz')
@@ -283,6 +285,7 @@ class BuildMatrices(BuildMatrixTree):
 		self.matrix_construction_methods_dictionary['N'] = self.build_N
 		self.matrix_construction_methods_dictionary['multi_chan_nudft'] = self.build_multi_chan_nudft
 		self.matrix_construction_methods_dictionary['multi_chan_P'] = self.build_multi_chan_P
+		self.matrix_construction_methods_dictionary['phasor_matrix'] = self.build_phasor_matrix
 
 	def load_prerequisites(self, matrix_name):
 		prerequisite_matrices_dictionary = {}
@@ -330,8 +333,10 @@ class BuildMatrices(BuildMatrixTree):
 			AB = np.dot(matrix_A, matrix_B) #Use np.dot to calculate the dot product of np.arrays
 		else: #One of the matrices is sparse - need to use python matrix syntax (i.e. * for dot product)
 			#NOTE:sparse*dense=dense, dense*sparse=dense, sparse*sparse=sparse
-			print self.convert_sparse_to_dense_matrix(matrix_A).shape
-			print self.convert_sparse_to_dense_matrix(matrix_B).shape
+			# print self.convert_sparse_to_dense_matrix(matrix_A).shape
+			# print self.convert_sparse_to_dense_matrix(matrix_B).shape
+			print(matrix_A.shape)
+			print(matrix_B.shape)
 			AB = matrix_A * matrix_B
 		return AB
 
@@ -411,6 +416,34 @@ class BuildMatrices(BuildMatrixTree):
 		###
 		self.output_data(multi_chan_dft_array_noZMchan, self.array_save_directory, matrix_name, matrix_name)
 
+	def build_phasor_matrix(self):
+		"""
+		Build phasor matrix which is multiplied elementwise into the visibility
+		vector from Finv, constructed using unphased uvw coordinates, to produce
+		phased visibilities.
+
+		The phasor matrix is a diagonal matrix with the e^i\phi(t, u, v) phase
+		elements on the diagonal.  The phasor vector must be a part of the
+		instrument model being used.
+
+		NOTE: This function assumes that use_nvis_nchan_nt_ordering = True
+		"""
+		matrix_name = 'phasor_matrix'
+		pmd = self.load_prerequisites(matrix_name)
+		start = time.time()
+		print 'Performing matrix algebra'
+		if p.use_sparse_matrices:
+			phasor_matrix = sparse.diags(self.phasor_vector)
+		else:
+			phasor_matrix = np.diag(self.phasor_vector)
+		print 'Time taken: {}'.format(time.time() - start)
+		###
+		# Save matrix to HDF5 or sparse matrix to npz
+		###
+		self.output_data(phasor_matrix, self.array_save_directory,
+						 matrix_name, matrix_name)
+
+
 	def build_multi_chan_nudft(self):
 		"""
 		Build nudft array from (l,m,f) to (u,v,f) sampled by the instrument.
@@ -479,9 +512,11 @@ class BuildMatrices(BuildMatrixTree):
 			elif p.beam_type.lower() == 'uniform': #Uniform beam is unaltered by drift scan modelling
 				# multi_chan_P = self.sd_block_diag([np.diag(make_Uniform_beam(image_size_pix,beam_peak_amplitude).flatten()) for FWHM_pix in FWHM_pix_at_chan_freq_MHz])
 				if not p.use_sparse_matrices:
-					multi_chan_P_drift_scan = np.vstack([block_diag(*[np.diag(make_Uniform_beam(image_size_pix,beam_peak_amplitude).flatten()) for _ in range(p.nf)]) for _ in range(p.nt)])
+					# multi_chan_P_drift_scan = np.vstack([block_diag(*[np.diag(make_Uniform_beam(image_size_pix,beam_peak_amplitude).flatten()) for _ in range(p.nf)]) for _ in range(p.nt)])
+					multi_chan_P_drift_scan = np.vstack([block_diag(*[np.diag(np.ones(p.n_hpx_pix)) for _ in range(p.nf)]) for _ in range(p.nt)])
 				else:
-					multi_chan_P_drift_scan = sparse.vstack([sparse.block_diag([sparse.diags(make_Uniform_beam(image_size_pix,beam_peak_amplitude).flatten()) for _ in range(p.nf)]) for _ in range(p.nt)])
+					# multi_chan_P_drift_scan = sparse.vstack([sparse.block_diag([sparse.diags(make_Uniform_beam(image_size_pix,beam_peak_amplitude).flatten()) for _ in range(p.nf)]) for _ in range(p.nt)])
+					multi_chan_P_drift_scan = sparse.vstack([sparse.block_diag([sparse.diags(np.ones(p.n_hpx_pix)) for _ in range(p.nf)]) for _ in range(p.nt)])
 				multi_chan_P = multi_chan_P_drift_scan
 			else: #Uniform beam is unaltered by drift scan modelling
 				multi_chan_P = self.sd_block_diag([np.diag(make_Uniform_beam(image_size_pix,beam_peak_amplitude).flatten()) for FWHM_pix in FWHM_pix_at_chan_freq_MHz])
@@ -498,6 +533,7 @@ class BuildMatrices(BuildMatrixTree):
 		print 'Performing matrix algebra'
 		if p.include_instrumental_effects:
 			Finv = self.dot_product(pmd['multi_chan_nudft'], pmd['multi_chan_P'])
+			Finv = self.dot_product(pmd['phasor_matrix'], Finv)
 		else:
 			Finv = pmd['multi_chan_dft_array_noZMchan']
 		print 'Time taken: {}'.format(time.time()-start)

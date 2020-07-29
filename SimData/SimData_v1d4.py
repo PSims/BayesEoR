@@ -7,7 +7,7 @@ import sys
 import pylab
 from pdb import set_trace
 from pdb import set_trace as brk
-from numpy import * 
+from numpy import *
 import pylab
 import pylab as P
 import scipy
@@ -63,7 +63,7 @@ def generate_test_sim_signal(nu,nv,nx,ny,nf,neta):
 	bin_2_selector_in_model_mask = np.logical_and(bin_2_selector_in_model_mask, high_spatial_frequency_mask)
 	#----------------
 
-	k_cube_power_scaling_cube[bin_1_selector_in_model_mask] = k_sigma_1 #It would be more accurate to call this the k_cube_std_scaling_cube 
+	k_cube_power_scaling_cube[bin_1_selector_in_model_mask] = k_sigma_1 #It would be more accurate to call this the k_cube_std_scaling_cube
 	k_cube_power_scaling_cube[bin_2_selector_in_model_mask] = k_sigma_2 #It would be more accurate to call this the k_cube_std_scaling_cube
 
 	np.random.seed(123)
@@ -78,7 +78,7 @@ def generate_test_sim_signal(nu,nv,nx,ny,nf,neta):
 	ZM_mask = k_perp_3D>0.0
 	bin_1_selector_in_model_mask_and_ZM = np.logical_and.reduce((bin_1_selector_in_model_mask, ZM_mask))
 	bin_2_selector_in_model_mask_and_ZM = np.logical_and.reduce((bin_2_selector_in_model_mask, ZM_mask))
-	k_cube_signal = k_cube_power_scaling_cube*random_k	
+	k_cube_signal = k_cube_power_scaling_cube*random_k
 
 	axes_tuple = (0,1,2)
 	im_power_scaling=numpy.fft.ifftshift(random_k+0j, axes=axes_tuple)
@@ -167,7 +167,9 @@ def generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(nu,nv,nx,ny,nf,neta,bo
 	box_size_21cmFAST_pix = float(box_size_21cmFAST_pix)
 	box_size_21cmFAST_Mpc = float(box_size_21cmFAST_Mpc)
 	box_size_xy_MyCube_Mpc = box_size_21cmFAST_Mpc #I 2D DFT the whole (128, 128) pix = (512,512) Mpc channels. Taking a subset of the pixels in the uv-plane filters high resolution (high k-perp) values but doesn't alter deltakperp.
-	box_size_z_MyCube_Mpc = box_size_21cmFAST_Mpc*nf/box_size_21cmFAST_pix #I take a subset of the channels in the xyf cube i.e. before Fourier transforming. I then 1D DFT the subset. Therefore deltakpara, the smallest k-parallel value accessible, is now much larger because I have effectively filtered out the large scales (== low k) when taking the subset.
+	# box_size_z_MyCube_Mpc = box_size_21cmFAST_Mpc*nf/box_size_21cmFAST_pix #I take a subset of the channels in the xyf cube i.e. before Fourier transforming. I then 1D DFT the subset. Therefore deltakpara, the smallest k-parallel value accessible, is now much larger because I have effectively filtered out the large scales (== low k) when taking the subset.
+	# temporary fix for adjusting the FoV but keeping a fixed bandwidth
+	box_size_z_MyCube_Mpc = 2048.0 * nf / box_size_21cmFAST_pix
 	deltakperp = 2.*np.pi/box_size_xy_MyCube_Mpc
 	deltakpara=2.*pi/box_size_z_MyCube_Mpc
 	# EoRVolume = 770937185.063917
@@ -341,7 +343,7 @@ def generate_test_sim_signal_with_large_spectral_scales_2_HERA_Binning(nu,nv,nx,
 		n_elements = np.sum(np.logical_and.reduce((mod_k>modkbins[i_bin,0], mod_k<=modkbins[i_bin,1], k_z>0)))
 		if n_elements>0:
 			n_bins+=1
-	 		print i_bin, modkbins[i_bin,0], modkbins[i_bin,1], n_elements 
+	 		print i_bin, modkbins[i_bin,0], modkbins[i_bin,1], n_elements
 	 		total_elements+=n_elements
 	 		bin_selector_in_k_cube_mask.append(np.logical_and(mod_k>modkbins[i_bin,0], mod_k<=modkbins[i_bin,1], k_z>0))
 
@@ -373,10 +375,10 @@ def generate_test_sim_signal_with_large_spectral_scales_2_HERA_Binning(nu,nv,nx,
 	###
 	for i_bin in range(len(bin_selector_in_k_cube_mask)):
 		bin_selector_in_k_cube_mask[i_bin] = np.logical_and(bin_selector_in_k_cube_mask[i_bin], ZM_mask)
-	
+
 	#----------------
 	k_cube_signal = construct_GRN_scaled_hermitian_k_cube(nu,nv,neta,nq,bin_selector_in_k_cube_mask,k_sigma)
-	
+
 
 	axes_tuple = (0,1,2)
 	s_im=numpy.fft.ifftshift(k_cube_signal+0j, axes=axes_tuple)
@@ -482,7 +484,7 @@ def generate_test_sim_signal_with_large_spectral_scales_2_21cmFAST_Binning(nu,nv
 		n_elements = np.sum(np.logical_and.reduce((mod_k>modkbins[i_bin,0], mod_k<=modkbins[i_bin,1], k_z>0)))
 		if n_elements>0:
 			n_bins+=1
-	 		print i_bin, modkbins[i_bin,0], modkbins[i_bin,1], n_elements 
+	 		print i_bin, modkbins[i_bin,0], modkbins[i_bin,1], n_elements
 	 		total_elements+=n_elements
 	 		bin_selector_in_k_cube_mask.append(np.logical_and(mod_k>modkbins[i_bin,0], mod_k<=modkbins[i_bin,1], k_z>0))
 
@@ -530,7 +532,7 @@ def generate_test_sim_signal_with_large_spectral_scales_2_21cmFAST_Binning(nu,nv
 	#----------------
 
 	k_cube_signal = construct_GRN_scaled_hermitian_k_cube(nu,nv,neta,nq,bin_selector_in_k_cube_mask,k_sigma)
-	
+
 	axes_tuple = (0,1,2)
 	s_im=numpy.fft.ifftshift(k_cube_signal+0j, axes=axes_tuple)
 	s_im=numpy.fft.ifftn(s_im, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
@@ -599,7 +601,7 @@ def map_out_bins_for_power_spectral_coefficients_HERA_Binning(nu,nv,nx,ny,nf,net
 	else:
 		ZM_2D_and_high_spatial_frequencies_mask_vis_ordered = ZM_2D_mask_vis_ordered
 		# ZM_2D_and_high_spatial_frequencies_mask_vis_ordered = np.logical_and(ZM_2D_mask_vis_ordered, k_z_mean_mask_vis_ordered)
-	
+
 	bin_selector_in_model_mask_vis_ordered = [bin_selector_in_k_cube_mask_vis_ordered[i_bin][ZM_2D_and_high_spatial_frequencies_mask_vis_ordered] for i_bin in range(len(bin_selector_in_k_cube_mask_vis_ordered))]
 
 	return bin_selector_in_model_mask_vis_ordered
@@ -729,7 +731,7 @@ def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vec
 
 	##===== Defaults =======
 	default_random_seed = ''
-	
+
 	##===== Inputs =======
 	random_seed=kwargs.pop('random_seed',default_random_seed)
 
@@ -778,7 +780,7 @@ def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vec
 
 	##===== Defaults =======
 	default_random_seed = ''
-	
+
 	##===== Inputs =======
 	random_seed=kwargs.pop('random_seed',default_random_seed)
 
@@ -834,10 +836,10 @@ def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vec
 
 
 # baseline_conjugate_pairs_array_single_freq2 = np.array([[i,x] for i,x in enumerate(baseline_conjugate_pairs_array_single_freq) if i!=x])
-# for i in range(len(baseline_conjugate_pairs_array_single_freq2)):                                     
-#     n=3                                                                                               
+# for i in range(len(baseline_conjugate_pairs_array_single_freq2)):
+#     n=3
 #     a= d[540*n+baseline_conjugate_pairs_array_single_freq2[i][0]]+d[540*n+baseline_conjugate_pairs_array_single_freq2[i][1]]
-#     print baseline_conjugate_pairs_array_single_freq2[i], np.log10(abs(a.real).mean()/abs(a.imag).mean())        
+#     print baseline_conjugate_pairs_array_single_freq2[i], np.log10(abs(a.real).mean()/abs(a.imag).mean())
 
 
 
@@ -906,7 +908,7 @@ if Deal_with_Primary_Beam_Effects:
 	Show=False
 	pylab.figure()
 	pylab.imshow(PB[0].real)
-	pylab.colorbar()	
+	pylab.colorbar()
 	pylab.figure()
 	pylab.imshow(PB[-1].real)
 	pylab.colorbar()
@@ -924,24 +926,24 @@ def update_Tb_experimental_std_K_to_correct_for_normalisation_resolution(Tb_expe
 	# - Generate high resolution white noise image
 	# - fft to the uv-domain
 	# - scale according to input spatial power law
-	# 
+	#
 	# Create simulation subsets and products required to normalise the high-res. sim. relative to the low resolution GSM model.
 	# Constructing two additional products - the low-res centre of the high-res. uv-plane (containing only the scales sampled by the GSM) and a high-res uv-plane with all of the high-res information (the information not present in the GSM) zeroed.
 	# ffting these products to the uv-domain should produce images with consistent standard deviations (confirming this will ensures that the GSM scaling factor can be correctly applied to the high-res uv-plane:
 	# - Define a separate copy of the low-res centre of the high-res. uv-plane (containing only the scales sampled by the GSM)
 	# - Define a separate copy of the high-res uv-plane with all of the high-res information (the information not present in the GSM) zeroed.
-	# 
+	#
 	# Derive normalisation constant:
 	# - fft copy of the low-res centre of the high-res. uv-plane to the image. Call this GDSE_lr
 	# - fft high-res uv-plane with all of the high-res information (the information not present in the GSM) zeroed to the image. Call this GDSE_hr_low_pass_filtered.
 	# - GDSE_lr is at the same resolution as the GSM so can be normalised directly. GDSE_hr_low_pass_filtered is a Fourier interpolated version of GDSE_lr onto a higher resolution grid but with no aditional high-res power, it should therefore have the same standard deviation as GDSE_lr and the same normalisation factor should therefore be applicable. Confirm that this is the case!
-	# 
+	#
 
 	# Import libs
 
 	# import numpy
 	# import numpy as np
-	# from numpy import * 
+	# from numpy import *
 	# import pylab
 	# import pylab as P
 	# import scipy
@@ -1133,7 +1135,7 @@ def update_Tb_experimental_std_K_to_correct_for_normalisation_resolution(Tb_expe
 
 	return low_res_to_high_res_std_conversion_factor
 
-	
+
 ## ======================================================================================================
 ## ======================================================================================================
 
@@ -1144,14 +1146,14 @@ class GenerateForegroundCube(object):
 		##===== Defaults =======
 		default_random_seed = 3142
 		default_k_parallel_scaling = False
-		
+
 		##===== Inputs =======
 		self.random_seed=kwargs.pop('random_seed',default_random_seed)
 		self.k_parallel_scaling=kwargs.pop('k_parallel_scaling',default_k_parallel_scaling)
 
 		self.gamma_mean = gamma_mean
 		self.gamma_sigma = gamma_sigma
-		self.Tb_experimental_mean_K = Tb_experimental_mean_K 
+		self.Tb_experimental_mean_K = Tb_experimental_mean_K
 		self.Tb_experimental_std_K = Tb_experimental_std_K
 		self.beta_experimental_mean = beta_experimental_mean
 		self.beta_experimental_std = beta_experimental_std
@@ -1332,13 +1334,13 @@ def generate_masked_coordinate_cubes(cube_to_mask, nu,nv,nx,ny,nf,neta,nq):
 		model_cube_to_mask_vis_ordered_reshaped_WQ = np.hstack((model_cube_to_mask_vis_ordered_reshaped, WQ_inf_array))
 
 		model_cube_to_mask_vis_ordered_WQ = model_cube_to_mask_vis_ordered_reshaped_WQ.flatten()
-		print model_cube_to_mask_vis_ordered_WQ.reshape(8,-1).T
+		# print model_cube_to_mask_vis_ordered_WQ.reshape(8,-1).T
 
 		k_z_mean_mask_vis_ordered = np.logical_not(k_z_mean_mask).T[np.logical_and(ZM_mask.T, np.logical_not(high_spatial_frequency_selector_mask).T)]
 		k_z_mean_mask_vis_ordered_reshaped = k_z_mean_mask_vis_ordered.reshape(model_cube_to_mask_vis_ordered_reshaped.shape)
 
 		Quad_modes_only_boolean_array_vis_ordered = np.hstack((k_z_mean_mask_vis_ordered_reshaped.astype('bool'), np.logical_not(WQ_boolean_array))).flatten()
-		print Quad_modes_only_boolean_array_vis_ordered.reshape(8,-1).T
+		# print Quad_modes_only_boolean_array_vis_ordered.reshape(8,-1).T
 
 		return model_cube_to_mask_vis_ordered_WQ
 		# return model_cube_to_mask_vis_ordered_WQ, Quad_modes_only_boolean_array_vis_ordered
@@ -1355,7 +1357,7 @@ def generate_k_cube_model_spherical_binning(mod_k_masked, k_z_masked, nu,nv,nx,n
 	# Generate k_cube physical coordinates to match the 21cmFAST input simulation
 	###
 	mod_k, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z = generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(nu,nv,nx,ny,nf,neta,p.box_size_21cmFAST_pix_sc,p.box_size_21cmFAST_Mpc_sc)
-	
+
 	modkscaleterm=1.5 #Value used in BEoRfgs and in 21cmFAST binning
 	# binsize=deltakperp*1 #Value used in 21cmFAST
 	# binsize=deltakperp*4 #Value used in BEoRfgs
@@ -1383,7 +1385,7 @@ def generate_k_cube_model_spherical_binning(mod_k_masked, k_z_masked, nu,nv,nx,n
 		n_elements = np.sum(np.logical_and.reduce((mod_k_masked>modkbins[i_bin,0], mod_k_masked<=modkbins[i_bin,1], k_z_masked!=0)))
 		if n_elements>0:
 			n_bins+=1
-	 		print i_bin, modkbins[i_bin,0], modkbins[i_bin,1], n_elements 
+	 		print i_bin, modkbins[i_bin,0], modkbins[i_bin,1], n_elements
 	 		total_elements+=n_elements
 	 		modkbins_containing_voxels.append((modkbins[i_bin], n_elements))
 
@@ -1411,7 +1413,7 @@ def generate_k_cube_model_spherical_binning_v2d0(mod_k_masked, k_z_masked, nu,nv
 	# Generate k_cube physical coordinates to match the 21cmFAST input simulation
 	###
 	mod_k, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z = generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(nu,nv,nx,ny,nf,neta,p.box_size_21cmFAST_pix_sc,p.box_size_21cmFAST_Mpc_sc)
-		
+
 	# modkscaleterm=1.5 #Value used in BEoRfgs and in 21cmFAST binning
 	# binsize=deltakperp*1 #Value used in 21cmFAST
 	# binsize=deltakperp*4 #Value used in BEoRfgs
@@ -1441,7 +1443,7 @@ def generate_k_cube_model_spherical_binning_v2d0(mod_k_masked, k_z_masked, nu,nv
 		n_elements = np.sum(np.logical_and.reduce((mod_k_masked>modkbins[i_bin,0], mod_k_masked<=modkbins[i_bin,1], k_z_masked!=0)))
 		if n_elements>0:
 			n_bins+=1
-	 		print i_bin, modkbins[i_bin,0], modkbins[i_bin,1], n_elements 
+	 		print i_bin, modkbins[i_bin,0], modkbins[i_bin,1], n_elements
 	 		total_elements+=n_elements
 	 		modkbins_containing_voxels.append((modkbins[i_bin], n_elements))
 
@@ -1468,7 +1470,7 @@ def generate_k_cube_model_spherical_binning_v2d1(mod_k_masked, k_z_masked, nu,nv
 	# Generate k_cube physical coordinates to match the 21cmFAST input simulation
 	###
 	mod_k, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z = generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(nu,nv,nx,ny,nf,neta,p.box_size_21cmFAST_pix_sc,p.box_size_21cmFAST_Mpc_sc)
-		
+
 	# modkscaleterm=1.5 #Value used in BEoRfgs and in 21cmFAST binning
 	# binsize=deltakperp*1 #Value used in 21cmFAST
 	# binsize=deltakperp*4 #Value used in BEoRfgs
@@ -1498,22 +1500,22 @@ def generate_k_cube_model_spherical_binning_v2d1(mod_k_masked, k_z_masked, nu,nv
 		n_elements = np.sum(np.logical_and.reduce((mod_k_masked>modkbins[i_bin,0], mod_k_masked<=modkbins[i_bin,1], k_z_masked!=0)))
 		if n_elements>0:
 			n_bins+=1
-	 		print i_bin, modkbins[i_bin,0], modkbins[i_bin,1], n_elements 
+	 		# print i_bin, modkbins[i_bin,0], modkbins[i_bin,1], n_elements
 	 		total_elements+=n_elements
 	 		modkbins_containing_voxels.append((modkbins[i_bin], n_elements))
 
-	print total_elements, mod_k_masked.size
+	# print total_elements, mod_k_masked.size
 
 	k_cube_voxels_in_bin=[]
 	count=0
 	for i_bin in range(len(modkbins_containing_voxels)):
 		relevant_voxels = np.where(np.logical_and.reduce((mod_k_masked>modkbins_containing_voxels[i_bin][0][0], mod_k_masked<=modkbins_containing_voxels[i_bin][0][1], k_z_masked!=0)))
-		print relevant_voxels
+		# print relevant_voxels
 		print (len(relevant_voxels[0]))
 		count += len(relevant_voxels[0])
 		k_cube_voxels_in_bin.append(relevant_voxels)
 
-	print count #should be mod_k_masked.shape[0]-3*nuv
+	# print count #should be mod_k_masked.shape[0]-3*nuv
 	return k_cube_voxels_in_bin, modkbins_containing_voxels
 
 
@@ -1522,12 +1524,12 @@ def generate_k_cube_model_spherical_binning_v2d1(mod_k_masked, k_z_masked, nu,nv
 ## ======================================================================================================
 
 def create_directory(Directory,**kwargs):
-	
+
 	if not os.path.exists(Directory):
 		print 'Directory not found: \n\n'+Directory+"\n"
 		print 'Creating required directory structure..'
 		os.makedirs(Directory)
-	
+
 	return 0
 
 
@@ -1539,23 +1541,32 @@ def calc_mean_binned_k_vals(mod_k_masked, k_cube_voxels_in_bin, **kwargs):
 	default_save_k_vals = False
 	default_k_vals_file = 'k_vals.txt'
 	default_k_vals_dir = 'k_vals'
-	
+
 	##===== Inputs =======
 	save_k_vals=kwargs.pop('save_k_vals',default_save_k_vals)
 	k_vals_file=kwargs.pop('k_vals_file',default_k_vals_file)
 	k_vals_dir=kwargs.pop('k_vals_dir',default_k_vals_dir)
 
 	k_vals = []
+	kbin_edges = []
+	nsamples = []
 	print '---Calculating k-vals---'
 	for i_bin in range(len(k_cube_voxels_in_bin)):
 		mean_mod_k = mod_k_masked[k_cube_voxels_in_bin[i_bin]].mean()
+		min_k = mod_k_masked[k_cube_voxels_in_bin[i_bin]].min()
+		kbin_edges.append(min_k)
+		nsamples.append(len(k_cube_voxels_in_bin[i_bin][0]))
 		k_vals.append(mean_mod_k)
 		print i_bin, mean_mod_k
+	max_k = mod_k_masked[k_cube_voxels_in_bin[i_bin]].max()
+	kbin_edges.append(max_k)
 
 	if save_k_vals:
 		create_directory(k_vals_dir)
 		np.savetxt(k_vals_dir+'/'+k_vals_file, k_vals)
-		
+		np.savetxt(k_vals_dir + '/' + k_vals_file.replace('.txt', '_bins.txt'), kbin_edges)
+		np.savetxt(k_vals_dir + '/' + k_vals_file.replace('.txt', '_nsamples.txt'), nsamples)
+
 	return k_vals
 
 
@@ -1597,7 +1608,7 @@ def generate_k_cube_model_cylindrical_binning(mod_k_masked, k_z_masked, k_y_mask
 		n_elements = np.sum(np.logical_and.reduce((mod_k_masked>modkbins[i_bin,0], mod_k_masked<=modkbins[i_bin,1], k_z_masked>0)))
 		if n_elements>0:
 			n_bins+=1
-	 		print i_bin, modkbins[i_bin,0], modkbins[i_bin,1], n_elements 
+	 		print i_bin, modkbins[i_bin,0], modkbins[i_bin,1], n_elements
 	 		total_elements+=n_elements
 	 		modkbins_containing_voxels.append((modkbins[i_bin], n_elements))
 
@@ -1625,7 +1636,7 @@ def generate_k_cube_model_cylindrical_binning(mod_k_masked, k_z_masked, k_y_mask
 			n_elements = np.sum(k_perp_constraint)
 			if n_elements>0:
 				n_bins+=1
-		 		print i_bin, k_perp_bins[i_bin,0], k_perp_bins[i_bin,1], n_elements 
+		 		print i_bin, k_perp_bins[i_bin,0], k_perp_bins[i_bin,1], n_elements
 		 		total_elements+=n_elements
 		 		k_perp_bins_containing_voxels.append(k_perp_bins[i_bin])
 		print total_elements, mod_k_masked.size #Note: total_elements should be mod_k_masked.size-2*nuv since it doesn't include the linear and quadratic mode channels
