@@ -45,19 +45,37 @@ nf=p.nf
 neta=p.neta
 if not p.include_instrumental_effects:
 	neta=neta -nq
-nu=p.nu
-nv=p.nv
-nx=p.nx
-ny=p.ny
+if not p.npix == -1:
+	nu = p.npix
+	nv = p.npix
+	nx = p.npix
+	ny = p.npix
+	p.nu = p.npix
+	p.nv = p.npix
+	p.nx = p.npix
+	p.ny = p.npix
+else:
+	nu=p.nu
+	nv=p.nv
+	nx=p.nx
+	ny=p.ny
 
 # FoV can now be passed as a command line argument
 p.uv_pixel_width_wavelengths = 1.0 / np.deg2rad(p.simulation_FoV_deg)
 
 # Temporary healpix params and imports
 p.sky_model_pixel_area_sr = 4 * np.pi / (12 * p.nside**2)
-if p.simulation_FoV_deg == 12.9080728652 / 2:
-	# Temporary fix for FoV / 2 test
-	p.sky_model_pixel_area_sr /= 2.0**2
+# if p.simulation_FoV_deg == 12.9080728652 / 2:
+# 	# Temporary fix for FoV / 2 test
+# 	p.sky_model_pixel_area_sr /= 2.0**2
+# Temprary fix for 3 FoV value tests
+# if p.simulation_FoV_deg == 3.2270182163:
+# 	p.sky_model_pixel_area_sr /= 2.0**2
+# elif p.simulation_FoV_deg == 12.9080728652:
+# 	p.sky_model_pixel_area_sr *= 2.0**2
+# elif p.simulation_FoV_deg == 25.8161457304:
+# 	p.sky_model_pixel_area_sr *= 4.0**2
+
 
 if p.nside == 16:
 	p.n_hpx_pix = 10
@@ -70,7 +88,14 @@ elif p.nside == 128:
 elif p.nside == 256:
 	p.n_hpx_pix = 2746
 elif p.nside == 512:
+	# If scaling dA and keeping npix fixed
 	p.n_hpx_pix = 10927
+	# p.n_hpx_pix = 2703
+	# Elif keeping dA fixed and scaling npix
+	# if p.simulation_FoV_deg == 12.9080728652:
+	# 	p.n_hpx_pix = 10927
+	# else:
+	# 	p.n_hpx_pix = 2703
 
 # Data noise
 if not 'noise_data_path' in p.__dict__.keys():
@@ -144,6 +169,7 @@ if p.fit_for_monopole:
 array_save_directory = array_save_directory[:-1] + '_nside{}_healpix_coords/'.format(p.nside)
 # Adding a FoV specific bit to the array save directory for FoV tests
 array_save_directory = array_save_directory[:-1] + '_fov_deg_{:.1f}/'.format(p.simulation_FoV_deg)
+# array_save_directory = array_save_directory[:-1] + '_fov_deg_{:.1f}_diff_npix/'.format(p.simulation_FoV_deg)
 
 #--------------------------------------------
 # Construct matrices
@@ -250,7 +276,7 @@ fit_for_LW_power_spectrum = True
 masked_power_spectral_modes = np.ones(Npar)
 masked_power_spectral_modes = masked_power_spectral_modes.astype('bool')
 T = BM.read_data_s2d(array_save_directory+'T', 'T')
-Finv = BM.read_data_s2d(array_save_directory+'Finv', 'Finv')
+
 
 #--------------------------------------------
 # Data creation with instrumental effects
@@ -258,7 +284,10 @@ Finv = BM.read_data_s2d(array_save_directory+'Finv', 'Finv')
 overwrite_data_with_WN = False
 if p.include_instrumental_effects:
 	if p.use_EoR_cube:
+		Finv = BM.read_data_s2d(array_save_directory + 'Finv', 'Finv')
 		s_EoR, abc, scidata1 = generate_EoR_signal_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k_z, Finv,Show,chan_selection,masked_power_spectral_modes, mod_k, p.EoR_npz_path_sc)
+		# Temporary measure to save space since Finv is large
+		del (Finv)
 	else:
 		print 'Using HERA data at %s' %p.HERA_data_path
 		s_EoR = np.load(p.HERA_data_path)
@@ -274,6 +303,9 @@ if p.include_instrumental_effects:
 	else:
 		d = s_EoR.copy()
 
+
+
+
 effective_noise_std = effective_noise.std()
 print '\n\n\ns_EoR.std = %.4e' %(s_EoR.std())
 print 'effective_noise.std = %.4e' %(effective_noise_std)
@@ -283,7 +315,7 @@ print 'effective SNR = %.4e\n\n\n' %(s_EoR.std() / effective_noise_std)
 #--------------------------------------------
 # Continue loading base matrices used in the likelihood and defining related variables
 #--------------------------------------------
-block_T_Ninv_T = BM.read_data_s2d(array_save_directory+'block_T_Ninv_T', 'block_T_Ninv_T')
+# block_T_Ninv_T = BM.read_data_s2d(array_save_directory+'block_T_Ninv_T', 'block_T_Ninv_T')
 Ninv = BM.read_data_s2d(array_save_directory+'Ninv', 'Ninv')
 Ninv_d = np.dot(Ninv,d)
 dbar = np.dot(T.conjugate().T,Ninv_d)
@@ -291,6 +323,10 @@ dbar = np.dot(T.conjugate().T,Ninv_d)
 Sigma_Diag_Indices=np.diag_indices(shape(T_Ninv_T)[0])
 nDims = len(k_cube_voxels_in_bin)
 d_Ninv_d = np.dot(d.conjugate(), Ninv_d)
+
+print('size of T = {} GB'.format(sys.getsizeof(T) / 1.0e9))
+print('size of T_Ninv_T = {} GB'.format(sys.getsizeof(T_Ninv_T) / 1.0e9))
+print('size of Ninv = {} GB'.format(sys.getsizeof(Ninv) / 1.0e9))
 
 if p.use_intrinsic_noise_fitting:
 	nDims = nDims+1
@@ -306,10 +342,9 @@ if p.fit_for_monopole:
 	nuv = (nu*nv)
 else:
 	nuv = (nu*nv-1)
-block_T_Ninv_T = np.array([np.hsplit(block,nuv) for block in np.vsplit(T_Ninv_T,nuv)])
+# block_T_Ninv_T = np.array([np.hsplit(block,nuv) for block in np.vsplit(T_Ninv_T,nuv)])
 if p.include_instrumental_effects:
 	block_T_Ninv_T=[]
-
 
 from numpy import real
 #--------------------------------------------
@@ -317,7 +352,7 @@ from numpy import real
 #--------------------------------------------
 if small_cube: PSPP = PowerSpectrumPosteriorProbability(T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes, modk_vis_ordered_list, Ninv, d_Ninv_d, log_priors=False, intrinsic_noise_fitting=p.use_intrinsic_noise_fitting, k_vals=k_vals)
 PSPP_block_diag = PowerSpectrumPosteriorProbability(T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes, modk_vis_ordered_list, Ninv, d_Ninv_d, block_T_Ninv_T=block_T_Ninv_T, Print=True, log_priors=False, intrinsic_noise_fitting=p.use_intrinsic_noise_fitting, k_vals=k_vals)
-self = PowerSpectrumPosteriorProbability(T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes, modk_vis_ordered_list, Ninv, d_Ninv_d, block_T_Ninv_T=block_T_Ninv_T, Print=True, log_priors=False, intrinsic_noise_fitting=p.use_intrinsic_noise_fitting, k_vals=k_vals)
+# self = PowerSpectrumPosteriorProbability(T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes, modk_vis_ordered_list, Ninv, d_Ninv_d, block_T_Ninv_T=block_T_Ninv_T, Print=True, log_priors=False, intrinsic_noise_fitting=p.use_intrinsic_noise_fitting, k_vals=k_vals)
 start = time.time()
 
 if small_cube:
@@ -437,9 +472,14 @@ if p.use_intrinsic_noise_fitting and sub_ML_monopole_term_model:
 
 start = time.time()
 PSPP_block_diag_Polychord.Print=False
-Nit=20
+Nit=10
+# x_bad = [2.81531369, 2.4629003, -0.28626515, 5.39490566, 1.19703521, -0.77159866, 2.9684211, 4.28956387, 3.0131297]
+x_bad = [-0.48731995, 0.97696114, -0.0966692, 0.40549231, 5.35780334, -0.11230135, 5.95898771, 3.93845129, 6.81375599]
+print('Testing posterior calc with x={}'.format(x_bad))
+# print(x_bad)
 for _ in range(Nit):
-	L =  PSPP_block_diag_Polychord.posterior_probability([3.e0]*nDims)[0]
+	# L =  PSPP_block_diag_Polychord.posterior_probability([3.e0]*nDims)[0]
+	L = PSPP_block_diag_Polychord.posterior_probability(x_bad)[0]
 PSPP_block_diag_Polychord.Print=False
 print 'Average evaluation time: %f'%((time.time()-start)/float(Nit))
 
@@ -457,6 +497,15 @@ if mpi_size>1:
 else:
 	print 'mpi_size = {}, analysis will only be run if run_single_node_analysis is set to True'.format(mpi_size)
 	print 'run_single_node_analysis = {}\n'.format(run_single_node_analysis)
+
+# import psutil
+# process = psutil.Process(os.getpid())
+# print('MaxRSS before log write = {} GB'.format(process.memory_info()[0] / 1.0e9))
+#
+# if MPI.COMM_WORLD.Get_rank() == 0:
+# 	write_log_file(array_save_directory, file_root)
+#
+# print('MaxRSS after log write = {} GB'.format(process.memory_info()[0] / 1.0e9))
 
 if run_single_node_analysis or mpi_size>1:
 	# Write log file

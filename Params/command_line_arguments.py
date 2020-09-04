@@ -7,6 +7,10 @@ def BayesEoRParser():
 	parser.add_argument("-nq", "--nq",
 						type = int,
 						help="Number of LWM basis vectors (0-2)")
+	parser.add_argument('--npix',
+						type = int,
+						default = -1,
+						help = 'Sets the number of pixels on a side (nx, ny, nu, nv).')
 	parser.add_argument("-beta", "--beta",
 						help="Power law spectral index used in data model")
 	parser.add_argument('--sigma',
