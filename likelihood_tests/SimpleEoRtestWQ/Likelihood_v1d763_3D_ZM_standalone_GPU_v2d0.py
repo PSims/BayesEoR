@@ -616,4 +616,4 @@ class PowerSpectrumPosteriorProbability(object):
 		except Exception as e:
 			print 'Exception encountered...'
 			print e
-			return -np.inf
+			return (-np.inf, -1)
