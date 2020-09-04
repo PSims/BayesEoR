@@ -191,7 +191,8 @@ if include_instrumental_effects:
 	# instrument_model_directory = '/users/psims/EoR/Python_Scripts/BayesEoR/git_version/BayesEoR/Instrument_Model/HERA_331_baselines_shorter_than_29d3_for_{}_{}_min_time_steps/'.format(nt, integration_time_minutes_str)
 	# instrument_model_directory = '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/HERA_19_healvis_model_for_{}_{}_min_time_steps/'.format(nt, integration_time_minutes_str)
 	# instrument_model_directory = '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/HERA_19_healvis_model_for_{}_{}_min_time_steps_bl_less_than_15.0m/'.format(nt, integration_time_minutes_str)
-	instrument_model_directory = '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/HERA_127-5m_healvis_model_for_{}_{}_min_time_steps_bl_less_than_29.3m/'.format(nt, integration_time_minutes_str)
+	instrument_model_directory = '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/HERA_469-2.4m_healvis_model_for_{}_{}_min_time_steps_bl_less_than_29.3m/'.format(nt, integration_time_minutes_str)
+	# instrument_model_directory = '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/HERA_127-10m_healvis_model_for_{}_{}_min_time_steps_bl_less_than_58.6m/'.format(nt, integration_time_minutes_str)
 	# uv_pixel_width_wavelengths = 2.5 #Define a fixed pixel width in wavelengths
 	# uv_pixel_width_wavelengths = 1.0 / np.deg2rad(simulation_FoV_deg) # originally set to 2.5 for a 12.0 deg FoV
 	# Want to keep a fixed uv plane extent but vary resolution
@@ -201,8 +202,8 @@ if include_instrumental_effects:
 	###
 	FWHM_deg_at_ref_freq_MHz = 2.0 # degrees
 	PB_ref_freq_MHz = 150.0 #150 MHz
-	beam_type = 'Uniform'
-	# beam_type = 'Gaussian'
+	# beam_type = 'Uniform'
+	beam_type = 'Gaussian'
 	beam_peak_amplitude = 1.0
 	# beam_info_str = ''
 	# if beam_type.lower() == 'Uniform'.lower():
