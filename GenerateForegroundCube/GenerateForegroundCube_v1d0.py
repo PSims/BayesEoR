@@ -1088,12 +1088,23 @@ def generate_EoR_signal_instrumental_im_2_vis(nu,nv,nx,ny,nf,neta,nq,k_x, k_y, k
 	rms_mK = 1.0341928997136198 # scaled to match healvis sims for nx = 9
 	# rms_mK = 0.8043383678108019 # scaled to match healvis sims for nx = 7
 	scidata1_subset = np.random.normal(0, rms_mK, (nf, ny, nx))
-	scidata1 = scidata1_subset.copy()
+
+	# Temporary workaround for nside=16 healpix coordinates in Finv & Fprime
+	# np.random.seed(18237)
+	# rms_mK = 0.40474845072666593
+	# n_hpx_pix = 10
+	# scidata1_subset = np.random.normal(0, rms_mK, (nf, n_hpx_pix))
+
 	for i_f in range(nf):
 		scidata1_subset[i_f] -= scidata1_subset[i_f].mean()
+	scidata1 = scidata1_subset.copy()
 	# scidata1_subset = scidata1_subset/scidata1_kcube.size**0.5
 
 	s = np.dot(Finv,scidata1_subset.reshape(-1,1)).flatten()
+
+	# Temporary workaround for nside=16 healpix coordinates in Finv & Fprime
+	# s = np.dot(Finv, scidata1_subset.flatten())
+
 	abc = s
 
 
@@ -1294,15 +1305,15 @@ def calculate_subset_cube_power_spectrum_v2d0(nu,nv,nx,ny,nf,neta,nq,k_cube_voxe
 	subset_power_spectrum_normalisation = subset_amplitude_normalisation**2.
 
 	###
-    #     *((float *)deldel_T + HII_R_FFT_INDEX(i,j,k)) = (delta_T[HII_R_INDEX(i,j,k)]/ave - 1)*VOLUME/(HII_TOT_NUM_PIXELS+0.0);
-    # if (DIMENSIONAL_T_POWER_SPEC){
-    #   *((float *)deldel_T + HII_R_FFT_INDEX(i,j,k)) *= ave;
-    # }
+	#     *((float *)deldel_T + HII_R_FFT_INDEX(i,j,k)) = (delta_T[HII_R_INDEX(i,j,k)]/ave - 1)*VOLUME/(HII_TOT_NUM_PIXELS+0.0);
+	# if (DIMENSIONAL_T_POWER_SPEC){
+	#   *((float *)deldel_T + HII_R_FFT_INDEX(i,j,k)) *= ave;
+	# }
 
-    # Note: DIMENSIONAL_T_POWER_SPEC in 21cmFast just means calculating the standard mK^2 power spectrum i.e. the `dimensionless power spectrum' of 21 cm cosmology (which isn't really a dimensionless power spectrum i.e. 21cmFast uses standard cosmological power spectrum parlance instead of 21 cm cosmology naming conventions).
+	# Note: DIMENSIONAL_T_POWER_SPEC in 21cmFast just means calculating the standard mK^2 power spectrum i.e. the `dimensionless power spectrum' of 21 cm cosmology (which isn't really a dimensionless power spectrum i.e. 21cmFast uses standard cosmological power spectrum parlance instead of 21 cm cosmology naming conventions).
 
-    # p_box[ct] += pow(k_mag,3)*pow(cabs(deldel_T[HII_C_INDEX(n_x, n_y, n_z)]), 2)/(2.0*PI*PI*VOLUME);
-    ###
+	# p_box[ct] += pow(k_mag,3)*pow(cabs(deldel_T[HII_C_INDEX(n_x, n_y, n_z)]), 2)/(2.0*PI*PI*VOLUME);
+	###
 
 	VOLUME = p.box_size_21cmFAST_Mpc_sc**3. #Full cube volume in Mpc^3
 	HII_TOT_NUM_PIXELS = p.box_size_21cmFAST_pix_sc**3. #Full cube Npix
@@ -1478,15 +1489,15 @@ def calculate_21cmFAST_EoR_cube_power_spectrum_in_subset_cube_bins_v1d0(nu,nv,nx
 	subset_power_spectrum_normalisation = subset_amplitude_normalisation**2.
 
 	###
-    #     *((float *)deldel_T + HII_R_FFT_INDEX(i,j,k)) = (delta_T[HII_R_INDEX(i,j,k)]/ave - 1)*VOLUME/(HII_TOT_NUM_PIXELS+0.0);
-    # if (DIMENSIONAL_T_POWER_SPEC){
-    #   *((float *)deldel_T + HII_R_FFT_INDEX(i,j,k)) *= ave;
-    # }
+	#     *((float *)deldel_T + HII_R_FFT_INDEX(i,j,k)) = (delta_T[HII_R_INDEX(i,j,k)]/ave - 1)*VOLUME/(HII_TOT_NUM_PIXELS+0.0);
+	# if (DIMENSIONAL_T_POWER_SPEC){
+	#   *((float *)deldel_T + HII_R_FFT_INDEX(i,j,k)) *= ave;
+	# }
 
-    # Note: DIMENSIONAL_T_POWER_SPEC in 21cmFast just means calculating the standard mK^2 power spectrum i.e. the `dimensionless power spectrum' of 21 cm cosmology (which isn't really a dimensionless power spectrum i.e. 21cmFast uses standard cosmological power spectrum parlance instead of 21 cm cosmology naming conventions).
+	# Note: DIMENSIONAL_T_POWER_SPEC in 21cmFast just means calculating the standard mK^2 power spectrum i.e. the `dimensionless power spectrum' of 21 cm cosmology (which isn't really a dimensionless power spectrum i.e. 21cmFast uses standard cosmological power spectrum parlance instead of 21 cm cosmology naming conventions).
 
-    # p_box[ct] += pow(k_mag,3)*pow(cabs(deldel_T[HII_C_INDEX(n_x, n_y, n_z)]), 2)/(2.0*PI*PI*VOLUME);
-    ###
+	# p_box[ct] += pow(k_mag,3)*pow(cabs(deldel_T[HII_C_INDEX(n_x, n_y, n_z)]), 2)/(2.0*PI*PI*VOLUME);
+	###
 
 	VOLUME = p.box_size_21cmFAST_Mpc_sc**3. #Full cube volume in Mpc^3
 	HII_TOT_NUM_PIXELS = p.box_size_21cmFAST_pix_sc**3. #Full cube Npix
