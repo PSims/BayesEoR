@@ -533,7 +533,7 @@ def write_log_file(array_save_directory, file_root):
 
     log_file = log_dir + file_root + '.log'
     dashed_line = '-'*44
-    with open(log_file, 'wb') as f:
+    with open(log_file, 'w') as f:
         f.write('#' + dashed_line + '\n# GitHub Info\n#' + dashed_line +'\n')
         for key in version_info.keys():
             f.write('%s: %s' %(key, version_info[key]))
