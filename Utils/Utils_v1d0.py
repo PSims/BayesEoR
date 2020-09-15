@@ -3,7 +3,8 @@ from numpy import pi, log, sqrt, array
 from numpy import arange, shape, log10
 import subprocess
 from subprocess import os
-import sys, getopt
+import sys
+import getopt
 from scipy import integrate
 from astropy.io import fits
 import shutil

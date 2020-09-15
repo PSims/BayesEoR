@@ -3,16 +3,15 @@
 ###
 # import matplotlib
 # matplotlib.use('pdf') #No pop-ups (comment out to interact with plots)
-import numpy as np
-from numpy import arange, shape, log10, pi, real
-import scipy
-from subprocess import os
-import sys
-# import pylab
-import time
-from scipy.linalg import block_diag
-from pprint import pprint
-from pdb import set_trace as brk
+# import numpy as np
+# from numpy import arange, shape, log10, pi, real
+# import scipy
+# from subprocess import os
+# import sys
+# import time
+# from scipy.linalg import block_diag
+# from pprint import pprint
+# from pdb import set_trace as brk
 
 from .Linalg import\
     IDFT_Array_IDFT_2D_ZM_SH, makeGaussian,\

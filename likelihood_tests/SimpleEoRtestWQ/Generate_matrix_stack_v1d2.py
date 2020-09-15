@@ -5,7 +5,6 @@ import scipy
 from subprocess import os
 import shutil
 import sys
-import pylab
 import time
 import h5py
 from scipy.linalg import block_diag
