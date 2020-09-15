@@ -12,6 +12,7 @@ from pdb import set_trace as brk
 import argparse
 import BayesEoR.Params.params as p
 import pickle
+from types import ModuleType
 
 
 class PriorC(object):
@@ -534,19 +535,20 @@ def write_log_file(array_save_directory, file_root):
     log_file = log_dir + file_root + '.log'
     dashed_line = '-'*44
     with open(log_file, 'w') as f:
-        f.write('#' + dashed_line + '\n# GitHub Info\n#' + dashed_line +'\n')
+        f.write('#' + dashed_line + '\n# GitHub Info\n#' + dashed_line + '\n')
         for key in version_info.keys():
-            f.write('%s: %s' %(key, version_info[key]))
+            f.write('{}: {}'.format(key, version_info[key]))
         f.write('\n\n')
-        f.write('#' + dashed_line + '\n# Directories\n#' + dashed_line +'\n')
-        f.write('Array save directory:\t%s\n' %(array_save_directory))
-        f.write('Multinest output file root:\t%s\n' %(file_root))
+        f.write('#' + dashed_line + '\n# Directories\n#' + dashed_line + '\n')
+        f.write('Array save directory:\t{}\n'.format(array_save_directory))
+        f.write('Multinest output file root:\t{}\n'.format(file_root))
         f.write('\n\n')
         f.write('#' + dashed_line + '\n# Parser / Params Variables\n#'
-                + dashed_line +'\n')
+                + dashed_line + '\n')
         for key in p.__dict__.keys():
-            if not key.startswith('_'):
-                f.write('%s = %s\n' %(key, p.__dict__[key]))
+            if (not key.startswith('_')
+                    and not isinstance(p.__dict__[key], ModuleType)):
+                f.write('{} = {}\n'.format(key, p.__dict__[key]))
     print('Log file written successfully to {}'.format(log_file))
 
 
