@@ -177,6 +177,10 @@ if include_instrumental_effects:
         '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/'
         'HERA_469-2.4m_healvis_model_for_{}_{}_min_time_steps'
         '_bl_less_than_29.3m/'.format(nt, integration_time_minutes_str))
+    telescope_latlonalt = (-30.72152777777791,
+                           21.428305555555557,
+                           1073.0000000093132)
+    central_jd = 2458098.5521759833
 
     ###
     # Primary beam params

@@ -7,6 +7,7 @@ import sys
 import os
 import numpy as np
 
+from BayesEoR.Linalg.healpix import Healpix
 import BayesEoR.Params.params as p
 
 """
@@ -37,23 +38,23 @@ def make_Gaussian_beam(
     """
         Make a square gaussian kernel centered on center_pix=[x0, y0].
     """
-    # x = np.arange(0, image_size_pix, 1, float)
-    # y = x[:,np.newaxis]
-    # if not center_pix:
-    # 	x0 = y0 = image_size_pix // 2
-    # else:
-    # 	x0 = center_pix[0]
-    # 	y0 = center_pix[1]
+    x = np.arange(0, image_size_pix, 1, float)
+    y = x[:, np.newaxis]
+    if not center_pix:
+        x0 = y0 = image_size_pix // 2
+    else:
+        x0 = center_pix[0]
+        y0 = center_pix[1]
     gaussian_beam = (
             beam_peak_amplitude
             * np.exp(-4*np.log(2) * ((x-x0)**2 + (y-y0)**2) / fwhm_pix**2))
 
     # Temporary workaround for using HEALPix coordinates in Finv
-    hpx_dir = '/users/jburba/data/jburba/bayes/BayesEoR/Linalg/'\
-              'hpx_coords/nside{}/'.format(p.nside)
-    filename = 'fov-{:.1f}deg_gauss-beam_fwhm-{:.1f}deg.npy'.format(
-        p.simulation_FoV_deg, p.FWHM_deg_at_ref_freq_MHz)
-    gaussian_beam = np.load(os.path.join(hpx_dir, filename))
+    # hpx_dir = '/users/jburba/data/jburba/bayes/BayesEoR/Linalg/'\
+    #           'hpx_coords/nside{}/'.format(p.nside)
+    # filename = 'fov-{:.1f}deg_gauss-beam_fwhm-{:.1f}deg.npy'.format(
+    #     p.simulation_FoV_deg, p.FWHM_deg_at_ref_freq_MHz)
+    # gaussian_beam = np.load(os.path.join(hpx_dir, filename))
 
     return gaussian_beam
 
@@ -126,28 +127,18 @@ def Produce_Coordinate_Arrays_ZM(nu, nv, nx, ny, **kwargs):
     exclude_mean = kwargs.pop('exclude_mean', default_exclude_mean)
 
     # Updated for python 3: floor division
-    # i_y_Vector = (np.arange(ny) - ny//2)
-    # i_y_Vector = i_y_Vector.reshape(1, ny)
-    # i_y_Array = np.tile(i_y_Vector, ny)
-    # i_y_Array_Vectorised = i_y_Array.reshape(nx*ny, 1)
-    # i_y_AV = i_y_Array_Vectorised
-    #
-    # Updated for python 3: floor division
-    # i_x_Vector = (np.arange(nx) - nx//2)
-    # i_x_Vector = i_x_Vector.reshape(nx, 1)
-    # i_x_Array = np.tile(i_x_Vector, nx)
-    # i_x_Array_Vectorised = i_x_Array.reshape(nx*ny, 1)
-    # i_x_AV = i_x_Array_Vectorised
+    i_y_Vector = (np.arange(ny) - ny//2)
+    i_y_Vector = i_y_Vector.reshape(1, ny)
+    i_y_Array = np.tile(i_y_Vector, ny)
+    i_y_Array_Vectorised = i_y_Array.reshape(nx*ny, 1)
+    i_y_AV = i_y_Array_Vectorised
 
-    # Need to update this with astropy.HEALPix coordinates
-    # Overwrite gridded xy coords with ones obtained
-    # from healvis.observatory.calc_azza
-    hpx_dir = '/users/jburba/data/jburba/bayes/BayesEoR/Linalg/'\
-              'hpx_coords/nside{}/'.format(p.nside)
-    filename = 'fov-{:.1f}deg_pix-units.npy'.format(p.simulation_FoV_deg)
-    i_x_AV, i_y_AV = np.load(os.path.join(hpx_dir, filename))
-    i_x_AV = i_x_AV.reshape(-1, 1)
-    i_y_AV = i_y_AV.reshape(-1, 1)
+    # Updated for python 3: floor division
+    i_x_Vector = (np.arange(nx) - nx//2)
+    i_x_Vector = i_x_Vector.reshape(nx, 1)
+    i_x_Array = np.tile(i_x_Vector, nx)
+    i_x_Array_Vectorised = i_x_Array.reshape(nx*ny, 1)
+    i_x_AV = i_x_Array_Vectorised
 
     # Updated for python 3: floor division
     i_v_Vector = (np.arange(nu) - nu//2)
@@ -156,7 +147,7 @@ def Produce_Coordinate_Arrays_ZM(nu, nv, nx, ny, **kwargs):
     i_v_Array_Vectorised = i_v_Array.reshape(1, nu*nv)
     i_v_AV = i_v_Array_Vectorised
     if exclude_mean:
-        i_v_AV =numpy.delete(i_v_AV,[i_v_AV.size/2]) # Remove the centre uv-pix
+        i_v_AV = numpy.delete(i_v_AV,[i_v_AV.size/2]) # Remove the centre uv-pix
 
     # Updated for python 3: floor division
     i_u_Vector = (np.arange(nv) - nv//2)
@@ -165,7 +156,7 @@ def Produce_Coordinate_Arrays_ZM(nu, nv, nx, ny, **kwargs):
     i_u_Array_Vectorised = i_u_Array.reshape(1, nv*nu)
     i_u_AV = i_u_Array_Vectorised
     if exclude_mean:
-        i_u_AV =numpy.delete(i_u_AV,[i_u_AV.size/2]) # Remove the centre uv-pix
+        i_u_AV = numpy.delete(i_u_AV,[i_u_AV.size/2]) # Remove the centre uv-pix
 
     # ExponentArray calculated as
     # 	np.exp(-2.0*np.pi*1j*(
@@ -181,11 +172,11 @@ def Produce_Coordinate_Arrays_ZM_Coarse(nu, nv, nx, ny):
     # constant and oversampled rather than DFTing to a larger uv-plane
 
     # Updated for python 3: floor division
-    i_y_Vector=(np.arange(ny) - ny//2)
-    i_y_Vector=i_y_Vector.reshape(1, ny)
-    i_y_Array=np.tile(i_y_Vector, ny)
-    i_y_Array_Vectorised=i_y_Array.reshape(nx*ny, 1)
-    i_y_AV=i_y_Array_Vectorised
+    i_y_Vector = (np.arange(ny) - ny//2)
+    i_y_Vector = i_y_Vector.reshape(1, ny)
+    i_y_Array = np.tile(i_y_Vector, ny)
+    i_y_Array_Vectorised = i_y_Array.reshape(nx*ny, 1)
+    i_y_AV = i_y_Array_Vectorised
 
     # Updated for python 3: floor division
     i_x_Vector = (np.arange(nx) - nx//2)
@@ -580,7 +571,9 @@ def nuDFT_Array_DFT_2D(
 
 
 def nuDFT_Array_DFT_2D_v2d0(
-        nu, nv, nx, ny, sampled_uvw_coords_inverse_pixel_units,
+        nu, nv, nx, ny,
+        sampled_lm_coords_radians,
+        sampled_uvw_coords_wavelengths,
         X_oversampling_Factor=1.0, Y_oversampling_Factor=1.0,
         U_oversampling_Factor=1.0, V_oversampling_Factor=1.0):
     """
@@ -588,35 +581,28 @@ def nuDFT_Array_DFT_2D_v2d0(
         p.uvw_multi_time_step_array_meters_reshaped (for examples,
         the sub-100m baselines sampled by HERA 331).
     """
-    i_x_AV, i_y_AV, i_u_AV, i_v_AV =\
-        Produce_Full_Coordinate_Arrays(nu, nv, nx, ny)
-    # Overwrite gridded uv coords with instrumental
-    # uv coords loaded in params
-    i_u_AV = sampled_uvw_coords_inverse_pixel_units[:, 0].reshape(1, -1)
-    i_v_AV = sampled_uvw_coords_inverse_pixel_units[:, 1].reshape(1, -1)
+    # Old function calls:
+    # i_x_AV, i_y_AV, i_u_AV, i_v_AV =\
+    #     Produce_Full_Coordinate_Arrays(nu, nv, nx, ny)
+    #
+    # if U_oversampling_Factor != 1.0:
+    #     i_x_AV, i_y_AV, i_u_AV, i_v_AV =\
+    #         Calc_Coords_Large_Im_to_High_Res_uv(
+    #             i_x_AV, i_y_AV, i_u_AV, i_v_AV,
+    #             U_oversampling_Factor, V_oversampling_Factor)
+    # if X_oversampling_Factor != 1.0:
+    #     i_x_AV, i_y_AV, i_u_AV, i_v_AV =\
+    #         Calc_Coords_High_Res_Im_to_Large_uv(
+    #             i_x_AV, i_y_AV, i_u_AV, i_v_AV,
+    #             U_oversampling_Factor, V_oversampling_Factor)
 
-    if U_oversampling_Factor != 1.0:
-        i_x_AV, i_y_AV, i_u_AV, i_v_AV =\
-            Calc_Coords_Large_Im_to_High_Res_uv(
-                i_x_AV, i_y_AV, i_u_AV, i_v_AV,
-                U_oversampling_Factor, V_oversampling_Factor)
-    if X_oversampling_Factor != 1.0:
-        i_x_AV, i_y_AV, i_u_AV, i_v_AV =\
-            Calc_Coords_High_Res_Im_to_Large_uv(
-                i_x_AV, i_y_AV, i_u_AV, i_v_AV,
-                U_oversampling_Factor, V_oversampling_Factor)
+    # Use HEALPix sampled (l, m) coords
+    i_x_AV = sampled_lm_coords_radians[:, 0].reshape(-1, 1)
+    i_y_AV = sampled_lm_coords_radians[:, 1].reshape(-1, 1)
 
-    # Need to update this function to use astropy.HEALPix
-    # Convert from pixel units to dimensionful units
-    # For now, using HEALPix coordinates, i_x_AV and i_y_AV come
-    # out in units of pixel units, so they need to be scaled by
-    # the sqrt of the pixel area
-    i_x_AV *= np.sqrt(p.sky_model_pixel_area_sr)
-    i_y_AV *= np.sqrt(p.sky_model_pixel_area_sr)
-    # The uv coordinates also need to be scaled back into units
-    # of wavelengths by multiplying by the uv pixel area
-    i_u_AV = i_u_AV.astype('float') * p.uv_pixel_width_wavelengths
-    i_v_AV = i_v_AV.astype('float') * p.uv_pixel_width_wavelengths
+    # Use instrumental uv coords loaded in params
+    i_u_AV = sampled_uvw_coords_wavelengths[:, 0].reshape(1, -1)
+    i_v_AV = sampled_uvw_coords_wavelengths[:, 1].reshape(1, -1)
 
     # This formulation expects (l, m) and (u, v)
     # in radians and wavelengths, respectively
@@ -632,12 +618,12 @@ def nuDFT_Array_DFT_2D_v2d0(
 
     # This formulation expects (l, m) and (u, v) in pixel units
     # Updated for python 3: float division is default
-    ExponentArray = np.exp(
-        +2.0*np.pi*1j*(
-                (i_x_AV*i_u_AV / nx)
-                + (i_v_AV*i_y_AV / ny)
-            )
-        )
+    # ExponentArray = np.exp(
+    #     +2.0*np.pi*1j*(
+    #             (i_x_AV*i_u_AV / nx)
+    #             + (i_v_AV*i_y_AV / ny)
+    #         )
+    #     )
 
     return ExponentArray
 
@@ -688,7 +674,8 @@ def IDFT_Array_IDFT_2D(
 
 
 def DFT_Array_DFT_2D_ZM(
-        nu, nv, nx, ny, X_oversampling_Factor=1.0, Y_oversampling_Factor=1.0,
+        nu, nv, nx, ny,
+        X_oversampling_Factor=1.0, Y_oversampling_Factor=1.0,
         U_oversampling_Factor=1.0, V_oversampling_Factor=1.0):
 
     exclude_mean = True
@@ -719,7 +706,9 @@ def DFT_Array_DFT_2D_ZM(
 
 
 def IDFT_Array_IDFT_2D_ZM(
-        nu, nv, nx, ny, X_oversampling_Factor=1.0, Y_oversampling_Factor=1.0,
+        nu, nv, nx, ny,
+        sampled_lm_coords_radians,
+        X_oversampling_Factor=1.0, Y_oversampling_Factor=1.0,
         U_oversampling_Factor=1.0, V_oversampling_Factor=1.0):
     """
         Generates a non-uniform (might want to update the function name)
@@ -732,6 +721,9 @@ def IDFT_Array_IDFT_2D_ZM(
     i_x_AV, i_y_AV, i_u_AV, i_v_AV =\
         Produce_Coordinate_Arrays_ZM(nu, nv, nx, ny, exclude_mean=exclude_mean)
 
+    # Replace x and y coordinate arrays with sampled_lm_coords_radians
+    i_x_AV = sampled_lm_coords_radians[:, 0].reshape(-1, 1)
+    i_y_AV = sampled_lm_coords_radians[:, 1].reshape(-1, 1)
 
     if U_oversampling_Factor != 1.0:
         i_x_AV, i_y_AV, i_u_AV, i_v_AV =\
@@ -744,13 +736,7 @@ def IDFT_Array_IDFT_2D_ZM(
                 i_x_AV, i_y_AV, i_u_AV, i_v_AV,
                 U_oversampling_Factor, V_oversampling_Factor)
 
-    # Convert from pixel units to dimensionful units
-    # For now, using HEALPix coordinates, i_x_AV and i_y_AV
-    # come out in units of pixel units, so they need to be
-    # scaled by the sqrt of the pixel area
-    i_x_AV *= np.sqrt(p.sky_model_pixel_area_sr)
-    i_y_AV *= np.sqrt(p.sky_model_pixel_area_sr)
-    # The uv coordinates also need to be scaled back into units of
+    # The uv coordinates need to be rescaled to units of
     # wavelengths by multiplying by the uv pixel area
     i_u_AV = i_u_AV.astype('float') * p.uv_pixel_width_wavelengths
     i_v_AV = i_v_AV.astype('float') * p.uv_pixel_width_wavelengths
