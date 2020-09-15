@@ -927,8 +927,8 @@ def generate_data_from_loaded_EoR_cube_v2d0(
     vfft1_subset = vfft1[0 : nf,
                          sci_u_centre - nu//2 : sci_u_centre + nu//2 + 1,
                          sci_v_centre - nv//2 : sci_v_centre + nv//2 + 1]
-    s_before_ZM = vfft1_subset.flatten() / vfft1[0].size**0.5
-    # s_before_ZM = vfft1_subset.flatten()
+    # s_before_ZM = vfft1_subset.flatten() / vfft1[0].size**0.5
+    s_before_ZM = vfft1_subset.flatten()
     ZM_vis_ordered_mask = np.ones(nu*nv*nf)
     # Updated for python 3: floor division
     ZM_vis_ordered_mask[nf*((nu*nv)//2) : nf*((nu*nv)//2 + 1)] = 0
