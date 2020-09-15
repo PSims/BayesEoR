@@ -171,8 +171,8 @@ n_model = n_Fourier+n_LW
 n_dat = n_Fourier
 current_file_version = 'Likelihood_v1d76_3D_ZM'
 array_save_directory = (
-    'array_storage/batch_1/' +
-    '{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(
+    'array_storage/batch_1/'
+    + '{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(
         current_file_version, nu, nv, neta, nq, npl, sigma).replace('.', 'd')
     )
 
@@ -230,23 +230,29 @@ elif npl == 2:
 
 if p.fit_for_monopole:
     array_save_directory = (
-            array_save_directory[:-1] +
-            '_fit_for_monopole_eq_True/'
+            array_save_directory[:-1]
+            + '_fit_for_monopole_eq_True/'
         )
 
 array_save_directory = (
-        array_save_directory[:-1] +
-        '_nside{}_healpix_coords/'.format(p.nside)
+        array_save_directory[:-1]
+        + '_nside{}_healpix_coords/'.format(p.nside)
     )
 # Adding a FoV specific bit to the array save directory for FoV tests
 array_save_directory = (
-        array_save_directory[:-1] +
-        '_fov_deg_{:.1f}/'.format(p.simulation_FoV_deg)
-)
+        array_save_directory[:-1]
+        + '_fov_deg_{:.1f}/'.format(p.simulation_FoV_deg)
+    )
 # Uncomment for tests where npix is not identical between nsides
 # array_save_directory = (
 #         array_save_directory[:-1] +
 #         '_fov_deg_{:.1f}_diff_npix/'.format(p.simulation_FoV_deg))
+
+# Temporary change for HEALPix matrix function testing
+array_save_directory = (
+        array_save_directory[:-1]
+        + '_healpix_testing/'
+    )
 
 #--------------------------------------------
 # Construct matrices
@@ -268,8 +274,8 @@ if p.include_instrumental_effects:
             phasor_vector=phasor_vector,
             beam_type=p.beam_type,
             beam_peak_amplitude=p.beam_peak_amplitude,
-            FWHM_deg_at_ref_freq_MHz = p.FWHM_deg_at_ref_freq_MHz,
-            PB_ref_freq_MHz = p.PB_ref_freq_MHz
+            FWHM_deg_at_ref_freq_MHz=p.FWHM_deg_at_ref_freq_MHz,
+            PB_ref_freq_MHz=p.PB_ref_freq_MHz
             )
     else:
         BM = BuildMatrices(
@@ -358,6 +364,7 @@ if do_cylindrical_binning:
 # Non-instrumental data creation
 #--------------------------------------------
 if not p.include_instrumental_effects:
+    # This needs to be updated to use astropy_healpix?
     #--------------------------------------------
     # Load EoR data
     #--------------------------------------------
@@ -423,13 +430,11 @@ overwrite_data_with_WN = False
 if p.include_instrumental_effects:
     if use_EoR_cube:
         Finv = BM.read_data_s2d(array_save_directory + 'Finv', 'Finv')
-        # This function needs to be updated once the astropy.healpix
-        # functions are in place
         s_EoR, abc, scidata1 = generate_EoR_signal_instrumental_im_2_vis(
             nu, nv, nx, ny, nf, neta, nq, k_x, k_y, k_z,
             Finv, Show, chan_selection, masked_power_spectral_modes,
             mod_k, p.EoR_npz_path_sc)
-        # Temporary measure to save space since Finv is large
+        # Temporary measure to save space since Finv can be large
         del Finv
     else:
         print('Using HERA data at {}'.format(p.HERA_data_path))
@@ -504,11 +509,12 @@ if p.include_instrumental_effects:
 # Instantiate class and check that posterior_probability returns a
 # finite probability (so no obvious binning errors etc.)
 #--------------------------------------------
-if small_cube: PSPP = PowerSpectrumPosteriorProbability(
-    T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin,
-    nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes,
-    modk_vis_ordered_list, Ninv, d_Ninv_d, log_priors=False,
-    intrinsic_noise_fitting=p.use_intrinsic_noise_fitting, k_vals=k_vals)
+if small_cube:
+    PSPP = PowerSpectrumPosteriorProbability(
+        T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin,
+        nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes,
+        modk_vis_ordered_list, Ninv, d_Ninv_d, log_priors=False,
+        intrinsic_noise_fitting=p.use_intrinsic_noise_fitting, k_vals=k_vals)
 PSPP_block_diag = PowerSpectrumPosteriorProbability(
     T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin,
     nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes,
@@ -552,11 +558,12 @@ if sub_ML_monopole_term_model:
     # Remove the constraints on the LW model for subsequent parts
     # of the analysis
     PSPP_block_diag.inverse_LW_power = p.inverse_LW_power
-    print('Foreground pre-subtraction complete, '\
+    print('Foreground pre-subtraction complete, '
           ' {} orders of magnitude foreground supression achieved.\n'.format(
-                np.log10((d-effective_noise).std() /
-                         (d-maxL_LW_signal-effective_noise).std()
-                         )
+                np.log10(
+                    (d-effective_noise).std()
+                    / (d-maxL_LW_signal-effective_noise).std()
+                    )
                 ))
 
     if small_cube:
@@ -576,7 +583,6 @@ if sub_ML_monopole_term_model:
 # PolyChord setup
 ###
 # log_priors_min_max = [[-5.0, 3.0] for _ in range(nDims)]
-# log_priors_min_max = [[-2.0, 6.0] for _ in range(nDims)]
 log_priors_min_max = [[-1.0, 7.0] for _ in range(nDims)]
 if p.use_LWM_Gaussian_prior:
     # Set minimum LW model priors using LW power spectrum in fit to
@@ -627,7 +633,7 @@ if overwrite_data_with_WN:
 zero_the_LW_modes = False
 
 file_root = 'Test-{}_{}_{}_{}_{}_s_{:.1E}-lp_F-dPS_F-'.format(
-    nu, nv, neta, nq, npl, sigma).replace('.','d')
+    nu, nv, neta, nq, npl, sigma).replace('.', 'd')
 if chan_selection != '':
     file_root = chan_selection + file_root
 if npl == 1:
@@ -686,7 +692,7 @@ print('Testing posterior calc with x={}'.format(x_bad))
 for _ in range(Nit):
     # L =  PSPP_block_diag_Polychord.posterior_probability([3.e0]*nDims)[0]
     L = PSPP_block_diag_Polychord.posterior_probability(x_bad)[0]
-PSPP_block_diag_Polychord.Print=False
+PSPP_block_diag_Polychord.Print = False
 print('Average evaluation time: {}'.format((time.time() - start)/float(Nit)))
 
 
