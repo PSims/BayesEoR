@@ -12,6 +12,7 @@ from subprocess import os
 import sys
 from scipy import stats
 from pdb import set_trace as brk
+from astropy_healpix import HEALPix
 
 from BayesEoR.SimData import\
     GenerateForegroundCube,\
@@ -1100,7 +1101,7 @@ def generate_EoR_signal_instrumental_im_2_vis(
         Finv, Show, chan_selection, masked_power_spectral_modes,
         mod_k, EoR_npz_path):
 
-    print('Using use_EoR_cube data')
+    # print('Using use_EoR_cube data')
     ###
     # Replace Gaussian signal with EoR cube
     ###
@@ -1163,27 +1164,24 @@ def generate_EoR_signal_instrumental_im_2_vis(
     # scidata1_subset = numpy.fft.ifftn(scidata1_subset, axes=axes_tuple)
     # scidata1_subset = numpy.fft.fftshift(scidata1_subset, axes=axes_tuple)
 
+    print('Generating white noise signal...')
     # This function needs to be updated to use astropy.healpix info
     # to generate a sky model
     # Make a cube in the subset space using a stddev
     # scaled to match the healvis sky realizations
+    hp = HEALPix(p.nside)
     np.random.seed(12346)
-    rms_mK = 1.0341928997136198 # scaled to match healvis sims for nx = 9
-    # rms_mK = 0.8043383678108019 # scaled to match healvis sims for nx = 7
-    scidata1_subset = np.random.normal(0, rms_mK, (nf, ny, nx))
-
-    # Temporary workaround for nside=16 healpix coordinates in Finv & Fprime
-    # np.random.seed(18237)
-    # rms_mK = 0.40474845072666593
-    # n_hpx_pix = 10
-    # scidata1_subset = np.random.normal(0, rms_mK, (nf, n_hpx_pix))
+    rms_mK = 12.951727094335597 # rms of healvis sky model for nside=512
+    # Scale rms based on pixel area
+    if not p.nside == 512:
+        scaling = p.nside / 512
+        rms_mK *= scaling
+    white_noise_sky = np.random.normal(0.0, rms_mK, (nf, hp.npix))
 
     for i_f in range(nf):
-        scidata1_subset[i_f] -= scidata1_subset[i_f].mean()
-    scidata1 = scidata1_subset.copy()
-    s = np.dot(Finv, scidata1_subset.reshape(-1, 1)).flatten()
-    # Temporary workaround for nside=16 healpix coordinates in Finv & Fprime
-    # s = np.dot(Finv, scidata1_subset.flatten())
+        white_noise_sky[i_f] -= white_noise_sky[i_f].mean()
+    scidata1 = white_noise_sky.copy()
+    s = np.dot(Finv, white_noise_sky.flatten())
     abc = s
 
     return s, abc, scidata1

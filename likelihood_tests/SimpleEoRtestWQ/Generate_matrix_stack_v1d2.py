@@ -35,6 +35,7 @@ from BayesEoR.Linalg import\
     generate_gridding_matrix_vis_ordered_to_chan_ordered_ZM,\
     nuDFT_Array_DFT_2D, nuDFT_Array_DFT_2D_v2d0,\
     make_Gaussian_beam, make_Uniform_beam
+from BayesEoR.Linalg.healpix import Healpix
 
 
 """
@@ -47,6 +48,12 @@ from BayesEoR.Linalg import\
     NOTE:
     This file supersedesLikelihood_v1d6_3D_ZM__save_arrays_v1d1.py.
 """
+
+SECS_PER_HOUR = 60 * 60
+SECS_PER_DAY = SECS_PER_HOUR * 24
+DAYS_PER_SEC = 1.0 / SECS_PER_DAY
+DEGREES_PER_HOUR = 360.0 / 24
+DEGREES_PER_SEC = DEGREES_PER_HOUR * 1 / SECS_PER_HOUR
 
 
 class BuildMatrixTree(object):
@@ -223,7 +230,7 @@ class BuildMatrices(BuildMatrixTree):
         default_npl = 0
 
         # ===== Inputs =====
-        self.npl = kwargs.pop('npl',default_npl)
+        self.npl = kwargs.pop('npl', default_npl)
         if p.include_instrumental_effects:
             self.uvw_multi_time_step_array_meters =\
                 kwargs.pop('uvw_multi_time_step_array_meters')
@@ -243,10 +250,25 @@ class BuildMatrices(BuildMatrixTree):
             self.phasor_vector = kwargs.pop('phasor_vector')
             self.beam_type = kwargs.pop('beam_type')
             self.beam_peak_amplitude = kwargs.pop('beam_peak_amplitude')
+            self.beam_center = kwargs.pop('beam_center', None)
+            self.beam_center_radec = kwargs.pop('beam_center_radec', False)
             self.FWHM_deg_at_ref_freq_MHz =\
                 kwargs.pop('FWHM_deg_at_ref_freq_MHz')
             self.PB_ref_freq_MHz = kwargs.pop('PB_ref_freq_MHz')
+            # Estimate for the noise vector in the data if input data
+            # vector contains noise
             self.effective_noise = kwargs.pop('effective_noise', None)
+
+            # Set up Healpix instance
+            self.hp = Healpix(
+                fov_deg=p.simulation_FoV_deg,
+                nside=p.nside,
+                telescope_latlonalt=p.telescope_latlonalt,
+                central_jd=p.central_jd,
+                beam_type=self.beam_type,
+                peak_amp=self.beam_peak_amplitude,
+                fwhm_deg=self.FWHM_deg_at_ref_freq_MHz
+                )
 
         # Set necessary / useful parameter values
         self.nu = nu
@@ -543,22 +565,25 @@ class BuildMatrices(BuildMatrixTree):
                 np.array([sampled_uvw_coords_m
                           / (p.speed_of_light/(chan_freq_MHz*1.e6))
                           for chan_freq_MHz in nu_array_MHz])
-            # Convert uv-coordinates from wavelengths
-            # to inverse pixel units
-            sampled_uvw_coords_inverse_pixel_units =\
-                sampled_uvw_coords_wavelengths\
-                / p.uv_pixel_width_wavelengths
+
+            # Get (l, m) coordinates from Healpix object
+            ls_rad, ms_rad = self.hp.calc_lm_from_radec(
+                    self.hp.pointing_center,
+                    self.hp.north_pole
+                )
+            sampled_lm_coords_radians = np.vstack((ls_rad, ms_rad)).T
 
             # Matrix shape is (nx*ny*nf*nt, nv*nf*nt)
             multi_chan_nudft = self.sd_block_diag([self.sd_block_diag([
-                nuDFT_Array_DFT_2D_v2d0(
-                    self.nu,
-                    self.nv,
-                    self.nx,
-                    self.ny,
-                    sampled_uvw_coords_inverse_pixel_units[
-                        freq_i, time_i, :, :].reshape(-1,2)).T
-                for freq_i in range(p.nf)])
+                    nuDFT_Array_DFT_2D_v2d0(
+                        self.nu,
+                        self.nv,
+                        self.nx,
+                        self.ny,
+                        sampled_lm_coords_radians,
+                        sampled_uvw_coords_wavelengths[
+                            freq_i, time_i, :, :].reshape(-1, 2)).T
+                    for freq_i in range(p.nf)])
                 for time_i in range(p.nt)])
 
         else:
@@ -609,7 +634,14 @@ class BuildMatrices(BuildMatrixTree):
             p.FWHM_deg_at_ref_freq_MHz * deg_to_pix
             for _ in nu_array_MHz]
 
+        # Instantiate (l, m) arrays in self.hp if not already made
+        self.hp.calc_lm_from_radec(
+                center=self.hp.pointing_center,
+                north=self.hp.north_pole
+            )
+
         if not p.model_drift_scan_primary_beam:
+            # Needs to be updated to use HEALPix coordinates
             if p.beam_type.lower() == 'gaussian':
                 multi_chan_P = self.sd_block_diag([
                     np.diag(
@@ -639,103 +671,60 @@ class BuildMatrices(BuildMatrixTree):
             # Model the time dependence of the primary beam pointing
             # for a drift scan (i.e. change in zenith angle with time
             # due to Earth rotation).
-            if p.beam_type.lower() == 'gaussian':
-                degrees_per_minute_of_time = 360. / (24*60)
-                # Updated for python 3: floor division
-                time_step_range = range(-(p.nt//2), p.nt//2, 1)
-                # Matches offset of pointing center from zenith as a
-                # function of time used when calculating the uv-coords
-                # in calc_UV_coords_v1d2.py (i.e. the uv-coords in
-                # self.uvw_multi_time_step_array_meters). The zenith
-                # (and hence PB center) coords will thus be the negative
-                # of this array (as used below).
-                pc_HA_pix_offset_array =\
-                    np.array([i_min
-                              * p.integration_time_minutes
-                              * degrees_per_minute_of_time
-                              * deg_to_pix
-                              for i_min in time_step_range])
-                if not p.use_sparse_matrices:
-                    # Stack dense block diagonal
-                    # matrices using np.vstack
-                    multi_chan_P_drift_scan = np.vstack([
-                        block_diag(*[
-                            np.diag(
-                                make_Gaussian_beam(
-                                    image_size_pix,
-                                    FWHM_pix,
-                                    beam_peak_amplitude,
-                                    center_pix=[
-                                        image_size_pix/2
-                                        - pc_pix_offset,
-                                        image_size_pix/2]
-                                    ).flatten(order='F')
-                                )
-                            for FWHM_pix in FWHM_pix_at_chan_freq_MHz]
-                           )
-                        for pc_pix_offset in pc_HA_pix_offset_array])
 
-                else:
-                    # Stack spares block diagonal
-                    # matrices using sparse.vstack
-                    multi_chan_P_drift_scan = sparse.vstack([
-                        sparse.block_diag([
-                            sparse.diags(
-                                make_Gaussian_beam(
-                                    image_size_pix,
-                                    FWHM_pix,
-                                    beam_peak_amplitude,
-                                    center_pix=[image_size_pix/2
-                                                - pc_pix_offset,
-                                                image_size_pix/2]
-                                    ).flatten(order='F')
-                                )
-                            for FWHM_pix in FWHM_pix_at_chan_freq_MHz])
-                        for pc_pix_offset in pc_HA_pix_offset_array])
-                multi_chan_P = multi_chan_P_drift_scan
+            degrees_per_minute_of_time = 360. / (24*60)
+            # Updated for python 3: floor division
+            time_step_range = range(-(p.nt//2), p.nt//2 + 1, 1)
+            # Calculate offset of pointing center from central
+            # (RA, DEC) as a function of time step
+            beam_center_ra_offset_array = np.array([
+                    i_min
+                    * p.integration_time_minutes
+                    * degrees_per_minute_of_time
+                    + self.hp.pointing_center[0] # central RA value
+                    for i_min in time_step_range
+                ])
 
+            if not p.use_sparse_matrices:
+                # Stack dense block diagonal
+                # matrices using np.vstack
+                # Use Healpix class functions
+                multi_chan_P_drift_scan = np.vstack([
+                    block_diag(*[
+                        np.diag(
+                            self.hp.get_beam_vals(
+                                beam_center=(ra_offset,
+                                             self.hp.pointing_center[1]),
+                                radec=True
+                                )
+                            )
+                        for _ in FWHM_pix_at_chan_freq_MHz])
+                    for ra_offset in beam_center_ra_offset_array])
             else:
-                # Currently only support uniform and Gaussian beams
-                # Uniform beam is unaltered by drift scan modelling
-                if not p.use_sparse_matrices:
-                    # Need to update the make_uniform_beam function
-                    # Using make_uniform_beam function
-                    # multi_chan_P_drift_scan = np.vstack([
-                    # 	block_diag(*[
-                    # 		np.diag(
-                    # 			make_Uniform_beam(
-                    # 				image_size_pix,
-                    # 				beam_peak_amplitude
-                    # 				).flatten()
-                    # 			)
-                    # 		for _ in range(p.nf)])
-                    # 	for _ in range(p.nt)])
-                    # Using np.ones for now
-                    multi_chan_P_drift_scan = np.vstack([
-                        block_diag(*[
-                            np.diag(np.ones(p.n_hpx_pix))
-                            for _ in range(p.nf)])
-                        for _ in range(p.nt)])
-                else:
-                    # need to update the make_uniform_beam function
-                    # Use make_uniform_beam function
-                    # multi_chan_P_drift_scan = sparse.vstack([
-                    # 	sparse.block_diag([
-                    # 		sparse.diags(
-                    # 			make_Uniform_beam(
-                    # 				image_size_pix,
-                    # 				beam_peak_amplitude).flatten()
-                    # 			)
-                    # 		for _ in range(p.nf)])
-                    # 	for _ in range(p.nt)])
-                    # Using np.ones for now
-                    multi_chan_P_drift_scan =\
-                        sparse.vstack([
-                            sparse.block_diag([
-                                sparse.diags(np.ones(p.n_hpx_pix))
-                                for _ in range(p.nf)])
-                            for _ in range(p.nt)])
-                multi_chan_P = multi_chan_P_drift_scan
+                # Stack spares block diagonal
+                # matrices using sparse.vstack
+                # Use Healpix class functions
+                temp = sparse.diags(
+                            self.hp.get_beam_vals(
+                                beam_center=(beam_center_ra_offset_array[0],
+                                             self.hp.pointing_center[1]),
+                                radec=True
+                                )
+                            )
+                print(temp.shape)
+                multi_chan_P_drift_scan = sparse.vstack([
+                    sparse.block_diag([
+                        sparse.diags(
+                            self.hp.get_beam_vals(
+                                beam_center=(ra_offset,
+                                             self.hp.pointing_center[1]),
+                                radec=True
+                                )
+                            )
+                        for _ in FWHM_pix_at_chan_freq_MHz])
+                    for ra_offset in beam_center_ra_offset_array])
+
+            multi_chan_P = multi_chan_P_drift_scan
 
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
@@ -808,7 +797,16 @@ class BuildMatrices(BuildMatrixTree):
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
         print('Performing matrix algebra')
-        idft_array = IDFT_Array_IDFT_2D_ZM(self.nu, self.nv, self.nx, self.ny)
+        # Get (l, m) coordinates from Healpix object
+        ls_rad, ms_rad = self.hp.calc_lm_from_radec(
+            self.hp.pointing_center,
+            self.hp.north_pole
+            )
+        sampled_lm_coords_radians = np.vstack((ls_rad, ms_rad)).T
+
+        idft_array = IDFT_Array_IDFT_2D_ZM(
+            self.nu, self.nv, self.nx, self.ny,
+            sampled_lm_coords_radians)
         idft_array *= self.Fprime_normalisation
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
