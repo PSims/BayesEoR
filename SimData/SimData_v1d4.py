@@ -1,16 +1,10 @@
 import numpy as np
-import numpy
-from numpy import arange, shape, log10, pi
+from numpy import *
 import scipy
 from subprocess import os
 import sys
-import pylab
 from pdb import set_trace
 from pdb import set_trace as brk
-from numpy import *
-import pylab
-import pylab as P
-import scipy
 from scipy import optimize
 from scipy.optimize import curve_fit
 from scipy import misc
@@ -80,11 +74,11 @@ def generate_test_sim_signal(nu, nv, nx, ny, nf, neta):
     np.random.seed(123)
     random_im = np.random.normal(0., 1, nf*nu*nv).reshape(nf, nu, nv)
     axes_tuple = (0, 1, 2)
-    random_k = numpy.fft.ifftshift(random_im + 0j, axes=axes_tuple)
+    random_k = np.fft.ifftshift(random_im + 0j, axes=axes_tuple)
     # FFT (python pre-normalises correctly! -- see
     # parsevals theorem for discrete fourier transform.)
-    random_k = numpy.fft.fftn(random_k, axes=axes_tuple)
-    random_k = numpy.fft.fftshift(random_k, axes=axes_tuple)
+    random_k = np.fft.fftn(random_k, axes=axes_tuple)
+    random_k = np.fft.fftshift(random_k, axes=axes_tuple)
     random_k /= random_k.std()
 
     k_perp_3D = (k_x**2. + k_y**2)**0.5
@@ -96,17 +90,17 @@ def generate_test_sim_signal(nu, nv, nx, ny, nf, neta):
     k_cube_signal = k_cube_power_scaling_cube * random_k
 
     axes_tuple = (0, 1, 2)
-    im_power_scaling = numpy.fft.ifftshift(random_k + 0j, axes=axes_tuple)
+    im_power_scaling = np.fft.ifftshift(random_k + 0j, axes=axes_tuple)
     # FFT (python pre-normalises correctly! -- see
     # parsevals theorem for discrete fourier transform.)
-    im_power_scaling = numpy.fft.ifftn(im_power_scaling, axes=axes_tuple)
-    im_power_scaling = numpy.fft.fftshift(im_power_scaling, axes=axes_tuple)
+    im_power_scaling = np.fft.ifftn(im_power_scaling, axes=axes_tuple)
+    im_power_scaling = np.fft.fftshift(im_power_scaling, axes=axes_tuple)
 
-    s_im = numpy.fft.ifftshift(k_cube_signal + 0j, axes=axes_tuple)
+    s_im = np.fft.ifftshift(k_cube_signal + 0j, axes=axes_tuple)
     # FFT (python pre-normalises correctly! -- see
     # parsevals theorem for discrete fourier transform.)
-    s_im = numpy.fft.ifftn(s_im, axes=axes_tuple)
-    s_im = numpy.fft.fftshift(s_im, axes=axes_tuple)
+    s_im = np.fft.ifftn(s_im, axes=axes_tuple)
+    s_im = np.fft.fftshift(s_im, axes=axes_tuple)
 
     s_im = s_im / (1./DFT2D_Fz_normalisation)
     s = np.dot(multi_chan_dft_array_noZMchan / (nu*nv)**0.5, s_im.flatten())
@@ -417,11 +411,11 @@ def generate_test_sim_signal_with_large_spectral_scales_2_HERA_Binning(
         nu, nv, neta, nq, bin_selector_in_k_cube_mask, k_sigma)
 
     axes_tuple = (0, 1, 2)
-    s_im=numpy.fft.ifftshift(k_cube_signal + 0j, axes=axes_tuple)
+    s_im = np.fft.ifftshift(k_cube_signal + 0j, axes=axes_tuple)
     # FFT (python pre-normalises correctly! -- see
     # parsevals theorem for discrete fourier transform.)
-    s_im=numpy.fft.ifftn(s_im, axes=axes_tuple)
-    s_im=numpy.fft.fftshift(s_im, axes=axes_tuple)
+    s_im = np.fft.ifftn(s_im, axes=axes_tuple)
+    s_im = np.fft.fftshift(s_im, axes=axes_tuple)
 
     # Add in large spectral-scale power
     a0 = 0.0
@@ -599,7 +593,7 @@ def generate_test_sim_signal_with_large_spectral_scales_2_21cmFAST_Binning(
                 k_z_mean_mask)
 
     k_perp_3D = (k_x**2. + k_y**2)**0.5
-    ZM_mask = k_perp_3D>0.0
+    ZM_mask = k_perp_3D > 0.0
 
     # Construct zero-mean dataset
     for i_bin in range(len(bin_selector_in_k_cube_mask)):
@@ -610,11 +604,11 @@ def generate_test_sim_signal_with_large_spectral_scales_2_21cmFAST_Binning(
         nu, nv, neta, nq, bin_selector_in_k_cube_mask, k_sigma)
 
     axes_tuple = (0, 1, 2)
-    s_im=numpy.fft.ifftshift(k_cube_signal + 0j, axes=axes_tuple)
+    s_im = np.fft.ifftshift(k_cube_signal + 0j, axes=axes_tuple)
     # FFT (python pre-normalises correctly! -- see
     # parsevals theorem for discrete fourier transform.)
-    s_im=numpy.fft.ifftn(s_im, axes=axes_tuple)
-    s_im=numpy.fft.fftshift(s_im, axes=axes_tuple)
+    s_im = np.fft.ifftn(s_im, axes=axes_tuple)
+    s_im = np.fft.fftshift(s_im, axes=axes_tuple)
 
     # Add in large spectral-scale power
     a0 = 0.0
@@ -627,10 +621,10 @@ def generate_test_sim_signal_with_large_spectral_scales_2_21cmFAST_Binning(
     q2_amplitudes = np.random.normal(10, 1, nu*nv).reshape(nu, nv)
     for i in range(nu):
         for j in range(nv):
-            quad_large_spectral_scale_model[:,i,j] = (
+            quad_large_spectral_scale_model[:, i, j] = (
                     a0
-                    + a1*q1_amplitudes[i,j]*k_z[:,i,j]
-                    + a2*q2_amplitudes[i,j]*(k_z[:,i,j]+0.0)**2)
+                    + a1*q1_amplitudes[i, j]*k_z[:, i, j]
+                    + a2*q2_amplitudes[i, j]*(k_z[:, i, j]+0.0)**2)
             # quad_large_spectral_scale_model[:,i,j] = (
             # 		a1
             # 		+ i*k_z[:,i,j]+j*(k_z[:,i,j])**2)
@@ -940,11 +934,11 @@ def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vec
     real_noise_cube = np.random.normal(0, sigma, [nf, ny, nx])
 
     axes_tuple = (1, 2)
-    vfft1 = numpy.fft.ifftshift(real_noise_cube + 0j, axes=axes_tuple)
+    vfft1 = np.fft.ifftshift(real_noise_cube + 0j, axes=axes_tuple)
     # FFT (python pre-normalises correctly! -- see
     # parsevals theorem for discrete fourier transform.)
-    vfft1 = numpy.fft.fftn(vfft1, axes=axes_tuple)
-    vfft1 = numpy.fft.fftshift(vfft1, axes=axes_tuple)
+    vfft1 = np.fft.fftn(vfft1, axes=axes_tuple)
+    vfft1 = np.fft.fftshift(vfft1, axes=axes_tuple)
 
     sci_f, sci_v, sci_u = vfft1.shape
     # Updated for python 3: floor division
@@ -1593,9 +1587,9 @@ class GenerateForegroundCube(object):
         foreground_k_space_amplitudes_cube = self.generate_GRN_for_A_and_beta_fields(nu,nv,nx,ny,nf,neta,nq, gamma_mean, gamma_sigma)
 
         axes_tuple=(0,1,2)
-        unnormalised_A=numpy.fft.ifftshift(foreground_k_space_amplitudes_cube+0j, axes=axes_tuple)
-        unnormalised_A=numpy.fft.fftn(unnormalised_A, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
-        unnormalised_A=numpy.fft.fftshift(unnormalised_A, axes=axes_tuple)
+        unnormalised_A=np.fft.ifftshift(foreground_k_space_amplitudes_cube+0j, axes=axes_tuple)
+        unnormalised_A=np.fft.fftn(unnormalised_A, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
+        unnormalised_A=np.fft.fftshift(unnormalised_A, axes=axes_tuple)
         unnormalised_beta = unnormalised_A.copy()
         return unnormalised_A, unnormalised_beta.real
 
@@ -1658,9 +1652,9 @@ def update_Tb_experimental_std_K_to_correct_for_normalisation_resolution(Tb_expe
 
     # Import libs
 
-    # import numpy
-    # import numpy as np
-    # from numpy import *
+    # import np
+    # import np as np
+    # from np import *
     # import pylab
     # import pylab as P
     # import scipy
@@ -1668,7 +1662,7 @@ def update_Tb_experimental_std_K_to_correct_for_normalisation_resolution(Tb_expe
     # from scipy.optimize import curve_fit
     # from scipy import misc
     # from scipy import ndimage
-    # import numpy as np
+    # import np as np
 
     Show=False
 
@@ -1719,9 +1713,9 @@ def update_Tb_experimental_std_K_to_correct_for_normalisation_resolution(Tb_expe
     np.random.seed(1274+3142)
     wn_im_hr=np.random.normal(0,10,N_hr**2).reshape(N_hr,N_hr)
     axes_tuple=(0,1)
-    fft_wn_im_hr=numpy.fft.ifftshift(wn_im_hr, axes=axes_tuple)
-    fft_wn_im_hr=numpy.fft.fftn(fft_wn_im_hr, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
-    fft_wn_im_hr=numpy.fft.fftshift(fft_wn_im_hr, axes=axes_tuple)
+    fft_wn_im_hr=np.fft.ifftshift(wn_im_hr, axes=axes_tuple)
+    fft_wn_im_hr=np.fft.fftn(fft_wn_im_hr, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
+    fft_wn_im_hr=np.fft.fftshift(fft_wn_im_hr, axes=axes_tuple)
     fft_wn_im_hr = d_Omega_hr*fft_wn_im_hr #Apply physical normalisation for FFT as per Beardsley doc.
 
     # Generate scaling field to impart desired spatial power spectrum
@@ -1777,14 +1771,14 @@ def update_Tb_experimental_std_K_to_correct_for_normalisation_resolution(Tb_expe
     # fft copy of the low-res centre of the high-res. uv-plane to the image. Call this GDSE_lr
     # fft high-res uv-plane with all of the high-res information (the information not present in the GSM) zeroed to the image. Call this GDSE_hr_low_pass_filtered.
 
-    scaled_wn_im_lr=numpy.fft.ifftshift(scaled_fft_wn_im_lr, axes=axes_tuple)
-    scaled_wn_im_lr=numpy.fft.ifftn(scaled_wn_im_lr, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
-    scaled_wn_im_lr=numpy.fft.fftshift(scaled_wn_im_lr, axes=axes_tuple)
+    scaled_wn_im_lr=np.fft.ifftshift(scaled_fft_wn_im_lr, axes=axes_tuple)
+    scaled_wn_im_lr=np.fft.ifftn(scaled_wn_im_lr, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
+    scaled_wn_im_lr=np.fft.fftshift(scaled_wn_im_lr, axes=axes_tuple)
     scaled_wn_im_lr=duv_lr*scaled_wn_im_lr
 
-    zero_padded_scaled_wn_im_lr=numpy.fft.ifftshift(zero_padded_scaled_fft_wn_im_lr, axes=axes_tuple)
-    zero_padded_scaled_wn_im_lr=numpy.fft.ifftn(zero_padded_scaled_wn_im_lr, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
-    zero_padded_scaled_wn_im_lr=numpy.fft.fftshift(zero_padded_scaled_wn_im_lr, axes=axes_tuple)
+    zero_padded_scaled_wn_im_lr=np.fft.ifftshift(zero_padded_scaled_fft_wn_im_lr, axes=axes_tuple)
+    zero_padded_scaled_wn_im_lr=np.fft.ifftn(zero_padded_scaled_wn_im_lr, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
+    zero_padded_scaled_wn_im_lr=np.fft.fftshift(zero_padded_scaled_wn_im_lr, axes=axes_tuple)
     zero_padded_scaled_wn_im_lr=duv_hr*zero_padded_scaled_wn_im_lr
 
     print('scaled_wn_im_lr.shape, scaled_wn_im_lr.std():', scaled_wn_im_lr.shape, scaled_wn_im_lr.std())
@@ -1824,9 +1818,9 @@ def update_Tb_experimental_std_K_to_correct_for_normalisation_resolution(Tb_expe
     P.colorbar()
     if Show: P.show()
 
-    normalised_scaled_wn_im_hr=numpy.fft.ifftshift(normalised_scaled_fft_wn_im_hr, axes=axes_tuple)
-    normalised_scaled_wn_im_hr=numpy.fft.ifftn(normalised_scaled_wn_im_hr, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
-    normalised_scaled_wn_im_hr=numpy.fft.fftshift(normalised_scaled_wn_im_hr, axes=axes_tuple)
+    normalised_scaled_wn_im_hr=np.fft.ifftshift(normalised_scaled_fft_wn_im_hr, axes=axes_tuple)
+    normalised_scaled_wn_im_hr=np.fft.ifftn(normalised_scaled_wn_im_hr, axes=axes_tuple) #FFT (python pre-normalises correctly! -- see parsevals theorem for discrete fourier transform.)
+    normalised_scaled_wn_im_hr=np.fft.fftshift(normalised_scaled_wn_im_hr, axes=axes_tuple)
     normalised_scaled_wn_im_hr=duv_hr*normalised_scaled_wn_im_hr
 
     print('normalised_scaled_wn_im_lr.shape, normalised_scaled_wn_im_lr.std():', normalised_scaled_wn_im_lr.shape, normalised_scaled_wn_im_lr.std())
