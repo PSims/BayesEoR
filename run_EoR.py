@@ -5,9 +5,12 @@
 from BayesEoR import *
 import BayesEoR.Params.params as p
 
+import sys
 import os
-head, tail = os.path.split(os.path.split(os.getcwd())[0])
-sys.path.append(head)
+import time
+import numpy as np
+# head, tail = os.path.split(os.path.split(os.getcwd())[0])
+# sys.path.append(head)
 
 
 # If False, skip mpi and other imports that can cause crashes in ipython
@@ -416,7 +419,7 @@ T_Ninv_T = BM.read_data_s2d(
     array_save_directory +
     'T_Ninv_T',
     'T_Ninv_T')
-Npar = shape(T_Ninv_T)[0]
+Npar = T_Ninv_T.shape[0]
 fit_for_LW_power_spectrum = True
 masked_power_spectral_modes = np.ones(Npar)
 masked_power_spectral_modes = masked_power_spectral_modes.astype('bool')
@@ -477,7 +480,7 @@ print('effective SNR = {:.4e}'.format(s_EoR.std() / effective_noise_std),
 Ninv = BM.read_data_s2d(array_save_directory + 'Ninv', 'Ninv')
 Ninv_d = np.dot(Ninv, d)
 dbar = np.dot(T.conjugate().T, Ninv_d)
-Sigma_Diag_Indices = np.diag_indices(shape(T_Ninv_T)[0])
+Sigma_Diag_Indices = np.diag_indices(T_Ninv_T.shape[0])
 nDims = len(k_cube_voxels_in_bin)
 d_Ninv_d = np.dot(d.conjugate(), Ninv_d)
 

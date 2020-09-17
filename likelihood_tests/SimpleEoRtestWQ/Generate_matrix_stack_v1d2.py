@@ -1,37 +1,16 @@
 import numpy as np
-import numpy
-from numpy import arange, shape
-import scipy
 from subprocess import os
 import shutil
-import sys
 import time
 import h5py
 from scipy.linalg import block_diag
-from pdb import set_trace as brk
 from scipy import sparse
 
 import BayesEoR.Params.params as p
-
 from BayesEoR.Linalg import\
-    IDFT_Array_IDFT_2D_ZM_SH, makeGaussian,\
-    Produce_Full_Coordinate_Arrays, Produce_Coordinate_Arrays_ZM,\
-    Produce_Coordinate_Arrays_ZM_Coarse, Produce_Coordinate_Arrays_ZM_SH,\
-    Calc_Coords_High_Res_Im_to_Large_uv, Calc_Coords_Large_Im_to_High_Res_uv,\
-    Restore_Centre_Pixel, Calc_Indices_Centre_3x3_Grid,\
-    Delete_Centre_3x3_Grid, Delete_Centre_Pix, N_is_Odd,\
-    Calc_Indices_Centre_NxN_Grid, Obtain_Centre_NxN_Grid,\
-    Restore_Centre_3x3_Grid, Restore_Centre_NxN_Grid,\
-    Generate_Combined_Coarse_plus_Subharmic_uv_grids,\
-    IDFT_Array_IDFT_2D_ZM_SH, DFT_Array_DFT_2D, IDFT_Array_IDFT_2D,\
     DFT_Array_DFT_2D_ZM, IDFT_Array_IDFT_2D_ZM, IDFT_Array_IDFT_1D,\
-    Construct_Hermitian, Construct_Hermitian_Gridding_Matrix,\
-    Construct_Hermitian_Gridding_Matrix_CosSin,\
-    Construct_Hermitian_Gridding_Matrix_CosSin_SH_v4,\
     generate_gridding_matrix_vis_ordered_to_chan_ordered,\
-    IDFT_Array_IDFT_1D_WQ, IDFT_Array_IDFT_1D_WQ_ZM,\
-    generate_gridding_matrix_vis_ordered_to_chan_ordered_WQ,\
-    generate_gridding_matrix_vis_ordered_to_chan_ordered_ZM,\
+    IDFT_Array_IDFT_1D_WQ,\
     nuDFT_Array_DFT_2D, nuDFT_Array_DFT_2D_v2d0,\
     make_Gaussian_beam, make_Uniform_beam
 from BayesEoR.Linalg.healpix import Healpix
@@ -56,6 +35,10 @@ DEGREES_PER_SEC = DEGREES_PER_HOUR * 1 / SECS_PER_HOUR
 
 
 class BuildMatrixTree(object):
+    """
+    Class containing system level functions used to create the matrices
+    used in BayesEoR.
+    """
     def __init__(self, array_save_directory, **kwargs):
         self.array_save_directory = array_save_directory
 
@@ -221,6 +204,36 @@ class BuildMatrixTree(object):
 
 
 class BuildMatrices(BuildMatrixTree):
+    """
+    Child class used to create minimum sufficient matrix stack
+    using BayesEoR.Linalg functions to create matrices.
+
+    Parameters
+    ----------
+    array_save_directory : str
+        Path to the directory where arrays will be saved.
+    nu : int
+        Number of pixels on a side for the u axis in the model uv-plane.
+    nv : int
+        Number of pixels on a side for the v axis in the model uv-plane.
+    nx : int
+        Number of pixels on a side for the l axis in the sky model.
+        Potentially deprecated parameter.
+    ny : int
+        Number of pixels on a side for the m axis in the sky model.
+        Potentially deprecated parameter.
+    n_vis : int
+        Number of visibilities per channel, i.e. number of
+        redundant baselines * number of time steps.
+    neta : int
+        Number of LoS FT modes.
+    nf : int
+        Number of frequency channels.
+    nq : int
+        Number of quadratic modes.
+    sigma : float
+        Expected noise level in the data vector = signal + noise.
+    """
     def __init__(self, array_save_directory, nu, nv, nx, ny,
                  n_vis, neta, nf, nq, sigma, **kwargs):
         super(BuildMatrices, self).__init__(array_save_directory)
@@ -286,7 +299,9 @@ class BuildMatrices(BuildMatrixTree):
 
         # Fprime normalization
         self.delta_u_inv_rad = p.uv_pixel_width_wavelengths
-        self.Fprime_normalisation = (self.nu * self.nv) * self.delta_u_inv_rad**2
+        self.Fprime_normalisation = (
+                (self.nu * self.nv) * self.delta_u_inv_rad**2
+            )
 
         # Finv normalization
         self.dA_sr = p.sky_model_pixel_area_sr
@@ -385,9 +400,9 @@ class BuildMatrices(BuildMatrixTree):
             # One of the matrices is sparse - need to use
             # python matrix syntax (i.e. * for dot product)
             # NOTE:
-            # sparse*dense=dense
-            # dense*sparse=dense
-            # sparse*sparse=sparse
+            # sparse * dense = dense
+            # dense * sparse = dense
+            # sparse * sparse = sparse
             print(matrix_A.shape)
             print(matrix_B.shape)
             AB = matrix_A * matrix_B
@@ -395,7 +410,7 @@ class BuildMatrices(BuildMatrixTree):
 
     def convert_sparse_to_dense_matrix(self, matrix_A):
         """
-        Convert scipy.sparse matrix to dense matrix
+        Convert scipy.sparse matrix to dense matrix.
         """
         matrix_A_is_sparse = sparse.issparse(matrix_A)
         if matrix_A_is_sparse:
@@ -406,7 +421,7 @@ class BuildMatrices(BuildMatrixTree):
 
     def convert_sparse_matrix_to_dense_numpy_array(self, matrix_A):
         """
-        Convert scipy.sparse matrix to dense numpy array
+        Convert scipy.sparse matrix to dense numpy array.
         """
         matrix_A_dense = self.convert_sparse_to_dense_matrix(matrix_A)
         matrix_A_dense_np_array = np.array(matrix_A_dense)
@@ -415,7 +430,7 @@ class BuildMatrices(BuildMatrixTree):
     def sd_block_diag(self, block_matrices_list):
         """
         Generate block diagonal matrix from
-        blocks in block_matrices_list
+        blocks in block_matrices_list.
         """
         if p.use_sparse_matrices:
             return sparse.block_diag(block_matrices_list)
@@ -423,6 +438,15 @@ class BuildMatrices(BuildMatrixTree):
             return block_diag(*block_matrices_list)
 
     def build_T(self):
+        """
+        Construct T which takes a model (u, v, eta) space data vector
+        and transforms it to:
+          1. model (u, v, f) space via Fz
+          2. model (l, m, f) HEALPix space via Fprime
+          3. data (u, v, f) space via Finv
+
+        T has shape(ndata, nuv * (neta + nq)).
+        """
         matrix_name = 'T'
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
@@ -437,6 +461,11 @@ class BuildMatrices(BuildMatrixTree):
             matrix_name)
 
     def build_Ninv_T(self):
+        """
+        Matrix product of Ninv * T.  Can be used to take a (u, v, eta)
+        data vector and compute a noise weighted vector in data space.
+        Ninv_T has shape (ndata, nuv * (neta + nq)).
+        """
         matrix_name = 'Ninv_T'
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
@@ -451,6 +480,10 @@ class BuildMatrices(BuildMatrixTree):
             matrix_name)
 
     def build_Fprime_Fz(self):
+        """
+        Matrix product of Fprime * Fz with
+        shape (npix, nuv * (neta + nq)).
+        """
         matrix_name = 'Fprime_Fz'
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
@@ -464,7 +497,40 @@ class BuildMatrices(BuildMatrixTree):
             matrix_name,
             matrix_name)
 
+    def build_dft_array(self):
+        """
+        Construct a block for `multi_chan_dft_array_noZMchan` which
+        is a uniform DFT matrix that takes a rectilinear sky model
+        in (l, m) space and transforms it a rectilinear (u, v) plane
+        for a single frequency channel.
+
+        Used to construct `Finv` if
+        `include_instrumental_effects = False`.
+        dft_array has shape (nuv, nx * ny).
+        """
+        matrix_name = 'dft_array'
+        pmd = self.load_prerequisites(matrix_name)
+        start = time.time()
+        print('Performing matrix algebra')
+        dft_array = DFT_Array_DFT_2D_ZM(self.nu, self.nv, self.nx, self.ny)
+        print('Time taken: {}'.format(time.time() - start))
+        # Save matrix to HDF5 or sparse matrix to npz
+        self.output_data(dft_array,
+                         self.array_save_directory,
+                         matrix_name,
+                         matrix_name)
+
     def build_multi_chan_dft_array_noZMchan(self):
+        """
+        Constructs a block-diagonal uniform DFT matrix which takes
+        a rectilinear model sky vector in (l, m, f) space and transforms
+        it to a rectilinear (u, v, f) data space.
+
+        Used to construct `Finv` if
+        `include_instrumental_effects = False`.
+        multi_chan_dft_array_noZMchan has shape
+        (nuv * nf, nx * ny * nf).
+        """
         matrix_name = 'multi_chan_dft_array_noZMchan'
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
@@ -481,16 +547,21 @@ class BuildMatrices(BuildMatrixTree):
 
     def build_phasor_matrix(self):
         """
-        Build phasor matrix which is multiplied elementwise into the
-        visibility vector from Finv, constructed using unphased uvw
-        coordinates, to produce phased visibilities.
+        Construct phasor matrix which is multiplied elementwise into
+        the visibility vector from Finv, constructed using unphased
+        (u, v, w) coordinates, to produce phased visibilities.
 
-        The phasor matrix is a diagonal matrix with the e^i*phi(t, u, v)
-        phase elements on the diagonal.  The phasor vector must be a
-        part of the instrument model being used.
+        The phasor matrix is a diagonal matrix with the
+        `e^i*phi(t, u, v)` phase elements on the diagonal.
+        The phasor vector must be a part of the instrument
+        model being used.
 
         NOTE:
-            This function assumes that use_nvis_nchan_nt_ordering = True
+            This function assumes that
+            `use_nvis_nchan_nt_ordering = True`
+
+        Used to construct `Finv`.
+        phasor_matrix has shape (ndata, ndata).
         """
         matrix_name = 'phasor_matrix'
         pmd = self.load_prerequisites(matrix_name)
@@ -511,8 +582,8 @@ class BuildMatrices(BuildMatrixTree):
 
     def build_multi_chan_nudft(self):
         """
-        Build nudft array from (l,m,f) to (u,v,f)
-        sampled by the instrument.
+        Construct block-diagonal non-uniform DFT array from (l, m, f)
+        to unphased (u, v, f) in the instrument model.
 
         If use_nvis_nt_nchan_ordering:
             model visibilities will be ordered (nvis*nt) per chan for
@@ -521,6 +592,9 @@ class BuildMatrices(BuildMatrixTree):
             model visibilities will be ordered (nvis*nchan) per time
             step for all time steps (this ordering is required when
             using a drift scan primary beam).
+
+        Used to construct `Finv`.
+        `multi_chan_nudft` has shape (ndata, npix * nf * nt).
         """
         matrix_name = 'multi_chan_nudft'
         pmd = self.load_prerequisites(matrix_name)
@@ -528,6 +602,7 @@ class BuildMatrices(BuildMatrixTree):
         print('Performing matrix algebra')
         nu_array_MHz = p.nu_min_MHz + np.arange(p.nf)*p.channel_width_MHz
         if p.use_nvis_nt_nchan_ordering:
+            # Need to update this to use astropy_healpix functions
             sampled_uvw_coords_m =\
                 self.uvw_multi_time_step_array_meters_vectorised.copy()
             # Matrix shape is (nx*ny*nf, nv*nt*nf)
@@ -610,6 +685,16 @@ class BuildMatrices(BuildMatrixTree):
                          matrix_name)
 
     def build_multi_chan_P(self):
+        """
+        Constructs a stacked, block-diagonal matrix containing the beam
+        amplitude of each (l(t), m(t), f) pixel in the sky model.
+        Each block-diagonal matrix in the stack contains a block
+        diagonal matrix with nf blocks that contain the beam amplitude
+        at each (l(t_i), m(t_i), f_i).
+
+        Used to construct `Finv`.
+        `multi_chan_P` has shape (npix * nf * nt, nuv * nf).
+        """
         matrix_name = 'multi_chan_P'
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
@@ -618,15 +703,6 @@ class BuildMatrices(BuildMatrixTree):
         image_size_pix = p.nx
         beam_peak_amplitude = p.beam_peak_amplitude
         deg_to_pix = image_size_pix / float(p.simulation_FoV_deg)
-
-        # If using a chromatic beam, vary the FWHM with frequency
-        # FWHM_deg_at_chan_freq_MHz = [
-        # 	p.FWHM_deg_at_ref_freq_MHz
-        # 	* (float(p.PB_ref_freq_MHz)/chan_freq_MHz)
-        # 	for chan_freq_MHz in nu_array_MHz]
-        # FWHM_pix_at_chan_freq_MHz = [
-        # 	FWHM_deg * deg_to_pix
-        # 	for FWHM_deg in FWHM_deg_at_chan_freq_MHz]
 
         # Currently using an achromatic beam
         FWHM_pix_at_chan_freq_MHz = [
@@ -703,14 +779,6 @@ class BuildMatrices(BuildMatrixTree):
                 # Stack spares block diagonal
                 # matrices using sparse.vstack
                 # Use Healpix class functions
-                temp = sparse.diags(
-                            self.hp.get_beam_vals(
-                                beam_center=(beam_center_ra_offset_array[0],
-                                             self.hp.pointing_center[1]),
-                                radec=True
-                                )
-                            )
-                print(temp.shape)
                 multi_chan_P_drift_scan = sparse.vstack([
                     sparse.block_diag([
                         sparse.diags(
@@ -733,6 +801,17 @@ class BuildMatrices(BuildMatrixTree):
                          matrix_name)
 
     def build_Finv(self):
+        """
+        Construct a non-uniform DFT matrix that takes a vector of
+        (l, m, f) syk model pixel amplitudes and:
+          1. applies a beam per time and frequency via `multi_chan_P`
+          2. transforms to insttrumentally sampled, unphased (u, v, f)
+             coordinates from the instrument model
+          3. applies a phasor vector from the instrument model to phase
+             the visibilities to the central time step
+
+        `Finv` has shape (ndata, nuv * nf).
+        """
         matrix_name = 'Finv'
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
@@ -750,48 +829,16 @@ class BuildMatrices(BuildMatrixTree):
                          matrix_name,
                          matrix_name)
 
-    def build_multi_chan_idft_array_noZMchan(self):
-        matrix_name = 'multi_chan_idft_array_noZMchan'
-        pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
-        multi_chan_idft_array_noZMchan = self.sd_block_diag(
-            [pmd['idft_array'].T for i in range(self.nf)]
-            )
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(multi_chan_idft_array_noZMchan,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
-
-    def build_Fprime(self):
-        matrix_name = 'Fprime'
-        pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
-        Fprime = pmd['multi_chan_idft_array_noZMchan']
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(Fprime,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
-
-    def build_dft_array(self):
-        matrix_name = 'dft_array'
-        pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
-        dft_array = DFT_Array_DFT_2D_ZM(self.nu, self.nv, self.nx, self.ny)
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(dft_array,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
-
     def build_idft_array(self):
+        """
+        Construct a block for `multi_chan_idft_array_noZMchan` which
+        is a non-uniform DFT matrix that takes a rectilinear, model
+        (u, v) plane and transforms it to HEALPix sky model (l, m)
+        space for a single frequency channel.
+
+        Used to construct `Fprime`.
+        `idft_array` has shape (npix, nuv).
+        """
         matrix_name = 'idft_array'
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
@@ -814,7 +861,81 @@ class BuildMatrices(BuildMatrixTree):
                          matrix_name,
                          matrix_name)
 
+    def build_multi_chan_idft_array_noZMchan(self):
+        """
+        Construct a non-uniform, block-diagonal DFT matrix which
+        takes a rectilinear (u, v, f) model and transforms it to
+        HEALPix sky model (l, m, f) space.  Each block corresponds
+        to a single frequency channel.
+
+        Used to construct `Fprime`.
+        `multi_chan_idft_array_noZMchan` has shape
+        (npix * nf, nuv * nf).
+        """
+        matrix_name = 'multi_chan_idft_array_noZMchan'
+        pmd = self.load_prerequisites(matrix_name)
+        start = time.time()
+        print('Performing matrix algebra')
+        multi_chan_idft_array_noZMchan = self.sd_block_diag(
+            [pmd['idft_array'].T for i in range(self.nf)]
+            )
+        print('Time taken: {}'.format(time.time() - start))
+        # Save matrix to HDF5 or sparse matrix to npz
+        self.output_data(multi_chan_idft_array_noZMchan,
+                         self.array_save_directory,
+                         matrix_name,
+                         matrix_name)
+
+    def build_Fprime(self):
+        """
+        Construct a non-uniform, block-diagonal DFT matrix which
+        takes a rectilinear (u, v, f) model and transforms it to
+        HEALPix sky model (l, m, f) space.
+
+        `Fprime` has shape (npix * nf, nuv * nf).
+        """
+        matrix_name = 'Fprime'
+        pmd = self.load_prerequisites(matrix_name)
+        start = time.time()
+        print('Performing matrix algebra')
+        Fprime = pmd['multi_chan_idft_array_noZMchan']
+        print('Time taken: {}'.format(time.time() - start))
+        # Save matrix to HDF5 or sparse matrix to npz
+        self.output_data(Fprime,
+                         self.array_save_directory,
+                         matrix_name,
+                         matrix_name)
+
+    def build_idft_array_1D(self):
+        """
+        Construct a 1D LoS DFT matrix for a single (u, v) pixel
+        with `nq = 0`.  Constructs one block within
+        `multi_vis_idft_array_1D`.
+
+        Used to construct `Fz` if `nq = 0`.
+        `idft_array_1D` has shape (nf, neta).
+        """
+        matrix_name = 'idft_array_1D'
+        pmd = self.load_prerequisites(matrix_name)
+        start = time.time()
+        print('Performing matrix algebra')
+        idft_array_1D = IDFT_Array_IDFT_1D(self.nf, self.neta)
+        idft_array_1D *= self.Fz_normalisation
+        print('Time taken: {}'.format(time.time() - start))
+        # Save matrix to HDF5 or sparse matrix to npz
+        self.output_data(idft_array_1D,
+                         self.array_save_directory,
+                         matrix_name,
+                         matrix_name)
+
     def build_multi_vis_idft_array_1D(self):
+        """
+        Construct a block diagonal matrix of 1D LoS DFT matrices for
+        every (u, v) pixel in the model uv-plane.
+
+        Used to construct `Fz` if `nq = 0`.
+        `multi_vis_idft_array_1D` has shape (nuv * nf, nuv * neta).
+        """
         matrix_name = 'multi_vis_idft_array_1D'
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
@@ -834,98 +955,15 @@ class BuildMatrices(BuildMatrixTree):
                          matrix_name,
                          matrix_name)
 
-    def build_multi_vis_idft_array_1D_WQ(self):
-        matrix_name = 'multi_vis_idft_array_1D_WQ'
-        pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
-        if p.fit_for_monopole:
-            multi_vis_idft_array_1D_WQ = self.sd_block_diag(
-                [pmd['idft_array_1D_WQ'].T for i in range(self.nu*self.nv)]
-                )
-        else:
-            multi_vis_idft_array_1D_WQ = self.sd_block_diag(
-                [pmd['idft_array_1D_WQ'].T for i in range(self.nu*self.nv - 1)]
-                )
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(multi_vis_idft_array_1D_WQ,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
-
-    def build_Fz(self):
-        matrix_name = 'Fz'
-        pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
-        if self.nq == 0:
-            Fz = self.dot_product(
-                pmd['gridding_matrix_vis_ordered_to_chan_ordered'],
-                pmd['multi_vis_idft_array_1D'])
-        else:
-            Fz = self.dot_product(
-                pmd['gridding_matrix_vis_ordered_to_chan_ordered'],
-                pmd['multi_vis_idft_array_1D_WQ'])
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(Fz,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
-
-    def build_gridding_matrix_chan_ordered_to_vis_ordered(self):
-        matrix_name = 'gridding_matrix_chan_ordered_to_vis_ordered'
-        pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
-        # NOTE: taking the transpose reverses the gridding. This is what
-        # happens in dbar where Fz.conjugate().T is multiplied by d and
-        # the gridding_matrix_vis_ordered_to_chan_ordered.conjugate().T
-        # part of Fz transforms d from chan-ordered initially to
-        # vis-ordered.
-        # NOTE: conjugate does nothing to the gridding matrix component
-        # of Fz, which is real, it only transforms the 1D IDFT to a DFT)
-        gridding_matrix_chan_ordered_to_vis_ordered =\
-            pmd['gridding_matrix_vis_ordered_to_chan_ordered'].T
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(gridding_matrix_chan_ordered_to_vis_ordered,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
-
-    def build_gridding_matrix_vis_ordered_to_chan_ordered(self):
-        matrix_name = 'gridding_matrix_vis_ordered_to_chan_ordered'
-        pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
-        gridding_matrix_vis_ordered_to_chan_ordered =\
-            generate_gridding_matrix_vis_ordered_to_chan_ordered(self.nu,
-                                                                 self.nv,
-                                                                 self.nf)
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(gridding_matrix_vis_ordered_to_chan_ordered,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
-
-    def build_idft_array_1D(self):
-        matrix_name = 'idft_array_1D'
-        pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
-        idft_array_1D = IDFT_Array_IDFT_1D(self.nf, self.neta)
-        idft_array_1D *= self.Fz_normalisation
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(idft_array_1D,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
-
     def build_idft_array_1D_WQ(self):
+        """
+        Construct a 1D LoS DFT matrix for a single (u, v) pixel
+        with `nq > 0`.  Constructs one block within
+        `multi_vis_idft_array_1D_WQ`.
+
+        Used to construct `Fz` if `nq > 0`.
+        `idft_array_1D_WQ` has shape (nf, neta + nq).
+        """
         matrix_name = 'idft_array_1D_WQ'
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
@@ -946,7 +984,143 @@ class BuildMatrices(BuildMatrixTree):
                          matrix_name,
                          matrix_name)
 
+    def build_multi_vis_idft_array_1D_WQ(self):
+        """
+        Construct a block diagonal matrix of 1D LoS DFT matrices
+        with `nq > 0` for every (u, v) pixel in the model uv-plane.
+
+        Used to construct `Fz` if `nq > 0`.
+        `multi_vis_idft_array_1D_WQ` has shape
+        (nuv * nf, nuv * (neta + nq))
+        """
+        matrix_name = 'multi_vis_idft_array_1D_WQ'
+        pmd = self.load_prerequisites(matrix_name)
+        start = time.time()
+        print('Performing matrix algebra')
+        if p.fit_for_monopole:
+            multi_vis_idft_array_1D_WQ = self.sd_block_diag(
+                [pmd['idft_array_1D_WQ'].T for i in range(self.nu*self.nv)]
+                )
+        else:
+            multi_vis_idft_array_1D_WQ = self.sd_block_diag(
+                [pmd['idft_array_1D_WQ'].T for i in range(self.nu*self.nv - 1)]
+                )
+        print('Time taken: {}'.format(time.time() - start))
+        # Save matrix to HDF5 or sparse matrix to npz
+        self.output_data(multi_vis_idft_array_1D_WQ,
+                         self.array_save_directory,
+                         matrix_name,
+                         matrix_name)
+
+    def build_gridding_matrix_vis_ordered_to_chan_ordered(self):
+        """
+        Constructs a matrix which takes a vector that is vis ordered:
+          - the first `nf` (`nf + nq` if `nq > 0`) entries correspond
+            to the spectrum of a single model (u, v) pixel
+          - the second `nf` (`nf + nq` if `nq > 0`) entries correspond
+            to the spectrum of the next model (u, v) pixel
+          - etc.
+        and converts it to chan ordered:
+          - the first 'nuv' (`nuv + nq` if `nq > 0`) entries correspond
+            to the values of the model (u, v) plane at the zeroth
+            frequency channel
+          - the second 'nuv' (`nuv + nq` if `nq > 0`) entries correspond
+            to the values of the model (u, v) plane at the first
+            frequency channel
+          - etc.
+
+        `gridding_matrix_vis_ordered_to_chan_ordered` has shape
+        (nuv * (neta + nq), nuv * (neta + nq)).
+        """
+        matrix_name = 'gridding_matrix_vis_ordered_to_chan_ordered'
+        pmd = self.load_prerequisites(matrix_name)
+        start = time.time()
+        print('Performing matrix algebra')
+        gridding_matrix_vis_ordered_to_chan_ordered =\
+            generate_gridding_matrix_vis_ordered_to_chan_ordered(self.nu,
+                                                                 self.nv,
+                                                                 self.nf)
+        print('Time taken: {}'.format(time.time() - start))
+        # Save matrix to HDF5 or sparse matrix to npz
+        self.output_data(gridding_matrix_vis_ordered_to_chan_ordered,
+                         self.array_save_directory,
+                         matrix_name,
+                         matrix_name)
+
+    def build_Fz(self):
+        """
+        Constructs a 1D LoS DFT matrix which takes a vis ordered
+        (u, v, eta) space data vector and transforms it to a chan
+        ordered (u, v, f) space data vector.
+
+        `Fz` has shape (nuv * nf, nuv * (neta + nq)).
+        """
+        matrix_name = 'Fz'
+        pmd = self.load_prerequisites(matrix_name)
+        start = time.time()
+        print('Performing matrix algebra')
+        if self.nq == 0:
+            Fz = self.dot_product(
+                pmd['gridding_matrix_vis_ordered_to_chan_ordered'],
+                pmd['multi_vis_idft_array_1D'])
+        else:
+            Fz = self.dot_product(
+                pmd['gridding_matrix_vis_ordered_to_chan_ordered'],
+                pmd['multi_vis_idft_array_1D_WQ'])
+        print('Time taken: {}'.format(time.time() - start))
+        # Save matrix to HDF5 or sparse matrix to npz
+        self.output_data(Fz,
+                         self.array_save_directory,
+                         matrix_name,
+                         matrix_name)
+
+    def build_gridding_matrix_chan_ordered_to_vis_ordered(self):
+        """
+        Constructs a matrix which takes a vector that is chan ordered:
+          - the first 'nuv' entries correspond to the values of the
+            model (u, v) plane at the zeroth frequency channel
+          - the second 'nuv' entries correspond to the values of the
+            model (u, v) plane at the first frequency channel
+          - etc.
+        and converts it to vis ordered:
+          - the first `nf` (`nf + nq` if `nq > 0`) entries correspond
+            to the spectrum of a single model (u, v) pixel
+          - the second `nf` (`nf + nq` if `nq > 0`) entries correspond
+            to the spectrum of the next model (u, v) pixel
+          - etc.
+
+        `gridding_matrix_chan_ordered_to_vis_ordered` has shape
+        (nuv * (neta + nq), nuv * (neta + nq)).
+        """
+        matrix_name = 'gridding_matrix_chan_ordered_to_vis_ordered'
+        pmd = self.load_prerequisites(matrix_name)
+        start = time.time()
+        print('Performing matrix algebra')
+        # NOTE: taking the transpose reverses the gridding. This is what
+        # happens in dbar where Fz.conjugate().T is multiplied by d and
+        # the gridding_matrix_vis_ordered_to_chan_ordered.conjugate().T
+        # part of Fz transforms d from chan-ordered initially to
+        # vis-ordered.
+        # NOTE: conjugate does nothing to the gridding matrix component
+        # of Fz, which is real, it only transforms the 1D IDFT to a DFT)
+        gridding_matrix_chan_ordered_to_vis_ordered =\
+            pmd['gridding_matrix_vis_ordered_to_chan_ordered'].T
+        print('Time taken: {}'.format(time.time() - start))
+        # Save matrix to HDF5 or sparse matrix to npz
+        self.output_data(gridding_matrix_chan_ordered_to_vis_ordered,
+                         self.array_save_directory,
+                         matrix_name,
+                         matrix_name)
+
     def build_Ninv(self):
+        """
+        Constructs a sparse diagonal inverse covariance matrix.
+        Each diagonal component contains an estimate of the
+        `1 / noise_amplitude**2` in the data vector
+        at the index of the diagonal entry, i.d. data[i] for Ninv[i, i].
+
+        `Ninv` has shape (ndata, ndata).
+        """
         matrix_name = 'Ninv'
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
@@ -1018,6 +1192,14 @@ class BuildMatrices(BuildMatrixTree):
                          matrix_name)
 
     def build_N(self):
+        """
+        Constructs a sparse diagonal inverse covariance matrix.
+        Each diagonal component contains an estimate of the
+        `noise_amplitude**2` in the data vector at the index of the
+        diagonal entry, i.d. data[i] for N[i, i].
+
+        `N` has shape (ndata, ndata).
+        """
         matrix_name = 'N'
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
@@ -1089,6 +1271,10 @@ class BuildMatrices(BuildMatrixTree):
                          matrix_name)
 
     def build_T_Ninv_T(self):
+        """
+        Matrix product of T.conjugate().T * Ninv * T
+        with shape (nuv * (neta + nq), nuv * (neta + nq)).
+        """
         matrix_name = 'T_Ninv_T'
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()

@@ -1,31 +1,24 @@
 import time
 import numpy as np
-from numpy import shape
 import scipy
-from numpy import real
 from pdb import set_trace as brk
 import h5py
+
 import BayesEoR.Params.params as p
 from BayesEoR.Utils import Cosmology
+
+
+"""
+Potentially useful links:
+http://www.mrao.cam.ac.uk/~kjbg1/lectures/lect1_1.pdf
+"""
 
 
 try:
     import pycuda.autoinit
     import pycuda.driver as cuda
-    # Updating the print(statments alone didn't fix this.)
-    # for devicenum in range(cuda.Device.count()):
-    # 	device=cuda.Device(devicenum)
-    # 	attrs=device.get_attributes()
-    # 	print("\n===Attributes for device %d"%devicenum)
-    # 	for (key,value) in attrs.iteritems():
-    # 		print("%s:%s"%(str(key),str(value)))
-
-    import time
-    import numpy as np
     import ctypes
     from numpy import ctypeslib
-    from scipy import linalg
-    from subprocess import os
 
     # Get path to installation of BayesEoR
     base_dir = '/'.join(__file__.split('/')[:-3]) + '/'
@@ -182,7 +175,7 @@ class PowerSpectrumPosteriorProbability(object):
         if self.Print:
             print('Time taken: {}'.format(time.time()-start))
 
-        do_block_diagonal_inversion = len(shape(block_T_Ninv_T)) > 1
+        do_block_diagonal_inversion = len(np.shape(block_T_Ninv_T)) > 1
         if do_block_diagonal_inversion:
             if self.Print:
                 print('Using block-diagonal inversion')
@@ -330,7 +323,7 @@ class PowerSpectrumPosteriorProbability(object):
             # SigmaCho (i.e. L with Sigma = LL^T)
             logdet_Magma_Sigma = np.sum(np.log(np.diag(abs(Sigma)))) * 2
             # print(logdet_Magma_Sigma)
-            SigmaI_dbar = linalg.cho_solve(
+            SigmaI_dbar = scipy.linalg.cho_solve(
                 (Sigma.conjugate().T, True), dbar_copy_copy)
             if self.GPU_error_flag[0] != 0:
                 # If the inversion doesn't work, zero-weight the
@@ -341,273 +334,6 @@ class PowerSpectrumPosteriorProbability(object):
                 print('GPU_error_flag = {}'.format(self.GPU_error_flag))
 
             return SigmaI_dbar, logdet_Magma_Sigma
-
-    def calc_dimensionless_power_spectral_normalisation_ltl(
-            self, i_bin, **kwargs):
-        EoRVolume = 770937185.063917
-        Omega_map = (12 * np.pi/180.)**2
-        dimensionless_PS_scaling = (
-                EoRVolume * self.modk_vis_ordered_list[i_bin]**3.
-                / (Omega_map**4 * (self.nu*self.nv*self.nf)**4)
-            )
-        return dimensionless_PS_scaling
-
-    def calc_dimensionless_power_spectral_normalisation_21cmFAST(
-            self, i_bin, **kwargs):
-        """
-            NOTE: the physical size of the cosmological box is
-            simulation dependent. The values here are matched to the
-            following 21cmFAST simulation:
-            /users/psims/EoR/EoR_simulations/21cmFAST_512MPc_512pix_128pix/
-            and will require updating if the input signal is changed to
-            a new source.
-
-            21cmFAST normalisation:
-            define BOX_LEN (float) 512 // in Mpc
-            define VOLUME (BOX_LEN*BOX_LEN*BOX_LEN) // in Mpc^3
-            p_box[ct] += pow(k_mag,3)*pow(cabs(deldel_T[HII_C_INDEX(n_x, n_y, n_z)]), 2)/(2.0*PI*PI*VOLUME);
-        """
-        # Pix (defined by input to 21cmFAST simulation)
-        EoR_x_full_pix = float(p.box_size_21cmFAST_pix_sc)
-        EoR_y_full_pix = float(p.box_size_21cmFAST_pix_sc)
-        EoR_z_full_pix = float(p.box_size_21cmFAST_pix_sc)
-        # Mpc (defined by input to 21cmFAST simulation)
-        EoR_x_full_Mpc = float(p.box_size_21cmFAST_Mpc_sc)
-        EoR_y_full_Mpc = float(p.box_size_21cmFAST_Mpc_sc)
-        EoR_z_full_Mpc = float(p.box_size_21cmFAST_Mpc_sc)
-
-        # # Mpc analysing the full FoV in x
-        # EoR_analysis_cube_x_pix = EoR_x_full_pix
-        # # Mpc analysing the full FoV in y
-        # EoR_analysis_cube_y_pix = EoR_y_full_pix
-        # # Mpc analysing 38 of the 128 channels
-        # # of the full EoR_simulations
-        # EoR_analysis_cube_z_pix = 38
-        # Pix analysing the full FoV in x
-        EoR_analysis_cube_x_pix = float(p.EoR_analysis_cube_x_pix)
-        # Pix analysing the full FoV in y
-        EoR_analysis_cube_y_pix = float(p.EoR_analysis_cube_y_pix)
-        # Pix analysing 38 of the 128 channels
-        # of the full EoR_simulations
-        EoR_analysis_cube_z_pix = self.nf
-        # Mpc analysing the full FoV in x
-        EoR_analysis_cube_x_Mpc = float(p.EoR_analysis_cube_x_Mpc)
-        # Mpc analysing the full FoV in y
-        EoR_analysis_cube_y_Mpc = float(p.EoR_analysis_cube_y_Mpc)
-        # Mpc analysing 38 of the 128 channels of the full simulation
-        # Updated for python 3: float division is default
-        EoR_analysis_cube_z_Mpc = (
-                EoR_z_full_Mpc * EoR_analysis_cube_z_pix/EoR_z_full_pix
-            )
-        EoRVolume = (EoR_analysis_cube_x_Mpc
-                     * EoR_analysis_cube_y_Mpc
-                     * EoR_analysis_cube_z_Mpc)
-        pixel_volume = (EoR_analysis_cube_x_pix
-                        * EoR_analysis_cube_y_pix
-                        * EoR_analysis_cube_z_pix)
-
-        # This needs to be verified / replaced........!
-        cosmo_fft_norm_factor = (2.*np.pi)**2.
-        # dimensionless_PS_scaling = (
-        #         (self.modk_vis_ordered_list[i_bin]**3.)
-        #         * (EoRVolume**1.0)
-        #         / (2.*(np.pi**2)*pixel_volume**2.)
-        #         * cosmo_fft_norm_factor
-        #     )
-        dimensionless_PS_scaling = (
-                (self.modk_vis_ordered_list[i_bin]**3.)
-                * (EoRVolume**1.0)
-                / (2.*(np.pi**2)*pixel_volume**1.)
-            )
-        # dimensionless_PS_scaling = (
-        #         (self.modk_vis_ordered_list[i_bin].mean()**3.)
-        #         * (EoRVolume**1.0)
-        #         / (2.*(np.pi**2)*pixel_volume**1.)
-        #     )
-        if p.include_instrumental_effects:
-            # e.g. http://www.mrao.cam.ac.uk/~kjbg1/lectures/lect1_1.pdf
-            Omega_beam_Gaussian_sr = (
-                    (p.FWHM_deg_at_ref_freq_MHz * np.pi/180.)**2.
-                    * np.pi/(4.*np.log(2.0))
-                )
-            dimensionless_PS_scaling *= Omega_beam_Gaussian_sr**4.
-
-        return dimensionless_PS_scaling
-
-    def calc_dimensionless_power_spectral_normalisation_21cmFAST_v2d0(
-            self, i_bin, **kwargs):
-        """
-            NOTE: the physical size of the cosmological box is
-            simulation dependent. The values here are matched to the
-            following 21cmFAST simulation:
-            /users/psims/EoR/EoR_simulations/21cmFAST_512MPc_512pix_128pix/
-            and will require updating if the input signal is changed to
-            a new source.
-
-            21cmFAST normalisation:
-            define BOX_LEN (float) 512 // in Mpc
-            define VOLUME (BOX_LEN*BOX_LEN*BOX_LEN) // in Mpc^3
-            p_box[ct] += pow(k_mag,3)*pow(cabs(deldel_T[HII_C_INDEX(n_x, n_y, n_z)]), 2)/(2.0*PI*PI*VOLUME);
-        """
-        # Pix (defined by input to 21cmFAST simulation)
-        EoR_x_full_pix = float(p.box_size_21cmFAST_pix_sc)
-        EoR_y_full_pix = float(p.box_size_21cmFAST_pix_sc)
-        EoR_z_full_pix = float(p.box_size_21cmFAST_pix_sc)
-        # Mpc (defined by input to 21cmFAST simulation)
-        EoR_x_full_Mpc = float(p.box_size_21cmFAST_Mpc_sc)
-        EoR_y_full_Mpc = float(p.box_size_21cmFAST_Mpc_sc)
-        EoR_z_full_Mpc = float(p.box_size_21cmFAST_Mpc_sc)
-
-        # # Mpc analysing the full FoV in x
-        # EoR_analysis_cube_x_pix = EoR_x_full_pix
-        # # Mpc analysing the full FoV in y
-        # EoR_analysis_cube_y_pix = EoR_y_full_pix
-        # # Mpc analysing 38 of the 128 channels
-        # # of the full EoR_simulations
-        # EoR_analysis_cube_z_pix = 38
-        # Pix analysing the full FoV in x
-        EoR_analysis_cube_x_pix = float(p.EoR_analysis_cube_x_pix)
-        # Pix analysing the full FoV in y
-        EoR_analysis_cube_y_pix = float(p.EoR_analysis_cube_y_pix)
-        # Pix analysing 38 of the 128 channels
-        # of the full EoR_simulations
-        EoR_analysis_cube_z_pix = self.nf
-        # Mpc analysing the full FoV in x
-        EoR_analysis_cube_x_Mpc = float(p.EoR_analysis_cube_x_Mpc)
-        # Mpc analysing the full FoV in y
-        EoR_analysis_cube_y_Mpc = float(p.EoR_analysis_cube_y_Mpc)
-        # Mpc analysing 38 of the 128 channels of the full simulation
-        # Updated for python 3: float division is default
-        EoR_analysis_cube_z_Mpc = (
-                EoR_z_full_Mpc * EoR_analysis_cube_z_pix/EoR_z_full_pix
-            )
-        EoRVolume = (EoR_analysis_cube_x_Mpc
-                     * EoR_analysis_cube_y_Mpc
-                     * EoR_analysis_cube_z_Mpc)
-        pixel_volume = (EoR_analysis_cube_x_pix
-                        * EoR_analysis_cube_y_pix
-                        * EoR_analysis_cube_z_pix)
-        # This needs to be verified / replaced........!
-        cosmo_fft_norm_factor = (2.*np.pi)**2.
-
-        # dimensionless_PS_scaling = (
-        #         (self.modk_vis_ordered_list[i_bin]**3.)
-        #         * (EoRVolume**1.0)
-        #         / (2.*(np.pi**2)*pixel_volume**1.)
-        # )
-
-        """
-            21cmFast normalisation code
-    
-            // do the FFTs
-            plan = fftwf_plan_dft_r2c_3d(HII_DIM, HII_DIM, HII_DIM, (float *)deltax, (fftwf_complex *)deltax, FFTW_ESTIMATE);
-            fftwf_execute(plan);
-            fftwf_destroy_plan(plan);
-            fftwf_cleanup();
-            for (ct=0; ct<HII_KSPACE_NUM_PIXELS; ct++){
-               deltax[ct] *= VOLUME/(HII_TOT_NUM_PIXELS+0.0);
-            }
-            p_box[ct] +=  pow(k_mag,3)*pow(cabs(deltax[HII_C_INDEX(n_x, n_y, n_z)]), 2) / (2.0*PI*PI*VOLUME);
-        """
-
-        dimensionless_PS_scaling = (
-                (self.modk_vis_ordered_list[i_bin]**3.)
-                * (EoRVolume/pixel_volume)**2.
-                / (2.*(np.pi**2)*EoRVolume)
-            )
-
-        if p.include_instrumental_effects:
-            # e.g. http://www.mrao.cam.ac.uk/~kjbg1/lectures/lect1_1.pdf
-            Omega_beam_Gaussian_sr = (
-                    (p.FWHM_deg_at_ref_freq_MHz * np.pi/180.)**2.
-                    * np.pi/(4.*np.log(2.0))
-                )
-            dimensionless_PS_scaling *= Omega_beam_Gaussian_sr**4.
-
-        return dimensionless_PS_scaling
-
-    def calc_dimensionless_power_spectral_normalisation_21cmFAST_v3d0(
-            self, i_bin, **kwargs):
-        """
-            NOTE: the physical size of the cosmological box is
-            simulation dependent.
-
-            21cmFAST normalisation:
-            define BOX_LEN (float) 512 // in Mpc
-            define VOLUME (BOX_LEN*BOX_LEN*BOX_LEN) // in Mpc^3
-            p_box[ct] += pow(k_mag,3)*pow(cabs(deldel_T[HII_C_INDEX(n_x, n_y, n_z)]), 2)/(2.0*PI*PI*VOLUME);
-        """
-        # Pix (defined by input to 21cmFAST simulation)
-        EoR_x_full_pix = float(p.box_size_21cmFAST_pix_sc)
-        EoR_y_full_pix = float(p.box_size_21cmFAST_pix_sc)
-        EoR_z_full_pix = float(p.box_size_21cmFAST_pix_sc)
-        # Mpc (defined by input to 21cmFAST simulation)
-        EoR_x_full_Mpc = float(p.box_size_21cmFAST_Mpc_sc)
-        EoR_y_full_Mpc = float(p.box_size_21cmFAST_Mpc_sc)
-        EoR_z_full_Mpc = float(p.box_size_21cmFAST_Mpc_sc)
-
-        VOLUME = p.box_size_21cmFAST_Mpc_sc**3. # Full cube volume in Mpc^3
-        HII_TOT_NUM_PIXELS = p.box_size_21cmFAST_pix_sc**3. # Full cube Npix
-        amplitude_normalisation_21cmFast = VOLUME / HII_TOT_NUM_PIXELS
-        explicit_21cmFast_power_spectrum_normalisation = (
-                1. / (2.0*np.pi**2.*VOLUME))
-        # Aaplitude_normalisation_21cmFast**2.
-        # * explicit_power_spectrum_normalisation
-        # = (VOLUME/HII_TOT_NUM_PIXELS)**2. / (2.0*np.pi**2.*VOLUME)
-        full_21cmFast_power_spectrum_normalisation = (
-                VOLUME / (2.0*np.pi**2.*HII_TOT_NUM_PIXELS**2.))
-
-        """
-            subset_power_spectrum_normalisation:
-            1. Image space full cube -> k-space subset cube,
-               values are (nf/512.)**0.5 times smaller than in 21cmFast.
-               Thus, to normalise, the amplitude spectrum should be scaled
-               by (512./nf)**0.5 (subset cube component)
-    
-            2. k-space subset cube -> image space subset cube
-               -> data = np.dot(Finv, image space subset cube),
-               values are nf**0.5 times larger than in
-               np.dot(T, k-space subset cube) -> data.
-               [This is because in the k-space subset cube
-                 -> image space subset cube step (1) with a numpy ifft
-                 there is an effective division by nf**0.5 where as in
-                 the equivalent k-space subset cube
-                 -> image space subset cube component of T there is a
-                 division by nf**1.0, thus the values in
-                 np.dot(T, k-space subset cube) -> data end up being
-                 nf**0.5 times smaller.]
-               Thus, to normalise, the amplitude spectrum should be
-               scaled by 1./nf**0.5  (matrix encoding component)
-    
-            Thus, the overall subset + matrix encoding amplitude
-            normalisation is: (512./nf)**0.5/nf**0.5 = 512**0.5
-        """
-        subset_power_spectrum_normalisation = float(p.box_size_21cmFAST_pix_sc)
-
-        full_power_spectrum_normalisation = (
-                subset_power_spectrum_normalisation
-                * full_21cmFast_power_spectrum_normalisation)
-        dimensionless_PS_scaling = (
-                (self.modk_vis_ordered_list[i_bin]**3.)
-                * full_power_spectrum_normalisation)
-
-        # if p.include_instrumental_effects:
-        #     # e.g. http://www.mrao.cam.ac.uk/~kjbg1/lectures/lect1_1.pdf
-        #     Omega_beam_Gaussian_sr = (
-        #             (p.FWHM_deg_at_ref_freq_MHz * np.pi/180.)**2.
-        #             * np.pi/(4.*np.log(2.0)))
-        #     dimensionless_PS_scaling = (
-        #             dimensionless_PS_scaling * Omega_beam_Gaussian_sr**4.0)
-
-        if not p.include_instrumental_effects:
-            # Account for / undo the extra (vfft1[0].size**0.5) scaling
-            # factor that is currently in the non-instrumental data
-            # creation functions
-            dimensionless_PS_scaling = (
-                    dimensionless_PS_scaling
-                    * float(p.box_size_21cmFAST_pix_sc)**2.)
-
-        return dimensionless_PS_scaling
 
     def calc_physical_dimensionless_power_spectral_normalisation(
             self, i_bin, **kwargs):
@@ -649,67 +375,9 @@ class PowerSpectrumPosteriorProbability(object):
 
         return dimensionless_PS_scaling
 
-    def calc_Npix_physical_power_spectrum_normalisation(self, i_bin, **kwargs):
-        """
-            21cmFAST normalisation:
-            define BOX_LEN (float) 512 // in Mpc
-            define VOLUME (BOX_LEN*BOX_LEN*BOX_LEN) // in Mpc^3
-            p_box[ct] += pow(k_mag,3)*pow(cabs(deldel_T[HII_C_INDEX(n_x, n_y, n_z)]), 2)/(2.0*PI*PI*VOLUME);
-        """
-        # Pix (defined by input to 21cmFAST simulation)
-        EoR_x_full_pix = float(p.box_size_21cmFAST_pix_sc)
-        EoR_y_full_pix = float(p.box_size_21cmFAST_pix_sc)
-        EoR_z_full_pix = float(p.box_size_21cmFAST_pix_sc)
-        # Mpc (defined by input to 21cmFAST simulation)
-        EoR_x_full_Mpc = float(p.box_size_21cmFAST_Mpc_sc)
-        EoR_y_full_Mpc = float(p.box_size_21cmFAST_Mpc_sc)
-        EoR_z_full_Mpc = float(p.box_size_21cmFAST_Mpc_sc)
-
-        # # Mpc analysing the full FoV in x
-        # EoR_analysis_cube_x_pix = EoR_x_full_pix
-        # # Mpc analysing the full FoV in y
-        # EoR_analysis_cube_y_pix = EoR_y_full_pix
-        # # Mpc analysing 38 of the 128 channels
-        # # of the full EoR_simulations
-        # EoR_analysis_cube_z_pix = 38
-        # Pix analysing the full FoV in x
-        EoR_analysis_cube_x_pix = float(p.EoR_analysis_cube_x_pix)
-        # Pix analysing the full FoV in y
-        EoR_analysis_cube_y_pix = float(p.EoR_analysis_cube_y_pix)
-        # Pix analysing 38 of the 128 channels
-        # of the full EoR_simulations
-        EoR_analysis_cube_z_pix = self.nf
-        # Mpc analysing the full FoV in x
-        EoR_analysis_cube_x_Mpc = float(p.EoR_analysis_cube_x_Mpc)
-        # Mpc analysing the full FoV in y
-        EoR_analysis_cube_y_Mpc = float(p.EoR_analysis_cube_y_Mpc)
-        # Mpc analysing 38 of the 128 channels of the full simulation
-        # Updated for python 3: float division is default
-        EoR_analysis_cube_z_Mpc = (
-                EoR_z_full_Mpc * EoR_analysis_cube_z_pix / EoR_z_full_pix
-            )
-        EoRVolume = (EoR_analysis_cube_x_Mpc
-                     * EoR_analysis_cube_y_Mpc
-                     * EoR_analysis_cube_z_Mpc)
-        pixel_volume = (EoR_analysis_cube_x_pix
-                        * EoR_analysis_cube_y_pix
-                        * EoR_analysis_cube_z_pix)
-        # This needs to be verified / replaced........!
-        cosmo_fft_norm_factor = (2.*np.pi)**2.
-        PS_scaling = EoRVolume**1.0 / pixel_volume**1.0
-
-        random_scaling_factor = (9.0 * np.pi/180.)**2. * np.pi/(4.*np.log(2.0))
-        # Random scaling factor to put the physical and dimensionless
-        # power spectrum on a comparable scale (to avoid having to use
-        # different priors for the two cases).
-        # PS_scaling = PS_scaling * 0.3**3. * random_scaling_factor**4.
-        PS_scaling = PS_scaling * 0.1**3. * random_scaling_factor**4.
-
-        return PS_scaling
-
     def calc_PowerI(self, x, **kwargs):
         """
-            Place restricions on the power in the long spectral scale
+            Place restrictions on the power in the long spectral scale
             model either for,
             inverse_LW_power:
                 constrain the amplitude distribution of all of
@@ -881,7 +549,7 @@ class PowerSpectrumPosteriorProbability(object):
             x = 10.**np.array(x)
 
         # brk()
-        do_block_diagonal_inversion = len(shape(block_T_Ninv_T)) > 1
+        do_block_diagonal_inversion = len(np.shape(block_T_Ninv_T)) > 1
         self.count += 1
         start = time.time()
         try:

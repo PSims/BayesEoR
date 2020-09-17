@@ -1,9 +1,5 @@
-
-import numpy
-from numpy import *
-import time
-import sys
-import os
+from numpy import * # don't know if this will be an issue
+import os # can be removed after astropy_healpix fixes
 import numpy as np
 
 from BayesEoR.Linalg.healpix import Healpix
@@ -15,25 +11,9 @@ import BayesEoR.Params.params as p
 """
 
 
-def makeGaussian(size, fwhm=3, center=None):
-    """
-        Make a square gaussian kernel.
-        size is the length of a side of the square
-        fwhm is full-width-half-maximum, which
-        can be thought of as an effective radius.
-    """
-    x = np.arange(0, size, 1, float)
-    y = x[:, np.newaxis]
-    if center is None:
-        x0 = y0 = size // 2
-    else:
-        x0 = center[0]
-        y0 = center[1]
-    return np.exp(-4*np.log(2) * ((x-x0)**2 + (y-y0)**2) / fwhm**2)
-
-
 def make_Gaussian_beam(
         image_size_pix, fwhm_pix, beam_peak_amplitude, center_pix=[]):
+    # Need to delete this function after updating build_multi_chan_P
     """
         Make a square gaussian kernel centered on center_pix=[x0, y0].
     """
@@ -59,6 +39,7 @@ def make_Gaussian_beam(
 
 
 def make_Uniform_beam(image_size_pix, beam_peak_amplitude=1.0):
+    # Need to delete this function after updating build_multi_chan_P
     """
         Make a square uniform kernel.
     """
@@ -87,7 +68,7 @@ def Produce_Full_Coordinate_Arrays(nu, nv, nx, ny):
     # i_x_Array_Vectorised = i_x_Array.reshape(nx*ny, 1)
     # i_x_AV = i_x_Array_Vectorised
 
-    # Need to update this using astropy.HEALPix functions
+    # Need to update this using astropy_healpix functions
     # Overwrite gridded xy coords with ones obtained
     # from healvis.observatory.calc_azza
     hpx_dir = '/users/jburba/data/jburba/bayes/BayesEoR/Linalg/'\
@@ -146,7 +127,7 @@ def Produce_Coordinate_Arrays_ZM(nu, nv, nx, ny, **kwargs):
     i_v_Array_Vectorised = i_v_Array.reshape(1, nu*nv)
     i_v_AV = i_v_Array_Vectorised
     if exclude_mean:
-        i_v_AV = numpy.delete(i_v_AV,[i_v_AV.size/2]) # Remove the centre uv-pix
+        i_v_AV = np.delete(i_v_AV,[i_v_AV.size/2]) # Remove the centre uv-pix
 
     # Updated for python 3: floor division
     i_u_Vector = (np.arange(nv) - nv//2)
@@ -155,7 +136,7 @@ def Produce_Coordinate_Arrays_ZM(nu, nv, nx, ny, **kwargs):
     i_u_Array_Vectorised = i_u_Array.reshape(1, nv*nu)
     i_u_AV = i_u_Array_Vectorised
     if exclude_mean:
-        i_u_AV = numpy.delete(i_u_AV,[i_u_AV.size/2]) # Remove the centre uv-pix
+        i_u_AV = np.delete(i_u_AV,[i_u_AV.size/2]) # Remove the centre uv-pix
 
     # ExponentArray calculated as
     # 	np.exp(-2.0*np.pi*1j*(
@@ -198,7 +179,7 @@ def Produce_Coordinate_Arrays_ZM_Coarse(nu, nv, nx, ny):
     # Updated for python 3: floor division
     Centre_v_CoordIndex = i_v_AV.size//2
     # Remove the centre 3x3 uv-grid (to be replaced by subharmonic grid)
-    i_v_AV = numpy.delete(i_v_AV, InnerSubgridIndices)
+    i_v_AV = np.delete(i_v_AV, InnerSubgridIndices)
 
     # Updated for python 3: floor division
     i_u_Vector = (np.arange(nv) - nv//2)
@@ -209,7 +190,7 @@ def Produce_Coordinate_Arrays_ZM_Coarse(nu, nv, nx, ny):
     # Updated for python 3: floor division
     Centre_u_CoordIndex = i_u_AV.size//2
     # Remove the centre 3x3 uv-grid (to be replaced by subharmonic grid)
-    i_u_AV = numpy.delete(i_u_AV, InnerSubgridIndices)
+    i_u_AV = np.delete(i_u_AV, InnerSubgridIndices)
 
     # ExponentArray calculated as
     # 	np.exp(-2.0*np.pi*1j*(
@@ -247,7 +228,7 @@ def Produce_Coordinate_Arrays_ZM_SH(nu, nv, nx, ny):
     # Updated for python 3: floor division
     Centre_v_CoordIndex = i_v_AV.size//2
     # Remove the centre uv-pix
-    i_v_AV = numpy.delete(i_v_AV, [Centre_v_CoordIndex])
+    i_v_AV = np.delete(i_v_AV, [Centre_v_CoordIndex])
 
     # Updated for python 3: floor division
     i_u_Vector = (np.arange(nv) - nv//2)
@@ -258,7 +239,7 @@ def Produce_Coordinate_Arrays_ZM_SH(nu, nv, nx, ny):
     # Updated for python 3: floor division
     Centre_u_CoordIndex = i_u_AV.size//2
     # Remove the centre uv-pix
-    i_u_AV = numpy.delete(i_u_AV, [Centre_u_CoordIndex])
+    i_u_AV = np.delete(i_u_AV, [Centre_u_CoordIndex])
 
     # ExponentArray calculated as
     # 	np.exp(-2.0*np.pi*1j*(
@@ -287,10 +268,6 @@ def Calc_Coords_Large_Im_to_High_Res_uv(
         i_x_AV, i_y_AV, i_u_AV, i_v_AV,
         U_oversampling_Factor=1.0, V_oversampling_Factor=1.0):
 
-    # Updated for python 3: float division is default
-    # V_oversampling_Factor=float(V_oversampling_Factor)
-    # U_oversampling_Factor=float(U_oversampling_Factor)
-
     # Keeps uv-plane size constant and oversampled
     # rather than DFTing to a larger uv-plane
     i_v_AV = i_v_AV / V_oversampling_Factor
@@ -301,8 +278,14 @@ def Calc_Coords_Large_Im_to_High_Res_uv(
 
 def Restore_Centre_Pixel(Array, MeanVal=0.0):
     # Updated for python 3: floor division
-    Restored_Array = numpy.insert(Array, [Array.size//2], [MeanVal])
+    Restored_Array = np.insert(Array, [Array.size//2], [MeanVal])
     return Restored_Array
+
+
+def Delete_Centre_Pix(Array):
+    # Updated for python 3: floor division
+    Array = np.delete(Array, [Array.size//2])
+    return Array
 
 
 def Calc_Indices_Centre_3x3_Grid(GridSize):
@@ -327,12 +310,6 @@ def Delete_Centre_3x3_Grid(Array):
     GridIndex, MaskOuterPoints = Calc_Indices_Centre_3x3_Grid(GridSize)
     OuterArray = np.delete(Array, GridIndex[MaskOuterPoints])
     return OuterArray
-
-
-def Delete_Centre_Pix(Array):
-    # Updated for python 3: floor division
-    Array = numpy.delete(Array, [Array.size//2])
-    return Array
 
 
 def N_is_Odd(N):
@@ -381,7 +358,7 @@ def Restore_Centre_3x3_Grid(Array, MeanVal=0.0):
     ConcatIndices = np.concatenate((CurrentPointsIndex, RestoredPointsIndex))
     SortedIndices = ConcatIndices.argsort()
 
-    Restored_Array_Unsorted = numpy.append(Array, [MeanVal]*9)
+    Restored_Array_Unsorted = np.append(Array, [MeanVal]*9)
     Restored_Array = Restored_Array_Unsorted[SortedIndices]
 
     return Restored_Array
@@ -399,7 +376,7 @@ def Restore_Centre_NxN_Grid(Array1, Array2, N):
     ConcatIndices = np.concatenate((CurrentPointsIndex, RestoredPointsIndex))
     SortedIndices = ConcatIndices.argsort()
 
-    Restored_Array_Unsorted = numpy.append(Array1, Array2)
+    Restored_Array_Unsorted = np.append(Array1, Array2)
     Restored_Array = Restored_Array_Unsorted[SortedIndices]
 
     return Restored_Array
@@ -485,9 +462,9 @@ def IDFT_Array_IDFT_2D_ZM_SH(
     
     And is equivalent in numpy to:
     
-    ShiftedTestData    = numpy.fft.ifftshift(TestData+0j, axes=(0,1))
-    FFTTestData        = numpy.fft.fftn(ShiftedTestData, axes=(0,1))
-    ShiftedFFTTestData = numpy.fft.fftshift(FFTTestData, axes=(0,1))
+    ShiftedTestData    = np.fft.ifftshift(TestData+0j, axes=(0,1))
+    FFTTestData        = np.fft.fftn(ShiftedTestData, axes=(0,1))
+    ShiftedFFTTestData = np.fft.fftshift(FFTTestData, axes=(0,1))
 """
 
 
@@ -514,7 +491,7 @@ def DFT_Array_DFT_2D(
     ExponentArray = np.exp(
         -2.0*np.pi*1j*(
                 (i_x_AV*i_u_AV / nx)
-                +  (i_v_AV*i_y_AV / ny)
+                + (i_v_AV*i_y_AV / ny)
             )
         )
     return ExponentArray
@@ -524,6 +501,8 @@ def nuDFT_Array_DFT_2D(
         nu, nv, nx, ny, chan_freq_MHz, sampled_uvw_coords_m,
         X_oversampling_Factor=1.0, Y_oversampling_Factor=1.0,
         U_oversampling_Factor=1.0, V_oversampling_Factor=1.0):
+    # Need to delete this function after updating the
+    # build_multi_chan_nudft function
     """
         non-uniform DFT from image space to uv-coordinates given by
         p.uvw_multi_time_step_array_meters_reshaped (for examples,
@@ -576,24 +555,25 @@ def nuDFT_Array_DFT_2D_v2d0(
         X_oversampling_Factor=1.0, Y_oversampling_Factor=1.0,
         U_oversampling_Factor=1.0, V_oversampling_Factor=1.0):
     """
-        non-uniform DFT from image space to uv-coordinates given by
-        p.uvw_multi_time_step_array_meters_reshaped (for examples,
-        the sub-100m baselines sampled by HERA 331).
+    Non-uniform DFT from floating point (l, m) to instrumentally
+    sampled (u, v) from the instrument model.
+
+    Used in the construction of a single frequency's block in Finv.
+
+    Parameters
+    ----------
+    sampled_lm_coords_radians : np.ndarray of floats
+        Array with shape (npix, 2) containing the (l, m) coordinates
+        of the image space HEALPix model in units of radians.
+    sampled_uvw_coords_wavelengths : np.ndarray of floats
+        Array with shape (nbls, 2) containing the (u, v) coordinates
+        at a single frequency in units of wavelengths (inverse radians).
+
+    Returns
+    -------
+    ExponentArray : np.ndarray of complex floats
+        Non-uniform DFT array with shape (npix, nbls).
     """
-    # Old function calls:
-    # i_x_AV, i_y_AV, i_u_AV, i_v_AV =\
-    #     Produce_Full_Coordinate_Arrays(nu, nv, nx, ny)
-    #
-    # if U_oversampling_Factor != 1.0:
-    #     i_x_AV, i_y_AV, i_u_AV, i_v_AV =\
-    #         Calc_Coords_Large_Im_to_High_Res_uv(
-    #             i_x_AV, i_y_AV, i_u_AV, i_v_AV,
-    #             U_oversampling_Factor, V_oversampling_Factor)
-    # if X_oversampling_Factor != 1.0:
-    #     i_x_AV, i_y_AV, i_u_AV, i_v_AV =\
-    #         Calc_Coords_High_Res_Im_to_Large_uv(
-    #             i_x_AV, i_y_AV, i_u_AV, i_v_AV,
-    #             U_oversampling_Factor, V_oversampling_Factor)
 
     # Use HEALPix sampled (l, m) coords
     i_x_AV = sampled_lm_coords_radians[:, 0].reshape(-1, 1)
@@ -637,9 +617,9 @@ def nuDFT_Array_DFT_2D_v2d0(
     
     And is equivalent in numpy to:
     
-    ShiftedTestData    = numpy.fft.ifftshift(TestData+0j, axes=(0,1))
-    FFTTestData        = numpy.fft.fftn(ShiftedTestData, axes=(0,1))
-    ShiftedFFTTestData = numpy.fft.fftshift(FFTTestData, axes=(0,1))
+    ShiftedTestData    = np.fft.ifftshift(TestData+0j, axes=(0,1))
+    FFTTestData        = np.fft.fftn(ShiftedTestData, axes=(0,1))
+    ShiftedFFTTestData = np.fft.fftshift(FFTTestData, axes=(0,1))
 """
 
 def IDFT_Array_IDFT_2D(
@@ -676,7 +656,13 @@ def DFT_Array_DFT_2D_ZM(
         nu, nv, nx, ny,
         X_oversampling_Factor=1.0, Y_oversampling_Factor=1.0,
         U_oversampling_Factor=1.0, V_oversampling_Factor=1.0):
+    """
+    Constructs a uniform DFT matrix which goes from rectilinear
+    (l, m, f) sky model coordinates to rectilinear (u, v, f)
+    coordinates.
 
+    Used to construct `Finv` if `include_instrumental_effects = False`.
+    """
     exclude_mean = True
     if p.fit_for_monopole:
         exclude_mean = False
@@ -763,192 +749,27 @@ def IDFT_Array_IDFT_2D_ZM(
     return ExponentArray.T
 
 
-def Construct_Hermitian(Tri_Real, Tri_Imag):
-    Nx = int(((len(Tri_Real)*2) - 1)**0.5)
-
-    Full_Real = np.concatenate(
-        (Tri_Real, Tri_Real[:-1][::-1])
-        ).reshape(Nx,Nx)
-    Full_Imag = np.concatenate(
-        (Tri_Imag, -1.0*Tri_Imag[:-1][::-1])
-        ).reshape(Nx,Nx)
-
-    return Full_Real + 1j*Full_Imag
-
-
-def Construct_Hermitian_Gridding_Matrix(nu, nv):
-    """
-        1. Construct G
-        Assumes parameters are ordered: all real then all imaginary and
-        the parameters are the upper triangular values of the uv-plane
-        (which describes the whole uv-plane since it is Hermitian so
-        UV[i,j]=UV[-i,-j] (or UV[-1-i,-1-j] in python because of
-        zero indexing).
-    """
-    # Updated for python 3: floor division
-    # n_par = (nu * (nv-1)//2) * 2
-    n_par = ((nu * nv//2) + 1) * 2
-    # n_par = (nu * nv//2) * 2 # Not including the offset term
-    n_par_div2 = n_par//2
-
-    G = np.zeros([nu*nv,n_par])+0j
-
-    # Real Part
-    # Fill the first half of the matrix -- Upper tri (transposed)
-    # including the centre -- with the  real param values
-    # Updated for python 3: floor division
-    G[:n_par//2, :nu*nv//2+1] = np.identity(n_par//2)
-    # Fill the second half of the matrix -- Lower tri (transposed)
-    # minus the centre -- with the  real param values in reverse order
-    # (reverse order done by the [::-1])
-    # Updated for python 3: floor division
-    G[n_par//2:, :nu*nv//2+1] = np.identity(n_par//2)[:-1][::-1]
-
-    # Imag Part
-    # Fill the first half of the matrix -- Upper tri (transposed)
-    # including the centre -- with the  imag param values
-    # Updated for python 3: floor division
-    G[:n_par//2, nu*nv//2 + 1:] = +1j*np.identity(n_par//2)
-    # Fill the second half of the matrix -- Lower tri (transposed)
-    # minus the centre -- with the  imag param values in reverse order
-    # (reverse order done by the [::-1])
-    # Updated for python 3: floor division
-    G[n_par//2:, nu*nv//2 + 1:] = -1j*np.identity(n_par//2)[:-1][::-1]
-
-    return G
-
-
-def Construct_Hermitian_Gridding_Matrix_CosSin(nu, nv):
-    """
-        1. Construct G
-        Assumes parameters are ordered: all real then all imaginary and
-        the parameters are the upper triangular values of the uv-plane
-        (which describes the whole uv-plane since it is Hermitian so
-        UV[i,j]=UV[-i,-j] (or UV[-1-i,-1-j] in python because of
-        zero indexing).
-    """
-    # Updated for python 3: floor division
-    # n_par = ((nu*nv//2) + 1) * 2
-    n_par = (nu*nv//2) * 2 # Not including the offset term
-    n_par_div2 = n_par//2
-
-    G = np.zeros([nu*nv*2,n_par])
-
-    # Real Part
-    # Fill the first half of the matrix -- Upper tri (transposed)
-    # including the centre -- with the  real param values
-    # Updated for python 3: floor division
-    G[:nu*nv//2, :n_par//2] = np.identity(n_par//2)
-    # Fill the second half of the matrix -- Lower tri (transposed)
-    # minus the centre -- with the  real param values in reverse order
-    # (reverse order done by the [::-1])
-    # Updated for python 3: floor division
-    G[nu*nv//2 + 1:nu*nv, :n_par//2] = np.identity(n_par//2)[::-1]
-
-    # Imag Part
-    # Fill the first half of the matrix -- Upper tri (transposed)
-    # including the centre -- with the  imag param values
-    # Updated for python 3: floor division
-    G[nu*nv:3*nu*nv//2, n_par//2:] = np.identity(n_par//2)
-    # Fill the second half of the matrix -- Lower tri (transposed)
-    # minus the centre -- with the  imag param values in reverse order
-    # (reverse order done by the [::-1])
-    # Updated for python 3: floor division
-    G[3*nu*nv//2 + 1:nu*nv*2, n_par//2:] = -1*np.identity(n_par//2)[::-1]
-
-    return G
-
-
-def Construct_Hermitian_Gridding_Matrix_CosSin_SH_v4(
-        nu, nv, U_oversampling_Factor, V_oversampling_Factor):
-    """
-        1. Construct G
-        Assumes parameters are ordered: Coarse Grid - all real then all
-        imaginary and the parameters are the upper triangular values of
-        the uv-plane (which describes the whole uv-plane since it is
-        Hermitian so UV[i,j]=UV[-i,-j] (or UV[-1-i,-1-j] in python
-        because of zero indexing) minus the lines corresponding to the
-        9 central pixels. Followed by Subharmonic Grid  - all real then
-        all imaginary and the parameters are the upper triangular values
-        of the oversampled centre 9 coords of the uv-plane.
-    """
-    n_par = nu*nv - 9 # Complete coarse grid
-
-    nu_SH = 3*U_oversampling_Factor
-    nv_SH = 3*V_oversampling_Factor
-    # Zero mean (ie. missing centre pix) subharmonic grid
-    n_par_SH = nu_SH*nv_SH - 1
-
-    G = np.zeros([n_par*2 + n_par_SH*2, n_par + n_par_SH])
-
-    # Real Part Coarse grid
-    # Fill the first half of the matrix -- Upper tri (transposed)
-    # including the centre -- with the  real param values
-    # Updated for python 3: floor division
-    G[:n_par//2, :n_par//2] = np.identity(n_par//2)
-    # Fill the second half of the matrix -- Lower tri (transposed) minus
-    # the centre -- with the  real param values in reverse order
-    # (reverse order done by the [::-1])
-    # Updated for python 3: floor division
-    G[n_par//2:n_par, :n_par//2] = np.identity(n_par//2)[::-1]
-    # Real Part Subharmonic grid
-    # Fill the first half of the matrix -- Upper tri (transposed)
-    # including the centre -- with the  real param values
-    # Updated for python 3: floor division
-    G[n_par:n_par + n_par_SH//2, n_par//2:n_par//2 + n_par_SH//2] =\
-        np.identity(n_par_SH//2)
-    # Fill the second half of the matrix -- Lower tri (transposed) minus
-    # the centre -- with the  real param values in reverse order
-    # (reverse order done by the [::-1])
-    # Updated for python 3: floor division
-    G[
-            n_par + n_par_SH//2 : n_par + n_par_SH,
-            n_par//2 : n_par//2 + n_par_SH//2
-        ] = np.identity(n_par_SH//2)[::-1]
-
-    # Imag Part Coarse grid
-    # Fill the first half of the matrix -- Upper tri (transposed)
-    # including the centre -- with the  imag param values
-    # Updated for python 3: floor division
-    G[
-            n_par + n_par_SH : 3*n_par//2 + n_par_SH,
-            n_par//2 + n_par_SH//2 : n_par + n_par_SH//2
-        ] = np.identity(n_par//2)
-    # Fill the second half of the matrix -- Lower tri (transposed) minus
-    # the centre -- with the  imag param values in reverse order
-    # (reverse order done by the [::-1])
-    # Updated for python 3: floor division
-    G[
-            3*n_par//2 + n_par_SH : n_par*2 + n_par_SH,
-            n_par//2 + n_par_SH//2 : n_par + n_par_SH//2
-        ] = -1*np.identity(n_par//2)[::-1]
-    # Imag Part Subharmonic grid
-    # Fill the first half of the matrix -- Upper tri (transposed)
-    # including the centre -- with the  imag param values
-    # Updated for python 3: floor division
-    G[
-            n_par*2 + n_par_SH : n_par*2 + 3*n_par_SH//2,
-            n_par + n_par_SH//2 : n_par + n_par_SH
-        ] = np.identity(n_par_SH//2)
-    # Fill the second half of the matrix -- Lower tri (transposed) minus
-    # the centre -- with the  imag param values in reverse order
-    # (reverse order done by the [::-1])
-    # Updated for python 3: floor division
-    G[
-            n_par*2 + 3*n_par_SH//2 : n_par*2 + n_par_SH*2,
-            n_par + n_par_SH//2 : n_par + n_par_SH
-        ] = -1*np.identity(n_par_SH//2)[::-1]
-
-    return G
-
-
 def IDFT_Array_IDFT_1D(nf, neta):
     """
-        Generate a uniform 1D DFT matrix for the FT along the
-        LoS axis from eta -> frequency.  This matrix will be
-        consistent with np.fft.fft(*).conjugate() due to the
-        choice of sign convention.  The normalization was
-        initially chosen to compare with np.fft.fft.
+    Generate a uniform 1D DFT matrix for the FT along the
+    LoS axis from eta -> frequency.  This matrix will be
+    consistent with np.fft.fft(*).conjugate() due to the
+    choice of sign convention.  The normalization was
+    initially chosen to compare with np.fft.fft.
+
+    Used in the construction of Fz.
+
+    Parameters
+    ----------
+    nf : int
+        Number of frequency channels.
+    neta : int
+        Number of LoS Fourier modes.
+
+    Returns
+    -------
+    ExponentArray : np.ndarray of complex floats
+        Uniform 1D DFT matrix with shape (nf, neta).
     """
     # Updated for python 3: floor division
     i_f = (np.arange(nf)-nf//2).reshape(-1, 1)
@@ -963,6 +784,9 @@ def IDFT_Array_IDFT_1D(nf, neta):
 
 
 def quadratic_array_linear_plus_quad_modes_only_v2(nf, nq=2, **kwargs):
+    """
+
+    """
     # ===== Defaults =====
     default_npl = 0
     default_nu_min_MHz = (163.0-4.0)
@@ -1130,6 +954,31 @@ def quadratic_array_linear_plus_quad_modes_only_v2_ZM(nf, nq=2):
 
 
 def IDFT_Array_IDFT_1D_WQ(nf, neta, nq, **kwargs):
+    """
+    Generate a 1D DFT matrix for the FT along the
+    LoS axis from eta -> frequency.  Analagous to
+    IDFT_Array_IDFT_1D with the exception that this
+    function includes the quadratic mode terms used
+    for modeling power on spectral scales larger
+    than the bandwidth.
+
+    Used in the construction of Fz if nq > 0.
+
+    Parameters
+    ----------
+    nf : int
+        Number of frequency channels.
+    neta : int
+        Number of LoS Fourier modes.
+    nq : int
+        Number of quadratic modes.
+
+    Returns
+    -------
+    ExponentArray : np.ndarray of complex floats
+        1D DFT matrix with shape (nf, neta + nq)
+    """
+
     # ===== Defaults =====
     default_npl = 0
     default_nu_min_MHz = (163.0-4.0)
@@ -1170,12 +1019,41 @@ def IDFT_Array_IDFT_1D_WQ(nf, neta, nq, **kwargs):
 
 
 def IDFT_Array_IDFT_1D_WQ_ZM(nf, neta, nq):
+    """
+    Generate a 1D DFT matrix for the FT along the
+    LoS axis from eta -> frequency.  Analagous to
+    IDFT_Array_IDFT_1D with the exception that this
+    function:
+      - includes quadratic mode terms used
+        for modeling power on spectral scales
+        larger than the bandwidth
+      - excludes the `eta = 0` pixel
+        in the model uv-plane
+
+    Used in the construction of Fz if nq > 0
+    and fit_monopole = False.
+
+    Parameters
+    ----------
+    nf : int
+        Number of frequency channels.
+    neta : int
+        Number of LoS Fourier modes.
+    nq : int
+        Number of quadratic modes.
+
+    Returns
+    -------
+    ExponentArray : np.ndarray of complex floats
+        1D DFT matrix with shape (nf, (neta - 1) + nq).
+    """
+
     # Updated for python 3: floor division
     i_f = (np.arange(nf) - nf//2)
     # Updated for python 3: floor division
     i_eta = (np.arange(neta) - neta//2)
 
-    # i_f = np.delete(i_f, np.where(i_f == 0))
+    # Remove the eta = 0 pixel
     i_eta = np.delete(i_eta, np.where(i_eta == 0))
 
     i_f = i_f.reshape(-1, 1)
@@ -1198,13 +1076,32 @@ def IDFT_Array_IDFT_1D_WQ_ZM(nf, neta, nq):
 
 
 def IDFT_Array_IDFT_1D_ZM(nf, neta):
+    """
+    Generate a 1D DFT matrix for the FT along the
+    LoS axis from eta -> frequency.  Analagous to
+    IDFT_Array_IDFT_1D with the exception that this
+    function excludes the `eta = 0` pixel
+    in the model uv-plane.
+
+    Used in the construction of `Fz` if `nq = 0`
+    and `fit_monopole = False`.
+
+    Parameters
+    ----------
+    nf : int
+        Number of frequency channels.
+    neta : int
+        Number of LoS Fourier modes.
+    nq : int
+        Number of quadratic modes.
+    """
+
     # Updated for python 3: floor division
     i_eta = (np.arange(neta) - neta//2).reshape(1, -1)
     # Updated for python 3: floor division
     i_f = (np.arange(nf) - nf//2)
     i_f = i_f[i_f != 0].reshape(-1, 1) # Remove the centre uv-pix
-    # Sign change for consistency, Finv chosen
-    # to have + sign to match healvis
+    # Finv chosen to have + sign to match healvis
     # Updated for python 3: float division is default
     ExponentArray = np.exp(-2.0*np.pi*1j*(i_eta*i_f / nf))
     ExponentArray /= nf
@@ -1236,14 +1133,6 @@ def IDFT_Array_IDFT_1D_ZM(nf, neta):
 
 
 def calc_vis_selection_numbers(nu, nv):
-    required_chan_order = arange(nu*nv).reshape(nu, nv)
-    visibility_spectrum_order = required_chan_order.T
-    grab_order_for_vis_spectrum_ordered_to_chan_ordered =\
-        visibility_spectrum_order.argsort()
-    return grab_order_for_vis_spectrum_ordered_to_chan_ordered
-
-
-def calc_vis_selection_numbers_v2d0(nu, nv):
     required_chan_order = arange(nu*nv).reshape(nu, nv)
     visibility_spectrum_order = required_chan_order.T
     # Updated for python 3: floor division
@@ -1301,7 +1190,7 @@ def calc_vis_selection_numbers_SH(
 
 def generate_gridding_matrix_vis_ordered_to_chan_ordered(nu, nv, nf):
     if p.fit_for_monopole:
-        vis_grab_order = calc_vis_selection_numbers_v2d0(nu, nv)
+        vis_grab_order = calc_vis_selection_numbers(nu, nv)
     else:
         vis_grab_order = calc_vis_selection_numbers_ZM(nu, nv)
     vals_per_chan = vis_grab_order.size
@@ -1324,7 +1213,7 @@ def generate_gridding_matrix_vis_ordered_to_chan_ordered(nu, nv, nf):
 
 def generate_gridding_matrix_vis_ordered_to_chan_ordered_ZM(nu, nv, nf):
     if p.fit_for_monopole:
-        vis_grab_order = calc_vis_selection_numbers_v2d0(nu, nv)
+        vis_grab_order = calc_vis_selection_numbers(nu, nv)
     else:
         vis_grab_order = calc_vis_selection_numbers_ZM(nu, nv)
     vals_per_chan = vis_grab_order.size
@@ -1345,14 +1234,13 @@ def generate_gridding_matrix_vis_ordered_to_chan_ordered_ZM(nu, nv, nf):
     return gridding_matrix_vis_ordered_to_chan_ordered
 
 
-
 def generate_gridding_matrix_vis_ordered_to_chan_ordered_WQ(nu,nv,nf):
     """
         Re-order matrix from vis-ordered to chan-ordered and place
         Fourier modes at the top and quadratic modes at the bottom.
     """
     if p.fit_for_monopole:
-        vis_grab_order = calc_vis_selection_numbers_v2d0(nu, nv)
+        vis_grab_order = calc_vis_selection_numbers(nu, nv)
     else:
         vis_grab_order = calc_vis_selection_numbers_ZM(nu, nv)
     vals_per_chan = vis_grab_order.size
