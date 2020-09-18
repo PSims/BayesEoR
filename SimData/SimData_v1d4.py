@@ -307,7 +307,7 @@ def generate_k_cube_model_spherical_binning_v2d1(
                 )
             )
         # print(relevant_voxels)
-        print(len(relevant_voxels[0]))
+        # print(len(relevant_voxels[0]))
         count += len(relevant_voxels[0])
         k_cube_voxels_in_bin.append(relevant_voxels)
     # print(count) #should be mod_k_masked.shape[0]-3*nuv
@@ -329,7 +329,7 @@ def calc_mean_binned_k_vals(mod_k_masked, k_cube_voxels_in_bin, **kwargs):
     k_vals = []
     kbin_edges = []
     nsamples = []
-    print('---Calculating k-vals---')
+    print('\n---Calculating k-vals---')
     for i_bin in range(len(k_cube_voxels_in_bin)):
         mean_mod_k = mod_k_masked[k_cube_voxels_in_bin[i_bin]].mean()
         min_k = mod_k_masked[k_cube_voxels_in_bin[i_bin]].min()

@@ -23,14 +23,14 @@ def BayesEoRParser():
         type=float,
         help="RMS of the visibility noise.")
     parser.add_argument(
-        '--HERA_data_path',
+        '--data_path',
         type=str,
         help="Path to data file for analysis.",
         default=None)
     parser.add_argument(
         '--noise_data_path',
         type=str,
-        help="Path to noise file associated with HERA_data_path argument.",
+        help="Path to noise file associated with data_path argument.",
         default=None)
     parser.add_argument(
         '--beam_type',

@@ -22,9 +22,8 @@ if run_full_analysis:
     mpi_comm = MPI.COMM_WORLD
     mpi_rank = mpi_comm.Get_rank()
     mpi_size = mpi_comm.Get_size()
-    print('mpi_comm', mpi_comm)
-    print('mpi_rank', mpi_rank)
-    print('mpi_size', mpi_size)
+    print('\nmpi_rank: {}'.format(mpi_rank))
+    print('mpi_size: {}\n'.format(mpi_size))
     use_MultiNest = True # Set to false for large parameter spaces
     if use_MultiNest:
         from pymultinest.solve import solve
@@ -40,7 +39,7 @@ else:
 update_params_with_command_line_arguments()
 npl = p.npl
 nq = p.nq
-if nq>npl:
+if nq > npl:
     nq = npl
 
 # Improve numerical precision.
@@ -157,7 +156,7 @@ else:
     sigma = sigma*1.
 
 # Check for HERA data path
-if 'HERA_data_path' in p.__dict__.keys():
+if 'data_path' in p.__dict__.keys():
     use_EoR_cube = False
 else:
     use_EoR_cube = True
@@ -254,8 +253,10 @@ array_save_directory = (
 # Temporary change for HEALPix matrix function testing
 array_save_directory = (
         array_save_directory[:-1]
-        + '_healpix_testing/'
+        + '_healpix_testing_v2/'
     )
+# v2 includes functional removal and reformatting of Linalg and such
+print('\nArray save directory: {}'.format(array_save_directory))
 
 #--------------------------------------------
 # Construct matrices
@@ -377,18 +378,6 @@ if not p.include_instrumental_effects:
             nu, nv, nx, ny, nf, neta, nq, k_x, k_y, k_z,
             Show, chan_selection, p.EoR_npz_path_sc)
 
-        # plot_figure = False
-        # if plot_figure:
-        #     construct_aplpy_image_from_fits(
-        #         '/users/psims/EoR/EoR_simulations/21cmFAST_2048MPc_'\
-        #         '2048pix_512pix_AstroParamExploration1/Fits/output_'\
-        #         'fits/nf0d888/',
-        #         '21cm_mK_z7.600_nf0.888_useTs0.0_aveTb21.'\
-        #         '24_cube_side_pix512_cube_side_Mpc2048_mK',
-        #         run_convert_from_mK_to_K=False,
-        #         run_remove_unused_header_variables=True
-        #         )
-
     #--------------------------------------------
     # Define data vector
     #--------------------------------------------
@@ -440,8 +429,8 @@ if p.include_instrumental_effects:
         # Temporary measure to save space since Finv can be large
         del Finv
     else:
-        print('Using HERA data at {}'.format(p.HERA_data_path))
-        s_EoR = np.load(p.HERA_data_path)
+        print('\nUsing data at {}'.format(p.data_path))
+        s_EoR = np.load(p.data_path)
 
     if 'noise_data_path' not in p.__dict__.keys():
         EoR_noise_seed = 742123
@@ -462,13 +451,13 @@ if p.include_instrumental_effects:
     else:
         d = s_EoR.copy()
 
-
 effective_noise_std = effective_noise.std()
-print('\n\n\ns_EoR.std = {:.4e}'.format(s_EoR.std()))
+print('\ns_EoR.std = {:.4e}'.format(s_EoR.std()))
 print('effective_noise.std = {:.4e}'.format(effective_noise_std))
 print('dA = {:.4e}'.format(p.sky_model_pixel_area_sr))
 print('effective SNR = {:.4e}'.format(s_EoR.std() / effective_noise_std),
       end='\n\n')
+
 
 #--------------------------------------------
 # Continue loading base matrices used in the
@@ -610,7 +599,7 @@ else:
         log_priors_min_max[0] = [1.0, 2.0] # Linear alpha_prime range
 
 
-print('log_priors_min_max = {}'.format(log_priors_min_max))
+print('\nlog_priors_min_max = {}'.format(log_priors_min_max))
 prior_c = PriorC(log_priors_min_max)
 nDerived = 0
 nDims = len(k_cube_voxels_in_bin)
@@ -660,9 +649,7 @@ if use_MultiNest:
     file_root = 'MN-' + file_root
 
 file_root = generate_output_file_base(file_root, version_number='1')
-
-print('Rank', mpi_rank)
-print('Output file_root:', file_root)
+print('\nOutput file_root:', file_root)
 
 PSPP_block_diag_Polychord = PowerSpectrumPosteriorProbability(
     T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin,
@@ -695,8 +682,8 @@ print('Testing posterior calc with x={}'.format(x_bad))
 for _ in range(Nit):
     # L =  PSPP_block_diag_Polychord.posterior_probability([3.e0]*nDims)[0]
     L = PSPP_block_diag_Polychord.posterior_probability(x_bad)[0]
-PSPP_block_diag_Polychord.Print = False
-print('Average evaluation time: {}'.format((time.time() - start)/float(Nit)))
+print('Average evaluation time: {}'.format((time.time() - start)/float(Nit)),
+      end='\n\n')
 
 
 def likelihood(
@@ -712,7 +699,6 @@ def MultiNest_likelihood(
 
 
 run_single_node_analysis = False
-print('mpi_size =', mpi_size)
 if mpi_size > 1:
     print('mpi_size greater than 1, running multi-node analysis', end='\n\n')
 else:
