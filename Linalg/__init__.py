@@ -1,2 +1,2 @@
-from .Linalg_v1d1 import *
+from .Linalg import *
 
