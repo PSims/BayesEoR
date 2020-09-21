@@ -12,7 +12,7 @@ from .SimData import\
 # Update once likelihood functions are moved
 from .Likelihood.Generate_matrix_stack_v1d2\
     import BuildMatrices
-from .Likelihood.Likelihood_v1d0\
+from .Likelihood.Likelihood\
     import PowerSpectrumPosteriorProbability
 
 from .Utils import\
