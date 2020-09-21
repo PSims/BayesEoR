@@ -139,7 +139,8 @@ class Cosmology:
     def Convert_from_U_to_Kx(self, U_Array, **kwargs):
         Comoving_Distance_Mpc, Comoving_convergence_uncertainty =\
             self.Calculate_Comoving_Distance_Mpc_Between_Redshifts_z1_and_z2()
-        self.K_x_Array = (2.*np.pi / Comoving_Distance_Mpc) * U_Array # h*cMPc^-1
+        # k_x in units of h cMPc^-1
+        self.K_x_Array = (2.*np.pi / Comoving_Distance_Mpc) * U_Array
         return self.K_x_Array
 
     ###
@@ -148,7 +149,8 @@ class Cosmology:
     def Convert_from_V_to_Ky(self, V_Array, **kwargs):
         Comoving_Distance_Mpc, Comoving_convergence_uncertainty =\
             self.Calculate_Comoving_Distance_Mpc_Between_Redshifts_z1_and_z2()
-        self.K_y_Array = (2.*np.pi / Comoving_Distance_Mpc) * V_Array # h*cMPc^-1
+        # k_y in units of h cMPc^-1
+        self.K_y_Array = (2.*np.pi / Comoving_Distance_Mpc) * V_Array
         return self.K_y_Array
 
     ###
@@ -256,12 +258,13 @@ def load_uvw_instrument_sampling_m(instrument_model_directory):
 
 def load_baseline_redundancy_array(instrument_model_directory):
     file_dir = instrument_model_directory
+    # uvw_redundancy_multi_time_step_array
     file_name =\
-        "unique_H37_baseline_hermitian_redundancy_multi_time_step_array"
+        "uvw_redundancy_multi_time_step_array"
     with open(file_dir+file_name, 'rb') as f:
-        unique_H37_baseline_hermitian_redundancy_multi_time_step_array =\
+        uvw_redundancy_multi_time_step_array =\
             pickle.load(f)
-    return unique_H37_baseline_hermitian_redundancy_multi_time_step_array
+    return uvw_redundancy_multi_time_step_array
 
 
 def write_log_file(array_save_directory, file_root):
