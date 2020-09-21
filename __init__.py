@@ -1,10 +1,3 @@
-# from .Linalg import\
-#     Produce_Coordinate_Arrays_ZM,\
-#     DFT_Array_DFT_2D_ZM, IDFT_Array_IDFT_2D_ZM,\
-#     generate_gridding_matrix_vis_ordered_to_chan_ordered,\
-#     IDFT_Array_IDFT_1D, IDFT_Array_IDFT_1D_WQ,\
-#     nuDFT_Array_DFT_2D_v2d0
-
 from .SimData import\
     generate_k_cube_in_physical_coordinates_21cmFAST_v2d0,\
     generate_masked_coordinate_cubes,\
@@ -16,9 +9,10 @@ from .SimData import\
     generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1\
     as generate_data_and_noise_vector_instrumental
 
-from .likelihood_tests.SimpleEoRtestWQ.Generate_matrix_stack_v1d2\
+# Update once likelihood functions are moved
+from .Likelihood.Generate_matrix_stack_v1d2\
     import BuildMatrices
-from .likelihood_tests.SimpleEoRtestWQ.Likelihood_v1d763_3D_ZM_standalone_GPU_v2d0\
+from .Likelihood.Likelihood_v1d0\
     import PowerSpectrumPosteriorProbability
 
 from .Utils import\

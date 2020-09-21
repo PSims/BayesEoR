@@ -1,2 +1,2 @@
-import Likelihood_v1d0
+from .Likelihood_v1d0 import *
 

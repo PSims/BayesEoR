@@ -1,7 +1,0 @@
-From the Dexter directory (/data/ps550/EoR/Applications/Dexter-0.5a) run the following command to extract histogram data:
-
-java -mx30000000 -jar Debuxter.jar Images/LaneEtAl2014_VLSSrNVSS_Hist
-
-NOTE: it doesn't work to extract data from pdfs etc, they have to be simple images -> use print screen to make an image of the required region and then save it to the image directory at /data/ps550/EoR/Applications/Dexter-0.5a/Images/ before running the command above to extract the data.
-
-

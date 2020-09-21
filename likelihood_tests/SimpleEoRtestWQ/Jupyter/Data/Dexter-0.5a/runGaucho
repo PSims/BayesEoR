@@ -1,9 +1,0 @@
-#!/bin/bash
-if [ $# -ne 1 -o "_$1" = _-h -o "_$1" = _--help ]
-then
-	echo "Usage: $0 <image-descriptor>"
-	echo "  image-descriptor usually is of the form page@file, e.g."
-	echo "  5@paper.ps"
-	exit 1
-fi
-java -mx30000000 -jar Gaucho.jar $@
