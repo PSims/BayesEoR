@@ -22,9 +22,6 @@ from BayesEoR.Linalg.healpix import Healpix
     (960*38*969*38*(64./8)/1.e9 GB precisely for a numpy.float64 double
     precision array). With 128 GB of memory per node 11 matrices of this
     size to be held in memory simultaneously.
-
-    NOTE:
-    This file supersedesLikelihood_v1d6_3D_ZM__save_arrays_v1d1.py.
 """
 
 SECS_PER_HOUR = 60 * 60
@@ -686,15 +683,6 @@ class BuildMatrices(BuildMatrixTree):
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
         print('Performing matrix algebra')
-        nu_array_MHz = p.nu_min_MHz + np.arange(p.nf)*p.channel_width_MHz
-        image_size_pix = p.nx
-        beam_peak_amplitude = p.beam_peak_amplitude
-        deg_to_pix = image_size_pix / float(p.simulation_FoV_deg)
-
-        # Currently using an achromatic beam
-        FWHM_pix_at_chan_freq_MHz = [
-            p.FWHM_deg_at_ref_freq_MHz * deg_to_pix
-            for _ in nu_array_MHz]
 
         # Instantiate (l, m) arrays in self.hp if not already made
         self.hp.calc_lm_from_radec(
@@ -704,31 +692,11 @@ class BuildMatrices(BuildMatrixTree):
 
         if not p.model_drift_scan_primary_beam:
             # Needs to be updated to use HEALPix coordinates
-            if p.beam_type.lower() == 'gaussian':
-                multi_chan_P = self.sd_block_diag([
-                    np.diag(
-                        make_Gaussian_beam(
-                            image_size_pix,
-                            FWHM_pix,
-                            beam_peak_amplitude).flatten()
-                        )
-                    for FWHM_pix in FWHM_pix_at_chan_freq_MHz])
-            elif p.beam_type.lower() == 'uniform':
-                multi_chan_P = self.sd_block_diag([
-                    np.diag(
-                        make_Uniform_beam(
-                            image_size_pix,
-                            beam_peak_amplitude).flatten()
-                        )
-                    for FWHM_pix in FWHM_pix_at_chan_freq_MHz])
-            else:
-                multi_chan_P = self.sd_block_diag([
-                    np.diag(
-                        make_Uniform_beam(
-                            image_size_pix,
-                            beam_peak_amplitude).flatten()
-                        )
-                    for FWHM_pix in FWHM_pix_at_chan_freq_MHz])
+            multi_chan_P = self.sd_block_diag([
+                np.diag(
+                    self.hp.get_beam_vals()
+                    )
+                for _ in FWHM_pix_at_chan_freq_MHz])
         else:
             # Model the time dependence of the primary beam pointing
             # for a drift scan (i.e. change in zenith angle with time
