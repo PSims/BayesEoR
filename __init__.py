@@ -10,7 +10,7 @@ from .SimData import\
     as generate_data_and_noise_vector_instrumental
 
 # Update once likelihood functions are moved
-from .Likelihood.Generate_matrix_stack_v1d2\
+from .Likelihood.Generate_matrix_stack\
     import BuildMatrices
 from .Likelihood.Likelihood\
     import PowerSpectrumPosteriorProbability
