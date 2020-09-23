@@ -21,9 +21,9 @@ try:
     from numpy import ctypeslib
 
     # Get path to installation of BayesEoR
-    base_dir = '/'.join(__file__.split('/')[:-3]) + '/'
+    base_dir = '/'.join(__file__.split('/')[:-2]) + '/'
     # Load MAGMA GPU Wrapper Functions
-    GPU_wrap_dir = base_dir+'likelihood_tests/SimpleEoRtestWQ/GPU_wrapper/'
+    GPU_wrap_dir = base_dir+'Likelihood/GPU_wrapper/'
     wrapmzpotrf = ctypes.CDLL(GPU_wrap_dir+'wrapmzpotrf.so')
     nrhs = 1
     wrapmzpotrf.cpu_interface.argtypes = [
