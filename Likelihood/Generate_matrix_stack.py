@@ -260,9 +260,11 @@ class BuildMatrices(BuildMatrixTree):
     beam_peak_amplitude : float
         Peak amplitude of the beam.
     beam_center : tuple of floats
-        Beam center in (l, m) coordinates and units of radians.
-    beam_center_radec : tuple of floats
         Beam center in (RA, DEC) coordinates and units of degrees.
+        Assumed to be an tuple of offsets along the RA and DEC axes
+        relative to the pointing center of the sky model determined
+        from the instrument model parameters `telescope_latlonalt`
+        and `central_jd`.
     FWHM_deg_at_ref_freq_MHz : float
         FWHM of the beam if using a Gaussian beam.
     PB_ref_freq_MHz : float
@@ -303,7 +305,6 @@ class BuildMatrices(BuildMatrixTree):
             self.beam_type = kwargs.pop('beam_type')
             self.beam_peak_amplitude = kwargs.pop('beam_peak_amplitude')
             self.beam_center = kwargs.pop('beam_center', None)
-            self.beam_center_radec = kwargs.pop('beam_center_radec', False)
             self.FWHM_deg_at_ref_freq_MHz =\
                 kwargs.pop('FWHM_deg_at_ref_freq_MHz')
             self.PB_ref_freq_MHz = kwargs.pop('PB_ref_freq_MHz')
@@ -319,7 +320,9 @@ class BuildMatrices(BuildMatrixTree):
                 central_jd=p.central_jd,
                 beam_type=self.beam_type,
                 peak_amp=self.beam_peak_amplitude,
-                fwhm_deg=self.FWHM_deg_at_ref_freq_MHz
+                fwhm_deg=self.FWHM_deg_at_ref_freq_MHz,
+                beam_center=self.beam_center,
+                rel=True
                 )
 
         # Set necessary / useful parameter values
@@ -395,6 +398,58 @@ class BuildMatrices(BuildMatrixTree):
             'phasor_matrix':
                 self.build_phasor_matrix
             }
+
+        # Check if beam_center is not None
+        # If a beam_center is passed (assumed to be in units of
+        # degrees) rename matrices to include beam offset
+        if self.beam_center is not None:
+            # 1. Update matrix_prerequisites_dictionary
+            # Update prereqs for multi_chan_P, Finv, T, Ninv_T, T_Ninv_T
+            self.beam_center_str =\
+                '_beam_center_RA0+{:.2f}_DEC0+{:.2f}'.format(
+                    self.beam_center[0], self.beam_center[1]
+                    )
+            matrix_names = ['multi_chan_P', 'Finv', 'T',
+                            'Ninv_T', 'T_Ninv_T', 'block_T_Ninv_T']
+            dependencies = {
+                'multi_chan_P' + self.beam_center_str : None,
+                'Finv' + self.beam_center_str : [
+                    'phasor_matrix',
+                    'multi_chan_nudft',
+                    'multi_chan_P' + self.beam_center_str
+                    ],
+                'T' + self.beam_center_str : [
+                    'Finv' + self.beam_center_str,
+                    'Fprime_Fz'
+                    ],
+                'Ninv_T' + self.beam_center_str : [
+                    'Ninv',
+                    'T' + self.beam_center_str
+                    ],
+                'T_Ninv_T' + self.beam_center_str : [
+                    'T' + self.beam_center_str,
+                    'Ninv_T' + self.beam_center_str
+                    ],
+                'block_T_Ninv_T' + self.beam_center_str: [
+                    'T_Ninv_T' + self.beam_center_str
+                    ]
+                }
+            for matrix_name in matrix_names:
+                if matrix_name in self.matrix_prerequisites_dictionary.keys():
+                    self.matrix_prerequisites_dictionary.pop(matrix_name)
+                key = matrix_name + self.beam_center_str
+                if dependencies[key] is not None:
+                    self.matrix_prerequisites_dictionary[key] =\
+                        dependencies[matrix_name + self.beam_center_str]
+
+                self.matrix_construction_methods_dictionary[key] =\
+                    self.matrix_construction_methods_dictionary.pop(
+                        matrix_name
+                    )
+            # LEFT OFF HERE
+            # Need to check if this for loop does what I want it to do
+            # i.e. rename all functions with the beam if beam_center
+            # is not None
 
     def load_prerequisites(self, matrix_name):
         """
@@ -680,6 +735,8 @@ class BuildMatrices(BuildMatrixTree):
         `multi_chan_P` has shape (npix * nf * nt, nuv * nf).
         """
         matrix_name = 'multi_chan_P'
+        if self.beam_center is not None:
+            matrix_name += self.beam_center_str
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
         print('Performing matrix algebra')
@@ -696,7 +753,7 @@ class BuildMatrices(BuildMatrixTree):
                 np.diag(
                     self.hp.get_beam_vals()
                     )
-                for _ in FWHM_pix_at_chan_freq_MHz])
+                for _ in range(p.nf)])
         else:
             # Model the time dependence of the primary beam pointing
             # for a drift scan (i.e. change in zenith angle with time
@@ -707,13 +764,19 @@ class BuildMatrices(BuildMatrixTree):
             time_step_range = range(-(p.nt//2), p.nt//2 + 1, 1)
             # Calculate offset of pointing center from central
             # (RA, DEC) as a function of time step
-            beam_center_ra_offset_array = np.array([
-                    i_min
-                    * p.integration_time_minutes
-                    * degrees_per_minute_of_time
-                    + self.hp.pointing_center[0] # central RA value
+            beam_centers_radec = np.array([
+                    (i_min
+                     * p.integration_time_minutes
+                     * degrees_per_minute_of_time
+                     + self.hp.pointing_center[0], # central RA value
+                     self.hp.pointing_center[1])
                     for i_min in time_step_range
                 ])
+            if self.beam_center is not None:
+                beam_centers_radec[0] = (
+                    self.hp.pointing_center[0] + self.beam_center[0],
+                    self.hp.pointing_center[1] + self.beam_center[1]
+                )
 
             if not p.use_sparse_matrices:
                 # Stack dense block diagonal
@@ -722,14 +785,10 @@ class BuildMatrices(BuildMatrixTree):
                 multi_chan_P_drift_scan = np.vstack([
                     block_diag(*[
                         np.diag(
-                            self.hp.get_beam_vals(
-                                beam_center=(ra_offset,
-                                             self.hp.pointing_center[1]),
-                                radec=True
-                                )
+                            self.hp.get_beam_vals(beam_center=beam_center)
                             )
-                        for _ in FWHM_pix_at_chan_freq_MHz])
-                    for ra_offset in beam_center_ra_offset_array])
+                        for _ in range(p.nf)])
+                    for beam_center in beam_centers_radec])
             else:
                 # Stack spares block diagonal
                 # matrices using sparse.vstack
@@ -737,14 +796,10 @@ class BuildMatrices(BuildMatrixTree):
                 multi_chan_P_drift_scan = sparse.vstack([
                     sparse.block_diag([
                         sparse.diags(
-                            self.hp.get_beam_vals(
-                                beam_center=(ra_offset,
-                                             self.hp.pointing_center[1]),
-                                radec=True
-                                )
+                            self.hp.get_beam_vals(beam_center=beam_center)
                             )
-                        for _ in FWHM_pix_at_chan_freq_MHz])
-                    for ra_offset in beam_center_ra_offset_array])
+                        for _ in range(p.nf)])
+                    for beam_center in beam_centers_radec])
 
             multi_chan_P = multi_chan_P_drift_scan
 
@@ -768,12 +823,22 @@ class BuildMatrices(BuildMatrixTree):
         `Finv` has shape (ndata, nuv * nf).
         """
         matrix_name = 'Finv'
+        if self.beam_center is not None:
+            matrix_name += self.beam_center_str
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
         print('Performing matrix algebra')
         if p.include_instrumental_effects:
-            Finv = self.dot_product(
-                pmd['multi_chan_nudft'], pmd['multi_chan_P'])
+            if self.beam_center is None:
+                Finv = self.dot_product(
+                    pmd['multi_chan_nudft'],
+                    pmd['multi_chan_P']
+                    )
+            else:
+                Finv = self.dot_product(
+                    pmd['multi_chan_nudft'],
+                    pmd['multi_chan_P' + self.beam_center_str]
+                    )
             Finv = self.dot_product(pmd['phasor_matrix'], Finv)
         else:
             Finv = pmd['multi_chan_dft_array_noZMchan']
@@ -1258,10 +1323,17 @@ class BuildMatrices(BuildMatrixTree):
         T has shape (ndata, nuv * (neta + nq)).
         """
         matrix_name = 'T'
+        if self.beam_center is not None:
+            matrix_name += self.beam_center_str
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
         print('Performing matrix algebra')
-        T = self.dot_product(pmd['Finv'], pmd['Fprime_Fz'])
+        if self.beam_center is None:
+            T = self.dot_product(pmd['Finv'],
+                                 pmd['Fprime_Fz'])
+        else:
+            T = self.dot_product(pmd['Finv' + self.beam_center_str],
+                                 pmd['Fprime_Fz'])
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
         self.output_data(
@@ -1278,10 +1350,17 @@ class BuildMatrices(BuildMatrixTree):
         Ninv_T has shape (ndata, nuv * (neta + nq)).
         """
         matrix_name = 'Ninv_T'
+        if self.beam_center is not None:
+            matrix_name += self.beam_center_str
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
         print('Performing matrix algebra')
-        Ninv_T = self.dot_product(pmd['Ninv'], pmd['T'])
+        if self.beam_center is None:
+            Ninv_T = self.dot_product(pmd['Ninv'],
+                                      pmd['T'])
+        else:
+            Ninv_T = self.dot_product(pmd['Ninv'],
+                                      pmd['T' + self.beam_center_str])
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
         self.output_data(
@@ -1296,10 +1375,21 @@ class BuildMatrices(BuildMatrixTree):
         with shape (nuv * (neta + nq), nuv * (neta + nq)).
         """
         matrix_name = 'T_Ninv_T'
+        if self.beam_center is not None:
+            matrix_name += self.beam_center_str
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
         print('Performing matrix algebra')
-        T_Ninv_T = self.dot_product(pmd['T'].conjugate().T, pmd['Ninv_T'])
+        if self.beam_center is None:
+            T_Ninv_T = self.dot_product(
+                pmd['T'].conjugate().T,
+                pmd['Ninv_T']
+                )
+        else:
+            T_Ninv_T = self.dot_product(
+                pmd['T' + self.beam_center_str].conjugate().T,
+                pmd['Ninv_T' + self.beam_center_str]
+                )
         # T_Ninv_T needs to be dense to pass to the GPU (note: if
         # T_Ninv_T is already a dense / a numpy array it will be
         # returned unchanged)
@@ -1313,6 +1403,8 @@ class BuildMatrices(BuildMatrixTree):
 
     def build_block_T_Ninv_T(self):
         matrix_name = 'block_T_Ninv_T'
+        if self.beam_center is not None:
+            matrix_name += self.beam_center_str
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
         print('Performing matrix algebra')
@@ -1320,10 +1412,20 @@ class BuildMatrices(BuildMatrixTree):
             self.nuv = (self.nu*self.nv)
         else:
             self.nuv = (self.nu*self.nv - 1)
-        block_T_Ninv_T = np.array(
-            [np.hsplit(block,self.nuv)
-             for block in np.vsplit(pmd['T_Ninv_T'],self.nuv)]
-            )
+        if self.beam_center is None:
+            block_T_Ninv_T = np.array(
+                [np.hsplit(block,self.nuv)
+                 for block in np.vsplit(pmd['T_Ninv_T'],self.nuv)]
+                )
+        else:
+            block_T_Ninv_T = np.array(
+                [np.hsplit(block, self.nuv)
+                 for block in np.vsplit(
+                    pmd['T_Ninv_T' + self.beam_center_str],
+                    self.nuv
+                    )
+                 ]
+                )
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
         self.output_data(block_T_Ninv_T,
@@ -1386,8 +1488,16 @@ class BuildMatrices(BuildMatrixTree):
                 self.array_save_directory,
                 self.overwrite_existing_matrix_stack)
         # Build matrices
-        self.build_matrix_if_it_doesnt_already_exist('T_Ninv_T')
-        self.build_matrix_if_it_doesnt_already_exist('block_T_Ninv_T')
+        if self.beam_center is None:
+            self.build_matrix_if_it_doesnt_already_exist('T_Ninv_T')
+            self.build_matrix_if_it_doesnt_already_exist('block_T_Ninv_T')
+        else:
+            self.build_matrix_if_it_doesnt_already_exist(
+                'T_Ninv_T' + self.beam_center_str
+                )
+            self.build_matrix_if_it_doesnt_already_exist(
+                'block_T_Ninv_T' + self.beam_center_str
+                )
         self.build_matrix_if_it_doesnt_already_exist('N')
         if matrix_stack_dir_exists and self.overwrite_existing_matrix_stack:
             if not self.proceed_without_overwrite_confirmation:

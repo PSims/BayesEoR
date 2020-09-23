@@ -1,5 +1,6 @@
 import argparse
 import numpy as np
+from astropy import constants
 
 """
 Analysis settings
@@ -153,8 +154,6 @@ useGPU = True
 ###
 # Useful constants
 ###
-from astropy import constants
-
 speed_of_light = constants.c.value
 
 ###
@@ -190,6 +189,13 @@ if include_instrumental_effects:
     # beam_type = 'Uniform'
     beam_type = 'Gaussian'
     beam_peak_amplitude = 1.0
+    # Set the primary beam pointing center in (RA, DEC)
+    # If None, will use the pointing center at zenith according to
+    # telescope_latlonalt and central_jd. Otherwise, must be a tuple of
+    # offsets in degrees along the RA and DEC axes defined relative to
+    # the pointing center at zenith according to telescope_latlonalt
+    # and central_jd.
+    beam_center = None
 
     model_drift_scan_primary_beam = True
     if model_drift_scan_primary_beam:

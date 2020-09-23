@@ -8,67 +8,90 @@ def BayesEoRParser():
     parser.add_argument(
         "-nq", "--nq",
         type=int,
-        help="Number of LWM basis vectors (0-2)")
+        help="Number of LWM basis vectors (0-2)"
+        )
     parser.add_argument(
         '--npix',
         type=int,
         default=-1,
         help='Sets the number of pixels on a side '
-             '(nx, ny, nu, nv).')
+             '(nx, ny, nu, nv).'
+        )
     parser.add_argument(
         "-beta", "--beta",
-        help="Power law spectral index used in data model")
+        help="Power law spectral index used in data model"
+        )
     parser.add_argument(
         '--sigma',
         type=float,
-        help="RMS of the visibility noise.")
+        help="RMS of the visibility noise."
+        )
     parser.add_argument(
         '--data_path',
         type=str,
         help="Path to data file for analysis.",
-        default=None)
+        default=None
+        )
     parser.add_argument(
         '--noise_data_path',
         type=str,
         help="Path to noise file associated with data_path argument.",
-        default=None)
+        default=None
+        )
     parser.add_argument(
         '--beam_type',
         type=str,
-        help="Can be either 'Gaussian' or 'Uniform'. Defaults to 'Gaussian'.")
+        help="Can be either 'Gaussian' or 'Uniform'. Defaults to 'Gaussian'."
+        )
     parser.add_argument(
         '--beam_peak_amplitude',
         type=float,
-        help="Peak amplitude of the beam.")
+        help="Peak amplitude of the beam."
+        )
     parser.add_argument(
         '--FWHM_deg_at_ref_freq_MHz',
         type=float,
-        help="FWHM of beam at the reference frequency in degrees.")
+        help="FWHM of beam at the reference frequency in degrees."
+        )
     parser.add_argument(
         '--PB_ref_freq_MHz',
         type=float,
-        help="Reference frequency for primary beam in MHz.")
+        help="Reference frequency for primary beam in MHz."
+        )
     parser.add_argument(
         '--overwrite_matrices',
         action='store_true',
         default=False,
         dest='overwrite_matrices',
-        help="If passed, overwrite existing matrix stack.")
+        help="If passed, overwrite existing matrix stack."
+        )
     parser.add_argument(
         '--simulation_FoV_deg',
         type=float,
         default=12.9080728652,
-        help="Field of View of the sky model in degrees.")
+        help="Field of View of the sky model in degrees."
+        )
     parser.add_argument(
         '--box_size_21cmFAST_Mpc_sc',
         type=int,
         default=2048,
-        help="Transverse cosmological distance corresponding to FoV.")
+        help="Transverse cosmological distance corresponding to FoV."
+        )
     parser.add_argument(
         '--nside',
         type=int,
         default=512,
-        help="Resolution parameter for HEALPix coordinate maps.")
+        help="Resolution parameter for HEALPix coordinate maps."
+        )
+    parser.add_argument(
+        '--beam_center',
+        type=float,
+        nargs='+',
+        help="Sets the beam pointing center in (RA, DEC) relative to "
+             "the pointing center of the sky model defined by "
+             "`p.telescope_latlonalt` and `p.central_jd` at zenith. "
+             "Must be set via `--beam_center RA_offset DEC_offset'."
+        )
 
     args = parser.parse_args()
     return args

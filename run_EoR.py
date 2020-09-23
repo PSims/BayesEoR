@@ -37,6 +37,8 @@ else:
 #--------------------------------------------
 # Model Params
 update_params_with_command_line_arguments()
+if p.beam_center is not None:
+    p.beam_center = tuple(p.beam_center)
 npl = p.npl
 nq = p.nq
 if nq > npl:
@@ -171,7 +173,8 @@ n_Fourier = (nu*nv - 1) * nf
 n_LW = (nu*nv - 1) * nq
 n_model = n_Fourier+n_LW
 n_dat = n_Fourier
-current_file_version = 'Likelihood_v1d76_3D_ZM'
+# current_file_version = 'Likelihood_v1d76_3D_ZM'
+current_file_version = 'Likelihood_v2_3D_ZM'
 array_save_directory = (
     'array_storage/batch_1/'
     + '{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(
@@ -238,7 +241,8 @@ if p.fit_for_monopole:
 
 array_save_directory = (
         array_save_directory[:-1]
-        + '_nside{}_healpix_coords/'.format(p.nside)
+        + '_nside{}/'.format(p.nside)
+        # + '_nside{}_healpix_coords/'.format(p.nside)
     )
 # Adding a FoV specific bit to the array save directory for FoV tests
 array_save_directory = (
@@ -250,12 +254,13 @@ array_save_directory = (
 #         array_save_directory[:-1] +
 #         '_fov_deg_{:.1f}_diff_npix/'.format(p.simulation_FoV_deg))
 
-# Temporary change for HEALPix matrix function testing
-array_save_directory = (
-        array_save_directory[:-1]
-        + '_healpix_testing_v2/'
-    )
-# v2 includes functional removal and reformatting of Linalg and such
+# # Temporary change for HEALPix matrix function testing
+# array_save_directory = (
+#         array_save_directory[:-1]
+#         + '_healpix_testing/'
+#     )
+# # v2 includes functional removal and reformatting of Linalg and such
+# # v3 includes directory rearranging
 print('\nArray save directory: {}'.format(array_save_directory))
 
 #--------------------------------------------
@@ -278,6 +283,7 @@ if p.include_instrumental_effects:
             phasor_vector=phasor_vector,
             beam_type=p.beam_type,
             beam_peak_amplitude=p.beam_peak_amplitude,
+            beam_center=p.beam_center,
             FWHM_deg_at_ref_freq_MHz=p.FWHM_deg_at_ref_freq_MHz,
             PB_ref_freq_MHz=p.PB_ref_freq_MHz
             )
@@ -296,6 +302,7 @@ if p.include_instrumental_effects:
             phasor_vector=phasor_vector,
             beam_type=p.beam_type,
             beam_peak_amplitude=p.beam_peak_amplitude,
+            beam_center=p.beam_center,
             FWHM_deg_at_ref_freq_MHz=p.FWHM_deg_at_ref_freq_MHz,
             PB_ref_freq_MHz=p.PB_ref_freq_MHz,
             effective_noise=effective_noise

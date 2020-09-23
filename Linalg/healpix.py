@@ -47,6 +47,13 @@ class Healpix(HEALPix):
     fwhm_deg : float, optional
         Required if beam_type='gaussian'. Sets the full width half
         maximum of the beam in degrees.
+    beam_center : tuple of floats, optional
+        Sets the beam's pointing center in (RA, DEC) in units of
+        degrees.
+    rel : boolean
+        If True, will treat `beam_center` as a tuple of offsets along
+        the RA and DEC axes relative to the pointing center determined
+        from `telescope_latlonalt` and `central_jd`.
     """
     def __init__(
             self,
@@ -56,7 +63,9 @@ class Healpix(HEALPix):
             central_jd=None,
             beam_type=None,
             peak_amp=1.0,
-            fwhm_deg=None
+            fwhm_deg=None,
+            beam_center=None,
+            rel=False
             ):
         # Use HEALPix as parent class to get
         # useful astropy_healpix functions
@@ -98,13 +107,17 @@ class Healpix(HEALPix):
                 "If using a Gaussian beam, must also pass fwhm_deg."
         self.fwhm_deg = fwhm_deg
 
+        if beam_center is not None:
+            self.set_beam_center_radec(beam_center, rel=rel)
+        else:
+            self.l0 = 0.0
+            self.m0 = 0.0
+
         # Extra params to be set
         self.pix = None
         self.npix_fov = None
         self.ls = None
         self.ms = None
-        self.l0 = 0.0
-        self.m0 = 0.0
 
     def calc_lm_from_radec(self, center=None, north=None, ret=True):
         """
@@ -205,22 +218,63 @@ class Healpix(HEALPix):
                 "If using a Gaussian beam, must also pass fwhm_deg."
         self.fwhm_deg = fwhm_deg
 
+    def set_beam_center_radec(self, beam_center, rel=False):
+        """
+        Set the beam center (l, m) coordinates from a set of (RA, DEC)
+        coordinates.
+
+        Parameters
+        ----------
+        beam_center : tuple of floats
+            Beam center can be passed as:
+              - (RA, DEC) in units of degrees if `rel=False`
+              - (RA_offset, DEC_offset) in units of degrees if
+                `rel=True`.  This is assumed to be tuple of offsets
+                relative to `self.pointing_center`.
+        rel : boolean
+            If True, assume `beam_center` is being passed as a tuple
+            of offsets (RA_offset, DEC_offset) in units of degrees
+            relative to `self.pointing_center`.
+        """
+        if rel:
+            beam_center = (self.pointing_center[0] + beam_center[0],
+                           self.pointing_center[1] + beam_center[1])
+        # Input is in (RA, DEC) in units of degrees
+        l0, m0 = beam_center
+        center_radec = SkyCoord(l0, m0, unit='deg')
+        # Convert from (RA, DEC) -> (alt, az)
+        t = Time(self.central_jd, scale='utc', format='jd')
+        center_altaz = center_radec.transform_to(
+            AltAz(obstime=t, location=self.telescope_location)
+            )
+        # Convert from (alt, az) -> (l, m)
+        self.l0 = (
+                np.sin(np.pi / 2 - center_altaz.alt.rad)
+                * np.sin(center_altaz.az.rad)
+        )
+        self.m0 = (
+                np.sin(np.pi / 2 - center_altaz.alt.rad)
+                * np.cos(center_altaz.az.rad)
+        )
+
     def get_beam_vals(self,
                       beam_center=None,
-                      radec=False):
+                      rel=False):
         """
         Get an array of beam values from (l, m) coordinates.
 
         Parameters
         ----------
-        beam_center : tuple, optional
-            Tuple of floats containing the beam pointing center
-            in (l, m) coordinates (units of radians) or
-            (RA, DEC) coordinates (units of degrees) if radec=True.
-        radec : boolean
-            If True, beam_center will be interpreted as an offset
-            from the field center in (RA, DEC) coordinates in units
-            of degrees.
+        beam_center : tuple of floats
+            Beam center can be passed as:
+              - (RA, DEC) in units of degrees if `rel=False`
+              - (RA_offset, DEC_offset) in units of degrees if
+                `rel=True`.  This is assumed to be tuple of offsets
+                relative to `self.pointing_center`.
+        rel : boolean
+            If True, assume `beam_center` is being passed as a tuple
+            of offsets (RA_offset, DEC_offset) in units of degrees
+            relative to `self.pointing_center`.
 
         Returns
         -------
@@ -234,33 +288,7 @@ class Healpix(HEALPix):
             stddev_rad = np.deg2rad(self._fwhm_to_stddev(self.fwhm_deg))
 
             if beam_center is not None:
-                # Beam offset
-                if radec:
-                    # print('Converting beam_center from (RA, DEC) '
-                    #       'to (l, m)...')
-                    # Input is in (RA, DEC)
-                    l0, m0 = beam_center
-                    center_radec = SkyCoord(l0, m0, unit='deg')
-                    # Convert from (RA, DEC) -> (alt, az)
-                    t = Time(self.central_jd, scale='utc', format='jd')
-                    center_altaz = center_radec.transform_to(
-                        AltAz(obstime=t, location=self.telescope_location)
-                        )
-                    # Convert from (alt, az) -> (l, m)
-                    self.l0 = (
-                            np.sin(np.pi/2 - center_altaz.alt.rad)
-                            * np.sin(center_altaz.az.rad)
-                        )
-                    self.m0 = (
-                            np.sin(np.pi/2 - center_altaz.alt.rad)
-                            * np.cos(center_altaz.az.rad)
-                        )
-                else:
-                    # Input is assumed to be in (l, m)
-                    self.l0, self.m0 = beam_center
-
-                # print('Beam center (l, m) = ({:.2f}, {:.2f}) deg'.format(
-                #       np.rad2deg(self.l0), np.rad2deg(self.m0)))
+                self.set_beam_center_radec(beam_center, rel=rel)
 
             # Calculate Gaussian beam values from (l, m)
             beam_vals = self._gaussian_2d(
