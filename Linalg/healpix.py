@@ -21,7 +21,7 @@ DEGREES_PER_SEC = DEGREES_PER_HOUR * 1 / SECS_PER_HOUR
 
 class Healpix(HEALPix):
     """
-    Class to store and manipulate HEALPix maps using astropy_healpix
+    Class to store and manipulate HEALPix maps using `astropy_healpix`
     functions.
 
     Parameters
@@ -38,6 +38,10 @@ class Healpix(HEALPix):
         telescope in degrees.
     central_jd : float
         Central time step of the observation in JD2000 format.
+    nt : int
+        Number of time integrations. Defaults to 1.
+    int_time : float, optional
+        Integration time in seconds. Required if `nt > 1`.
     beam_type : str, optional
         Can be either (case insensitive) 'uniform' or 'gaussian'.
         Specifies the type of beam to use.
@@ -45,7 +49,7 @@ class Healpix(HEALPix):
     peak_amp : float, optional
         Sets the peak amplitude of the beam.  Defaults to 1.0.
     fwhm_deg : float, optional
-        Required if beam_type='gaussian'. Sets the full width half
+        Required if `beam_type='gaussian'`. Sets the full width half
         maximum of the beam in degrees.
     beam_center : tuple of floats, optional
         Sets the beam's pointing center in (RA, DEC) in units of
@@ -61,6 +65,8 @@ class Healpix(HEALPix):
             nside=512,
             telescope_latlonalt=None,
             central_jd=None,
+            nt=1,
+            int_time=None,
             beam_type=None,
             peak_amp=1.0,
             fwhm_deg=None,
@@ -86,14 +92,42 @@ class Healpix(HEALPix):
                     az=Angle('0d'),
                     obstime=t,
                     location=self.telescope_location)
-        north = AltAz(alt=Angle('0d'),
-                      az=Angle('0d'),
-                      obstime=t,
-                      location=self.telescope_location)
         zen_radec = zen.transform_to(ICRS)
-        north_radec = north.transform_to(ICRS)
-        self.pointing_center = (zen_radec.ra.deg, zen_radec.dec.deg)
-        self.north_pole = (north_radec.ra.deg, north_radec.dec.deg)
+        self.field_center = (zen_radec.ra.deg, zen_radec.dec.deg)
+
+        # Set time axis params for calculating (l(t),  m(t))
+        self.nt = nt
+        self.int_time = int_time
+        if self.nt % 2:
+            self.time_inds = np.arange(-(self.nt//2), self.nt//2 + 1)
+        else:
+            self.time_inds = np.arange(-(self.nt//2), self.nt//2)
+        # Calculate JD per integration from `central_jd`
+        if self.int_time is not None:
+            self.jds = (self.central_jd
+                        + self.time_inds * self.int_time * DAYS_PER_SEC)
+        else:
+            self.jds = np.array([self.central_jd])
+        # Calculate pointing center and north pole per integration
+        self.pointing_centers = []
+        self.north_poles = []
+        for jd in self.jds:
+
+            t = Time(jd, scale='utc', format='jd')
+            # Calculate north pole in (alt, az)
+            north = AltAz(alt=Angle('0d'),
+                          az=Angle('0d'),
+                          obstime=t,
+                          location=self.telescope_location)
+            north_radec = north.transform_to(ICRS)
+            self.north_poles.append((north_radec.ra.deg, north_radec.dec.deg))
+            # Calculate zenith angle in (alt, az)
+            zen = AltAz(alt=Angle('90d'),
+                        az=Angle('0d'),
+                        obstime=t,
+                        location=self.telescope_location)
+            zen_radec = zen.transform_to(ICRS)
+            self.pointing_centers.append((zen_radec.ra.deg, zen_radec.dec.deg))
 
         # Beam params
         if beam_type is not None:
@@ -113,43 +147,14 @@ class Healpix(HEALPix):
             self.l0 = 0.0
             self.m0 = 0.0
 
-        # Extra params to be set
-        self.pix = None
-        self.npix_fov = None
-        self.ls = None
-        self.ms = None
+        # Pixel params
+        self.pix = None # HEALPix pixel numbers within the FoV
+        self.npix_fov = None # Number of pixels within the FoV
+        # Set self.pix and self.npix_fov
+        self.set_pixel_filter(center=self.field_center,
+                              north=self.north_poles[self.nt//2])
 
-    def calc_lm_from_radec(self, center=None, north=None, ret=True):
-        """
-        Return arrays of (l, m) coordinates in radians of all
-        HEALPix pixels within a disc of radius self.fov_deg / 2
-        relative to self.pointing_center.
-
-        Adapted from healvis.observatory.calc_azza.
-
-        Parameters
-        ----------
-        center : tuple
-            Center of cone search in (RA, DEC) in units of degrees.
-        north : tuple
-            North pole in (RA, DEC) in units of degrees.
-        ret : boolean
-            If True, return arrays of l and m coordinates.  Otherwise,
-            return nothing.
-
-        Returns
-        -------
-        ls : np.ndarray
-            Array containing EW direction cosine of each HEALPix pixel.
-        ms : np.ndarray
-            Array containing NS direction cosine of each HEALPix pixel.
-        """
-        cvec = hp.ang2vec(center[0], center[1], lonlat=True)
-
-        if north is None:
-            north = np.array([0, 90.])
-        nvec = hp.ang2vec(north[0], north[1], lonlat=True)
-        # Get pixel indices that lie within the FoV
+    def set_pixel_filter(self, center=None, north=None):
         # Filter pixels that lie outside the rectangular patch of sky
         # set by the central (RA0, DEC0) and the FoV as:
         # RA0 - FoV/2 <= RA <= RA0 + Fov/2
@@ -160,17 +165,51 @@ class Healpix(HEALPix):
             lonlat=True
             )
         lons_inds = np.logical_and(
-            lons >= self.pointing_center[0] - self.fov_deg / 2,
-            lons <= self.pointing_center[0] + self.fov_deg / 2,
+            lons >= self.field_center[0] - self.fov_deg / 2,
+            lons <= self.field_center[0] + self.fov_deg / 2,
             )
         lats_inds = np.logical_and(
-            lats >= self.pointing_center[1] - self.fov_deg / 2,
-            lats <= self.pointing_center[1] + self.fov_deg / 2
+            lats >= self.field_center[1] - self.fov_deg / 2,
+            lats <= self.field_center[1] + self.fov_deg / 2
             )
         pix = np.where(lons_inds * lats_inds)[0]
         self.pix = pix
         self.npix_fov = pix.size
-        vecs = hp.pix2vec(self.nside, pix).T # Shape (npix, 3)
+
+    def calc_lm_from_radec(self, center=None, north=None):
+        """
+        Return arrays of (l, m) coordinates in radians of all
+        HEALPix pixels within a disc of radius self.fov_deg / 2
+        relative to center=(RA, DEC). The pixels used in this
+        calculation are set by `self.set_pixel_filter`.
+
+        Adapted from healvis.observatory.calc_azza.
+
+        Parameters
+        ----------
+        center : tuple of floats, optional
+            Central (RA, DEC) in units of degrees.  Sets the center
+            of the rectangular patch of sky.
+        north : tuple of floats, optional
+            North pole in (RA, DEC) in units of degrees.
+
+        Returns
+        -------
+        ls : np.ndarray
+            Array containing EW direction cosine of each HEALPix pixel.
+        ms : np.ndarray
+            Array containing NS direction cosine of each HEALPix pixel.
+        """
+        if center is None:
+            center = self.field_center
+            north = self.north_poles[self.nt//2]
+
+        cvec = hp.ang2vec(center[0], center[1], lonlat=True)
+
+        if north is None:
+            north = np.array([0, 90.])
+        nvec = hp.ang2vec(north[0], north[1], lonlat=True)
+        vecs = hp.pix2vec(self.nside, self.pix).T # Shape (npix, 3)
 
         # Convert from (x, y, z) to (az, za)
         colat = np.arccos(np.dot(cvec, nvec))
@@ -185,15 +224,14 @@ class Healpix(HEALPix):
         az_arr = np.arctan2(sdotx, sdoty) % (2 * np.pi)
 
         # Convert from (az, za) to (l, m)
-        self.ls = np.sin(za_arr) * np.sin(az_arr) # radians
-        self.ms = np.sin(za_arr) * np.cos(az_arr) # radians
+        ls = np.sin(za_arr) * np.sin(az_arr) # radians
+        ms = np.sin(za_arr) * np.cos(az_arr) # radians
 
-        if ret:
-            return self.ls, self.ms
+        return ls, ms
 
     def set_beam(self, beam_type=None, fwhm_deg=None, peak_amp=1.0):
         """
-        Set beam params if not set in __init__.
+        Set beam params if not set in `__init__`.
 
         Parameters
         ----------
@@ -217,11 +255,15 @@ class Healpix(HEALPix):
             assert fwhm_deg is not None, \
                 "If using a Gaussian beam, must also pass fwhm_deg."
         self.fwhm_deg = fwhm_deg
+        self.beam_type = beam_type
 
     def set_beam_center_radec(self, beam_center, rel=False):
         """
         Set the beam center (l, m) coordinates from a set of (RA, DEC)
-        coordinates.
+        coordinates. This function is currently only working for
+        snapshot observations. It will likely need to be updated
+        to be calculated relative to the pointing center, not field
+        center, per integration if it is to be used per time.
 
         Parameters
         ----------
@@ -237,8 +279,8 @@ class Healpix(HEALPix):
             relative to `self.pointing_center`.
         """
         if rel:
-            beam_center = (self.pointing_center[0] + beam_center[0],
-                           self.pointing_center[1] + beam_center[1])
+            beam_center = (self.field_center[0] + beam_center[0],
+                           self.field_center[1] + beam_center[1])
         # Input is in (RA, DEC) in units of degrees
         l0, m0 = beam_center
         center_radec = SkyCoord(l0, m0, unit='deg')
@@ -258,13 +300,21 @@ class Healpix(HEALPix):
         )
 
     def get_beam_vals(self,
+                      ls,
+                      ms,
                       beam_center=None,
                       rel=False):
         """
         Get an array of beam values from (l, m) coordinates.
+        If `beam_type='gaussian'`, this function assumes that the
+        beam width is symmetric along the l and m axes.
 
         Parameters
         ----------
+        ls : np.ndarray of floats
+            Array of EW direction cosine coordinate values.
+        ms : np.ndarray of floats
+            Array of NS direction cosine coordinate values.
         beam_center : tuple of floats
             Beam center can be passed as:
               - (RA, DEC) in units of degrees if `rel=False`
@@ -292,7 +342,7 @@ class Healpix(HEALPix):
 
             # Calculate Gaussian beam values from (l, m)
             beam_vals = self._gaussian_2d(
-                self.ls, self.ms, self.l0, self.m0,
+                ls, ms, self.l0, self.m0,
                 stddev_rad, stddev_rad, self.peak_amp)
 
         return beam_vals

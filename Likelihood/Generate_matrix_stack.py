@@ -335,6 +335,8 @@ class BuildMatrices(BuildMatrixTree):
                 nside=p.nside,
                 telescope_latlonalt=p.telescope_latlonalt,
                 central_jd=p.central_jd,
+                nt=p.nt,
+                int_time=p.integration_time_minutes * 60,
                 beam_type=self.beam_type,
                 peak_amp=self.beam_peak_amplitude,
                 fwhm_deg=self.FWHM_deg_at_ref_freq_MHz,
@@ -470,7 +472,8 @@ class BuildMatrices(BuildMatrixTree):
             for key in self.matrix_prerequisites_dictionary.keys():
                 print('{} : {}'.format(
                     key, self.matrix_prerequisites_dictionary[key]
-                    ))
+                        )
+                    )
 
     def load_prerequisites(self, matrix_name):
         """
@@ -692,8 +695,8 @@ class BuildMatrices(BuildMatrixTree):
 
             # Get (l, m) coordinates from Healpix object
             ls_rad, ms_rad = self.hp.calc_lm_from_radec(
-                self.hp.pointing_center,
-                self.hp.north_pole
+                self.hp.pointing_centers[self.hp.nt//2],
+                self.hp.north_poles[self.hp.nt//2]
                 )
             sampled_lm_coords_radians = np.vstack((ls_rad, ms_rad)).T
 
@@ -702,7 +705,8 @@ class BuildMatrices(BuildMatrixTree):
                     [nuDFT_Array_DFT_2D_v2d0(
                         sampled_lm_coords_radians,
                         sampled_uvw_coords_wavelengths[
-                            freq_i, 0, :, :].reshape(-1, 2))
+                            freq_i, 0, :, :
+                        ].reshape(-1, 2))
                      for freq_i in range(p.nf)
                      ]
                     )
@@ -711,25 +715,17 @@ class BuildMatrices(BuildMatrixTree):
             # beam is included in the data model
             # (i.e. p.model_drift_scan_primary_beam=True)
 
-            # Time axis stuff
-            time_indices = range(-(p.nt // 2), p.nt // 2 + 1, 1)
-            deg_per_int = p.integration_time_minutes * DEGREES_PER_MIN
-            pointing_centers = [
-                (self.hp.pointing_center[0] + deg_per_int * i_t,
-                 self.hp.pointing_center[1])
-                for i_t in time_indices
-                ]
-
             multi_chan_nudft = self.sd_block_diag([self.sd_block_diag([
                 nuDFT_Array_DFT_2D_v2d0(
                     np.vstack(
                         self.hp.calc_lm_from_radec(
-                            pointing_centers[time_i],
-                            self.hp.north_pole
+                            self.hp.pointing_centers[time_i],
+                            self.hp.north_poles[time_i]
                             ) # gets (l(t), m(t))
                         ).T,
                     sampled_uvw_coords_wavelengths[
-                    freq_i, time_i, :, :].reshape(-1, 2))
+                        freq_i, time_i, :, :
+                    ].reshape(-1, 2))
                     for freq_i in range(p.nf)])
                 for time_i in range(p.nt)])
 
@@ -780,25 +776,8 @@ class BuildMatrices(BuildMatrixTree):
             # for a drift scan (i.e. change in zenith angle with time
             # due to Earth rotation).
 
-            degrees_per_minute_of_time = 360. / (24*60)
-            # Updated for python 3: floor division
-            time_step_range = range(-(p.nt//2), p.nt//2 + 1, 1)
-            # Calculate offset of pointing center from central
-            # (RA, DEC) as a function of time step
-            beam_centers_radec = np.array([
-                    (i_min
-                     * p.integration_time_minutes
-                     * degrees_per_minute_of_time
-                     + self.hp.pointing_center[0], # central RA value
-                     self.hp.pointing_center[1])
-                    for i_min in time_step_range
-                ])
-            if self.beam_center is not None:
-                beam_centers_radec[0] = (
-                    self.hp.pointing_center[0] + self.beam_center[0],
-                    self.hp.pointing_center[1] + self.beam_center[1]
-                )
-
+            # Need to change this from using vstack to block_diag
+            # when reintroducing the time axis
             if not p.use_sparse_matrices:
                 # Stack dense block diagonal
                 # matrices using np.vstack
@@ -806,10 +785,16 @@ class BuildMatrices(BuildMatrixTree):
                 multi_chan_P_drift_scan = np.vstack([
                     block_diag(*[
                         np.diag(
-                            self.hp.get_beam_vals(beam_center=beam_center)
+                            self.hp.get_beam_vals(
+                                *self.hp.calc_lm_from_radec(
+                                    center=self.hp.pointing_centers[time_i],
+                                    north=self.hp.north_poles[time_i]
+                                    ),
+                                beam_center=beam_center
+                                )
                             )
                         for _ in range(p.nf)])
-                    for beam_center in beam_centers_radec])
+                    for time_i in range(p.nt)])
             else:
                 # Stack spares block diagonal
                 # matrices using sparse.vstack
@@ -817,10 +802,16 @@ class BuildMatrices(BuildMatrixTree):
                 multi_chan_P_drift_scan = sparse.vstack([
                     sparse.block_diag([
                         sparse.diags(
-                            self.hp.get_beam_vals(beam_center=beam_center)
+                            self.hp.get_beam_vals(
+                                *self.hp.calc_lm_from_radec(
+                                    center=self.hp.pointing_centers[time_i],
+                                    north=self.hp.north_poles[time_i]
+                                    ),
+                                beam_center=beam_center
+                                )
                             )
                         for _ in range(p.nf)])
-                    for beam_center in beam_centers_radec])
+                    for time_i in range(p.nt)])
 
             multi_chan_P = multi_chan_P_drift_scan
 
@@ -871,6 +862,8 @@ class BuildMatrices(BuildMatrixTree):
                          matrix_name)
 
     # Fprime functions
+    # Fprime will need to be remade using vstack to transform
+    # to (l(t), m(t)) instead of a single set of (l, m) coords
     def build_idft_array(self):
         """
         Construct a block for `multi_chan_idft_array_noZMchan` which
@@ -887,8 +880,8 @@ class BuildMatrices(BuildMatrixTree):
         print('Performing matrix algebra')
         # Get (l, m) coordinates from Healpix object
         ls_rad, ms_rad = self.hp.calc_lm_from_radec(
-            self.hp.pointing_center,
-            self.hp.north_pole
+            self.hp.pointing_centers[p.nt//2],
+            self.hp.north_poles[p.nt//2]
             )
         sampled_lm_coords_radians = np.vstack((ls_rad, ms_rad)).T
 
