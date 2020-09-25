@@ -5,6 +5,7 @@ import time
 import h5py
 from scipy.linalg import block_diag
 from scipy import sparse
+from pathlib import Path
 
 import BayesEoR.Params.params as p
 from BayesEoR.Linalg import\
@@ -64,6 +65,9 @@ class BuildMatrixTree(object):
         else:
             self.matrix_prerequisites_dictionary['Finv'] =\
                 ['multi_chan_dft_array_noZMchan']
+
+        if p.include_instrumental_effects:
+            self.beam_center = None
 
     def check_for_prerequisites(self, parent_matrix):
         prerequisites_status = {}
@@ -166,6 +170,19 @@ class BuildMatrixTree(object):
         Check if the data is an array (.h5) or sparse matrix (.npz)
         and call the corresponding method to read it in
         """
+        if (
+                self.beam_center is not None
+                and dataset_name in self.beam_matrix_names
+        ):
+            file_path = Path(file_path)
+            file_path = file_path.with_name(
+                file_path.stem
+                + self.beam_center_str
+                + file_path.suffix
+                )
+            file_path = str(file_path)
+            dataset_name += self.beam_center_str
+
         if file_path.count('.h5'):
             data = self.read_data_from_hdf5(file_path, dataset_name)
         elif file_path.count('.npz'):
@@ -409,7 +426,7 @@ class BuildMatrices(BuildMatrixTree):
                 '_beam_center_RA0+{:.2f}_DEC0+{:.2f}'.format(
                     self.beam_center[0], self.beam_center[1]
                     )
-            matrix_names = ['multi_chan_P', 'Finv', 'T',
+            self.beam_matrix_names = ['multi_chan_P', 'Finv', 'T',
                             'Ninv_T', 'T_Ninv_T', 'block_T_Ninv_T']
             dependencies = {
                 'multi_chan_P' + self.beam_center_str : None,
@@ -434,7 +451,7 @@ class BuildMatrices(BuildMatrixTree):
                     'T_Ninv_T' + self.beam_center_str
                     ]
                 }
-            for matrix_name in matrix_names:
+            for matrix_name in self.beam_matrix_names:
                 if matrix_name in self.matrix_prerequisites_dictionary.keys():
                     self.matrix_prerequisites_dictionary.pop(matrix_name)
                 key = matrix_name + self.beam_center_str
@@ -446,10 +463,14 @@ class BuildMatrices(BuildMatrixTree):
                     self.matrix_construction_methods_dictionary.pop(
                         matrix_name
                     )
-            # LEFT OFF HERE
-            # Need to check if this for loop does what I want it to do
-            # i.e. rename all functions with the beam if beam_center
-            # is not None
+
+            print('Matrix names : {}'.format(
+                self.matrix_construction_methods_dictionary.keys()))
+            print('Dependencies : ')
+            for key in self.matrix_prerequisites_dictionary.keys():
+                print('{} : {}'.format(
+                    key, self.matrix_prerequisites_dictionary[key]
+                    ))
 
     def load_prerequisites(self, matrix_name):
         """
