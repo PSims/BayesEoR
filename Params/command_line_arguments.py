@@ -85,12 +85,12 @@ def BayesEoRParser():
         )
     parser.add_argument(
         '--beam_center',
-        type=float,
-        nargs='+',
+        type=str,
         help="Sets the beam pointing center in (RA, DEC) relative to "
              "the pointing center of the sky model defined by "
              "`p.telescope_latlonalt` and `p.central_jd` at zenith. "
-             "Must be set via `--beam_center RA_offset DEC_offset'."
+             "Must be set via a string argument as "
+             "--beam_center\"(RA_offset,DEC_offset)\" with no spaces."
         )
 
     args = parser.parse_args()

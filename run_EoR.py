@@ -8,6 +8,7 @@ import BayesEoR.Params.params as p
 import sys
 import os
 import time
+import ast
 import numpy as np
 # head, tail = os.path.split(os.path.split(os.getcwd())[0])
 # sys.path.append(head)
@@ -38,7 +39,8 @@ else:
 # Model Params
 update_params_with_command_line_arguments()
 if p.beam_center is not None:
-    p.beam_center = tuple(p.beam_center)
+    p.beam_center = ast.literal_eval(p.beam_center)
+    print('Beam center = {} (type {})'.format(p.beam_center, type(p.beam_center)))
 npl = p.npl
 nq = p.nq
 if nq > npl:
@@ -678,19 +680,20 @@ if p.use_intrinsic_noise_fitting and sub_ML_monopole_term_model:
     print('Using use_intrinsic_noise_fitting')
     PSPP_block_diag_Polychord.d_Ninv_d = q_sub_d_Ninv_q_sub_d
 
-start = time.time()
-PSPP_block_diag_Polychord.Print = False
-Nit = 10
-# x_bad = [2.81531369, 2.4629003, -0.28626515, 5.39490566, 1.19703521,
-#          -0.77159866, 2.9684211, 4.28956387, 3.0131297]
-x_bad = [-0.48731995, 0.97696114, -0.0966692, 0.40549231, 5.35780334,
-         -0.11230135, 5.95898771, 3.93845129, 6.81375599]
-print('Testing posterior calc with x={}'.format(x_bad))
-for _ in range(Nit):
-    # L =  PSPP_block_diag_Polychord.posterior_probability([3.e0]*nDims)[0]
-    L = PSPP_block_diag_Polychord.posterior_probability(x_bad)[0]
-print('Average evaluation time: {}'.format((time.time() - start)/float(Nit)),
-      end='\n\n')
+if p.useGPU:
+    start = time.time()
+    PSPP_block_diag_Polychord.Print = False
+    Nit = 10
+    # x_bad = [2.81531369, 2.4629003, -0.28626515, 5.39490566, 1.19703521,
+    #          -0.77159866, 2.9684211, 4.28956387, 3.0131297]
+    x_bad = [-0.48731995, 0.97696114, -0.0966692, 0.40549231, 5.35780334,
+             -0.11230135, 5.95898771, 3.93845129, 6.81375599]
+    print('Testing posterior calc with x={}'.format(x_bad))
+    for _ in range(Nit):
+        # L =  PSPP_block_diag_Polychord.posterior_probability([3.e0]*nDims)[0]
+        L = PSPP_block_diag_Polychord.posterior_probability(x_bad)[0]
+    print('Average evaluation time: {}'.format((time.time() - start)/float(Nit)),
+          end='\n\n')
 
 
 def likelihood(
