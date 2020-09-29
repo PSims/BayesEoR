@@ -428,8 +428,9 @@ class BuildMatrices(BuildMatrixTree):
                 '_beam_center_RA0+{:.2f}_DEC0+{:.2f}'.format(
                     self.beam_center[0], self.beam_center[1]
                     )
-            self.beam_matrix_names = ['multi_chan_P', 'Finv', 'T',
-                            'Ninv_T', 'T_Ninv_T', 'block_T_Ninv_T']
+            self.beam_matrix_names = [
+                'multi_chan_P', 'Finv', 'T',
+                'Ninv_T', 'T_Ninv_T', 'block_T_Ninv_T']
             dependencies = {
                 'multi_chan_P' + self.beam_center_str : None,
                 'Finv' + self.beam_center_str : [
@@ -758,17 +759,16 @@ class BuildMatrices(BuildMatrixTree):
         start = time.time()
         print('Performing matrix algebra')
 
-        # Instantiate (l, m) arrays in self.hp if not already made
-        self.hp.calc_lm_from_radec(
-                center=self.hp.pointing_center,
-                north=self.hp.north_pole
-            )
-
         if not p.model_drift_scan_primary_beam:
             # Needs to be updated to use HEALPix coordinates
             multi_chan_P = self.sd_block_diag([
                 np.diag(
-                    self.hp.get_beam_vals()
+                    self.hp.get_beam_vals(
+                        *self.hp.calc_lm_from_radec(
+                            center=self.hp.pointing_centers[p.nt//2],
+                            north=self.hp.north_poles[p.nt//2]
+                            )
+                        )
                     )
                 for _ in range(p.nf)])
         else:
@@ -789,8 +789,7 @@ class BuildMatrices(BuildMatrixTree):
                                 *self.hp.calc_lm_from_radec(
                                     center=self.hp.pointing_centers[time_i],
                                     north=self.hp.north_poles[time_i]
-                                    ),
-                                beam_center=beam_center
+                                    )
                                 )
                             )
                         for _ in range(p.nf)])
@@ -806,8 +805,7 @@ class BuildMatrices(BuildMatrixTree):
                                 *self.hp.calc_lm_from_radec(
                                     center=self.hp.pointing_centers[time_i],
                                     north=self.hp.north_poles[time_i]
-                                    ),
-                                beam_center=beam_center
+                                    )
                                 )
                             )
                         for _ in range(p.nf)])
