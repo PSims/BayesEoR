@@ -15,7 +15,8 @@ import astropy.units as u
 SECS_PER_HOUR = 60 * 60
 SECS_PER_DAY = SECS_PER_HOUR * 24
 DAYS_PER_SEC = 1.0 / SECS_PER_DAY
-DEGREES_PER_HOUR = 360.0 / 24
+DEGREES_PER_DAY = 360.0
+DEGREES_PER_HOUR = DEGREES_PER_DAY / 24
 DEGREES_PER_SEC = DEGREES_PER_HOUR * 1 / SECS_PER_HOUR
 
 
@@ -151,10 +152,9 @@ class Healpix(HEALPix):
         self.pix = None # HEALPix pixel numbers within the FoV
         self.npix_fov = None # Number of pixels within the FoV
         # Set self.pix and self.npix_fov
-        self.set_pixel_filter(center=self.field_center,
-                              north=self.north_poles[self.nt//2])
+        self.set_pixel_filter()
 
-    def set_pixel_filter(self, center=None, north=None):
+    def set_pixel_filter(self):
         # Filter pixels that lie outside the rectangular patch of sky
         # set by the central (RA0, DEC0) and the FoV as:
         # RA0 - FoV/2 <= RA <= RA0 + Fov/2
@@ -176,7 +176,7 @@ class Healpix(HEALPix):
         self.pix = pix
         self.npix_fov = pix.size
 
-    def calc_lm_from_radec(self, center=None, north=None):
+    def calc_lm_from_radec(self, center=None, north=None, radec_offset=None):
         """
         Return arrays of (l, m) coordinates in radians of all
         HEALPix pixels within a disc of radius self.fov_deg / 2
@@ -191,7 +191,11 @@ class Healpix(HEALPix):
             Central (RA, DEC) in units of degrees.  Sets the center
             of the rectangular patch of sky.
         north : tuple of floats, optional
-            North pole in (RA, DEC) in units of degrees.
+            North pole in (RA, DEC) in units of degrees.  If None,
+            the value of the north pole is calculated.
+        radec_offset : tuple of floats, optional
+            Offset in (RA, DEC) in units of degrees.  Shifts the center
+            to `(center[0] + RA_offset, center[1] + DEC_offset)`.
 
         Returns
         -------
@@ -202,12 +206,29 @@ class Healpix(HEALPix):
         """
         if center is None:
             center = self.field_center
-            north = self.north_poles[self.nt//2]
+            # north = self.north_poles[self.nt//2]
+
+        if radec_offset is not None:
+            center = (
+                center[0] + radec_offset[0],
+                center[1] + radec_offset[1]
+                )
+
+        if north is None:
+            jd = self.central_jd
+            if radec_offset is not None:
+                jd += radec_offset[0] * 1.0 / DEGREES_PER_DAY
+            t = Time(jd, scale='utc', format='jd')
+            # Calculate north pole in (alt, az)
+            north = AltAz(alt=Angle('0d'),
+                          az=Angle('0d'),
+                          obstime=t,
+                          location=self.telescope_location)
+            north_radec = north.transform_to(ICRS)
+            north = (north_radec.ra.deg, north_radec.dec.deg)
 
         cvec = hp.ang2vec(center[0], center[1], lonlat=True)
 
-        if north is None:
-            north = np.array([0, 90.])
         nvec = hp.ang2vec(north[0], north[1], lonlat=True)
         vecs = hp.pix2vec(self.nside, self.pix).T # Shape (npix, 3)
 
