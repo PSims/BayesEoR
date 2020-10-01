@@ -339,9 +339,7 @@ class BuildMatrices(BuildMatrixTree):
                 int_time=p.integration_time_minutes * 60,
                 beam_type=self.beam_type,
                 peak_amp=self.beam_peak_amplitude,
-                fwhm_deg=self.FWHM_deg_at_ref_freq_MHz,
-                beam_center=self.beam_center,
-                rel=True
+                fwhm_deg=self.FWHM_deg_at_ref_freq_MHz
                 )
 
         # Set necessary / useful parameter values
@@ -662,7 +660,7 @@ class BuildMatrices(BuildMatrixTree):
 
     def build_multi_chan_nudft(self):
         """
-        Construct block-diagonal non-uniform DFT array from (l, m, f)
+        Construct block-diagonal non-uniform DFT array from (l(t), m(t), f)
         to unphased (u, v, f) in the instrument model.
 
         If use_nvis_nt_nchan_ordering:
@@ -696,20 +694,20 @@ class BuildMatrices(BuildMatrixTree):
 
             # Get (l, m) coordinates from Healpix object
             ls_rad, ms_rad = self.hp.calc_lm_from_radec(
-                self.hp.pointing_centers[self.hp.nt//2],
-                self.hp.north_poles[self.hp.nt//2]
+                radec_offset=self.beam_center
                 )
             sampled_lm_coords_radians = np.vstack((ls_rad, ms_rad)).T
 
             multi_chan_nudft =\
                 self.sd_block_diag(
-                    [nuDFT_Array_DFT_2D_v2d0(
-                        sampled_lm_coords_radians,
-                        sampled_uvw_coords_wavelengths[
-                            freq_i, 0, :, :
-                        ].reshape(-1, 2))
-                     for freq_i in range(p.nf)
-                     ]
+                    [
+                        nuDFT_Array_DFT_2D_v2d0(
+                            sampled_lm_coords_radians,
+                            sampled_uvw_coords_wavelengths[
+                                freq_i, 0, :, :
+                            ].reshape(-1, 2))
+                        for freq_i in range(p.nf)
+                        ]
                     )
         elif p.use_nvis_nchan_nt_ordering:
             # This will be used if a drift scan primary
@@ -720,8 +718,9 @@ class BuildMatrices(BuildMatrixTree):
                 nuDFT_Array_DFT_2D_v2d0(
                     np.vstack(
                         self.hp.calc_lm_from_radec(
-                            self.hp.pointing_centers[time_i],
-                            self.hp.north_poles[time_i]
+                            center=self.hp.pointing_centers[time_i],
+                            north=self.hp.north_poles[time_i],
+                            radec_offset=self.beam_center
                             ) # gets (l(t), m(t))
                         ).T,
                     sampled_uvw_coords_wavelengths[
@@ -760,13 +759,11 @@ class BuildMatrices(BuildMatrixTree):
         print('Performing matrix algebra')
 
         if not p.model_drift_scan_primary_beam:
-            # Needs to be updated to use HEALPix coordinates
             multi_chan_P = self.sd_block_diag([
                 np.diag(
                     self.hp.get_beam_vals(
                         *self.hp.calc_lm_from_radec(
-                            center=self.hp.pointing_centers[p.nt//2],
-                            north=self.hp.north_poles[p.nt//2]
+                            radec_offset=self.beam_center
                             )
                         )
                     )
@@ -788,7 +785,8 @@ class BuildMatrices(BuildMatrixTree):
                             self.hp.get_beam_vals(
                                 *self.hp.calc_lm_from_radec(
                                     center=self.hp.pointing_centers[time_i],
-                                    north=self.hp.north_poles[time_i]
+                                    north=self.hp.north_poles[time_i],
+                                    radec_offset=self.beam_center
                                     )
                                 )
                             )
@@ -804,7 +802,8 @@ class BuildMatrices(BuildMatrixTree):
                             self.hp.get_beam_vals(
                                 *self.hp.calc_lm_from_radec(
                                     center=self.hp.pointing_centers[time_i],
-                                    north=self.hp.north_poles[time_i]
+                                    north=self.hp.north_poles[time_i],
+                                    radec_offset=self.beam_center
                                     )
                                 )
                             )
