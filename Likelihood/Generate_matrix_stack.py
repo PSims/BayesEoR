@@ -427,13 +427,14 @@ class BuildMatrices(BuildMatrixTree):
                     self.beam_center[0], self.beam_center[1]
                     )
             self.beam_matrix_names = [
-                'multi_chan_P', 'Finv', 'T',
+                'multi_chan_nudft', 'multi_chan_P', 'Finv', 'T',
                 'Ninv_T', 'T_Ninv_T', 'block_T_Ninv_T']
             dependencies = {
+                'multi_chan_nudft' + self.beam_center_str : None,
                 'multi_chan_P' + self.beam_center_str : None,
                 'Finv' + self.beam_center_str : [
                     'phasor_matrix',
-                    'multi_chan_nudft',
+                    'multi_chan_nudft' + self.beam_center_str,
                     'multi_chan_P' + self.beam_center_str
                     ],
                 'T' + self.beam_center_str : [
@@ -675,6 +676,8 @@ class BuildMatrices(BuildMatrixTree):
         `multi_chan_nudft` has shape (ndata, npix * nf * nt).
         """
         matrix_name = 'multi_chan_nudft'
+        if self.beam_center is not None:
+            matrix_name += self.beam_center_str
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
         print('Performing matrix algebra')
@@ -719,7 +722,6 @@ class BuildMatrices(BuildMatrixTree):
                     np.vstack(
                         self.hp.calc_lm_from_radec(
                             center=self.hp.pointing_centers[time_i],
-                            north=self.hp.north_poles[time_i],
                             radec_offset=self.beam_center
                             ) # gets (l(t), m(t))
                         ).T,
@@ -845,7 +847,7 @@ class BuildMatrices(BuildMatrixTree):
                     )
             else:
                 Finv = self.dot_product(
-                    pmd['multi_chan_nudft'],
+                    pmd['multi_chan_nudft' + self.beam_center_str],
                     pmd['multi_chan_P' + self.beam_center_str]
                     )
             Finv = self.dot_product(pmd['phasor_matrix'], Finv)
