@@ -281,8 +281,17 @@ if opts.no_phase:
 
 # Load data
 uvd = UVData()
+if opts.bl_cutoff_m is not None:
+    print('Pre-read select on baseline length...')
+    print('\tSelecting only baselines <= {} meters'.format(opts.bl_cutoff_m))
+    uvd.read(data_path + filename, read_data=False)
+    bl_lengths = np.sqrt(np.sum(uvd.uvw_array[:, :2]**2, axis=1))
+    blt_inds = np.where(bl_lengths <= opts.bl_cutoff_m)[0]
+else:
+    blt_inds = None
+
 print('Reading data from %s...\n' %(data_path + filename))
-uvd.read(data_path + filename)
+uvd.read(data_path + filename, blt_inds=blt_inds)
 
 times_to_keep = np.unique(uvd.time_array)
 
@@ -295,16 +304,15 @@ print('Removing autocorrelations...\n')
 uvd.select(ant_str='cross')
 
 # Keep only baselines with |b| < opts.bl_cutoff_m meters
-baseline_lengths = np.sqrt(uvd.uvw_array[:, 0]**2 + uvd.uvw_array[:, 1]**2)
-inds = np.where(baseline_lengths <= opts.bl_cutoff_m)[0]
-print('Selecting only baselines <= {} meters:'.format(opts.bl_cutoff_m))
+# baseline_lengths = np.sqrt(uvd.uvw_array[:, 0]**2 + uvd.uvw_array[:, 1]**2)
+# inds = np.where(baseline_lengths <= opts.bl_cutoff_m)[0]
 print('-'*32)
 print('Shape before select:', uvd.data_array.shape)
 print('Nbls before select:', uvd.Nbls)
 print('Ntimes before select:', uvd.Ntimes)
 
-# select to |b| < opts.bl_cutoff_m meters and half the times
-uvd.select(blt_inds=inds, times=times_to_keep)
+# # select to |b| < opts.bl_cutoff_m meters and half the times
+# uvd.select(blt_inds=inds, times=times_to_keep)
 
 print('\nConjugating baselines to u > 0 convention.')
 uvd.conjugate_bls(convention='u>0', uvw_tol=1.0)
@@ -321,8 +329,6 @@ print('')
 
 print('Initial select finished at {}'.format(datetime.utcnow()))
 print('-'*60, end='\n\n')
-
-DEFAULT_SAVE_DIR = __file__
 
 
 def data_processing(
@@ -389,7 +395,9 @@ def data_processing(
     phasor_array = np.ones(uvd_comp_phasor.data_array.shape) + 0j
     uvd_comp_phasor.data_array = phasor_array
     time_to_phase = np.unique(uvd_select.time_array)[uvd.Ntimes // 2]
-    uvd_comp_phasor.phase_to_time(Time(time_to_phase, format='jd'))
+    uvd_comp_phasor.phase_to_time(
+        Time(time_to_phase, format='jd', scale='utc')
+        )
 
     if phase_data:
         print('Phasing data to central time step')
@@ -411,7 +419,8 @@ def data_processing(
     data_array_phasor_avg = np.zeros((data_array_shape[0],
                                       data_array_shape[2]), dtype='complex128')
 
-    # Get redundancy info
+    # Get redundancy info from unphased UVData object
+    # By default, get_redundancies uses a tolerance of 1.0 m
     baseline_groups, vec_bin_centers, lengths = uvd_select.get_redundancies()
 
     # Create averaged data arrays for all baselines in a redundant group
@@ -423,8 +432,6 @@ def data_processing(
         for bl in bl_group:
             # Get data for baseline bl
             data = uvd.get_data(bl)
-
-            # Average data over adjacent frequency channels
             bl_group_data_container.append(data)
 
             # Get nsamples for bl data for weighted
@@ -432,7 +439,6 @@ def data_processing(
             nsamples = uvd.get_nsamples(bl)
             bl_group_nsamples_container.append(nsamples)
 
-        # Cast lists to arrays for easier manipulation
         bl_group_data_container = np.array(bl_group_data_container)
         bl_group_nsamples_container = np.array(bl_group_nsamples_container)
 
@@ -446,8 +452,8 @@ def data_processing(
         # avg_data, stddev_data = weighted_avg_and_std(
         #     bl_group_data_container, bl_group_nsamples_container)
 
-        # For now, I'm using a perfectly redundant instrument model
-        # so every baseline has numerically identical data
+        # For now, I'm assuming a perfectly redundant instrument model
+        # where every baseline has numerically identical data
         avg_data = bl_group_data_container[0]
 
         # Add averaged data and noise estimates
@@ -461,7 +467,7 @@ def data_processing(
 
     # Reorder / flatten data
 
-    # Convert data & noise arrays to mK sr from Jy
+    # Convert data & noise arrays to K sr from Jy
     frequencies = uvd.freq_array[0]
     data_array_phased_avg = Jy_to_Kstr(
         data_array_phased_avg, frequencies
@@ -530,11 +536,10 @@ def data_processing(
             print('Clobbering files, if they exist.')
 
         if (
-                (
-                    os.path.exists(os.path.join(save_dir, outfile))
-                    and opts.clobber
-                )
-                or not os.path.exists(os.path.join(save_dir, outfile))):
+                (os.path.exists(os.path.join(save_dir, outfile))
+                 and opts.clobber)
+                or not os.path.exists(os.path.join(save_dir, outfile))
+        ):
             print('\nWriting data to {}...'.format(
                 os.path.join(save_dir, outfile))
                 )
@@ -552,7 +557,7 @@ def data_processing(
     colors = plt.cm.viridis(np.linspace(0, 1, uvd.Ntimes))
 
     if opts.plot_intermediate:
-        fig, axs = plt.subplots(1, 3, figsize=(20, 5))
+        fig, axs = plt.subplots(1, 3, figsize=(20, 8))
         for ax in axs:
             ax.set_xlabel('u [m]')
             ax.set_ylabel('v [m]')
@@ -561,25 +566,23 @@ def data_processing(
         axs[1].set_title('UVW Ordering from\npyuvdata.get_redundancies()')
         axs[2].set_title('Redundancy Model')
 
-    for i_t, t in enumerate(np.unique(uvd_select.time_array)):
-        time_inds = uvd_comp.time_array == t
-        if phase_data:
-            uvws = uvd_comp_unphased.uvw_array[time_inds]
-        else:
-            uvws = uvd_comp.uvw_array[time_inds]
-        uvws_stacked = np.vstack((uvws, -uvws))
-        uvw_model_unphased[i_t] = uvws_stacked
-
-        if opts.plot_intermediate and i_t == 0:
-            ax = axs[0]
-            ax.scatter(uvw_model_unphased[i_t, :, 0],
-                       uvw_model_unphased[i_t, :, 1],
-                       c=colors[i_t].reshape(1, -1),
-                       marker='o')
-            for i_uv, uvw_vec in enumerate(uvws_stacked):
-                ax.annotate(str(i_uv), (uvw_vec[0], uvw_vec[1]))
+    # UVW coordinates must match the baseline ordering
+    # used in the flattened data array which comes from
+    # get_baseline_redundancies
+    uvws_stacked = np.vstack((vec_bin_centers, -vec_bin_centers))
+    uvw_model_unphased = np.repeat(
+        uvws_stacked[np.newaxis, :, :], uvd.Ntimes, axis=0
+        )
 
     if opts.plot_intermediate:
+        ax = axs[0]
+        ax.scatter(uvw_model_unphased[0, :, 0],
+                   uvw_model_unphased[0, :, 1],
+                   c=colors[0].reshape(1, -1),
+                   marker='o')
+        for i_uv, uvw_vec in enumerate(uvw_model_unphased[0]):
+            ax.annotate(str(i_uv), (uvw_vec[0], uvw_vec[1]))
+
         ax = axs[1]
         ax.scatter(vec_bin_centers[:, 0],
                    vec_bin_centers[:, 1],
@@ -633,7 +636,7 @@ def data_processing(
 
         # Save redundancy model
         red_file =\
-            'unique_H37_baseline_hermitian_redundancy_multi_time_step_array'
+            'uvw_redundancy_multi_time_step_array'
         with open(Path(inst_model_dir) / red_file, 'wb') as f:
             pickle.dump(redundancy_model, f)
 
