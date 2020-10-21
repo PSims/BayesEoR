@@ -426,9 +426,15 @@ class BuildMatrices(BuildMatrixTree):
         if self.beam_center is not None:
             # 1. Update matrix_prerequisites_dictionary
             # Update prereqs for multi_chan_P, Finv, T, Ninv_T, T_Ninv_T
+            beam_center_signs = [
+                '+' if self.beam_center[i] >= 0 else '' for i in range(2)
+                ]
             self.beam_center_str =\
-                '_beam_center_RA0+{:.2f}_DEC0+{:.2f}'.format(
-                    self.beam_center[0], self.beam_center[1]
+                '_beam_center_RA0{}{:.2f}_DEC0{}{:.2f}'.format(
+                    beam_center_signs[0],
+                    self.beam_center[0],
+                    beam_center_signs[1],
+                    self.beam_center[1]
                     )
             self.beam_matrix_names = [
                 'multi_chan_nudft', 'multi_chan_P', 'Finv', 'T',
