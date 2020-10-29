@@ -104,7 +104,7 @@ def Produce_Coordinate_Arrays_ZM(nu, nv, **kwargs):
     i_v_Array_Vectorised = i_v_Array.reshape(1, nu*nv)
     i_v_AV = i_v_Array_Vectorised
     if exclude_mean:
-        i_v_AV = np.delete(i_v_AV, [i_v_AV.size/2]) # Remove the centre uv-pix
+        i_v_AV = np.delete(i_v_AV, [i_v_AV.size//2]) # Remove the centre uv-pix
 
     # Updated for python 3: floor division
     i_u_Vector = (np.arange(nv) - nv//2)
@@ -113,7 +113,7 @@ def Produce_Coordinate_Arrays_ZM(nu, nv, **kwargs):
     i_u_Array_Vectorised = i_u_Array.reshape(1, nv*nu)
     i_u_AV = i_u_Array_Vectorised
     if exclude_mean:
-        i_u_AV = np.delete(i_u_AV, [i_u_AV.size/2]) # Remove the centre uv-pix
+        i_u_AV = np.delete(i_u_AV, [i_u_AV.size//2]) # Remove the centre uv-pix
 
     # ExponentArray calculated as
     # 	np.exp(-2.0*np.pi*1j*(
