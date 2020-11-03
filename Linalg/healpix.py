@@ -176,7 +176,11 @@ class Healpix(HEALPix):
         self.pix = pix
         self.npix_fov = pix.size
 
-    def calc_lm_from_radec(self, center=None, north=None, radec_offset=None):
+    def calc_lm_from_radec(self,
+                           center=None,
+                           north=None,
+                           radec_offset=None,
+                           time_index=0):
         """
         Return arrays of (l, m) coordinates in radians of all
         HEALPix pixels within a disc of radius self.fov_deg / 2
@@ -189,13 +193,19 @@ class Healpix(HEALPix):
         ----------
         center : tuple of floats, optional
             Central (RA, DEC) in units of degrees.  Sets the center
-            of the rectangular patch of sky.
+            of the rectangular patch of sky.  Defaults to
+            `self.field_center`.
         north : tuple of floats, optional
-            North pole in (RA, DEC) in units of degrees.  If None,
-            the value of the north pole is calculated.
+            North pole in (RA, DEC) in units of degrees.  Defaults to
+            the value of the north pole at `self.central_jd` is used.
         radec_offset : tuple of floats, optional
             Offset in (RA, DEC) in units of degrees.  Shifts the center
             to `(center[0] + RA_offset, center[1] + DEC_offset)`.
+            Defaults to None, i.e. no offset.
+        time_index : int, optional
+            If passing `radec_offset`, the north vector will be
+            calculated relative to `self.jds[time_index]`.
+            Defaults to the central time index.
 
         Returns
         -------
@@ -206,18 +216,21 @@ class Healpix(HEALPix):
         """
         if center is None:
             center = self.field_center
-            # north = self.north_poles[self.nt//2]
+            if north is None and radec_offset is None:
+                north = self.north_poles[self.nt//2]
 
         if radec_offset is not None:
             center = (
                 center[0] + radec_offset[0],
                 center[1] + radec_offset[1]
                 )
-
-        if north is None:
-            jd = self.central_jd
-            if radec_offset is not None:
-                jd += radec_offset[0] * 1.0 / DEGREES_PER_DAY
+            # Re-calculate the north vector based on the
+            # new center and the corresponding updated JD
+            if time_index is None:
+                jd = self.central_jd
+            else:
+                jd = self.jds[time_index]
+            jd += radec_offset[0] * 1.0 / DEGREES_PER_DAY
             t = Time(jd, scale='utc', format='jd')
             # Calculate north pole in (alt, az)
             north = AltAz(alt=Angle('0d'),
