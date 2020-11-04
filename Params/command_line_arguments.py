@@ -80,7 +80,7 @@ def BayesEoRParser():
     parser.add_argument(
         '--nside',
         type=int,
-        default=512,
+        default=256,
         help="Resolution parameter for HEALPix coordinate maps."
         )
     parser.add_argument(
