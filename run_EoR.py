@@ -251,6 +251,20 @@ array_save_directory = (
         array_save_directory[:-1]
         + '_fov_deg_{:.1f}/'.format(p.simulation_FoV_deg)
     )
+# Append a beam center classifier
+if p.beam_center is not None:
+    beam_center_signs = [
+        '+' if p.beam_center[i] >= 0 else '' for i in range(2)
+        ]
+    beam_center_str = \
+        '_beam_center_RA0{}{:.2f}_DEC0{}{:.2f}'.format(
+            beam_center_signs[0],
+            p.beam_center[0],
+            beam_center_signs[1],
+            p.beam_center[1]
+            )
+    array_save_directory = array_save_directory[:-1] + beam_center_str + '/'
+
 # Uncomment for tests where npix is not identical between nsides
 # array_save_directory = (
 #         array_save_directory[:-1] +
