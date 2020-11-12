@@ -220,18 +220,21 @@ class Healpix(HEALPix):
                 north = self.north_poles[self.nt//2]
 
         if radec_offset is not None:
-            center = (
-                center[0] + radec_offset[0],
-                center[1] + radec_offset[1]
-                )
-            # Re-calculate the north vector based on the
-            # new center and the corresponding updated JD
             if time_index is None:
                 jd = self.central_jd
             else:
                 jd = self.jds[time_index]
             jd += radec_offset[0] * 1.0 / DEGREES_PER_DAY
             t = Time(jd, scale='utc', format='jd')
+
+            # Calculate zenith angle in (alt, az)
+            zen = AltAz(alt=Angle('90d'),
+                        az=Angle('0d'),
+                        obstime=t,
+                        location=self.telescope_location)
+            zen_radec = zen.transform_to(ICRS)
+            center = (zen_radec.ra.deg, zen_radec.dec.deg)
+
             # Calculate north pole in (alt, az)
             north = AltAz(alt=Angle('0d'),
                           az=Angle('0d'),
