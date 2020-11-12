@@ -180,7 +180,14 @@ o.add_option(
     '--no_phase',
     action='store_true',
     help='If passed, do not phase data.  Otherwise, data is phased '
-           'to the central time step.'
+           'to `phase_time_jd` or the central time step in the dataset.'
+    )
+
+o.add_option(
+    '--phase_time_jd',
+    type=float,
+    default=None,
+    help='Time to which data will be phased.  Must be a valid Julian Date.'
     )
 
 opts, args = o.parse_args(sys.argv[1:])
@@ -351,6 +358,11 @@ def data_processing(
         )
     if not phase_data:
         outfile = outfile.replace('phased', 'unphased')
+    elif opts.phase_time_jd is not None:
+        outfile = outfile.replace(
+            '.npy',
+            '_phase-time-{}.npy'.format(opts.phase_time_jd)
+            )
 
     if uvd_select.Nbls == 1:
         antnums = uvd_select.baseline_to_antnums(uvd_select.baseline_array[0])
@@ -394,15 +406,19 @@ def data_processing(
     # Modify data array of phasor uvdataobject to get phase vector
     phasor_array = np.ones(uvd_comp_phasor.data_array.shape) + 0j
     uvd_comp_phasor.data_array = phasor_array
-    time_to_phase = np.unique(uvd_select.time_array)[uvd.Ntimes // 2]
-    uvd_comp_phasor.phase_to_time(
-        Time(time_to_phase, format='jd', scale='utc')
-        )
 
     if phase_data:
-        print('Phasing data to central time step')
+        if opts.phase_time_jd is not None:
+            print('Phasing data to JD {}'.format(opts.phase_time_jd))
+            time_to_phase = opts.phase_time_jd
+        else:
+            print('Phasing data to central time step')
+            time_to_phase = np.unique(uvd_select.time_array)[uvd.Ntimes // 2]
         uvd.phase_to_time(Time(time_to_phase, format='jd'))
         uvd_comp.phase_to_time(Time(time_to_phase, format='jd'))
+        uvd_comp_phasor.phase_to_time(
+            Time(time_to_phase, format='jd', scale='utc')
+            )
         if opts.all_bl_noise:
             uvd_all_bls.phase_to_time(Time(time_to_phase, format='jd'))
 
