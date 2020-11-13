@@ -56,12 +56,9 @@ class BuildMatrixTree(object):
             'Ninv_T': ['Ninv', 'T'],
             'T_Ninv_T': ['T', 'Ninv_T'],
             'block_T_Ninv_T': ['T_Ninv_T'],
-            'Fprime': ['multi_chan_idft_array_noZMchan']
+            'Fprime': ['multi_chan_idft_array_noZMchan'],
+            'multi_chan_idft_array_noZMchan': ['idft_array']
             }
-        if not p.model_drift_scan_primary_beam:
-            self.matrix_prerequisites_dictionary[
-                'multi_chan_idft_array_noZMchan'
-                ] = ['idft_array']
 
         if p.include_instrumental_effects:
             self.matrix_prerequisites_dictionary['Finv'] =\
@@ -501,12 +498,32 @@ class BuildMatrices(BuildMatrixTree):
     def sd_block_diag(self, block_matrices_list):
         """
         Generate block diagonal matrix from
-        blocks in block_matrices_list.
+        blocks in `block_matrices_list`.
         """
         if p.use_sparse_matrices:
             return sparse.block_diag(block_matrices_list)
         else:
             return block_diag(*block_matrices_list)
+
+    def sd_vstack(self, matrices_list):
+        """
+        Generate a vertically stacked matrix from a
+        list of matrices in `matrices_list`.
+        """
+        if p.use_sparse_matrices:
+            return sparse.vstack(matrices_list)
+        else:
+            return np.vstack(*matrices_list)
+
+    def sd_diags(self, diagonal_vals):
+        """
+        Generate a diagonal matrix from a
+        list of entries in `diagonal_vals`.
+        """
+        if p.use_sparse_matrices:
+            return sparse.diags(diagonal_vals)
+        else:
+            return np.diag(diagonal_vals)
 
     # Finv functions
     def build_dft_array(self):
@@ -703,20 +720,17 @@ class BuildMatrices(BuildMatrixTree):
             # Model the time dependence of the primary beam pointing
             # for a drift scan (i.e. change in zenith angle with time
             # due to Earth rotation).
-
-            # Need to change this from using vstack to block_diag
-            # when reintroducing the time axis
-            multi_chan_P = self.sd_block_diag([
+            multi_chan_P = self.sd_vstack([
                 self.sd_block_diag([
-                        sparse.diags(
-                            self.hp.get_beam_vals(
-                                *self.hp.calc_lm_from_radec(
-                                    center=self.hp.pointing_centers[time_i],
-                                    north=self.hp.north_poles[time_i],
-                                    radec_offset=self.beam_center
-                                    )
+                    self.sd_diags(
+                        self.hp.get_beam_vals(
+                            *self.hp.calc_lm_from_radec(
+                                center=self.hp.pointing_centers[time_i],
+                                north=self.hp.north_poles[time_i],
+                                radec_offset=self.beam_center
                                 )
                             )
+                        )
                     for _ in range(self.nf)])
                 for time_i in range(p.nt)])
 
@@ -795,60 +809,22 @@ class BuildMatrices(BuildMatrixTree):
 
     def build_multi_chan_idft_array_noZMchan(self):
         """
-        Construct a non-uniform, stack of block-diagonal DFT matrices
-        which take a rectilinear (u, v, f) model and transforms it to
-        HEALPix sky model (l(t), m(t), f) space.  Each block corresponds
-        to a single frequency channel.  Each stacked block diagonal
-        matrix corresponds to a single integration.
+        Construct a non-uniform, block-diagonal DFT matrix which
+        takes a rectilinear (u, v, f) model and transforms it to
+        HEALPix sky model (l, m, f) space.  Each block corresponds
+        to a single frequency channel.
 
         Used to construct `Fprime`.
         `multi_chan_idft_array_noZMchan` has shape
-        (npix * nf * nt, nuv * nf).
+        (npix * nf, nuv * nf).
         """
         matrix_name = 'multi_chan_idft_array_noZMchan'
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
         print('Performing matrix algebra')
-        if not p.model_drift_scan_primary_beam:
-            multi_chan_idft_array_noZMchan = self.sd_block_diag(
-                [pmd['idft_array'].T for i in range(self.nf)]
-                )
-        else:
-            if not p.use_sparse_matrices:
-                # Stack dense block-diagonal matrices
-                multi_chan_idft_array_noZMchan = np.vstack([
-                    block_diag(*[
-                        IDFT_Array_IDFT_2D_ZM(
-                            self.nu,
-                            self.nv,
-                            np.vstack(
-                                self.hp.calc_lm_from_radec(
-                                    center=self.hp.pointing_centers[time_i],
-                                    north=self.hp.north_poles[time_i],
-                                    radec_offset=self.beam_center
-                                    )
-                                ).T
-                            ).T
-                        for _ in range(self.nf)])
-                    for time_i in range(p.nt)])
-            else:
-                # Stack sparse block-diagonal matrices
-                multi_chan_idft_array_noZMchan = sparse.vstack([
-                    sparse.block_diag([
-                        IDFT_Array_IDFT_2D_ZM(
-                            self.nu,
-                            self.nv,
-                            np.vstack(
-                                self.hp.calc_lm_from_radec(
-                                    center=self.hp.pointing_centers[time_i],
-                                    north=self.hp.north_poles[time_i],
-                                    radec_offset=self.beam_center
-                                    )
-                                ).T
-                            ).T
-                        for _ in range(self.nf)])
-                    for time_i in range(p.nt)])
-            multi_chan_idft_array_noZMchan *= self.Fprime_normalisation
+        multi_chan_idft_array_noZMchan = self.sd_block_diag(
+            [pmd['idft_array'].T for i in range(self.nf)]
+            )
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
         self.output_data(multi_chan_idft_array_noZMchan,
