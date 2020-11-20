@@ -40,7 +40,8 @@ else:
 update_params_with_command_line_arguments()
 if p.beam_center is not None:
     p.beam_center = ast.literal_eval(p.beam_center)
-    print('Beam center = {} (type {})'.format(p.beam_center, type(p.beam_center)))
+    print('Beam center = {} (type {})'.format(p.beam_center,
+                                              type(p.beam_center)))
 npl = p.npl
 nq = p.nq
 if nq > npl:
@@ -175,7 +176,6 @@ n_Fourier = (nu*nv - 1) * nf
 n_LW = (nu*nv - 1) * nq
 n_model = n_Fourier+n_LW
 n_dat = n_Fourier
-# current_file_version = 'Likelihood_v1d76_3D_ZM'
 current_file_version = 'Likelihood_v2_3D_ZM'
 array_save_directory = (
     'array_storage/batch_1/'
@@ -270,13 +270,6 @@ if p.beam_center is not None:
 #         array_save_directory[:-1] +
 #         '_fov_deg_{:.1f}_diff_npix/'.format(p.simulation_FoV_deg))
 
-# # Temporary change for HEALPix matrix function testing
-# array_save_directory = (
-#         array_save_directory[:-1]
-#         + '_healpix_testing/'
-#     )
-# # v2 includes functional removal and reformatting of Linalg and such
-# # v3 includes directory rearranging
 print('\nArray save directory: {}'.format(array_save_directory))
 
 #--------------------------------------------
@@ -343,6 +336,7 @@ BM.build_minimum_sufficient_matrix_stack(
     proceed_without_overwrite_confirmation=
     proceed_without_overwrite_confirmation)
 
+
 #--------------------------------------------
 # Define power spectral bins and coordinate cubes
 #--------------------------------------------
@@ -386,6 +380,7 @@ if do_cylindrical_binning:
         generate_k_cube_model_cylindrical_binning(
             mod_k_masked, k_z_masked, k_y_masked, k_x_masked,
             n_k_perp_bins, nu, nv, nx, ny, nf, neta, nq)
+
 
 #--------------------------------------------
 # Non-instrumental data creation
@@ -456,7 +451,8 @@ if p.include_instrumental_effects:
         s_EoR = np.load(p.data_path)
 
     if 'noise_data_path' not in p.__dict__.keys():
-        EoR_noise_seed = 742123
+        EoR_noise_seed = p.noise_seed
+        # EoR_noise_seed = 742123
         # EoR_noise_seed = 837463
         # EoR_noise_seed = 938475
         # EoR_noise_seed = 182654
@@ -486,11 +482,8 @@ print('effective SNR = {:.4e}'.format(s_EoR.std() / effective_noise_std),
 # Continue loading base matrices used in the
 # likelihood and defining related variables
 #--------------------------------------------
-# block_T_Ninv_T = BM.read_data_s2d(
-#     array_save_directory + 'block_T_Ninv_T',
-#     'block_T_Ninv_T')
-Ninv = BM.read_data_s2d(array_save_directory + 'Ninv', 'Ninv')
-Ninv_d = np.dot(Ninv, d)
+Ninv = BM.read_data(array_save_directory + 'Ninv', 'Ninv')
+Ninv_d = Ninv * d
 dbar = np.dot(T.conjugate().T, Ninv_d)
 Sigma_Diag_Indices = np.diag_indices(T_Ninv_T.shape[0])
 nDims = len(k_cube_voxels_in_bin)
@@ -515,8 +508,7 @@ if p.fit_for_monopole:
     nuv = nu*nv
 else:
     nuv = nu*nv-1
-# block_T_Ninv_T = np.array(
-#     [np.hsplit(block,nuv) for block in np.vsplit(T_Ninv_T,nuv)])
+
 if p.include_instrumental_effects:
     block_T_Ninv_T = []
 
@@ -563,8 +555,7 @@ if sub_ML_monopole_term_model:
         block_T_Ninv_T=block_T_Ninv_T)[0]
     maxL_LW_signal = np.dot(T, maxL_LW_fit)
 
-    Ninv = BM.read_data_from_hdf5(array_save_directory + 'Ninv.h5', 'Ninv')
-    Ninv_maxL_LW_signal = np.dot(Ninv, maxL_LW_signal)
+    Ninv_maxL_LW_signal = Ninv * maxL_LW_signal
     ML_qbar = np.dot(T.conjugate().T, Ninv_maxL_LW_signal)
     q_sub_dbar = pre_sub_dbar - ML_qbar
     if small_cube:

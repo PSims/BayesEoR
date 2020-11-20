@@ -537,7 +537,7 @@ class PowerSpectrumPosteriorProbability(object):
         if self.intrinsic_noise_fitting:
             self.alpha_prime = x[0]
             x = x[1:]
-            Ndat = len(np.diagonal(self.Ninv))
+            Ndat = self.Ninv.diagonal().size
             # The following is only valid if
             # the data is uniformly weighted
             log_det_N = Ndat * np.log(self.alpha_prime**2.0)
