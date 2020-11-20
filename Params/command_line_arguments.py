@@ -39,6 +39,12 @@ def BayesEoRParser():
         default=None
         )
     parser.add_argument(
+        '--noise_seed',
+        type=int,
+        help="Seed for numpy.random. Used to generate the noise vector.",
+        default=742123
+        )
+    parser.add_argument(
         '--beam_type',
         type=str,
         help="Can be either 'Gaussian' or 'Uniform'. Defaults to 'Gaussian'."
