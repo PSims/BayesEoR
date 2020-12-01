@@ -164,9 +164,10 @@ class Healpix(HEALPix):
             np.arange(self.npix),
             lonlat=True
             )
+        thetas = (90 - lats) * np.pi/180
         lons_inds = np.logical_and(
-            lons >= self.field_center[0] - self.fov_deg / 2,
-            lons <= self.field_center[0] + self.fov_deg / 2,
+            (lons - self.field_center[0])*np.sin(thetas) >= -self.fov_deg / 2,
+            (lons - self.field_center[0])*np.sin(thetas) <= self.fov_deg / 2,
             )
         lats_inds = np.logical_and(
             lats >= self.field_center[1] - self.fov_deg / 2,
