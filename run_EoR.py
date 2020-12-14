@@ -69,43 +69,8 @@ else:
     nv = p.nv
     nx = p.nx
     ny = p.ny
-
-# FoV can now be passed as a command line argument
 p.uv_pixel_width_wavelengths = 1.0 / np.deg2rad(p.simulation_FoV_deg)
-
-# Temporary healpix params and imports
 p.sky_model_pixel_area_sr = 4 * np.pi / (12 * p.nside**2)
-# if p.simulation_FoV_deg == 12.9080728652 / 2:
-# 	# Temporary fix for FoV / 2 test
-# 	p.sky_model_pixel_area_sr /= 2.0**2
-# Temprary fix for 3 FoV value tests
-# if p.simulation_FoV_deg == 3.2270182163:
-# 	p.sky_model_pixel_area_sr /= 2.0**2
-# elif p.simulation_FoV_deg == 12.9080728652:
-# 	p.sky_model_pixel_area_sr *= 2.0**2
-# elif p.simulation_FoV_deg == 25.8161457304:
-# 	p.sky_model_pixel_area_sr *= 4.0**2
-
-
-if p.nside == 16:
-    p.n_hpx_pix = 10
-elif p.nside == 32:
-    p.n_hpx_pix = 45
-elif p.nside == 64:
-    p.n_hpx_pix = 170
-elif p.nside == 128:
-    p.n_hpx_pix = 688
-elif p.nside == 256:
-    p.n_hpx_pix = 2746
-elif p.nside == 512:
-    # If scaling dA and keeping npix fixed
-    p.n_hpx_pix = 10927
-    # p.n_hpx_pix = 2703
-    # Elif keeping dA fixed and scaling npix
-    # if p.simulation_FoV_deg == 12.9080728652:
-    # 	p.n_hpx_pix = 10927
-    # else:
-    # 	p.n_hpx_pix = 2703
 
 # Data noise
 if 'noise_data_path' not in p.__dict__.keys():
@@ -138,9 +103,9 @@ if p.include_instrumental_effects:
             baseline_redundancy_array_time_vis_shaped.min())
     # baseline_redundancy_array_time_vis_shaped.reshape(-1,1).flatten()
     baseline_redundancy_array_vectorised = np.reshape(
-        baseline_redundancy_array_time_vis_shaped, (-1,1)).flatten()
+        baseline_redundancy_array_time_vis_shaped, (-1, 1)).flatten()
 
-    # Keep average noise level consisitent with the non-instrumental
+    # Keep average noise level consistent with the non-instrumental
     # case by normalizing sigma by the average baseline redundancy
     # before scaling individual baselines by their respective
     # redundancies
@@ -176,7 +141,7 @@ n_Fourier = (nu*nv - 1) * nf
 n_LW = (nu*nv - 1) * nq
 n_model = n_Fourier+n_LW
 n_dat = n_Fourier
-current_file_version = 'Likelihood_v2_3D_ZM'
+current_file_version = 'Likelihood_v2d1_3D_ZM'
 array_save_directory = (
     'array_storage/batch_1/'
     + '{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(
@@ -457,15 +422,18 @@ if p.include_instrumental_effects:
         # EoR_noise_seed = 938475
         # EoR_noise_seed = 182654
         print('EoR_noise_seed =', EoR_noise_seed)
+        # Assumes the instrument model contains duplicates of the
+        # unphased uvw coordinates in each time entry of the
+        # instrument model
         d = generate_data_and_noise_vector_instrumental(
-            1.0*sigma, s_EoR, nu, nv, nx, ny, nf, neta, nq,
-            uvw_multi_time_step_array_meters_vectorised,
-            baseline_redundancy_array_vectorised,
+            1.0*sigma, s_EoR, nu, nv, nx, ny, nf, neta, nq, p.nt,
+            uvw_multi_time_step_array_meters[0],
+            baseline_redundancy_array_time_vis_shaped[0],
             random_seed=EoR_noise_seed)[0]
         effective_noise = generate_data_and_noise_vector_instrumental(
-            1.0*sigma, s_EoR, nu, nv, nx, ny, nf, neta, nq,
-            uvw_multi_time_step_array_meters_vectorised,
-            baseline_redundancy_array_vectorised,
+            1.0*sigma, s_EoR, nu, nv, nx, ny, nf, neta, nq, p.nt,
+            uvw_multi_time_step_array_meters[0],
+            baseline_redundancy_array_time_vis_shaped[0],
             random_seed=EoR_noise_seed)[1]
     else:
         d = s_EoR.copy()

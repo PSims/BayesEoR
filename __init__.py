@@ -4,9 +4,9 @@ from .SimData import\
     generate_k_cube_model_cylindrical_binning,\
     calc_mean_binned_k_vals,\
     generate_k_cube_model_spherical_binning_v2d1,\
-    generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2\
+    generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector\
     as generate_data_and_noise_vector,\
-    generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1\
+    generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental\
     as generate_data_and_noise_vector_instrumental
 
 # Update once likelihood functions are moved

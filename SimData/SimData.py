@@ -37,7 +37,7 @@ def generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(
     return mod_k_physical, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z
 
 
-def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_v2(
+def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector(
         sigma, s, nu, nv, nx, ny, nf, neta, nq, **kwargs):
     # Need to rename this function, the name is too long
 
@@ -95,64 +95,69 @@ def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vec
     return d, noise, N, Ninv
 
 
-def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental_v1(
-        sigma, s, nu, nv, nx, ny, nf, neta, nq,
-        uvw_multi_time_step_array_meters_vectorised,
-        baseline_redundancy_array_vectorised, **kwargs):
+def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental(
+        sigma, s, nu, nv, nx, ny, nf, neta, nq, nt,
+        uvw_array_meters,
+        bl_redundancy_array, **kwargs):
     # Need to rename this function, the name is too long
     # ===== Defaults =====
     default_random_seed = ''
 
     # ===== Inputs =====
-    random_seed=kwargs.pop('random_seed',default_random_seed)
+    random_seed = kwargs.pop('random_seed', default_random_seed)
 
     if sigma == 0.0:
         complex_noise_hermitian = np.zeros(len(s)) + 0.0j
         d = s + complex_noise_hermitian.flatten()
         return d, complex_noise_hermitian.flatten()
 
-    ndata = len(uvw_multi_time_step_array_meters_vectorised)
+    nbls = len(uvw_array_meters)
+    ndata = nbls * nt * nf
     if random_seed:
         print('Using the following random_seed for dataset noise:',
               random_seed)
         np.random.seed(random_seed)
-    real_noise = np.random.normal(0, sigma/2.**0.5, [nf, ndata])
+    real_noise = np.random.normal(0, sigma/2.**0.5, ndata)
 
     if random_seed:
         np.random.seed(random_seed*123)
-    imag_noise = np.random.normal(0, sigma/2.**0.5, [nf, ndata])
+    imag_noise = np.random.normal(0, sigma/2.**0.5, ndata)
     complex_noise = real_noise + 1j*imag_noise
     complex_noise = complex_noise * sigma/complex_noise.std()
     complex_noise_hermitian = complex_noise.copy()
 
-    baseline_conjugate_pairs_dict_single_freq = {}
-    baseline_conjugate_pairs_array_single_freq = []
+    """
+    How to create a conjugate baseline map from the instrument model:
+    
+    1. Create a map for a single time step that maps the array indices
+       of baselines with (u, v) and (-u, -v)
+    2. Add noise to (u, v) and conjugate noise to (-u, -v) using the
+       map from step 1 per time and frequency (identical map can be used
+       at all frequencies).
+    """
+    bl_conjugate_pairs_dict = {}
+    bl_conjugate_pairs_map = {}
     # Only account for uv-redundancy for now so use
-    # uvw_multi_time_step_array_meters_vectorised[:,:2]
-    # and exclude w-coordinate
-    for i, baseline in\
-            enumerate(uvw_multi_time_step_array_meters_vectorised[:, :2]):
-        if tuple(baseline*-1) in\
-                baseline_conjugate_pairs_dict_single_freq.keys():
-            baseline_conjugate_pairs_dict_single_freq[tuple(baseline)] =\
-                baseline_conjugate_pairs_dict_single_freq[tuple(baseline*-1)]
-            baseline_conjugate_pairs_array_single_freq.append(
-                baseline_conjugate_pairs_dict_single_freq[tuple(baseline*-1)])
-            complex_noise_hermitian[:, i] = complex_noise_hermitian[
-                :, baseline_conjugate_pairs_dict_single_freq[
-                       tuple(baseline*-1)
-                   ]
-                ].conjugate()
-
+    # uvw_array_meters[:,:2] and exclude w-coordinate
+    for i, uvw in enumerate(uvw_array_meters[:, :2]):
+        if tuple(uvw*-1) in bl_conjugate_pairs_dict.keys():
+            key = bl_conjugate_pairs_dict[tuple(uvw*-1)]
+            bl_conjugate_pairs_dict[tuple(uvw)] = key
+            bl_conjugate_pairs_map[key] = i
         else:
-            baseline_conjugate_pairs_dict_single_freq[tuple(baseline)] = i
-            baseline_conjugate_pairs_array_single_freq.append(i)
+            bl_conjugate_pairs_dict[tuple(uvw)] = i
 
-
-    for i_freq in range(nf):
-        complex_noise_hermitian[i_freq] = (
-                complex_noise_hermitian[i_freq]
-                / baseline_redundancy_array_vectorised**0.5)
+    for i_t in range(nt):
+        time_ind = i_t * nbls * nf
+        for i_freq in range(nf):
+            freq_ind = i_freq * nbls
+            start_ind = time_ind + freq_ind
+            for bl_ind in bl_conjugate_pairs_map.keys():
+                conj_bl_ind = bl_conjugate_pairs_map[bl_ind]
+                complex_noise_hermitian[start_ind+conj_bl_ind] =\
+                    complex_noise_hermitian[start_ind+bl_ind].conjugate()
+            complex_noise_hermitian[start_ind : start_ind+nbls] /=\
+                bl_redundancy_array[:, 0]**0.5
 
     d = s + complex_noise_hermitian.flatten()
 
