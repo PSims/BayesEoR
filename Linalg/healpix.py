@@ -181,7 +181,8 @@ class Healpix(HEALPix):
                            center=None,
                            north=None,
                            radec_offset=None,
-                           time_index=0):
+                           time_index=0,
+                           return_azza=False):
         """
         Return arrays of (l, m) coordinates in radians of all
         HEALPix pixels within a disc of radius self.fov_deg / 2
@@ -265,7 +266,10 @@ class Healpix(HEALPix):
         ls = np.sin(za_arr) * np.sin(az_arr) # radians
         ms = np.sin(za_arr) * np.cos(az_arr) # radians
 
-        return ls, ms
+        if return_azza:
+            return ls, ms, az_arr, za_arr
+        else:
+            return ls, ms
 
     def set_beam(self, beam_type=None, fwhm_deg=None, peak_amp=1.0):
         """
