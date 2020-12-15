@@ -312,3 +312,33 @@ def write_log_file(array_save_directory, file_root):
                     and not isinstance(p.__dict__[key], ModuleType)):
                 f.write('{} = {}\n'.format(key, p.__dict__[key]))
     print('Log file written successfully to {}'.format(log_file))
+
+def vector_is_hermitian(data, conj_map, nt, nf, nbls):
+    """
+    Checks if the data in the vector `data` is Hermitian symmetric
+    based on the mapping contained in `conj_map`.
+
+    Parameters
+    ----------
+    data : array-like of complex numbers
+        Array of values used to infer Hermitian symmetry.
+    conj_map : dictionary
+        Dictionary object which contains the indices in the data vector
+        per time and frequency corresponding to baselines and their
+        conjugates.
+    """
+    hermitian = np.zeros(data.size)
+    for i_t in range(nt):
+        time_ind = i_t * nbls * nf
+        for i_freq in range(nf):
+            freq_ind = i_freq * nbls
+            start_ind = time_ind + freq_ind
+            for bl_ind in conj_map.keys():
+                conj_bl_ind = conj_map[bl_ind]
+                if (
+                    data[start_ind+conj_bl_ind]
+                    == data[start_ind+bl_ind].conjugate()
+                ):
+                    hermitian[start_ind+bl_ind] = 1
+                    hermitian[start_ind+conj_bl_ind] = 1
+    return np.all(hermitian)

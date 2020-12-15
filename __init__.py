@@ -17,7 +17,7 @@ from .Likelihood.Likelihood\
 
 from .Utils import\
     PriorC, generate_output_file_base, load_uvw_instrument_sampling_m,\
-    load_baseline_redundancy_array, write_log_file
+    load_baseline_redundancy_array, write_log_file, vector_is_hermitian
 
 from .GenerateForegroundCube import\
     generate_data_from_loaded_EoR_cube_v2d0,\

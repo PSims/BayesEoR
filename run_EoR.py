@@ -425,16 +425,25 @@ if p.include_instrumental_effects:
         # Assumes the instrument model contains duplicates of the
         # unphased uvw coordinates in each time entry of the
         # instrument model
-        d, effective_noise = generate_data_and_noise_vector_instrumental(
-            1.0*sigma, s_EoR, nu, nv, nx, ny, nf, neta, nq, p.nt,
-            uvw_multi_time_step_array_meters[0],
-            baseline_redundancy_array_time_vis_shaped[0],
-            random_seed=EoR_noise_seed)
+        d, effective_noise, bl_conjugate_pairs_map =\
+            generate_data_and_noise_vector_instrumental(
+                1.0*sigma, s_EoR, nu, nv, nx, ny, nf, neta, nq, p.nt,
+                uvw_multi_time_step_array_meters[0],
+                baseline_redundancy_array_time_vis_shaped[0],
+                random_seed=EoR_noise_seed)
     else:
         d = s_EoR.copy()
 
 effective_noise_std = effective_noise.std()
 print('\ns_EoR.std = {:.4e}'.format(s_EoR.std()))
+print('signal is Hermitian: {}'.format(
+    vector_is_hermitian(s_EoR, bl_conjugate_pairs_map, p.nt, nf,
+                        uvw_multi_time_step_array_meters.shape[1])
+))
+print('signal + noise is Hermitian: {}'.format(
+    vector_is_hermitian(d, bl_conjugate_pairs_map, p.nt, nf,
+                        uvw_multi_time_step_array_meters.shape[1])
+))
 print('effective_noise.std = {:.4e}'.format(effective_noise_std))
 print('dA = {:.4e}'.format(p.sky_model_pixel_area_sr))
 print('effective SNR = {:.4e}'.format(s_EoR.std() / effective_noise_std),

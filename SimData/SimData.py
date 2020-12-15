@@ -161,7 +161,7 @@ def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vec
 
     d = s + complex_noise_hermitian.flatten()
 
-    return d, complex_noise_hermitian.flatten()
+    return d, complex_noise_hermitian.flatten(), bl_conjugate_pairs_map
 
 
 def generate_masked_coordinate_cubes(
