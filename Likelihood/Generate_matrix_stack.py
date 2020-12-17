@@ -711,8 +711,9 @@ class BuildMatrices(BuildMatrixTree):
                 np.diag(
                     self.hp.get_beam_vals(
                         *self.hp.calc_lm_from_radec(
-                            radec_offset=self.beam_center
-                            )
+                            radec_offset=self.beam_center,
+                            return_azza=True
+                            )[2:] # Only need az, za
                         )
                     )
                 for _ in range(p.nf)])
@@ -727,8 +728,9 @@ class BuildMatrices(BuildMatrixTree):
                             *self.hp.calc_lm_from_radec(
                                 center=self.hp.pointing_centers[time_i],
                                 north=self.hp.north_poles[time_i],
-                                radec_offset=self.beam_center
-                                )
+                                radec_offset=self.beam_center,
+                                return_azza=True
+                                )[2:] # Only need az, za
                             )
                         )
                     for _ in range(self.nf)])

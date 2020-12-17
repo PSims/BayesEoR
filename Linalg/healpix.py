@@ -142,12 +142,6 @@ class Healpix(HEALPix):
                 "If using a Gaussian beam, must also pass fwhm_deg."
         self.fwhm_deg = fwhm_deg
 
-        if beam_center is not None:
-            self.set_beam_center_radec(beam_center, rel=rel)
-        else:
-            self.l0 = 0.0
-            self.m0 = 0.0
-
         # Pixel params
         self.pix = None # HEALPix pixel numbers within the FoV
         self.npix_fov = None # Number of pixels within the FoV
@@ -299,53 +293,9 @@ class Healpix(HEALPix):
         self.fwhm_deg = fwhm_deg
         self.beam_type = beam_type
 
-    def set_beam_center_radec(self, beam_center, rel=False):
-        """
-        Set the beam center (l, m) coordinates from a set of (RA, DEC)
-        coordinates. This function is currently only working for
-        snapshot observations. It will likely need to be updated
-        to be calculated relative to the pointing center, not field
-        center, per integration if it is to be used per time.
-
-        Parameters
-        ----------
-        beam_center : tuple of floats
-            Beam center can be passed as:
-              - (RA, DEC) in units of degrees if `rel=False`
-              - (RA_offset, DEC_offset) in units of degrees if
-                `rel=True`.  This is assumed to be tuple of offsets
-                relative to `self.pointing_center`.
-        rel : boolean
-            If True, assume `beam_center` is being passed as a tuple
-            of offsets (RA_offset, DEC_offset) in units of degrees
-            relative to `self.pointing_center`.
-        """
-        if rel:
-            beam_center = (self.field_center[0] + beam_center[0],
-                           self.field_center[1] + beam_center[1])
-        # Input is in (RA, DEC) in units of degrees
-        l0, m0 = beam_center
-        center_radec = SkyCoord(l0, m0, unit='deg')
-        # Convert from (RA, DEC) -> (alt, az)
-        t = Time(self.central_jd, scale='utc', format='jd')
-        center_altaz = center_radec.transform_to(
-            AltAz(obstime=t, location=self.telescope_location)
-            )
-        # Convert from (alt, az) -> (l, m)
-        self.l0 = (
-                np.sin(np.pi / 2 - center_altaz.alt.rad)
-                * np.sin(center_altaz.az.rad)
-        )
-        self.m0 = (
-                np.sin(np.pi / 2 - center_altaz.alt.rad)
-                * np.cos(center_altaz.az.rad)
-        )
-
     def get_beam_vals(self,
-                      ls,
-                      ms,
-                      beam_center=None,
-                      rel=False):
+                      az,
+                      za):
         """
         Get an array of beam values from (l, m) coordinates.
         If `beam_type='gaussian'`, this function assumes that the
@@ -353,20 +303,10 @@ class Healpix(HEALPix):
 
         Parameters
         ----------
-        ls : np.ndarray of floats
-            Array of EW direction cosine coordinate values.
-        ms : np.ndarray of floats
-            Array of NS direction cosine coordinate values.
-        beam_center : tuple of floats
-            Beam center can be passed as:
-              - (RA, DEC) in units of degrees if `rel=False`
-              - (RA_offset, DEC_offset) in units of degrees if
-                `rel=True`.  This is assumed to be tuple of offsets
-                relative to `self.pointing_center`.
-        rel : boolean
-            If True, assume `beam_center` is being passed as a tuple
-            of offsets (RA_offset, DEC_offset) in units of degrees
-            relative to `self.pointing_center`.
+        az : np.ndarray
+            Azimuthal angle of each pixel in units of radians.
+        za : np.ndarray
+            Zenith angle of each pixel in units of radians.
 
         Returns
         -------
@@ -379,45 +319,34 @@ class Healpix(HEALPix):
         elif self.beam_type.lower() == 'gaussian':
             stddev_rad = np.deg2rad(self._fwhm_to_stddev(self.fwhm_deg))
 
-            if beam_center is not None:
-                self.set_beam_center_radec(beam_center, rel=rel)
-
-            # Calculate Gaussian beam values from (l, m)
-            beam_vals = self._gaussian_2d(
-                ls, ms, self.l0, self.m0,
-                stddev_rad, stddev_rad, self.peak_amp)
+            # Calculate Gaussian beam values from za
+            beam_vals = self._gaussian_za(za, stddev_rad, self.peak_amp)
 
         return beam_vals
 
-    def _gaussian_2d(self, xs, ys, x0, y0, sigmax, sigmay, amp):
+    def _gaussian_za(self, za, sigma, amp):
         """
-        Calculates the value of a 2-dimensional Gaussian function
-        at the values contained in xs and ys.  It is assumed that
-        xs, ys, x0, y0, sigmax, and sigmay all have the same units.
+        Calculates the value of an azimuthally symmetric
+        Gaussian function from an array of zenith angles.
 
         Parameters
         ----------
-        xs : np.ndarray
-            x coordinates, must have the same shape as ys.
-        ys : np.ndarray
-            y coordinates, must have the same shape as xs.
-        x0 : float
-            Centroid of the Gaussian beam envelope in the x direction.
-        y0 : float
-            Centroid of the Gaussian beam envelope in the y direction.
-        sigmax : float
-            Standard deviation of the Gaussian
-            beam envelope in the x direction.
-        sigmay : float
-            Standard deviation of the Gaussian
-            beam envelope in the y direction.
+        za : np.ndarray
+            Zenith angles of each pixel in units of radians.
+        sigma : float
+            Standard deviation of the Gaussian function
+            in units of radians.
         amp : float
-            Amplitude of the Gaussian envelope at the centroid.
+            Peak amplitude of the Gaussian function.
+
+        Returns
+        ------
+        beam_vals : np.ndarray
+            Array of Gaussian function amplitudes for every zenith
+            angle in `za`.
         """
-        return amp * np.exp(
-            - (xs - x0)**2 / (2 * sigmax**2)
-            - (ys - y0)**2 / (2 * sigmay**2)
-            )
+        beam_vals = amp * np.exp(-za**2 / (2 * sigma**2))
+        return beam_vals
 
     def _fwhm_to_stddev(self, fwhm):
         """
