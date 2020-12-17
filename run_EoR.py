@@ -120,6 +120,8 @@ if p.include_instrumental_effects:
     phasor_vector = np.load(
         os.path.join(p.instrument_model_directory,
                      'phasor_vector.npy'))
+    if p.unphased:
+        phasor_vector = np.ones_like(phasor_vector)
 
 else:
     # Ensure sigma is cast as a float
@@ -229,6 +231,9 @@ if p.beam_center is not None:
             p.beam_center[1]
             )
     array_save_directory = array_save_directory[:-1] + beam_center_str + '/'
+
+if p.unphased:
+    array_save_directory = array_save_directory[:-1] + '_unphased/'
 
 # Uncomment for tests where npix is not identical between nsides
 # array_save_directory = (

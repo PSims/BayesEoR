@@ -98,6 +98,12 @@ def BayesEoRParser():
              "Must be set via a string argument as "
              "--beam_center\"(RA_offset,DEC_offset)\" with no spaces."
         )
+    parser.add_argument(
+        '--unphased',
+        action='store_true',
+        help="If passed, the data are treated as unphased and the identity"
+             " matrix will be used in place of the phasor matrix."
+        )
 
     args = parser.parse_args()
     return args
