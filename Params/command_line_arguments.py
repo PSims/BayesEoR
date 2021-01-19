@@ -104,6 +104,11 @@ def BayesEoRParser():
         help="If passed, the data are treated as unphased and the identity"
              " matrix will be used in place of the phasor matrix."
         )
+    parser.add_argument(
+        '--fit_for_monopole',
+        action='store_true',
+        help="If passed, include the (u, v) = (0, 0) pixel in the uvf model."
+        )
 
     args = parser.parse_args()
     return args
