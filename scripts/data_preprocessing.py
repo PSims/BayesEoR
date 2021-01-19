@@ -23,21 +23,13 @@ import pickle
 import copy
 import os
 import sys
-import glob
 import optparse
-
-# import BayesEoR.Params.params as p
-import pyuvdata.utils as uvutils
 
 from pathlib import Path
 from datetime import datetime
-from matplotlib.gridspec import GridSpec
-from hera_cal.io import HERAData
 from pyuvdata import UVData
 from astropy.time import Time
-from scipy import sparse
 import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 
 plt.rcParams.update({'font.size': 16, 'figure.figsize': (12, 8)})
 DEFAULT_SAVE_DIR = str(Path(BayesEoR.__file__).parent
