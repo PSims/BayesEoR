@@ -65,6 +65,11 @@ def BayesEoRParser():
         help="Reference frequency for primary beam in MHz."
         )
     parser.add_argument(
+        '--antenna_diameter',
+        type=float,
+        help="Antenna diameter in meters used for Airy beam calculations."
+        )
+    parser.add_argument(
         '--overwrite_matrices',
         action='store_true',
         default=False,

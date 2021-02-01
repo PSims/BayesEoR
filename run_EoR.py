@@ -157,7 +157,7 @@ if p.include_instrumental_effects:
             p.beam_type,
             str(p.beam_peak_amplitude).replace('.', 'd')
             )
-    if p.beam_type.lower() == 'Gaussian'.lower():
+    elif p.beam_type.lower() == 'Gaussian'.lower():
         beam_info_str += (
             '{}_beam_peak_amplitude_{}'.format(
                 p.beam_type,
@@ -168,14 +168,16 @@ if p.include_instrumental_effects:
                 str(p.FWHM_deg_at_ref_freq_MHz).replace('.', 'd'),
                 str(p.PB_ref_freq_MHz).replace('.', 'd'))
             )
+    elif p.beam_type.lower() == 'airy':
+        beam_info_str += '{}_beam_antenna-diameter-{}m'.format(
+            p.beam_type,
+            str(np.round(p.antenna_diameter, decimals=2)).replace('.', 'd')
+            )
 
     instrument_model_directory_plus_beam_info = (
             p.instrument_model_directory[:-1]
             + '_{}/'.format(beam_info_str)
         )
-    # instrument_info = filter(
-    #     None,
-    #     instrument_model_directory_plus_beam_info.split('/'))[-1]
     instrument_info =\
         instrument_model_directory_plus_beam_info.split('/')[-2]
     if p.model_drift_scan_primary_beam:
@@ -264,7 +266,8 @@ if p.include_instrumental_effects:
             beam_peak_amplitude=p.beam_peak_amplitude,
             beam_center=p.beam_center,
             FWHM_deg_at_ref_freq_MHz=p.FWHM_deg_at_ref_freq_MHz,
-            PB_ref_freq_MHz=p.PB_ref_freq_MHz
+            PB_ref_freq_MHz=p.PB_ref_freq_MHz,
+            antenna_diameter=p.antenna_diameter
             )
     else:
         BM = BuildMatrices(
@@ -284,6 +287,7 @@ if p.include_instrumental_effects:
             beam_center=p.beam_center,
             FWHM_deg_at_ref_freq_MHz=p.FWHM_deg_at_ref_freq_MHz,
             PB_ref_freq_MHz=p.PB_ref_freq_MHz,
+            antenna_diameter=p.antenna_diameter,
             effective_noise=effective_noise
             )
 else:

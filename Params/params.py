@@ -168,14 +168,34 @@ if include_instrumental_effects:
     ###
     # Obs params
     ###
-    nt = 1
-    integration_time_minutes = 0.5
+    nt = 3
+    integration_time_minutes = 8.0
     integration_time_minutes_str = '{}'.format(
         integration_time_minutes).replace('.', 'd')
+    # instrument_model_directory = (
+    #     '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/'
+    #     'Hex_469-2.4m_healvis_model_for_{}_{}_min_time_steps_v4'
+    #     '_bl_less_than_29.3m/'.format(nt, integration_time_minutes_str))
+    # instrument_model_directory = (
+    #     '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/'
+    #     'Hex_469-2.4m_healvis_model_unrounded-antpos_for_{}_{}_min_time_'
+    #     'steps_bl_less_than_29.3m/'.format(nt, integration_time_minutes_str))
     instrument_model_directory = (
         '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/'
-        'HERA_469-2.4m_healvis_model_for_{}_{}_min_time_steps'
-        '_bl_less_than_29.3m/'.format(nt, integration_time_minutes_str))
+        'Hex_469-2.4m_healvis_model_perturbed-antpos-1.0_for_{}_{}_min_time_'
+        'steps_bl_less_than_29.3m/'.format(nt, integration_time_minutes_str))
+    # instrument_model_directory = (
+    #     '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/'
+    #     'Hex_469-2.4m_healvis_model_perturbed-antpos-1.0_for_{}_{}_min_time_'
+    #     'steps_t2_phase-time-2458098.5521759833'
+    #     '_bl_less_than_29.3m/'.format(nt, integration_time_minutes_str))
+    # instrument_model_directory = (
+    #     '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/'
+    #     'Hex_469-2.4m_healvis_model_for_{}_{}_min_time_steps_rounded-antpos_'
+    #     'bls-param_bl_less_than_29.3m/'.format(
+    #         nt, integration_time_minutes_str
+    #         )
+    #     )
     telescope_latlonalt = (-30.72152777777791,
                            21.428305555555557,
                            1073.0000000093132)
@@ -184,11 +204,13 @@ if include_instrumental_effects:
     ###
     # Primary beam params
     ###
-    FWHM_deg_at_ref_freq_MHz = 2.0  # degrees
-    PB_ref_freq_MHz = 150.0  # MHz
     # beam_type = 'Uniform'
-    beam_type = 'Gaussian'
+    # beam_type = 'Gaussian'
+    beam_type = 'Airy'
     beam_peak_amplitude = 1.0
+    FWHM_deg_at_ref_freq_MHz = 4.0  # degrees
+    PB_ref_freq_MHz = 150.0  # MHz
+    antenna_diameter = 27.059770658022092
     # Set the primary beam pointing center in (RA, DEC)
     # If None, will use the pointing center at zenith according to
     # telescope_latlonalt and central_jd. Otherwise, must be a tuple of
@@ -227,7 +249,7 @@ use_LWM_Gaussian_prior = False
 # Fit for global signal jointly with the power spectrum
 # See e.g. http://adsabs.harvard.edu/abs/2015ApJ...809...18P
 ###
-fit_for_monopole = False
+# fit_for_monopole = True
 
 ###
 # Normalisation params

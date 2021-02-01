@@ -313,6 +313,7 @@ class BuildMatrices(BuildMatrixTree):
             self.FWHM_deg_at_ref_freq_MHz =\
                 kwargs.pop('FWHM_deg_at_ref_freq_MHz')
             self.PB_ref_freq_MHz = kwargs.pop('PB_ref_freq_MHz')
+            self.antenna_diameter = kwargs.pop('antenna_diameter', None)
             # Estimate for the noise vector in the data if input data
             # vector contains noise
             self.effective_noise = kwargs.pop('effective_noise', None)
@@ -327,7 +328,8 @@ class BuildMatrices(BuildMatrixTree):
                 int_time=p.integration_time_minutes * 60,
                 beam_type=self.beam_type,
                 peak_amp=self.beam_peak_amplitude,
-                fwhm_deg=self.FWHM_deg_at_ref_freq_MHz
+                fwhm_deg=self.FWHM_deg_at_ref_freq_MHz,
+                diam=self.antenna_diameter
                 )
 
         # Set necessary / useful parameter values
@@ -705,18 +707,22 @@ class BuildMatrices(BuildMatrixTree):
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
         print('Performing matrix algebra')
-
+        # nu_array_Hz = np.ones(p.nf) * p.nu_min_MHz * 1.0e6
+        nu_array_Hz = (
+            p.nu_min_MHz + np.arange(p.nf)*p.channel_width_MHz
+        ) * 1.0e6
         if not p.model_drift_scan_primary_beam:
             multi_chan_P = self.sd_block_diag([
                 np.diag(
                     self.hp.get_beam_vals(
                         *self.hp.calc_lm_from_radec(
                             radec_offset=self.beam_center,
-                            return_azza=True
-                            )[2:] # Only need az, za
+                            return_azza=True,
+                            )[2:], # Only need az, za
+                        freq=freq
                         )
                     )
-                for _ in range(p.nf)])
+                for freq in nu_array_Hz])
         else:
             # Model the time dependence of the primary beam pointing
             # for a drift scan (i.e. change in zenith angle with time
@@ -730,10 +736,11 @@ class BuildMatrices(BuildMatrixTree):
                                 north=self.hp.north_poles[time_i],
                                 radec_offset=self.beam_center,
                                 return_azza=True
-                                )[2:] # Only need az, za
+                                )[2:], # Only need az, za
+                            freq=freq
                             )
                         )
-                    for _ in range(self.nf)])
+                    for freq in nu_array_Hz])
                 for time_i in range(p.nt)])
 
         print('Time taken: {}'.format(time.time() - start))
