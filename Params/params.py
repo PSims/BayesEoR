@@ -14,6 +14,8 @@ Analysis settings
 # User editable parameters
 # --------------------------------------------
 
+file_root = None
+
 ###
 # k-cube params
 ###

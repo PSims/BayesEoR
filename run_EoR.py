@@ -619,31 +619,34 @@ if overwrite_data_with_WN:
     dimensionless_PS = False
 zero_the_LW_modes = False
 
-file_root = 'Test-{}_{}_{}_{}_{}_s_{:.1E}-lp_F-dPS_F-'.format(
-    nu, nv, neta, nq, npl, sigma).replace('.', 'd')
-if chan_selection != '':
-    file_root = chan_selection + file_root
-if npl == 1:
-    file_root = file_root.replace('-dPS_F',
-                                  '-dPS_F-beta_{:.2E}-v1'.format(p.beta))
-if npl == 2:
-    file_root = file_root.replace(
-        '-dPS_F',
-        '-dPS_F_b1_{:.2F}_b2_{:.2F}-v1'.format(p.beta[0], p.beta[1]))
-if log_priors:
-    file_root = file_root.replace('lp_F', 'lp_T')
-if dimensionless_PS:
-    file_root = file_root.replace('dPS_F', 'dPS_T')
-if nq == 0:
-    file_root = file_root.replace('mini-', 'mini-NQ-')
-elif zero_the_LW_modes:
-    file_root = file_root.replace('mini-', 'mini-ZLWM-')
-if use_EoR_cube:
-    file_root = file_root.replace('Test', 'EoR')
-if use_MultiNest:
-    file_root = 'MN-' + file_root
+if p.file_root is None:
+    file_root = 'Test-{}_{}_{}_{}_{}_s_{:.1E}-lp_F-dPS_F-'.format(
+        nu, nv, neta, nq, npl, sigma).replace('.', 'd')
+    if chan_selection != '':
+        file_root = chan_selection + file_root
+    if npl == 1:
+        file_root = file_root.replace('-dPS_F',
+                                      '-dPS_F-beta_{:.2E}-v1'.format(p.beta))
+    if npl == 2:
+        file_root = file_root.replace(
+            '-dPS_F',
+            '-dPS_F_b1_{:.2F}_b2_{:.2F}-v1'.format(p.beta[0], p.beta[1]))
+    if log_priors:
+        file_root = file_root.replace('lp_F', 'lp_T')
+    if dimensionless_PS:
+        file_root = file_root.replace('dPS_F', 'dPS_T')
+    if nq == 0:
+        file_root = file_root.replace('mini-', 'mini-NQ-')
+    elif zero_the_LW_modes:
+        file_root = file_root.replace('mini-', 'mini-ZLWM-')
+    if use_EoR_cube:
+        file_root = file_root.replace('Test', 'EoR')
+    if use_MultiNest:
+        file_root = 'MN-' + file_root
 
-file_root = generate_output_file_base(file_root, version_number='1')
+    file_root = generate_output_file_base(file_root, version_number='1')
+else:
+    file_root = p.file_root
 print('\nOutput file_root:', file_root)
 
 PSPP_block_diag_Polychord = PowerSpectrumPosteriorProbability(

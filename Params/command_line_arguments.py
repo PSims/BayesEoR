@@ -114,6 +114,13 @@ def BayesEoRParser():
         action='store_true',
         help="If passed, include the (u, v) = (0, 0) pixel in the uvf model."
         )
+    parser.add_argument(
+        '--file_root',
+        type=str,
+        help="Sets the file root for the sampler (Multinest/Polychord) output."
+             " If passed, analysis will continue from the last checkpoint in "
+             "the output file specified."
+        )
 
     args = parser.parse_args()
     return args
