@@ -115,6 +115,13 @@ def BayesEoRParser():
         help="If passed, include the (u, v) = (0, 0) pixel in the uvf model."
         )
     parser.add_argument(
+        '--n_uniform_prior_k_bins',
+        type=int,
+        help="Number of k-bins, counting up from the lowest k-bin, that will "
+             "use a prior which is uniform in the amplitude.  The remaining "
+             "k-bins will use log-uniform priors."
+        )
+    parser.add_argument(
         '--file_root',
         type=str,
         help="Sets the file root for the sampler (Multinest/Polychord) output."

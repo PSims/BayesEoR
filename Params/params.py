@@ -264,12 +264,9 @@ EoR_analysis_cube_x_Mpc = box_size_21cmFAST_Mpc_sc
 EoR_analysis_cube_y_Mpc = box_size_21cmFAST_Mpc_sc
 
 ###
-# k_z uniform prior
+# Uniform prior(s)
 ###
-# If True, don't use the min_kz voxels (eta \propto 1/B),
-# which have significant correlation with the Fg model,
-# in estimates of the low-k power spectrum
-use_uniform_prior_on_min_k_bin = False
+n_uniform_prior_k_bins = 0
 
 ###
 # Fit for the optimal the large spectral scale model parameters

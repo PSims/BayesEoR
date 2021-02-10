@@ -502,13 +502,17 @@ if small_cube:
         T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin,
         nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes,
         modk_vis_ordered_list, Ninv, d_Ninv_d, log_priors=False,
-        intrinsic_noise_fitting=p.use_intrinsic_noise_fitting, k_vals=k_vals)
+        intrinsic_noise_fitting=p.use_intrinsic_noise_fitting, k_vals=k_vals,
+        n_uniform_prior_k_bins=p.n_uniform_prior_k_bins
+        )
 PSPP_block_diag = PowerSpectrumPosteriorProbability(
     T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin,
     nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes,
     modk_vis_ordered_list, Ninv, d_Ninv_d, block_T_Ninv_T=block_T_Ninv_T,
     Print=True, log_priors=False, k_vals=k_vals,
-    intrinsic_noise_fitting=p.use_intrinsic_noise_fitting)
+    intrinsic_noise_fitting=p.use_intrinsic_noise_fitting,
+    n_uniform_prior_k_bins=p.n_uniform_prior_k_bins
+    )
 
 if small_cube:
     print(PSPP_block_diag.posterior_probability(
@@ -654,7 +658,8 @@ PSPP_block_diag_Polychord = PowerSpectrumPosteriorProbability(
     nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes,
     modk_vis_ordered_list, Ninv, d_Ninv_d, block_T_Ninv_T=block_T_Ninv_T,
     log_priors=log_priors, dimensionless_PS=dimensionless_PS, Print=True,
-    intrinsic_noise_fitting=p.use_intrinsic_noise_fitting, k_vals=k_vals
+    intrinsic_noise_fitting=p.use_intrinsic_noise_fitting, k_vals=k_vals,
+    n_uniform_prior_k_bins=p.n_uniform_prior_k_bins
     )
 if p.include_instrumental_effects and not zero_the_LW_modes:
     # Include minimal prior over LW modes required for numerical stability

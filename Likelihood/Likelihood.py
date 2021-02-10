@@ -106,8 +106,8 @@ class PowerSpectrumPosteriorProbability(object):
         self.fit_for_spectral_model_parameters = kwargs.pop(
             'fit_for_spectral_model_parameters',
             default_fit_for_spectral_model_parameters)
-        # Must pass k_vals with new normalization (v4d0)
         self.k_vals = kwargs.pop('k_vals')
+        self.n_uniform_prior_k_bins = kwargs.pop('n_uniform_prior_k_bins')
 
         self.fit_single_elems = fit_single_elems
         self.T_Ninv_T = T_Ninv_T
@@ -576,6 +576,14 @@ class PowerSpectrumPosteriorProbability(object):
             logPhiDet = -1 * np.sum(np.log(PhiI)).real
 
             MargLogL = -0.5*logSigmaDet - 0.5*logPhiDet + 0.5*dbarSigmaIdbar
+            if self.n_uniform_prior_k_bins > 0:
+                # Specific bins use a uniform prior
+                MargLogL += np.sum(
+                    np.log(x[:self.n_uniform_prior_k_bins])
+                    )
+            elif self.n_uniform_prior_k_bins == -1:
+                # All bins use a uniform prior
+                MargLogL += np.sum(np.log(x))
             if self.intrinsic_noise_fitting:
                 MargLogL = MargLogL - 0.5*d_Ninv_d - 0.5*log_det_N
             MargLogL = MargLogL.real
