@@ -176,28 +176,12 @@ if include_instrumental_effects:
         integration_time_minutes).replace('.', 'd')
     # instrument_model_directory = (
     #     '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/'
-    #     'Hex_469-2.4m_healvis_model_for_{}_{}_min_time_steps_v4'
-    #     '_bl_less_than_29.3m/'.format(nt, integration_time_minutes_str))
-    # instrument_model_directory = (
-    #     '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/'
-    #     'Hex_469-2.4m_healvis_model_unrounded-antpos_for_{}_{}_min_time_'
-    #     'steps_bl_less_than_29.3m/'.format(nt, integration_time_minutes_str))
+    #     'Hex_61-10m_healvis_model_for_{}_{}_min_time_'
+    #     'steps_bl_less_than_41m/'.format(nt, integration_time_minutes_str))
     instrument_model_directory = (
         '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/'
         'Hex_469-2.4m_healvis_model_perturbed-antpos-1.0_for_{}_{}_min_time_'
         'steps_bl_less_than_29.3m/'.format(nt, integration_time_minutes_str))
-    # instrument_model_directory = (
-    #     '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/'
-    #     'Hex_469-2.4m_healvis_model_perturbed-antpos-1.0_for_{}_{}_min_time_'
-    #     'steps_t2_phase-time-2458098.5521759833'
-    #     '_bl_less_than_29.3m/'.format(nt, integration_time_minutes_str))
-    # instrument_model_directory = (
-    #     '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/'
-    #     'Hex_469-2.4m_healvis_model_for_{}_{}_min_time_steps_rounded-antpos_'
-    #     'bls-param_bl_less_than_29.3m/'.format(
-    #         nt, integration_time_minutes_str
-    #         )
-    #     )
     telescope_latlonalt = (-30.72152777777791,
                            21.428305555555557,
                            1073.0000000093132)
