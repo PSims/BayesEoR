@@ -182,6 +182,12 @@ o.add_option(
     help='Time to which data will be phased.  Must be a valid Julian Date.'
     )
 
+o.add_option(
+    '--form_pI',
+    action='store_true',
+    help="If passed, form pI visibilities from the 'xx' and/or 'yy' pols."
+    )
+
 opts, args = o.parse_args(sys.argv[1:])
 print(o.values)
 
@@ -325,6 +331,21 @@ print('Ntimes after select:', uvd.Ntimes)
 print('Shape after select:', uvd.data_array.shape)
 print('-'*32)
 print('')
+
+if opts.form_pI:
+    # This should work for now, but I need to be more careful
+    # about this in the future if/when polarization becomes important
+    print('\nForming pI visibilities...')
+    if np.all([pol in uvd.polarization_array for pol in [-5, -6]]):
+        # Form pI as xx + yy
+        xx_ind = np.where(uvd.polarization_array == -5)[0][0]
+        yy_ind = np.where(uvd.polarization_array == -6)[0][0]
+        uvd.data_array[..., xx_ind] += uvd.data_array[..., yy_ind]
+    elif -5 in uvd.polarization_array:
+        uvd.data_array *= 2
+    elif -6 in uvd.polarization_array:
+        uvd.data_array *= 2
+    uvd.select(polarizations=-5)
 
 print('Initial select finished at {}'.format(datetime.utcnow()))
 print('-'*60, end='\n\n')
