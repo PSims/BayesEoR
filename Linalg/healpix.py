@@ -135,6 +135,8 @@ class Healpix(HEALPix):
             assert beam_type in ['uniform', 'gaussian', 'airy'], \
                 "Only uniform, Gaussian, and Airy beams are currently supported."
             self.beam_type = beam_type
+        else:
+            self.beam_type = 'uniform'
         self.peak_amp = peak_amp
 
         if beam_type == 'gaussian':
