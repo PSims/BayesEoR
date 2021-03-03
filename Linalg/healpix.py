@@ -342,7 +342,7 @@ class Healpix(HEALPix):
         Converts a full width half maximum to a standard deviation
         for a Gaussian beam.
         """
-        return fwhm / (2 * np.sqrt(2 * np.log(2)))
+        return fwhm / 2.355
 
     def _airy_disk(self, za, diam, freq):
         """
