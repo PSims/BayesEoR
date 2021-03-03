@@ -646,6 +646,7 @@ class BuildMatrices(BuildMatrixTree):
 
             # Get (l, m) coordinates from Healpix object
             ls_rad, ms_rad = self.hp.calc_lm_from_radec(
+                self.hp.jds[p.nt//2],
                 radec_offset=self.beam_center
                 )
             sampled_lm_coords_radians = np.vstack((ls_rad, ms_rad)).T
@@ -670,8 +671,7 @@ class BuildMatrices(BuildMatrixTree):
                 nuDFT_Array_DFT_2D_v2d0(
                     np.vstack(
                         self.hp.calc_lm_from_radec(
-                            center=self.hp.pointing_centers[time_i],
-                            north=self.hp.north_poles[time_i],
+                            self.hp.jds[time_i],
                             radec_offset=self.beam_center
                             ) # gets (l(t), m(t))
                         ).T,
@@ -716,6 +716,7 @@ class BuildMatrices(BuildMatrixTree):
                 np.diag(
                     self.hp.get_beam_vals(
                         *self.hp.calc_lm_from_radec(
+                            self.hp.jds[p.nt//2],
                             radec_offset=self.beam_center,
                             return_azza=True,
                             )[2:], # Only need az, za
@@ -732,8 +733,7 @@ class BuildMatrices(BuildMatrixTree):
                     self.sd_diags(
                         self.hp.get_beam_vals(
                             *self.hp.calc_lm_from_radec(
-                                center=self.hp.pointing_centers[time_i],
-                                north=self.hp.north_poles[time_i],
+                                self.hp.jds[time_i],
                                 radec_offset=self.beam_center,
                                 return_azza=True
                                 )[2:], # Only need az, za
@@ -800,8 +800,7 @@ class BuildMatrices(BuildMatrixTree):
         print('Performing matrix algebra')
         # Get (l, m) coordinates from Healpix object
         ls_rad, ms_rad = self.hp.calc_lm_from_radec(
-            center=self.hp.pointing_centers[p.nt//2],
-            north=self.hp.north_poles[p.nt//2]
+            self.hp.jds[p.nt//2]
             )
         sampled_lm_coords_radians = np.vstack((ls_rad, ms_rad)).T
 
