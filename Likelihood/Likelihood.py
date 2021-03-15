@@ -30,6 +30,7 @@ try:
         gpu_arch = 'p100'
     elif 'v100' in device.name().lower():
         gpu_arch = 'v100'
+    print('Found GPU with {} architecture'.format(gpu_arch))
     wrapmzpotrf = ctypes.CDLL(
         GPU_wrap_dir + 'wrapmzpotrf_{}.so'.format(gpu_arch)
         )
