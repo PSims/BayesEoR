@@ -258,9 +258,13 @@ class Healpix(HEALPix):
             beam_vals = np.ones(self.npix_fov)
 
         elif self.beam_type == 'gaussian':
-            stddev_rad = np.deg2rad(self._fwhm_to_stddev(self.fwhm_deg))
-
             # Calculate Gaussian beam values from za
+            if self.diam is not None:
+                stddev_rad = self._diam_to_fwhm(self.diam, freq)
+            else:
+                stddev_rad = np.deg2rad(
+                    self._fwhm_to_stddev(self.fwhm_deg)
+                    )
             beam_vals = self._gaussian_za(za, stddev_rad, self.peak_amp)
 
         elif self.beam_type == 'airy':
@@ -348,3 +352,17 @@ class Healpix(HEALPix):
                 / (np.pi * np.sin(fwhm / np.sqrt(2)))
                 )
         return diam
+
+    def _diam_to_sigma(self, diam, freq):
+        """
+        Approximates the effective FWHM [deg] of an Airy disk
+        corresponding to an antenna with a diameter of `diam`
+        in meters.
+
+        Copied from `pyuvsim.analyticbeam.diameter_to_sigma`.
+        """
+        scalar = 2.2150894
+        wavelength = c_ms / freq
+        sigma = np.arcsin(scalar * wavelength / (np.pi * diam))
+        sigma *= 2 / 2.355
+        return sigma
