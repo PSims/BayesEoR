@@ -194,9 +194,9 @@ if include_instrumental_effects:
     # beam_type = 'Gaussian'
     beam_type = 'Airy'
     beam_peak_amplitude = 1.0
-    FWHM_deg_at_ref_freq_MHz = 4.0  # degrees
+    FWHM_deg_at_ref_freq_MHz = 10.85192448200923  # degrees
     PB_ref_freq_MHz = 150.0  # MHz
-    antenna_diameter = 10.0 # 27.059770658022092
+    antenna_diameter = 10.0
     # Set the primary beam pointing center in (RA, DEC)
     # If None, will use the pointing center at zenith according to
     # telescope_latlonalt and central_jd. Otherwise, must be a tuple of
