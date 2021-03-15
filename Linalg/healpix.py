@@ -132,12 +132,13 @@ class Healpix(HEALPix):
         self.peak_amp = peak_amp
 
         if beam_type == 'gaussian':
-            assert fwhm_deg is not None, \
-                "If using a Gaussian beam, must also pass fwhm_deg."
+            assert diam is not None or fwhm_deg is not None, \
+                "If using a Gaussian beam, must also pass either " \
+                "'fwhm_deg' or 'diam'."
         elif beam_type == 'airy':
             assert diam is not None or fwhm_deg is not None, \
                 "If using an Airy beam, must also pass either " \
-                "fwhm_deg or diam."
+                "'fwhm_deg' or 'diam'."
         self.fwhm_deg = fwhm_deg
         self.diam = diam
 
@@ -259,12 +260,12 @@ class Healpix(HEALPix):
 
         elif self.beam_type == 'gaussian':
             # Calculate Gaussian beam values from za
-            if self.diam is not None:
-                stddev_rad = self._diam_to_fwhm(self.diam, freq)
-            else:
+            if self.fwhm_deg is not None:
                 stddev_rad = np.deg2rad(
                     self._fwhm_to_stddev(self.fwhm_deg)
                     )
+            else:
+                stddev_rad = self._diam_to_fwhm(self.diam, freq)
             beam_vals = self._gaussian_za(za, stddev_rad, self.peak_amp)
 
         elif self.beam_type == 'airy':
