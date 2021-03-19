@@ -269,21 +269,21 @@ def DFT_Array_DFT_2D_ZM(
 
 
 def nuDFT_Array_DFT_2D_v2d0(
-        sampled_lm_coords_radians,
+        sampled_lmn_coords_radians,
         sampled_uvw_coords_wavelengths):
     """
-    Non-uniform DFT from floating point (l, m) to instrumentally
-    sampled (u, v) from the instrument model.
+    Non-uniform DFT from floating point (l, m, n) to instrumentally
+    sampled (u, v, w) from the instrument model.
 
     Used in the construction of a single frequency's block in Finv.
 
     Parameters
     ----------
-    sampled_lm_coords_radians : np.ndarray of floats
-        Array with shape (npix, 2) containing the (l, m) coordinates
+    sampled_lmn_coords_radians : np.ndarray of floats
+        Array with shape (npix, 3) containing the (l, m, n) coordinates
         of the image space HEALPix model in units of radians.
     sampled_uvw_coords_wavelengths : np.ndarray of floats
-        Array with shape (nbls, 2) containing the (u, v) coordinates
+        Array with shape (nbls, 3) containing the (u, v, w) coordinates
         at a single frequency in units of wavelengths (inverse radians).
 
     Returns
@@ -293,19 +293,22 @@ def nuDFT_Array_DFT_2D_v2d0(
     """
 
     # Use HEALPix sampled (l, m) coords
-    i_x_AV = sampled_lm_coords_radians[:, 0].reshape(-1, 1)
-    i_y_AV = sampled_lm_coords_radians[:, 1].reshape(-1, 1)
+    i_l_AV = sampled_lmn_coords_radians[:, 0].reshape(-1, 1)
+    i_m_AV = sampled_lmn_coords_radians[:, 1].reshape(-1, 1)
+    i_n_AV = sampled_lmn_coords_radians[:, 2].reshape(-1, 1)
 
     # Use instrumental uv coords loaded in params
     i_u_AV = sampled_uvw_coords_wavelengths[:, 0].reshape(1, -1)
     i_v_AV = sampled_uvw_coords_wavelengths[:, 1].reshape(1, -1)
+    i_w_AV = sampled_uvw_coords_wavelengths[:, 2].reshape(1, -1)
 
     # This formulation expects (l, m) and (u, v)
     # in radians and wavelengths, respectively
     ExponentArray = np.exp(
         +2.0*np.pi*1j*(
-                (i_x_AV*i_u_AV)
-                + (i_v_AV*i_y_AV)
+                (i_l_AV*i_u_AV)
+                + (i_m_AV*i_v_AV)
+                + (i_n_AV*i_w_AV)
             )
         )
     # The sign of the argument of the exponent was chosen to be positive

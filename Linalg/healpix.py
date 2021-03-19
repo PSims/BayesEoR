@@ -193,9 +193,9 @@ class Healpix(HEALPix):
         self.ra = lons[pix]
         self.dec = lats[pix]
 
-    def calc_lm_from_radec(self, time, return_azza=False, radec_offset=None):
+    def calc_lmn_from_radec(self, time, return_azza=False, radec_offset=None):
         """
-        Return arrays of (l, m) coordinates in radians of all
+        Return arrays of (l, m, n) coordinates in radians of all
         HEALPix pixels within the region set by `self.pix`. The pixels
         used in this calculation are set by `self.set_pixel_filter()`.
 
@@ -221,6 +221,9 @@ class Healpix(HEALPix):
         m : np.ndarray of floats
             Array containing the NS direction cosine
             of each HEALPix pixel.
+        n : np.ndarray of floats
+            Array containing the radial direction
+            cosine of each HEALPix pixel.
         """
         if not isinstance(time, Time):
             time = Time(time, format='jd')
@@ -232,14 +235,15 @@ class Healpix(HEALPix):
         az = altaz.az.rad
         za = np.pi/2 - altaz.alt.rad
 
-        # Convert from (az, za) to (l, m)
-        l = np.sin(za) * np.sin(az)  # radians
-        m = np.sin(za) * np.cos(az)  # radians
+        # Convert from (az, za) to (l, m, n)
+        l = np.sin(za) * np.sin(az)
+        m = np.sin(za) * np.cos(az)
+        n = np.cos(za)
 
         if return_azza:
-            return l, m, az, za
+            return l, m, n, az, za
         else:
-            return l, m
+            return l, m, n
 
     def get_beam_vals(self, az, za, freq=None):
         """
