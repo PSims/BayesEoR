@@ -13,6 +13,7 @@ from astropy.time import Time
 import astropy.units as u
 from astropy.constants import c
 from scipy.special import j1
+from pyuvdata import utils as uvutils
 
 c_ms = c.to('m/s').value
 
@@ -82,8 +83,13 @@ class Healpix(HEALPix):
         self.pixel_area_sr = self.pixel_area.value
         self.lat, self.lon, self.alt = telescope_latlonalt
         # Set telescope location
-        self.telescope_location = EarthLocation.from_geodetic(
-            self.lon * u.degree, self.lat * u.degree
+        telescope_xyz = uvutils.XYZ_from_LatLonAlt(
+            self.lat * np.pi / 180,
+            self.lon * np.pi / 180,
+            self.alt
+            )
+        self.telescope_location = EarthLocation.from_geocentric(
+            *telescope_xyz, unit='m'
             )
 
         # Calculate field center in (RA, DEC)
