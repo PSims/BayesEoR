@@ -275,7 +275,7 @@ class Healpix(HEALPix):
                     self._fwhm_to_stddev(self.fwhm_deg)
                     )
             else:
-                stddev_rad = self._diam_to_fwhm(self.diam, freq)
+                stddev_rad = self._diam_to_stddev(self.diam, freq)
             beam_vals = self._gaussian_za(za, stddev_rad, self.peak_amp)
 
         elif self.beam_type == 'airy':
@@ -364,9 +364,9 @@ class Healpix(HEALPix):
                 )
         return diam
 
-    def _diam_to_sigma(self, diam, freq):
+    def _diam_to_stddev(self, diam, freq):
         """
-        Approximates the effective FWHM [deg] of an Airy disk
+        Approximates the effective stddev [deg] of an Airy disk
         corresponding to an antenna with a diameter of `diam`
         in meters.
 

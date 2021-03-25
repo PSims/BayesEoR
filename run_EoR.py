@@ -10,8 +10,6 @@ import os
 import time
 import ast
 import numpy as np
-# head, tail = os.path.split(os.path.split(os.getcwd())[0])
-# sys.path.append(head)
 
 
 # If False, skip mpi and other imports that can cause crashes in ipython
@@ -152,22 +150,36 @@ array_save_directory = (
 
 if p.include_instrumental_effects:
     beam_info_str = ''
-    if p.beam_type.lower() == 'Uniform'.lower():
+    if p.beam_type.lower() == 'uniform':
         beam_info_str += '{}_beam_peak_amplitude_{}'.format(
             p.beam_type,
             str(p.beam_peak_amplitude).replace('.', 'd')
             )
-    elif p.beam_type.lower() == 'Gaussian'.lower():
+    elif p.beam_type.lower() == 'gaussian':
         beam_info_str += (
             '{}_beam_peak_amplitude_{}'.format(
                 p.beam_type,
                 str(p.beam_peak_amplitude).replace('.', 'd'))
             )
-        beam_info_str += (
-            '_beam_width_{}_deg_at_{}_MHz'.format(
-                str(p.FWHM_deg_at_ref_freq_MHz).replace('.', 'd'),
-                str(p.PB_ref_freq_MHz).replace('.', 'd'))
+        if p.FWHM_deg_at_ref_freq_MHz is not None:
+            beam_info_str += (
+                '_beam_width_{}_deg_at_{}_MHz'.format(
+                    str(p.FWHM_deg_at_ref_freq_MHz).replace('.', 'd'),
+                    str(p.PB_ref_freq_MHz).replace('.', 'd'))
+                )
+        elif p.antenna_diameter is not None:
+            beam_info_str += (
+                '_antenna-diameter-{}m'.format(
+                    str(np.round(p.antenna_diameter, decimals=2)).replace(
+                        '.', 'd')
+                    )
             )
+        else:
+            print('\nIf using a Gaussian beam, must specify either a FWHM in'
+                  ' deg or an antenna diameter in meters.\nExiting...',
+                  end='\n\n'
+                  )
+            sys.exit()
     elif p.beam_type.lower() == 'airy':
         beam_info_str += '{}_beam_antenna-diameter-{}m'.format(
             p.beam_type,
