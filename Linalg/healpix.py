@@ -375,5 +375,5 @@ class Healpix(HEALPix):
         scalar = 2.2150894
         wavelength = c_ms / freq
         sigma = np.arcsin(scalar * wavelength / (np.pi * diam))
-        sigma *= 2 / 2.355
+        sigma *= np.sqrt(2) / 2.355
         return sigma
