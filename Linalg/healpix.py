@@ -13,6 +13,7 @@ from astropy.time import Time
 import astropy.units as u
 from astropy.constants import c
 from scipy.special import j1
+from pyuvdata import utils as uvutils
 
 c_ms = c.to('m/s').value
 
@@ -82,8 +83,13 @@ class Healpix(HEALPix):
         self.pixel_area_sr = self.pixel_area.value
         self.lat, self.lon, self.alt = telescope_latlonalt
         # Set telescope location
-        self.telescope_location = EarthLocation.from_geodetic(
-            self.lon * u.degree, self.lat * u.degree
+        telescope_xyz = uvutils.XYZ_from_LatLonAlt(
+            self.lat * np.pi / 180,
+            self.lon * np.pi / 180,
+            self.alt
+            )
+        self.telescope_location = EarthLocation.from_geocentric(
+            *telescope_xyz, unit='m'
             )
 
         # Calculate field center in (RA, DEC)
@@ -93,7 +99,7 @@ class Healpix(HEALPix):
                     az=Angle('0d'),
                     obstime=t,
                     location=self.telescope_location)
-        zen_radec = zen.transform_to(ICRS)
+        zen_radec = zen.transform_to(ICRS())
         self.field_center = (zen_radec.ra.deg, zen_radec.dec.deg)
 
         # Set time axis params for calculating (l(t),  m(t))
@@ -109,24 +115,16 @@ class Healpix(HEALPix):
                         + self.time_inds * self.int_time * DAYS_PER_SEC)
         else:
             self.jds = np.array([self.central_jd])
-        # Calculate pointing center and north pole per integration
+        # Calculate pointing center per integration
         self.pointing_centers = []
-        self.north_poles = []
         for jd in self.jds:
             t = Time(jd, scale='utc', format='jd')
-            # Calculate north pole in (alt, az)
-            north = AltAz(alt=Angle('0d'),
-                          az=Angle('0d'),
-                          obstime=t,
-                          location=self.telescope_location)
-            north_radec = north.transform_to(ICRS)
-            self.north_poles.append((north_radec.ra.deg, north_radec.dec.deg))
             # Calculate zenith angle in (alt, az)
             zen = AltAz(alt=Angle('90d'),
                         az=Angle('0d'),
                         obstime=t,
                         location=self.telescope_location)
-            zen_radec = zen.transform_to(ICRS)
+            zen_radec = zen.transform_to(ICRS())
             self.pointing_centers.append((zen_radec.ra.deg, zen_radec.dec.deg))
 
         # Beam params
@@ -140,26 +138,41 @@ class Healpix(HEALPix):
         self.peak_amp = peak_amp
 
         if beam_type == 'gaussian':
-            assert fwhm_deg is not None, \
-                "If using a Gaussian beam, must also pass fwhm_deg."
+            assert diam is not None or fwhm_deg is not None, \
+                "If using a Gaussian beam, must also pass either " \
+                "'fwhm_deg' or 'diam'."
         elif beam_type == 'airy':
             assert diam is not None or fwhm_deg is not None, \
                 "If using an Airy beam, must also pass either " \
-                "fwhm_deg or diam."
+                "'fwhm_deg' or 'diam'."
         self.fwhm_deg = fwhm_deg
         self.diam = diam
 
         # Pixel params
         self.pix = None  # HEALPix pixel numbers within the FoV
         self.npix_fov = None  # Number of pixels within the FoV
+        self.ra = None # Array to hold right ascension values
+        self.dec = None # Array to hold declination values
         # Set self.pix and self.npix_fov
         self.set_pixel_filter()
 
     def set_pixel_filter(self):
-        # Filter pixels that lie outside the rectangular patch of sky
-        # set by the central (RA0, DEC0) and the FoV as:
-        # RA0 - FoV/2 <= RA <= RA0 + Fov/2
-        # DEC0 - FOV/2 <= DEC <= DEC0 + FoV/2
+        """
+        Filter pixels that lie outside of a rectangular region
+        centered on `self.field_center`.
+
+        This function sets:
+        pix : array of ints
+            Array of HEALPix pixel indices lying within the rectangular
+            region with shape (npix_fov,).
+        npix_fov : int
+            Number of HEALPix pixels lying within the rectangular region
+        ra : array of floats
+            Array of right ascension values for each pixel in
+            `self.pix`.
+        dec : array of floats
+            Array of declination values for each pixel in `self.pix`.
+        """
         lons, lats = hp.pix2ang(
             self.nside,
             np.arange(self.npix),
@@ -177,105 +190,62 @@ class Healpix(HEALPix):
         pix = np.where(lons_inds * lats_inds)[0]
         self.pix = pix
         self.npix_fov = pix.size
+        self.ra = lons[pix]
+        self.dec = lats[pix]
 
-    def calc_lm_from_radec(self,
-                           center=None,
-                           north=None,
-                           radec_offset=None,
-                           time_index=0,
-                           return_azza=False):
+    def calc_lmn_from_radec(self, time, return_azza=False, radec_offset=None):
         """
-        Return arrays of (l, m) coordinates in radians of all
-        HEALPix pixels within a disc of radius self.fov_deg / 2
-        relative to center=(RA, DEC). The pixels used in this
-        calculation are set by `self.set_pixel_filter`.
+        Return arrays of (l, m, n) coordinates in radians of all
+        HEALPix pixels within the region set by `self.pix`. The pixels
+        used in this calculation are set by `self.set_pixel_filter()`.
 
-        Adapted from healvis.observatory.calc_azza.
+        Adapted from `pyradiosky.skymodel.update_positions`.
 
         Parameters
         ----------
-        center : tuple of floats, optional
-            Central (RA, DEC) in units of degrees.  Sets the center
-            of the rectangular patch of sky.  Defaults to
-            `self.field_center`.
-        north : tuple of floats, optional
-            North pole in (RA, DEC) in units of degrees.  Defaults to
-            the value of the north pole at `self.central_jd` is used.
-        radec_offset : tuple of floats, optional
-            Offset in (RA, DEC) in units of degrees.  Shifts the center
-            to `(center[0] + RA_offset, center[1] + DEC_offset)`.
-            Defaults to None, i.e. no offset.
-        time_index : int, optional
-            If passing `radec_offset`, the north vector will be
-            calculated relative to `self.jds[time_index]`.
-            Defaults to the central time index.
+        time : float
+            Julian date at which to convert from
+            ICRS to AltAz coordinate frames.
+        return_azza : boolean
+            If True, return both (l, m) and (az, za)
+            coordinate arrays.  Otherwise return only
+            (l, m).  Defaults to 'False'.
+        radec_offset : tuple of floats
+            Will likely be deprecated.
 
         Returns
         -------
-        ls : np.ndarray
-            Array containing EW direction cosine of each HEALPix pixel.
-        ms : np.ndarray
-            Array containing NS direction cosine of each HEALPix pixel.
+        l : np.ndarray of floats
+            Array containing the EW direction cosine
+            of each HEALPix pixel.
+        m : np.ndarray of floats
+            Array containing the NS direction cosine
+            of each HEALPix pixel.
+        n : np.ndarray of floats
+            Array containing the radial direction
+            cosine of each HEALPix pixel.
         """
-        if center is None:
-            center = self.field_center
-            if north is None and radec_offset is None:
-                north = self.north_poles[self.nt // 2]
+        if not isinstance(time, Time):
+            time = Time(time, format='jd')
 
-        if radec_offset is not None:
-            if time_index is None:
-                jd = self.central_jd
-            else:
-                jd = self.jds[time_index]
-            jd += radec_offset[0] * 1.0 / DEGREES_PER_DAY
-            t = Time(jd, scale='utc', format='jd')
+        skycoord = SkyCoord(self.ra*u.deg, self.dec*u.deg, frame='icrs')
+        altaz = skycoord.transform_to(
+            AltAz(obstime=time, location=self.telescope_location)
+            )
+        az = altaz.az.rad
+        za = np.pi/2 - altaz.alt.rad
 
-            # Calculate zenith angle in (alt, az)
-            zen = AltAz(alt=Angle('90d'),
-                        az=Angle('0d'),
-                        obstime=t,
-                        location=self.telescope_location)
-            zen_radec = zen.transform_to(ICRS)
-            center = (zen_radec.ra.deg, zen_radec.dec.deg)
-
-            # Calculate north pole in (alt, az)
-            north = AltAz(alt=Angle('0d'),
-                          az=Angle('0d'),
-                          obstime=t,
-                          location=self.telescope_location)
-            north_radec = north.transform_to(ICRS)
-            north = (north_radec.ra.deg, north_radec.dec.deg)
-
-        cvec = hp.ang2vec(center[0], center[1], lonlat=True)
-
-        nvec = hp.ang2vec(north[0], north[1], lonlat=True)
-        vecs = hp.pix2vec(self.nside, self.pix).T  # Shape (npix, 3)
-
-        # Convert from (x, y, z) to (az, za)
-        colat = np.arccos(np.dot(cvec, nvec))
-        xvec = np.cross(nvec, cvec) * 1 / np.sin(colat)
-        yvec = np.cross(cvec, xvec)
-        sdotx = np.tensordot(vecs, xvec, 1)
-        sdotz = np.tensordot(vecs, cvec, 1)
-        sdoty = np.tensordot(vecs, yvec, 1)
-        za_arr = np.arccos(sdotz)
-        # xy plane is tangent. Increasing azimuthal angle eastward,
-        # zero at North (y axis). x is East.
-        az_arr = np.arctan2(sdotx, sdoty) % (2 * np.pi)
-
-        # Convert from (az, za) to (l, m)
-        ls = np.sin(za_arr) * np.sin(az_arr)  # radians
-        ms = np.sin(za_arr) * np.cos(az_arr)  # radians
+        # Convert from (az, za) to (l, m, n)
+        l = np.sin(za) * np.sin(az)
+        m = np.sin(za) * np.cos(az)
+        n = np.cos(za)
 
         if return_azza:
-            return ls, ms, az_arr, za_arr
+            return l, m, n, az, za
         else:
-            return ls, ms
+            return l, m, n
 
-    def get_beam_vals(self,
-                      az,
-                      za,
-                      freq=None):
+    def get_beam_vals(self, az, za, freq=None):
         """
         Get an array of beam values from (l, m) coordinates.
         If `beam_type='gaussian'`, this function assumes that the
@@ -283,9 +253,9 @@ class Healpix(HEALPix):
 
         Parameters
         ----------
-        az : np.ndarray
+        az : np.ndarray of floats
             Azimuthal angle of each pixel in units of radians.
-        za : np.ndarray
+        za : np.ndarray of floats
             Zenith angle of each pixel in units of radians.
         freq : float, optional
             Frequency in Hz at which to calculate the beam.
@@ -299,9 +269,13 @@ class Healpix(HEALPix):
             beam_vals = np.ones(self.npix_fov)
 
         elif self.beam_type == 'gaussian':
-            stddev_rad = np.deg2rad(self._fwhm_to_stddev(self.fwhm_deg))
-
             # Calculate Gaussian beam values from za
+            if self.fwhm_deg is not None:
+                stddev_rad = np.deg2rad(
+                    self._fwhm_to_stddev(self.fwhm_deg)
+                    )
+            else:
+                stddev_rad = self._diam_to_stddev(self.diam, freq)
             beam_vals = self._gaussian_za(za, stddev_rad, self.peak_amp)
 
         elif self.beam_type == 'airy':
@@ -342,7 +316,7 @@ class Healpix(HEALPix):
         Converts a full width half maximum to a standard deviation
         for a Gaussian beam.
         """
-        return fwhm / (2 * np.sqrt(2 * np.log(2)))
+        return fwhm / 2.355
 
     def _airy_disk(self, za, diam, freq):
         """
@@ -389,3 +363,17 @@ class Healpix(HEALPix):
                 / (np.pi * np.sin(fwhm / np.sqrt(2)))
                 )
         return diam
+
+    def _diam_to_stddev(self, diam, freq):
+        """
+        Approximates the effective stddev [deg] of an Airy disk
+        corresponding to an antenna with a diameter of `diam`
+        in meters.
+
+        Copied from `pyuvsim.analyticbeam.diameter_to_sigma`.
+        """
+        scalar = 2.2150894
+        wavelength = c_ms / freq
+        sigma = np.arcsin(scalar * wavelength / (np.pi * diam))
+        sigma *= np.sqrt(2) / 2.355
+        return sigma

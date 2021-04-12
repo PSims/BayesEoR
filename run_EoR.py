@@ -10,8 +10,6 @@ import os
 import time
 import ast
 import numpy as np
-# head, tail = os.path.split(os.path.split(os.getcwd())[0])
-# sys.path.append(head)
 
 
 # If False, skip mpi and other imports that can cause crashes in ipython
@@ -143,7 +141,7 @@ n_Fourier = (nu*nv - 1) * nf
 n_LW = (nu*nv - 1) * nq
 n_model = n_Fourier+n_LW
 n_dat = n_Fourier
-current_file_version = 'Likelihood_v2d2_3D_ZM'
+current_file_version = 'Likelihood_v2d4_3D_ZM'
 array_save_directory = (
     'array_storage/batch_1/'
     + '{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(
@@ -152,22 +150,36 @@ array_save_directory = (
 
 if p.include_instrumental_effects:
     beam_info_str = ''
-    if p.beam_type.lower() == 'Uniform'.lower():
+    if p.beam_type.lower() == 'uniform':
         beam_info_str += '{}_beam_peak_amplitude_{}'.format(
             p.beam_type,
             str(p.beam_peak_amplitude).replace('.', 'd')
             )
-    elif p.beam_type.lower() == 'Gaussian'.lower():
+    elif p.beam_type.lower() == 'gaussian':
         beam_info_str += (
             '{}_beam_peak_amplitude_{}'.format(
                 p.beam_type,
                 str(p.beam_peak_amplitude).replace('.', 'd'))
             )
-        beam_info_str += (
-            '_beam_width_{}_deg_at_{}_MHz'.format(
-                str(p.FWHM_deg_at_ref_freq_MHz).replace('.', 'd'),
-                str(p.PB_ref_freq_MHz).replace('.', 'd'))
+        if p.FWHM_deg_at_ref_freq_MHz is not None:
+            beam_info_str += (
+                '_beam_width_{}_deg_at_{}_MHz'.format(
+                    str(p.FWHM_deg_at_ref_freq_MHz).replace('.', 'd'),
+                    str(p.PB_ref_freq_MHz).replace('.', 'd'))
+                )
+        elif p.antenna_diameter is not None:
+            beam_info_str += (
+                '_antenna-diameter-{}m'.format(
+                    str(np.round(p.antenna_diameter, decimals=2)).replace(
+                        '.', 'd')
+                    )
             )
+        else:
+            print('\nIf using a Gaussian beam, must specify either a FWHM in'
+                  ' deg or an antenna diameter in meters.\nExiting...',
+                  end='\n\n'
+                  )
+            sys.exit()
     elif p.beam_type.lower() == 'airy':
         beam_info_str += '{}_beam_antenna-diameter-{}m'.format(
             p.beam_type,
@@ -574,7 +586,11 @@ if sub_ML_monopole_term_model:
 # PolyChord setup
 ###
 # log_priors_min_max = [[-5.0, 3.0] for _ in range(nDims)]
-log_priors_min_max = [[-1.0, 7.0] for _ in range(nDims)]
+# log_priors_min_max = [[-1.0, 7.0] for _ in range(nDims)]
+log_priors_min_max = [
+    [-2.0, 2.0], [-1.2, 2.8], [-0.7, 3.3], [-0.3, 3.7], [0.1, 4.1],
+    [0.5, 4.5], [1.0, 5.0], [1.4, 5.4], [1.7, 5.7]
+    ]
 if p.use_LWM_Gaussian_prior:
     # Set minimum LW model priors using LW power spectrum in fit to
     # white noise (i.e the prior min should incorporate knowledge of

@@ -24,7 +24,16 @@ try:
     base_dir = '/'.join(__file__.split('/')[:-2]) + '/'
     # Load MAGMA GPU Wrapper Functions
     GPU_wrap_dir = base_dir+'Likelihood/GPU_wrapper/'
-    wrapmzpotrf = ctypes.CDLL(GPU_wrap_dir+'wrapmzpotrf.so')
+
+    device = cuda.Device(0)
+    if 'p100' in device.name().lower():
+        gpu_arch = 'p100'
+    elif 'v100' in device.name().lower():
+        gpu_arch = 'v100'
+    print('Found GPU with {} architecture'.format(gpu_arch))
+    wrapmzpotrf = ctypes.CDLL(
+        GPU_wrap_dir + 'wrapmzpotrf_{}.so'.format(gpu_arch)
+        )
     nrhs = 1
     wrapmzpotrf.cpu_interface.argtypes = [
         ctypes.c_int,
@@ -33,7 +42,7 @@ try:
         ctypeslib.ndpointer(np.complex128, ndim=1, flags='C'),
         ctypes.c_int,
         ctypeslib.ndpointer(np.int, ndim=1, flags='C')]
-    print('Computing on GPU')
+    print('Computing on {} GPUs'.format(gpu_arch))
 
 except Exception as e:
     print('Exception loading GPU encountered...')

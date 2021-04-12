@@ -29,6 +29,8 @@ from pathlib import Path
 from datetime import datetime
 from pyuvdata import UVData
 from astropy.time import Time
+from astropy import units
+from astropy.units import Quantity
 import matplotlib.pyplot as plt
 
 plt.rcParams.update({'font.size': 16, 'figure.figsize': (12, 8)})
@@ -248,31 +250,27 @@ def weighted_avg_and_std(values, weights):
     return average, np.sqrt(variance)
 
 
-def Jy_to_Kstr(data_array, frequencies):
+def jy_to_ksr(data, freqs):
     """
     Convert visibilities from units of Janskys to Kelvin steradians.
 
     Parameters
     ----------
-    data_array : np.ndarray
+    data : np.ndarray
         Array of visibility data in units of Janskys.
-    frequencies : 1d np.ndarray
+    freqs : 1d np.ndarray
         Array of frequencies for data contained in data_array
         in units of Hertz.
     """
     # Tile frequencies to match shape of data=(nblts, nfreqs)
-    freq_array = np.tile(
-            frequencies,
-            data_array.shape[0]
-        ).reshape((data_array.shape[0], len(frequencies)))
+    if not isinstance(freqs, Quantity):
+        freqs = Quantity(freqs, units.Hz)
 
-    # CGS unit constants
-    c = 29979245800.0 # cm / s
-    kb = 1.380658e-16 # erg / K
-    erg_to_Jy = 1.0e23 # Jy / erg
-    conversion_array = c**2/(2*freq_array**2*kb*erg_to_Jy)
+    equiv = units.brightness_temperature(freqs, beam_area=1*units.sr)
+    conv_factor = (1*units.Jy).to(units.K, equivalencies=equiv)
+    conv_factor *= units.sr / units.Jy
 
-    return data_array * conversion_array
+    return data * conv_factor[np.newaxis, :].value
 
 
 # ----------------- Main -----------------
@@ -498,7 +496,7 @@ def data_processing(
 
     # Convert data & noise arrays to K sr from Jy
     frequencies = uvd.freq_array[0]
-    data_array_phased_avg = Jy_to_Kstr(
+    data_array_phased_avg = jy_to_ksr(
         data_array_phased_avg, frequencies
         )
     data_array_phased_avg *= 1.0e3 # K sr to mK sr
