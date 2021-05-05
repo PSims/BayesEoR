@@ -156,10 +156,16 @@ class Healpix(HEALPix):
         # Set self.pix and self.npix_fov
         self.set_pixel_filter()
 
-    def set_pixel_filter(self):
+    def set_pixel_filter(self, inverse=False):
         """
         Filter pixels that lie outside of a rectangular region
         centered on `self.field_center`.
+        
+        Parameters
+        ----------
+        inverse: boolean
+            If False, return the pixels within the rectangular region.
+            If True, return the pixels outside the rectangular region.
 
         This function sets:
         pix : array of ints
@@ -187,7 +193,10 @@ class Healpix(HEALPix):
             lats >= self.field_center[1] - self.fov_deg / 2,
             lats <= self.field_center[1] + self.fov_deg / 2
             )
-        pix = np.where(lons_inds * lats_inds)[0]
+        if inverse:
+            pix = np.where(np.logical_not(lons_inds * lats_inds))[0]
+        else:
+            pix = np.where(lons_inds * lats_inds)[0]
         self.pix = pix
         self.npix_fov = pix.size
         self.ra = lons[pix]
