@@ -31,6 +31,9 @@ try:
     elif 'v100' in device.name().lower():
         gpu_arch = 'v100'
     print('Found GPU with {} architecture'.format(gpu_arch))
+    print('Loading shared library from {}'.format(
+        GPU_wrap_dir + 'wrapmzpotrf_{}.so'.format(gpu_arch)
+    ))
     wrapmzpotrf = ctypes.CDLL(
         GPU_wrap_dir + 'wrapmzpotrf_{}.so'.format(gpu_arch)
         )
@@ -326,14 +329,22 @@ class PowerSpectrumPosteriorProbability(object):
             dbar_copy_copy = dbar.copy()
             self.GPU_error_flag = np.array([0])
             # Replace 0 with 1 to pring debug in the following command
+            if self.Print:
+                start = time.time()
             wrapmzpotrf.cpu_interface(
                 len(Sigma), nrhs, Sigma, dbar_copy, 0, self.GPU_error_flag)
+            if self.Print:
+                print('Cholesky decomposition time: {}'.format(time.time() - start))
             # Note: After wrapmzpotrf, Sigma is actually
             # SigmaCho (i.e. L with Sigma = LL^T)
             logdet_Magma_Sigma = np.sum(np.log(np.diag(abs(Sigma)))) * 2
             # print(logdet_Magma_Sigma)
+            if self.Print:
+                start = time.time()
             SigmaI_dbar = scipy.linalg.cho_solve(
                 (Sigma.conjugate().T, True), dbar_copy_copy)
+            if self.Print:
+                print('scipy cho_solve time: {}'.format(time.time() - start))
             if self.GPU_error_flag[0] != 0:
                 # If the inversion doesn't work, zero-weight the
                 # sample (may want to stop computing if this occurs?)
