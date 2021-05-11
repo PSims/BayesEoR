@@ -6,14 +6,15 @@ from astropy import constants
 Analysis settings
 """
 
-###
-# Define analysis parameters here rather than in driver and util files...!
-###
-
 # --------------------------------------------
 # User editable parameters
 # --------------------------------------------
 
+###
+# MultiNest params
+###
+# If None, MultiNest will start a new analysis.
+# Otherwise, resume analysis from ``file_root``.
 file_root = None
 
 ###
@@ -28,46 +29,20 @@ ny = 9
 nq = 0
 
 ###
-# Data noise estimate
-###
-# sigma=50.e-1*250.0 #Noise level in S19b
-# sigma=50.e-1*1000.0
-
-
-###
 # EoR sim params
 ###
 EoR_npz_path = ''
-# The following must match EoR_npz_path parameters
-box_size_21cmFAST_pix = 128
-box_size_21cmFAST_Mpc = 512
-
-EoR_npz_path_sc = '/users/jburba/data/shared/PSims/BayesEoR_files_P/EoRsims/' \
-                  'Hoag19/21cm_mK_z7.600_nf0.883_useTs0.0_aveTb21.06_cube_' \
-                  'side_pix512_cube_side_Mpc2048.npz'
-# Must match EoR_npz_path_sc parameters
-box_size_21cmFAST_pix_sc = 512
-box_size_21cmFAST_Mpc_sc = 2048
-# Cosmological angular distance corresponding to a field of view of 12.0
-# degrees and bandwidth of 7.6 MHz centered on 162.7 MHz
-# box_size_21cmFAST_Mpc_sc = 1903.92479627
-
+EoR_npz_path_sc = ''
 
 ###
 # Frequency params
 ###
-# Corresponds to the lower edge of a ~9 MHz bandwidth centered on
-# 162.7 MHz (z~7) for a 21cmFAST cube LOS size of 2048 * 38 / 512 Mpc
 nu_min_MHz = 158.304048743
-# Corresponds to the channel width for a LOS distance of 2048 * 38 / 512
-# Mpc at redshift z~7 with nf=38 frequency channels
 channel_width_MHz = 0.237618986858
 
 ###
 # FoV parameters
 ###
-# Corresponds to the angular extent of a 2048 Mpc patch of sky at
-# redshift z~7 (band centerd on 162.7 MHz)
 simulation_FoV_deg = 12.9080728652
 
 # --------------------------------------------
@@ -170,18 +145,19 @@ if include_instrumental_effects:
     ###
     # Obs params
     ###
-    nt = 5
-    integration_time_minutes = 8.0
+    nt = 17
+    integration_time_seconds = 11
+    integration_time_minutes = integration_time_seconds/60
     integration_time_minutes_str = '{}'.format(
         integration_time_minutes).replace('.', 'd')
     instrument_model_directory = (
         '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/'
-        'Hex_61-10m_healvis_model_for_{}_{}_min_time_'
-        'steps_bl_less_than_41m/'.format(nt, integration_time_minutes_str))
+        'Hex_61-10m_healvis_model_for_{}_{}_sec_time_'
+        'steps_bl_less_than_41m/'.format(nt, integration_time_seconds))
     # instrument_model_directory = (
     #     '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/'
-    #     'Hex_469-2.4m_healvis_model_perturbed-antpos-1.0_for_{}_{}_min_time_'
-    #     'steps_bl_less_than_29.3m/'.format(nt, integration_time_minutes_str))
+    #     'Hex_61-10m_healvis_model_for_{}_{}_min_time_'
+    #     'steps_bl_less_than_41m/'.format(nt, integration_time_minutes_str))
     telescope_latlonalt = (-30.72152777777791,
                            21.428305555555557,
                            1073.0000000093132)
@@ -236,16 +212,6 @@ use_LWM_Gaussian_prior = False
 # fit_for_monopole = True
 
 ###
-# Normalisation params
-###
-# Transverse size of the analysis cube in pixels
-EoR_analysis_cube_x_pix = box_size_21cmFAST_pix_sc
-EoR_analysis_cube_y_pix = box_size_21cmFAST_pix_sc
-# Transverse size of the analysis cube in Mpc
-EoR_analysis_cube_x_Mpc = box_size_21cmFAST_Mpc_sc
-EoR_analysis_cube_y_Mpc = box_size_21cmFAST_Mpc_sc
-
-###
 # Uniform prior(s)
 ###
 n_uniform_prior_k_bins = 0
@@ -263,12 +229,3 @@ pl_grid_spacing = 0.1
 # when constructing the data model
 ###
 use_sparse_matrices = True
-
-###
-# Other parameter types
-# fg params
-# spectral params
-# uv params
-# ...
-# etc.
-###

@@ -4,6 +4,10 @@ from subprocess import os
 from scipy import integrate
 import pickle
 from types import ModuleType
+from astropy import units
+from astropy.units import Quantity
+from astropy.constants import c
+from astropy.cosmology import Planck18
 
 import BayesEoR.Params.params as p
 
@@ -23,202 +27,115 @@ class PriorC(object):
 
 class Cosmology:
     """
-    Class for performing cosmological distance calculations
+    Class for performing cosmological distance
+    calculations using `astropy.cosmology.Planck18`.
     """
-    def __init__(self, **kwargs):
-        # ===== Defaults =====
-        self.z1 = 0.
-        self.z2 = 10.
-        self.Print = 0
-
-        # ===== Inputs =====
-        if 'z1' in kwargs:
-            self.z1 = kwargs['z1']
-        if 'z2' in kwargs:
-            self.z2 = kwargs['z2']
-        if 'Print' in kwargs:
-            self.Print = kwargs['Print']
-
-        self.Omega_m = 0.279
-        self.Omega_lambda = 0.721
-        self.Omega_k = 0.0
-        self.c = p.speed_of_light # m/s
-        self.c_km_per_sec = p.speed_of_light / 1.0e3 # km/s
-        self.H_0 = 70.0 # km/s/Mpc
-        self.f_21 = 1420.40575177 # MHz
-        # Hubble Parameter at redshift z2
-        self.E_z2 = np.sqrt(self.Omega_m * (1.+self.z2)**3 + self.Omega_lambda)
+    def __init__(self):
+        
+        self.cosmo = Planck18
+        self.Om0 = self.cosmo.Om0
+        self.Ode0 = self.cosmo.Ode0
+        self.Ok0 = self.cosmo.Ok0
+        self.H0 = self.cosmo.H0
+        self.c = c.to('m/s')
+        self.f_21 = 1420.40575177 * units.MHz
+        
+    def f2z(self, f):
+        """
+        Convert a frequency ``f`` in Hz to redshift
+        relative to `self.f_21`.
+        
+        Parameters
+        ----------
+        f : float
+            Input frequency in Hz.
+            
+        Returns
+        -------
+        z : float
+            Redshift corresponding to frequency ``f``.
+        """
+        if not isinstance(f, Quantity):
+            f *= units.Hz
+        else:
+            f = f.to('Hz')
+        return (self.f_21/f - 1).value
+    
+    def z2f(self, z):
+        """
+        Convert a redshift ``z`` relative to `self.f_21`
+        to a frequency in Hz.
+        
+        Parameters
+        ----------
+        z : float
+            Input redshift.
+            
+        Returns
+        -------
+        f : float
+            Frequency corresponding to redshift ``z``.
+        """
+        return (self.f_21 / (1 + z)).to('Hz').value
 
     def dL_df(self, z):
         """
-        Comoving differential distance at redshift per frequency
-
-        [cMpc]/Hz
+        Comoving differential distance at redshift per frequency.
+        
+        Parameters
+        ----------
+        z : float
+            Input redshift.
+            
+        Returns
+        -------
+        dl_df : float
+            Conversion factor relating a bandwidth $\Delta f$
+            in Hz to a comoving size in Mpc at redshift ``z``.
         """
-        # Hubble parameter
-        E_z = np.sqrt(self.Omega_m * (1. + z)**3 + self.Omega_lambda)
-        fac = self.c_km_per_sec / (self.H_0 * E_z)
-        fac *= (1 + z)**2 / (self.f_21 * 1.0e6)
-        return fac
+        d_h = self.c.to('km/s') / self.H0 # Hubble distance
+        e_z = self.cosmo.efunc(z)
+        dl_df = d_h / e_z * (1 + z)**2 / self.f_21.to('Hz')
+        return dl_df.value
 
     def dL_dth(self, z):
         """
-        Comoving transverse distance per radian in Mpc
-
-        [cMpc]/radian
+        Comoving transverse distance per radian in Mpc.
+        
+        Parameters
+        ----------
+        z : float
+            Input redshift.
+            
+        Returns
+        -------
+        dl_dth : float
+            Conversion factor relating an angular size in
+            radians to a comoving transverse size in Mpc
+            at redshift ``z``.
         """
-        Comoving_Distance_Mpc, CD_uncertainty =\
-            integrate.quad(self.Comoving_Distance_Mpc_Integrand, 0, z)
-        return Comoving_Distance_Mpc
+        dl_dth = self.cosmo.comoving_transverse_distance(z)
+        return dl_dth.value
 
-    def X2Y(self, z):
+    def inst_to_cosmo_vol(self, z):
         """
-        Conversion factor for Mpc^3 --> sr Hz
+        Conversion factor to go from an instrumentally
+        sampled volume in sr Hz to a comoving cosmological
+        volume in Mpc^3.
+        
+        Parameters
+        ----------
+        z : float
+            Input redshift.
+            
+        Returns
+        -------
+        i2cV : float
+            Volume conversion factor for
+            sr Hz --> Mpc^3 at redshift z.
         """
-        return self.dL_dth(z)**2 * self.dL_df(z)
-
-
-    def Comoving_Distance_Mpc_Integrand(self, z, **kwargs):
-        # Hubble parameter
-        E_z = (self.Omega_m*((1.+z)**3) + self.Omega_lambda)**0.5
-        # Hubble distance in Mpc
-        self.Hubble_Distance = self.c_km_per_sec/self.H_0
-        return (self.Hubble_Distance/E_z)
-
-    ###
-    # Calculate 21cmFast Box size in degrees at a given redshift
-    ###
-    def Calculate_Comoving_Distance_Mpc_Between_Redshifts_z1_and_z2(
-            self, **kwargs):
-        self.Comoving_Distance_Mpc, self.Comoving_convergence_uncertainty =\
-            integrate.quad(
-                self.Comoving_Distance_Mpc_Integrand, self.z1, self.z2)
-        return self.Comoving_Distance_Mpc,\
-               self.Comoving_convergence_uncertainty
-
-    ###
-    # Calculate 21cmFast frequency depth at a given redshift
-    # using Morales & Hewitt 2004 eqn.
-    ###
-    def Convert_from_Comoving_Mpc_to_Delta_Frequency_at_Redshift_z2(
-            self, **kwargs):
-        # ===== Defaults =====
-        self.Box_Side_cMpc=3000.
-
-        # ===== Inputs =====
-        if 'Box_Side_cMpc' in kwargs:
-            self.Box_Side_cMpc=kwargs['Box_Side_cMpc']
-
-        if self.Print:
-            print('Convert_from_Comoving_Mpc_to_Delta_Frequency_at_Redshift_z2'
-                  ' at \nRedshift z =', self.z2,
-                  '\nBox depth in cMpc, Box_Side_cMpc =', self.Box_Side_cMpc)
-
-
-        self.Delta_f_MHz = (self.H_0*self.f_21*self.E_z2*self.Box_Side_cMpc /
-                            (self.c_km_per_sec * (1.+self.z2)**2.))
-        self.Delta_f_Hz = self.Delta_f_MHz * 1.e6
-
-        if self.Print:
-            print('Delta_f_MHz = ', self.Delta_f_MHz)
-        return self.Delta_f_MHz
-
-    ###
-    # Calculate 21cmFast k_parallel - space values
-    ###
-    def Convert_from_Tau_to_Kz(self, Tau_Array, **kwargs):
-        self.K_z_Array = (
-                ((2.*np.pi*self.H_0*self.f_21*self.E_z2) /
-                 (self.c_km_per_sec*(1.+self.z2)**2.)) *
-                Tau_Array)
-        return self.K_z_Array
-
-    ###
-    # Calculate 21cmFast k_perp - space values
-    ###
-    def Convert_from_U_to_Kx(self, U_Array, **kwargs):
-        Comoving_Distance_Mpc, Comoving_convergence_uncertainty =\
-            self.Calculate_Comoving_Distance_Mpc_Between_Redshifts_z1_and_z2()
-        # k_x in units of h cMPc^-1
-        self.K_x_Array = (2.*np.pi / Comoving_Distance_Mpc) * U_Array
-        return self.K_x_Array
-
-    ###
-    # Calculate 21cmFast k_perp - space values
-    ###
-    def Convert_from_V_to_Ky(self, V_Array, **kwargs):
-        Comoving_Distance_Mpc, Comoving_convergence_uncertainty =\
-            self.Calculate_Comoving_Distance_Mpc_Between_Redshifts_z1_and_z2()
-        # k_y in units of h cMPc^-1
-        self.K_y_Array = (2.*np.pi / Comoving_Distance_Mpc) * V_Array
-        return self.K_y_Array
-
-    ###
-    # Convert from Frequency to Redshift
-    ###
-    def Convert_from_21cmFrequency_to_Redshift(
-            self, Frequency_Array_MHz, **kwargs):
-        One_plus_z_Array = self.f_21 / Frequency_Array_MHz
-        self.z_Array = One_plus_z_Array - 1.
-        return self.z_Array
-
-    ###
-    # Convert from Redshift to Frequency
-    ###
-    def Convert_from_Redshift_to_21cmFrequency(self, Redshift, **kwargs):
-        One_plus_z = 1. + Redshift
-        self.redshifted_21cm_frequency = self.f_21 / One_plus_z
-        return self.redshifted_21cm_frequency
-
-    ###
-    # Calculate angular separation of 21cmFast box at a given redshift
-    ###
-    def Convert_from_Comoving_Mpc_to_Delta_Angle_at_Redshift_z2(self, **kwargs):
-        """
-            Angular diameter distance
-            An object of size x at redshift z that appears to have
-            angular size \delta\theta has the angular diameter distance
-            of d_A(z)=x/\delta\theta.
-
-            Angular diameter distance:
-            d_A(z)  = \frac{d_M(z)}{1+z}
-            with d_M(z) = Comoving_Distance_Mpc
-        """
-        # ===== Defaults =====
-        self.Box_Side_cMpc=3000.
-
-        # ===== Inputs =====
-        if 'Box_Side_cMpc' in kwargs:
-            self.Box_Side_cMpc=kwargs['Box_Side_cMpc']
-
-        Comoving_Distance_Mpc, Comoving_convergence_uncertainty =\
-            self.Calculate_Comoving_Distance_Mpc_Between_Redshifts_z1_and_z2()
-        angular_diameter_distance_Mpc = (Comoving_Distance_Mpc
-                                         / (1 + (self.z2-self.z1)))
-        Box_width_proper_distance_Mpc = (self.Box_Side_cMpc
-                                         / (1 + (self.z2-self.z1)))
-        if self.Print:
-            print('Convert_from_Comoving_Mpc_to_Delta_Angle_at_Redshift_z2 at'
-                  '\nRedshift z =',self.z2,
-                  '\nBox depth in cMpc, Box_Side_cMpc =', self.Box_Side_cMpc,
-                  '\nBox proper depth in Mpc, Box proper width =',
-                  Box_width_proper_distance_Mpc,
-                  '\nComoving distance between z1={} and z2={}: {}'\
-                  .format(self.z1,self.z2,Comoving_Distance_Mpc),
-                  '\nAngular diameter distance between z1={} and z2={}: {}'\
-                  .format(self.z1,self.z2,angular_diameter_distance_Mpc))
-
-        ###
-        # tan(theta) = Box_Side_cMpc/Comoving_Distance_Mpc
-        ###
-        # From Hogg 1999 (although no discussion of
-        # applicability for large theta there)
-        self.theta_rad = (Box_width_proper_distance_Mpc
-                          / angular_diameter_distance_Mpc)
-        self.theta_deg = self.theta_rad*180./np.pi
-        if self.Print:
-            print('theta_deg = ', self.theta_deg)
-        return self.theta_deg
+        i2cV = self.dL_dth(z)**2 * self.dL_df(z)
+        return i2cV
 
 
 def generate_output_file_base(file_root, **kwargs):

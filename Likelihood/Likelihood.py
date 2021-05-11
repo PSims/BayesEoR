@@ -120,6 +120,8 @@ class PowerSpectrumPosteriorProbability(object):
             default_fit_for_spectral_model_parameters)
         self.k_vals = kwargs.pop('k_vals')
         self.n_uniform_prior_k_bins = kwargs.pop('n_uniform_prior_k_bins')
+        self.ps_box_size_perp_Mpc = kwargs.pop('ps_box_size_perp_Mpc')
+        self.ps_box_size_para_Mpc = kwargs.pop('ps_box_size_para_Mpc')
 
         self.fit_single_elems = fit_single_elems
         self.T_Ninv_T = T_Ninv_T
@@ -158,6 +160,122 @@ class PowerSpectrumPosteriorProbability(object):
     def add_power_to_diagonals(self, T_Ninv_T_block, PhiI_block, **kwargs):
         return T_Ninv_T_block+np.diag(PhiI_block)
 
+    def calc_physical_dimensionless_power_spectral_normalisation(self, i_bin):
+        """
+        This normalization will calculate PowerI, an estimate for one over
+        the variance of a in units of 1 / (mK**2 sr**2 Hz**2).
+        
+        Parameters
+        ----------
+        i_bin : int
+            Input spherically averaged k-bin index.
+            
+        Returns
+        -------
+        dmps_norm : float
+            Dimensionless power spectrum normalization with units of
+            1 / (sr**2 Hz**2).
+        """
+        volume = self.ps_box_size_perp_Mpc**2 * self.ps_box_size_para_Mpc
+
+        # Normalization calculated relative to mean
+        # of vector k within the i_bin-th k-bin
+        dmps_norm = self.k_vals[i_bin]**3./(2*np.pi**2) / volume
+
+        # Redshift dependent quantities
+        nu_array_MHz = p.nu_min_MHz + np.arange(p.nf)*p.channel_width_MHz
+        cosmo = Cosmology()
+        z = cosmo.f2z(nu_array_MHz.mean()*1e6)
+        inst_to_cosmo_vol = cosmo.inst_to_cosmo_vol(z)
+        dmps_norm *= inst_to_cosmo_vol**2
+
+        return dmps_norm
+
+    def calc_PowerI(self, x, **kwargs):
+        """
+            Place restrictions on the power in the long spectral scale
+            model either for,
+            inverse_LW_power:
+                constrain the amplitude distribution of all of
+                the large spectral scale model components
+            inverse_LW_power_zeroth_LW_term:
+                constrain the amplitude of monopole-term basis vector
+            inverse_LW_power_first_LW_term:
+                constrain the amplitude of the model components
+                of the 1st LW basis vector (e.g. linear model comp.)
+            inverse_LW_power_second_LW_term:
+                constrain the amplitude of the model components
+                of the 2nd LW basis vector (e.g. quad model comp.)
+
+            Note: The indices used are correct for the current
+            ordering of basis vectors when nf is an even number...
+        """
+        PowerI = np.zeros(self.Npar)
+
+        if p.include_instrumental_effects:
+            # Updated for python 3: floor division
+            q0_index = self.neta//2
+        else:
+            # Updated for python 3: floor division
+            q0_index = self.nf//2 - 1
+        q1_index = self.neta
+        q2_index = self.neta + 1
+
+        # Constrain LW mode amplitude distribution
+        dimensionless_PS_scaling =\
+            self.calc_physical_dimensionless_power_spectral_normalisation(0)
+        if p.use_LWM_Gaussian_prior:
+            Fourier_mode_start_index = 3
+            # Set to zero for a uniform distribution
+            # Updated for python 3: floor division
+            # PowerI[self.nf//2 - 1 :: self.nf] =\
+            #     np.mean(dimensionless_PS_scaling) / x[0]
+            # # Updated for python 3: floor division
+            # PowerI[self.nf - 2 :: self.nf] =\
+            #     np.mean(dimensionless_PS_scaling) / x[1]
+            # # Updated for python 3: floor division
+            # PowerI[self.nf - 1 :: self.nf] =\
+            #     np.mean(dimensionless_PS_scaling) / x[2]
+            PowerI[q0_index :: self.neta+self.nq] =\
+                np.mean(dimensionless_PS_scaling) / x[0]
+            PowerI[q1_index :: self.neta+self.nq] =\
+                np.mean(dimensionless_PS_scaling) / x[1]
+            PowerI[q2_index :: self.neta+self.nq] =\
+                np.mean(dimensionless_PS_scaling) / x[2]
+        else:
+            Fourier_mode_start_index = 0
+            # Set to zero for a uniform distribution
+            PowerI[q0_index :: self.neta+self.nq] = self.inverse_LW_power
+            PowerI[q1_index :: self.neta+self.nq] = self.inverse_LW_power
+            PowerI[q2_index :: self.neta+self.nq] = self.inverse_LW_power
+
+            if self.inverse_LW_power == 0.0:
+                # Set to zero for a uniform distribution
+                PowerI[q0_index :: self.neta+self.nq] =\
+                    self.inverse_LW_power_zeroth_LW_term
+                PowerI[q1_index :: self.neta+self.nq] =\
+                    self.inverse_LW_power_first_LW_term
+                PowerI[q2_index :: self.neta+self.nq] =\
+                    self.inverse_LW_power_second_LW_term
+
+        if self.dimensionless_PS:
+            self.power_spectrum_normalisation_func =\
+                self.calc_physical_dimensionless_power_spectral_normalisation
+        else:
+            self.power_spectrum_normalisation_func =\
+                self.calc_Npix_physical_power_spectrum_normalisation
+
+        # Fit for Fourier mode power spectrum
+        for i_bin in range(len(self.k_cube_voxels_in_bin)):
+            power_spectrum_normalisation =\
+                self.power_spectrum_normalisation_func(i_bin)
+            # NOTE: fitting for power not std here
+            PowerI[self.k_cube_voxels_in_bin[i_bin]] =(
+                    power_spectrum_normalisation
+                    / x[Fourier_mode_start_index+i_bin])
+
+        return PowerI
+    
     def calc_Sigma_block_diagonals(self, T_Ninv_T, PhiI, **kwargs):
         PhiI_blocks = np.split(PhiI, self.nuv)
         Sigma_block_diagonals = np.array(
@@ -354,131 +472,6 @@ class PowerSpectrumPosteriorProbability(object):
                 print('GPU_error_flag = {}'.format(self.GPU_error_flag))
 
             return SigmaI_dbar, logdet_Magma_Sigma
-
-    def calc_physical_dimensionless_power_spectral_normalisation(
-            self, i_bin, **kwargs):
-        """
-        This normalization will calculate PowerI, an estimate for one over
-        the variance of a in units of 1 / (mK**2 sr**2 Hz**2)
-        """
-        # Temporary fix for varying the FoV while keeping the bandwidth fixed
-        VOLUME = p.box_size_21cmFAST_Mpc_sc**2 * 2048.0
-        # Frequency axis is truncated by p.nf
-        VOLUME *= 1.0 * p.nf / p.box_size_21cmFAST_pix_sc
-
-        full_power_spectrum_normalisation = 1.0 / (2.0*np.pi**2.*VOLUME)
-
-        # If using |vector k| in the normalization
-        # dimensionless_PS_scaling = (
-        #         self.modk_vis_ordered_list[i_bin]**3.
-        #         * full_power_spectrum_normalisation)
-        # If using mean k-bin centers in the normalization
-        dimensionless_PS_scaling = (
-                self.k_vals[i_bin]**3.
-                * full_power_spectrum_normalisation)
-
-        if not p.include_instrumental_effects:
-            # Account for / undo the extra (vfft1[0].size**0.5) scaling
-            # factor that is currently in the non-instrumental data
-            # creation functions
-            dimensionless_PS_scaling = (
-                    dimensionless_PS_scaling
-                    * float(p.box_size_21cmFAST_pix_sc)**2.)
-
-        # Redshift dependent quantities
-        nu_array_MHz = p.nu_min_MHz + np.arange(p.nf)*p.channel_width_MHz
-        cosmo = Cosmology()
-        redshift =\
-            cosmo.Convert_from_21cmFrequency_to_Redshift(nu_array_MHz.mean())
-        X2Y = cosmo.X2Y(redshift)
-        dimensionless_PS_scaling *= X2Y**2
-
-        return dimensionless_PS_scaling
-
-    def calc_PowerI(self, x, **kwargs):
-        """
-            Place restrictions on the power in the long spectral scale
-            model either for,
-            inverse_LW_power:
-                constrain the amplitude distribution of all of
-                the large spectral scale model components
-            inverse_LW_power_zeroth_LW_term:
-                constrain the amplitude of monopole-term basis vector
-            inverse_LW_power_first_LW_term:
-                constrain the amplitude of the model components
-                of the 1st LW basis vector (e.g. linear model comp.)
-            inverse_LW_power_second_LW_term:
-                constrain the amplitude of the model components
-                of the 2nd LW basis vector (e.g. quad model comp.)
-
-            Note: The indices used are correct for the current
-            ordering of basis vectors when nf is an even number...
-        """
-        PowerI = np.zeros(self.Npar)
-
-        if p.include_instrumental_effects:
-            # Updated for python 3: floor division
-            q0_index = self.neta//2
-        else:
-            # Updated for python 3: floor division
-            q0_index = self.nf//2 - 1
-        q1_index = self.neta
-        q2_index = self.neta + 1
-
-        # Constrain LW mode amplitude distribution
-        dimensionless_PS_scaling =\
-            self.calc_physical_dimensionless_power_spectral_normalisation(0)
-        if p.use_LWM_Gaussian_prior:
-            Fourier_mode_start_index = 3
-            # Set to zero for a uniform distribution
-            # Updated for python 3: floor division
-            # PowerI[self.nf//2 - 1 :: self.nf] =\
-            #     np.mean(dimensionless_PS_scaling) / x[0]
-            # # Updated for python 3: floor division
-            # PowerI[self.nf - 2 :: self.nf] =\
-            #     np.mean(dimensionless_PS_scaling) / x[1]
-            # # Updated for python 3: floor division
-            # PowerI[self.nf - 1 :: self.nf] =\
-            #     np.mean(dimensionless_PS_scaling) / x[2]
-            PowerI[q0_index :: self.neta+self.nq] =\
-                np.mean(dimensionless_PS_scaling) / x[0]
-            PowerI[q1_index :: self.neta+self.nq] =\
-                np.mean(dimensionless_PS_scaling) / x[1]
-            PowerI[q2_index :: self.neta+self.nq] =\
-                np.mean(dimensionless_PS_scaling) / x[2]
-        else:
-            Fourier_mode_start_index = 0
-            # Set to zero for a uniform distribution
-            PowerI[q0_index :: self.neta+self.nq] = self.inverse_LW_power
-            PowerI[q1_index :: self.neta+self.nq] = self.inverse_LW_power
-            PowerI[q2_index :: self.neta+self.nq] = self.inverse_LW_power
-
-            if self.inverse_LW_power == 0.0:
-                # Set to zero for a uniform distribution
-                PowerI[q0_index :: self.neta+self.nq] =\
-                    self.inverse_LW_power_zeroth_LW_term
-                PowerI[q1_index :: self.neta+self.nq] =\
-                    self.inverse_LW_power_first_LW_term
-                PowerI[q2_index :: self.neta+self.nq] =\
-                    self.inverse_LW_power_second_LW_term
-
-        if self.dimensionless_PS:
-            self.power_spectrum_normalisation_func =\
-                self.calc_physical_dimensionless_power_spectral_normalisation
-        else:
-            self.power_spectrum_normalisation_func =\
-                self.calc_Npix_physical_power_spectrum_normalisation
-
-        # Fit for Fourier mode power spectrum
-        for i_bin in range(len(self.k_cube_voxels_in_bin)):
-            power_spectrum_normalisation =\
-                self.power_spectrum_normalisation_func(i_bin)
-            # NOTE: fitting for power not std here
-            PowerI[self.k_cube_voxels_in_bin[i_bin]] =(
-                    power_spectrum_normalisation
-                    / x[Fourier_mode_start_index+i_bin])
-
-        return PowerI
 
     def posterior_probability(self, x, **kwargs):
         if self.debug:

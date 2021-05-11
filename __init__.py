@@ -17,7 +17,8 @@ from .Likelihood.Likelihood\
 
 from .Utils import\
     PriorC, generate_output_file_base, load_uvw_instrument_sampling_m,\
-    load_baseline_redundancy_array, write_log_file, vector_is_hermitian
+    load_baseline_redundancy_array, write_log_file, vector_is_hermitian,\
+    Cosmology
 
 from .GenerateForegroundCube import\
     generate_data_from_loaded_EoR_cube_v2d0,\

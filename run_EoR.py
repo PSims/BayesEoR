@@ -10,7 +10,7 @@ import os
 import time
 import ast
 import numpy as np
-
+from astropy import units
 
 # If False, skip mpi and other imports that can cause crashes in ipython
 # When running an analysis this should be True
@@ -263,8 +263,7 @@ if p.include_instrumental_effects:
     if 'noise_data_path' not in p.__dict__.keys():
         BM = BuildMatrices(
             array_save_directory, nu, nv, nx, ny,
-            n_vis, neta, nf, nq, sigma,
-            npl=npl,
+            n_vis, neta, nf, nq, sigma, npl=npl,
             uvw_multi_time_step_array_meters=\
                 uvw_multi_time_step_array_meters,
             uvw_multi_time_step_array_meters_vectorised=\
@@ -326,25 +325,45 @@ BM.build_minimum_sufficient_matrix_stack(
 #--------------------------------------------
 # Define power spectral bins and coordinate cubes
 #--------------------------------------------
+cosmo = Cosmology()
+# The box size parameters determine the side lengths of the
+# cosmological volume from which the power spectrum is estimated
+freqs_MHz = p.nu_min_MHz + np.arange(p.nf)*p.channel_width_MHz
+bandwidth_MHz = p.channel_width_MHz * p.nf
+redshift = cosmo.f2z((freqs_MHz.mean() * units.MHz).to('Hz'))
+ps_box_size_perp_Mpc = (
+    cosmo.dL_dth(redshift) * np.deg2rad(p.simulation_FoV_deg))
+ps_box_size_para_Mpc = (
+    cosmo.dL_df(redshift) * (bandwidth_MHz * 1e6))
 mod_k, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z =\
     generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(
         nu, nv, nx, ny, nf, neta,
-        p.box_size_21cmFAST_pix_sc,
-        p.box_size_21cmFAST_Mpc_sc
+        ps_box_size_perp_Mpc,
+        ps_box_size_para_Mpc
         )
 k = mod_k.copy()
 k_vis_ordered = k.T.flatten()
 k_x_masked = generate_masked_coordinate_cubes(
-    k_x, nu, nv, nx, ny, nf, neta, nq)
+    k_x, nu, nv, nx, ny, nf, neta, nq,
+    ps_box_size_perp_Mpc, ps_box_size_para_Mpc
+)
 k_y_masked = generate_masked_coordinate_cubes(
-    k_y, nu, nv, nx, ny, nf, neta, nq)
+    k_y, nu, nv, nx, ny, nf, neta, nq,
+    ps_box_size_perp_Mpc, ps_box_size_para_Mpc
+)
 k_z_masked = generate_masked_coordinate_cubes(
-    k_z, nu, nv, nx, ny, nf, neta, nq)
+    k_z, nu, nv, nx, ny, nf, neta, nq,
+    ps_box_size_perp_Mpc, ps_box_size_para_Mpc
+)
 mod_k_masked = generate_masked_coordinate_cubes(
-    mod_k, nu, nv, nx, ny, nf, neta, nq)
+    mod_k, nu, nv, nx, ny, nf, neta, nq,
+    ps_box_size_perp_Mpc, ps_box_size_para_Mpc
+)
 k_cube_voxels_in_bin, modkbins_containing_voxels = \
     generate_k_cube_model_spherical_binning_v2d1(
-        mod_k_masked, k_z_masked, nu, nv, nx, ny, nf, neta, nq)
+        mod_k_masked, k_z_masked, nu, nv, nx, ny, nf, neta, nq,
+        ps_box_size_perp_Mpc, ps_box_size_para_Mpc
+    )
 modk_vis_ordered_list = [
     mod_k_masked[k_cube_voxels_in_bin[i_bin]]
     for i_bin in range(len(k_cube_voxels_in_bin))
@@ -438,10 +457,6 @@ if p.include_instrumental_effects:
 
     if 'noise_data_path' not in p.__dict__.keys():
         EoR_noise_seed = p.noise_seed
-        # EoR_noise_seed = 742123
-        # EoR_noise_seed = 837463
-        # EoR_noise_seed = 938475
-        # EoR_noise_seed = 182654
         print('EoR_noise_seed =', EoR_noise_seed)
         # Assumes the instrument model contains duplicates of the
         # unphased uvw coordinates in each time entry of the
@@ -515,7 +530,9 @@ if small_cube:
         nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes,
         modk_vis_ordered_list, Ninv, d_Ninv_d, log_priors=False,
         intrinsic_noise_fitting=p.use_intrinsic_noise_fitting, k_vals=k_vals,
-        n_uniform_prior_k_bins=p.n_uniform_prior_k_bins
+        n_uniform_prior_k_bins=p.n_uniform_prior_k_bins,
+        ps_box_size_perp_Mpc=ps_box_size_perp_Mpc,
+        ps_box_size_para_Mpc=ps_box_size_para_Mpc
         )
 PSPP_block_diag = PowerSpectrumPosteriorProbability(
     T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin,
@@ -523,7 +540,9 @@ PSPP_block_diag = PowerSpectrumPosteriorProbability(
     modk_vis_ordered_list, Ninv, d_Ninv_d, block_T_Ninv_T=block_T_Ninv_T,
     Print=True, log_priors=False, k_vals=k_vals,
     intrinsic_noise_fitting=p.use_intrinsic_noise_fitting,
-    n_uniform_prior_k_bins=p.n_uniform_prior_k_bins
+    n_uniform_prior_k_bins=p.n_uniform_prior_k_bins,
+    ps_box_size_perp_Mpc=ps_box_size_perp_Mpc,
+    ps_box_size_para_Mpc=ps_box_size_para_Mpc
     )
 
 if small_cube:
@@ -675,7 +694,9 @@ PSPP_block_diag_Polychord = PowerSpectrumPosteriorProbability(
     modk_vis_ordered_list, Ninv, d_Ninv_d, block_T_Ninv_T=block_T_Ninv_T,
     log_priors=log_priors, dimensionless_PS=dimensionless_PS, Print=True,
     intrinsic_noise_fitting=p.use_intrinsic_noise_fitting, k_vals=k_vals,
-    n_uniform_prior_k_bins=p.n_uniform_prior_k_bins
+    n_uniform_prior_k_bins=p.n_uniform_prior_k_bins,
+    ps_box_size_perp_Mpc=ps_box_size_perp_Mpc,
+    ps_box_size_para_Mpc=ps_box_size_para_Mpc
     )
 if p.include_instrumental_effects and not zero_the_LW_modes:
     # Include minimal prior over LW modes required for numerical stability
