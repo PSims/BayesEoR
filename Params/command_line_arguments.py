@@ -83,12 +83,6 @@ def BayesEoRParser():
         help="Field of View of the sky model in degrees."
         )
     parser.add_argument(
-        '--box_size_21cmFAST_Mpc_sc',
-        type=int,
-        default=2048,
-        help="Transverse cosmological distance corresponding to FoV."
-        )
-    parser.add_argument(
         '--nside',
         type=int,
         default=256,
