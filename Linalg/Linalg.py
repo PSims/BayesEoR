@@ -502,7 +502,7 @@ def quadratic_array_linear_plus_quad_modes_only_v2(nf, nq=2, **kwargs):
     nu_array_MHz = (
             nu_min_MHz + np.arange(float(nf)) * channel_width_MHz)
     if nq == 1:
-        x = arange(nf) - nf/2.
+        x = np.arange(nf) - nf/2.
         quadratic_array[0] = x
         if npl == 1:
             m_pl = np.array(
@@ -516,7 +516,7 @@ def quadratic_array_linear_plus_quad_modes_only_v2(nf, nq=2, **kwargs):
             print('beta = ', beta, '\n')
 
     if nq == 2:
-        x = arange(nf) - nf/2.
+        x = np.arange(nf) - nf/2.
         quadratic_array[0] = x
         quadratic_array[1] = x**2
         if npl == 1:
@@ -548,7 +548,7 @@ def quadratic_array_linear_plus_quad_modes_only_v2(nf, nq=2, **kwargs):
             print('beta2 = ', beta[1], '\n')
 
     if nq == 3:
-        x = arange(nf) - nf/2.
+        x = np.arange(nf) - nf/2.
         quadratic_array[0] = x
         quadratic_array[1] = x**2
         quadratic_array[1] = x**3
@@ -609,10 +609,10 @@ def quadratic_array_linear_plus_quad_modes_only_v2(nf, nq=2, **kwargs):
             print('beta3 = ', beta[2], '\n')
 
     if nq == 4:
-        quadratic_array[0] = arange(nf)
-        quadratic_array[1] = arange(nf)**2.0
-        quadratic_array[2] = 1j*arange(nf)
-        quadratic_array[3] = 1j*arange(nf)**2
+        quadratic_array[0] = np.arange(nf)
+        quadratic_array[1] = np.arange(nf)**2.0
+        quadratic_array[2] = 1j*np.arange(nf)
+        quadratic_array[3] = 1j*np.arange(nf)**2
 
     return quadratic_array
 
@@ -716,7 +716,7 @@ def IDFT_Array_IDFT_1D_WQ(nf, neta, nq, **kwargs):
 
 # Gridding matrix functions
 def calc_vis_selection_numbers(nu, nv):
-    required_chan_order = arange(nu*nv).reshape(nu, nv)
+    required_chan_order = np.arange(nu*nv).reshape(nu, nv)
     visibility_spectrum_order = required_chan_order.T
     # Updated for python 3: floor division
     r = np.sqrt(
@@ -733,7 +733,7 @@ def calc_vis_selection_numbers(nu, nv):
 
 
 def calc_vis_selection_numbers_ZM(nu, nv):
-    required_chan_order = arange(nu*nv).reshape(nu, nv)
+    required_chan_order = np.arange(nu*nv).reshape(nu, nv)
     visibility_spectrum_order = required_chan_order.T
     # Updated for python 3: floor division
     r = np.sqrt(
@@ -751,7 +751,7 @@ def calc_vis_selection_numbers_ZM(nu, nv):
 
 def calc_vis_selection_numbers_SH(
         nu, nv, U_oversampling_Factor=1.0, V_oversampling_Factor=1.0):
-    required_chan_order = arange(nu*nv).reshape(nu, nv)
+    required_chan_order = np.arange(nu*nv).reshape(nu, nv)
     visibility_spectrum_order = required_chan_order.T
     # Updated for python 3: floor division
     r = np.sqrt(
@@ -904,7 +904,7 @@ def Calc_Indices_Centre_3x3_Grid(GridSize):
 
     LenX = LenY = GridLength
 
-    GridIndex = arange(LenX*LenY).reshape(LenX, LenY)
+    GridIndex = np.arange(LenX*LenY).reshape(LenX, LenY)
     Mask = zeros(LenX*LenY).reshape(LenX, LenY)
     # Updated for python 3: floor division
     Mask[
@@ -931,7 +931,7 @@ def Calc_Indices_Centre_NxN_Grid(GridSize, N):
     GridLength = int(GridSize**0.5)
     LenX = LenY = GridLength
 
-    GridIndex = arange(LenX*LenY).reshape(LenX, LenY)
+    GridIndex = np.arange(LenX*LenY).reshape(LenX, LenY)
     Mask = zeros(LenX*LenY).reshape(LenX, LenY)
     if N_is_Odd(N):
         # Updated for python 3: floor division
