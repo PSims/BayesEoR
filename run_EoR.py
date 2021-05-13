@@ -44,6 +44,7 @@ npl = p.npl
 nq = p.nq
 if nq > npl:
     nq = npl
+nsh = p.nsh
 
 # Improve numerical precision.
 # Can be used for improving numerical precision when

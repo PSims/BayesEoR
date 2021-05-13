@@ -27,6 +27,8 @@ nv = 9
 nx = 9
 ny = 9
 nq = 0
+# Number of subharmonic pixels
+nsh = 0
 
 ###
 # EoR sim params
