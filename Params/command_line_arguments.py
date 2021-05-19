@@ -122,6 +122,35 @@ def BayesEoRParser():
              " If passed, analysis will continue from the last checkpoint in "
              "the output file specified."
         )
+    parser.add_argument(
+        '--nu_sh',
+        type=int,
+        help="Number of pixels on a side for the u-axis in the subharmonic "
+             "model uv-plane."
+        )
+    parser.add_argument(
+        '--nv_sh',
+        type=int,
+        help="Number of pixels on a side for the v-axis in the subharmonic "
+             "model uv-plane."
+    )
+    parser.add_argument(
+        '--nq_sh',
+        type=int,
+        help="Number of large spectral scale quadratic modes for the "
+             "subharmonic grid."
+    )
+    parser.add_argument(
+        '--npl_sh',
+        type=int,
+        help="Number of power law coefficients used in the large spectral scale"
+             " model for the subharmonic grid."
+    )
+    parser.add_argument(
+        '--fit_for_shg_amps',
+        action='store_true',
+        help="If passed, fit for the amplitudes of the subharmonic grid pixels."
+    )
 
     args = parser.parse_args()
     return args

@@ -44,7 +44,10 @@ npl = p.npl
 nq = p.nq
 if nq > npl:
     nq = npl
-nsh = p.nsh
+nu_sh = p.nu_sh
+nv_sh = p.nv_sh
+nq_sh = p.nq_sh
+npl_sh = p.npl_sh
 
 # Improve numerical precision.
 # Can be used for improving numerical precision when
@@ -142,7 +145,7 @@ n_Fourier = (nu*nv - 1) * nf
 n_LW = (nu*nv - 1) * nq
 n_model = n_Fourier+n_LW
 n_dat = n_Fourier
-current_file_version = 'Likelihood_v2d4_3D_ZM'
+current_file_version = 'Likelihood_v2d5_3D_ZM'
 array_save_directory = (
     'array_storage/batch_1/'
     + '{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(
@@ -222,13 +225,13 @@ if p.fit_for_monopole:
             array_save_directory[:-1]
             + '_fit_for_monopole_eq_True/'
         )
-
+# nside modifier
 array_save_directory = (
         array_save_directory[:-1]
         + '_nside{}/'.format(p.nside)
         # + '_nside{}_healpix_coords/'.format(p.nside)
     )
-# Adding a FoV specific bit to the array save directory for FoV tests
+# FoV modifier
 array_save_directory = (
         array_save_directory[:-1]
         + '_fov_deg_{:.1f}/'.format(p.simulation_FoV_deg)
@@ -250,10 +253,23 @@ if p.beam_center is not None:
 if p.unphased:
     array_save_directory = array_save_directory[:-1] + '_unphased/'
 
-# Uncomment for tests where npix is not identical between nsides
-# array_save_directory = (
-#         array_save_directory[:-1] +
-#         '_fov_deg_{:.1f}_diff_npix/'.format(p.simulation_FoV_deg))
+# Subharmonic grid (SHG) modifiers
+use_shg = (
+    (nu_sh > 0 and nv_sh > 0)
+    or (nq_sh > 0
+    or npl_sh > 0)
+)
+if use_shg:
+    shg_str = '_SHG'
+    if nu_sh > 0:
+        shg_str += '_nu_sh_{}'.format(nu_sh)
+    if nv_sh > 0:
+        shg_str += '_nv_sh_{}'.format(nv_sh)
+    if nq_sh > 0:
+        shg_str += '_nq_sh_{}'.format(nq_sh)
+    if npl_sh > 0:
+        shg_str += '_npl_sh_{}'.format(npl_sh)
+    array_save_directory = array_save_directory[:-1] + shg_str + '/'
 
 print('\nArray save directory: {}'.format(array_save_directory))
 
@@ -279,7 +295,9 @@ if p.include_instrumental_effects:
             beam_center=p.beam_center,
             FWHM_deg_at_ref_freq_MHz=p.FWHM_deg_at_ref_freq_MHz,
             PB_ref_freq_MHz=p.PB_ref_freq_MHz,
-            antenna_diameter=p.antenna_diameter
+            antenna_diameter=p.antenna_diameter,
+            use_shg=use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
+            nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh, npl_sh=npl_sh
             )
     else:
         BM = BuildMatrices(
@@ -300,7 +318,9 @@ if p.include_instrumental_effects:
             FWHM_deg_at_ref_freq_MHz=p.FWHM_deg_at_ref_freq_MHz,
             PB_ref_freq_MHz=p.PB_ref_freq_MHz,
             antenna_diameter=p.antenna_diameter,
-            effective_noise=effective_noise
+            effective_noise=effective_noise,
+            use_shg=use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
+            nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh, npl_sh=npl_sh
             )
 else:
     BM = BuildMatrices(
@@ -343,7 +363,7 @@ mod_k, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z =\
         ps_box_size_para_Mpc
         )
 k = mod_k.copy()
-k_vis_ordered = k.T.flatten()
+k_vis_ordered = k.T.flatten() # not used for anything
 k_x_masked = generate_masked_coordinate_cubes(
     k_x, nu, nv, nx, ny, nf, neta, nq,
     ps_box_size_perp_Mpc, ps_box_size_para_Mpc

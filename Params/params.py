@@ -27,8 +27,11 @@ nv = 9
 nx = 9
 ny = 9
 nq = 0
-# Number of subharmonic pixels
-nsh = 0
+# Subharmonic grid (SHG) params
+nu_sh = 0
+nv_sh = 0
+nq_sh = 0
+npl_sh = 0
 
 ###
 # EoR sim params
