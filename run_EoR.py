@@ -269,6 +269,8 @@ if use_shg:
         shg_str += '_nq_sh_{}'.format(nq_sh)
     if npl_sh > 0:
         shg_str += '_npl_sh_{}'.format(npl_sh)
+    if p.fit_for_shg_amps:
+        shg_str += '_fit_for_shg_amps'
     array_save_directory = array_save_directory[:-1] + shg_str + '/'
 
 print('\nArray save directory: {}'.format(array_save_directory))
@@ -533,7 +535,7 @@ if p.use_LWM_Gaussian_prior:
     nDims += 3
 
 x = [100.e0]*nDims
-if p.fit_for_monopole:
+if p.fit_for_monopole and not use_shg:
     nuv = nu*nv
 else:
     nuv = nu*nv-1
@@ -768,17 +770,6 @@ else:
           'run_single_node_analysis is set to True'.format(mpi_size))
     print('run_single_node_analysis = {}'.format(run_single_node_analysis),
           end='\n\n')
-
-# import psutil
-# process = psutil.Process(os.getpid())
-# print('MaxRSS before log write = {} GB'.format(
-#     process.memory_info()[0] / 1.0e9))
-#
-# if MPI.COMM_WORLD.Get_rank() == 0:
-# 	write_log_file(array_save_directory, file_root)
-#
-# print('MaxRSS after log write = {} GB'.format(
-#     process.memory_info()[0] / 1.0e9))
 
 if run_single_node_analysis or mpi_size > 1:
     # Write log file
