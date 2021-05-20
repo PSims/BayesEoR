@@ -535,7 +535,7 @@ if p.use_LWM_Gaussian_prior:
     nDims += 3
 
 x = [100.e0]*nDims
-if p.fit_for_monopole and not use_shg:
+if p.fit_for_monopole:
     nuv = nu*nv
 else:
     nuv = nu*nv-1
@@ -705,6 +705,11 @@ if p.file_root is None:
         file_root = file_root.replace('Test', 'EoR')
     if use_MultiNest:
         file_root = 'MN-' + file_root
+    if use_shg:
+        file_root += 'SHG_{}_{}_{}_{}-'.format(
+            nu_sh, nv_sh, nq_sh, npl_sh)
+        if p.fit_for_shg_amps:
+            file_root += 'ffsa-'
 
     file_root = generate_output_file_base(file_root, version_number='1')
 else:

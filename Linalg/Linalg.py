@@ -275,6 +275,8 @@ def IDFT_Array_IDFT_2D_ZM(
     sampled_lm_coords_radians : np.ndarray of floats
         Array with shape (npix, 2) containing the (l, m) coordinates
         of the image space HEALPix model in units of radians.
+    exclude_mean : boolean
+        If True, exclude the (u, v) = (0, 0) pixel.
     U_oversampling_Factor : float
         Factor by which the subharmonic grid is oversampled relative
         to the coarse grid along the u-axis.
@@ -304,25 +306,9 @@ def IDFT_Array_IDFT_2D_ZM(
     # wavelengths by multiplying by the uv pixel area
     i_u_AV = i_u_AV.astype('float') * p.uv_pixel_width_wavelengths
     i_v_AV = i_v_AV.astype('float') * p.uv_pixel_width_wavelengths
-    # This formulation expects (l, m) and (u, v)
-    # in radians and wavelengths, respectively
     # Sign change for consistency, Finv chosen to
     # have + to match healvis
-    ExponentArray = np.exp(
-        -2.0*np.pi*1j*(
-                (i_x_AV*i_u_AV)
-                + (i_v_AV*i_y_AV)
-            )
-        )
-
-    # This formulation expects (l, m) and (u, v) in pixel units
-    # Updated for python 3: float division is default
-    # ExponentArray = np.exp(
-    # 	-2.0*np.pi*1j*(
-    # 			(i_x_AV*i_u_AV / nu)
-    # 			+ (i_v_AV*i_y_AV / nv)
-    # 		)
-    # 	)
+    ExponentArray = np.exp(-2.0*np.pi*1j*(i_x_AV*i_u_AV + i_v_AV*i_y_AV))
 
     ExponentArray /= (
             nu*U_oversampling_Factor
@@ -331,12 +317,13 @@ def IDFT_Array_IDFT_2D_ZM(
     return ExponentArray.T
 
 
-def IDFT_Array_IDFT_2D_ZM_SH(nu_sh, nv_sh, sampled_lm_coords_radians):
+def IDFT_Array_IDFT_2D_ZM_SH(
+        nu_sh, nv_sh, sampled_lm_coords_radians, exclude_mean=True):
     """
     Generates a non-uniform (might want to update the function name)
     inverse DFT matrix that goes from subharmonic grid (SHG) model (u, v) to
     HEALPix (l, m) pixel centers.  Includes the (u, v) = (0, 0) pixel
-    if `fit_for_monopole` = True.
+    if `exclude_mean` = False.
 
     Used in the construction of `Fprime` if using the SHG.
 
@@ -346,18 +333,17 @@ def IDFT_Array_IDFT_2D_ZM_SH(nu_sh, nv_sh, sampled_lm_coords_radians):
         Number of pixels on a side for the u-axis in the SH model uv-plane.
     nv_sh : int
         Number of pixels on a side for the v-axis in the SH model uv-plane.
-    sampled_lm_coords_radians : np.ndarray of floats
-        Array with shape (npix, 2) containing the (l, m) coordinates
-        of the image space HEALPix model in units of radians.
+    sampled_lm_coords_radians : array_like, shape (nhpx, 2)
+        Array containing the (l, m) coordinates of the image space HEALPix
+        model in units of radians.
+    exclude_mean : boolean
+        If True, exclude the (u, v) = (0, 0) pixel from the SHG.
 
     Returns
     -------
-    ExponentArray : np.ndarray of complex floats
-        Non-uniform 2D DFT matrix with shape (npix, nuv).
+    ExponentArray : np.ndarray, shape (npix, nuv_sh)
+        Non-uniform, complex 2D DFT matrix.
     """
-    exclude_mean = True
-    if p.fit_for_monopole:
-        exclude_mean = False
     u_vec, v_vec =\
         Produce_Coordinate_Arrays_ZM_SH(nu_sh, nv_sh, exclude_mean=exclude_mean)
 
@@ -378,9 +364,7 @@ def IDFT_Array_IDFT_2D_ZM_SH(nu_sh, nv_sh, sampled_lm_coords_radians):
 
     # Sign change for consistency, Finv chosen to
     # have + to match healvis
-    ExponentArray = np.exp(
-        -2.0*np.pi*1j*(x_vec*u_vec + y_vec*v_vec)
-        )
+    ExponentArray = np.exp(-2.0*np.pi*1j*(x_vec*u_vec + y_vec*v_vec))
 
     return ExponentArray
 
