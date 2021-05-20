@@ -152,6 +152,58 @@ array_save_directory = (
         current_file_version, nu, nv, neta, nq, npl, sigma).replace('.', 'd')
     )
 
+if p.fit_for_monopole:
+    array_save_directory = (
+            array_save_directory[:-1]
+            + '_fit_for_monopole/'
+        )
+# nside modifier
+array_save_directory = (
+        array_save_directory[:-1]
+        + '_nside{}/'.format(p.nside)
+    )
+# FoV modifier
+array_save_directory = (
+        array_save_directory[:-1]
+        + '_fov_deg_{:.1f}/'.format(p.simulation_FoV_deg)
+    )
+# Append a beam center classifier
+if p.beam_center is not None:
+    beam_center_signs = [
+        '+' if p.beam_center[i] >= 0 else '' for i in range(2)
+        ]
+    beam_center_str = \
+        '_beam_center_RA0{}{:.2f}_DEC0{}{:.2f}'.format(
+            beam_center_signs[0],
+            p.beam_center[0],
+            beam_center_signs[1],
+            p.beam_center[1]
+            )
+    array_save_directory = array_save_directory[:-1] + beam_center_str + '/'
+
+if p.unphased:
+    array_save_directory = array_save_directory[:-1] + '_unphased/'
+
+# Subharmonic grid (SHG) modifiers
+use_shg = (
+    (nu_sh > 0 and nv_sh > 0)
+    or (nq_sh > 0
+    or npl_sh > 0)
+)
+if use_shg:
+    shg_str = '_SHG'
+    if nu_sh > 0:
+        shg_str += '_nu_sh_{}'.format(nu_sh)
+    if nv_sh > 0:
+        shg_str += '_nv_sh_{}'.format(nv_sh)
+    if nq_sh > 0:
+        shg_str += '_nq_sh_{}'.format(nq_sh)
+    if npl_sh > 0:
+        shg_str += '_npl_sh_{}'.format(npl_sh)
+    if p.fit_for_shg_amps:
+        shg_str += '_ffsa'
+    array_save_directory = array_save_directory[:-1] + shg_str + '/'
+
 if p.include_instrumental_effects:
     beam_info_str = ''
     if p.beam_type.lower() == 'uniform':
@@ -219,59 +271,6 @@ elif npl == 2:
         '_sigma',
         '_b1_{:.2E}_b2_{:.2E}_sigma'.format(p.beta[0], p.beta[1])
         )
-
-if p.fit_for_monopole:
-    array_save_directory = (
-            array_save_directory[:-1]
-            + '_fit_for_monopole_eq_True/'
-        )
-# nside modifier
-array_save_directory = (
-        array_save_directory[:-1]
-        + '_nside{}/'.format(p.nside)
-        # + '_nside{}_healpix_coords/'.format(p.nside)
-    )
-# FoV modifier
-array_save_directory = (
-        array_save_directory[:-1]
-        + '_fov_deg_{:.1f}/'.format(p.simulation_FoV_deg)
-    )
-# Append a beam center classifier
-if p.beam_center is not None:
-    beam_center_signs = [
-        '+' if p.beam_center[i] >= 0 else '' for i in range(2)
-        ]
-    beam_center_str = \
-        '_beam_center_RA0{}{:.2f}_DEC0{}{:.2f}'.format(
-            beam_center_signs[0],
-            p.beam_center[0],
-            beam_center_signs[1],
-            p.beam_center[1]
-            )
-    array_save_directory = array_save_directory[:-1] + beam_center_str + '/'
-
-if p.unphased:
-    array_save_directory = array_save_directory[:-1] + '_unphased/'
-
-# Subharmonic grid (SHG) modifiers
-use_shg = (
-    (nu_sh > 0 and nv_sh > 0)
-    or (nq_sh > 0
-    or npl_sh > 0)
-)
-if use_shg:
-    shg_str = '_SHG'
-    if nu_sh > 0:
-        shg_str += '_nu_sh_{}'.format(nu_sh)
-    if nv_sh > 0:
-        shg_str += '_nv_sh_{}'.format(nv_sh)
-    if nq_sh > 0:
-        shg_str += '_nq_sh_{}'.format(nq_sh)
-    if npl_sh > 0:
-        shg_str += '_npl_sh_{}'.format(npl_sh)
-    if p.fit_for_shg_amps:
-        shg_str += '_ffsa'
-    array_save_directory = array_save_directory[:-1] + shg_str + '/'
 
 print('\nArray save directory: {}'.format(array_save_directory))
 
