@@ -1532,7 +1532,8 @@ class BuildMatrices(BuildMatrixTree):
                 self.overwrite_existing_matrix_stack)
         # Build matrices
         self.build_matrix_if_it_doesnt_already_exist('T_Ninv_T')
-        self.build_matrix_if_it_doesnt_already_exist('block_T_Ninv_T')
+        if not p.include_instrumental_effects:
+            self.build_matrix_if_it_doesnt_already_exist('block_T_Ninv_T')
         self.build_matrix_if_it_doesnt_already_exist('N')
         if matrix_stack_dir_exists and self.overwrite_existing_matrix_stack:
             if not self.proceed_without_overwrite_confirmation:
