@@ -193,49 +193,47 @@ class PowerSpectrumPosteriorProbability(object):
 
     def calc_PowerI(self, x, **kwargs):
         """
-            Place restrictions on the power in the long spectral scale
-            model either for,
-            inverse_LW_power:
-                constrain the amplitude distribution of all of
-                the large spectral scale model components
-            inverse_LW_power_zeroth_LW_term:
-                constrain the amplitude of monopole-term basis vector
-            inverse_LW_power_first_LW_term:
-                constrain the amplitude of the model components
-                of the 1st LW basis vector (e.g. linear model comp.)
-            inverse_LW_power_second_LW_term:
-                constrain the amplitude of the model components
-                of the 2nd LW basis vector (e.g. quad model comp.)
+        Calculate an estimate of the variance of the k-cube (uveta cube) from
+        a set of power spectrum k-bin amplitudes `x`.
 
-            Note: The indices used are correct for the current
-            ordering of basis vectors when nf is an even number...
+        Place restrictions on the power in the long spectral scale
+        model either for,
+
+        Parameters
+        ----------
+        x : array_like, shape (nDims,)
+        inverse_LW_power: float
+            Constrains the amplitude distribution of all of
+            the large spectral scale model components.
+        inverse_LW_power_zeroth_LW_term: float
+            Constrains the amplitude of monopole-term basis vector.
+        inverse_LW_power_first_LW_term: float
+            Constrains the amplitude of the model components
+            of the 1st LW basis vector (e.g. linear model comp.).
+        inverse_LW_power_second_LW_term: float
+            Constrains the amplitude of the model components
+            of the 2nd LW basis vector (e.g. quad model comp.).
+
+        Notes
+        -----
+        The indices used are correct for the current
+        ordering of basis vectors when nf is an even number...
         """
         PowerI = np.zeros(self.Npar)
 
         if p.include_instrumental_effects:
-            # Updated for python 3: floor division
             q0_index = self.neta//2
         else:
-            # Updated for python 3: floor division
             q0_index = self.nf//2 - 1
         q1_index = self.neta
         q2_index = self.neta + 1
+        # Add code to index the LSSM in the SHG
 
         # Constrain LW mode amplitude distribution
         dimensionless_PS_scaling =\
             self.calc_physical_dimensionless_power_spectral_normalisation(0)
         if p.use_LWM_Gaussian_prior:
             Fourier_mode_start_index = 3
-            # Set to zero for a uniform distribution
-            # Updated for python 3: floor division
-            # PowerI[self.nf//2 - 1 :: self.nf] =\
-            #     np.mean(dimensionless_PS_scaling) / x[0]
-            # # Updated for python 3: floor division
-            # PowerI[self.nf - 2 :: self.nf] =\
-            #     np.mean(dimensionless_PS_scaling) / x[1]
-            # # Updated for python 3: floor division
-            # PowerI[self.nf - 1 :: self.nf] =\
-            #     np.mean(dimensionless_PS_scaling) / x[2]
             PowerI[q0_index :: self.neta+self.nq] =\
                 np.mean(dimensionless_PS_scaling) / x[0]
             PowerI[q1_index :: self.neta+self.nq] =\
@@ -248,6 +246,7 @@ class PowerSpectrumPosteriorProbability(object):
             PowerI[q0_index :: self.neta+self.nq] = self.inverse_LW_power
             PowerI[q1_index :: self.neta+self.nq] = self.inverse_LW_power
             PowerI[q2_index :: self.neta+self.nq] = self.inverse_LW_power
+            # Set LW prior on SHG LSSM modes
 
             if self.inverse_LW_power == 0.0:
                 # Set to zero for a uniform distribution
