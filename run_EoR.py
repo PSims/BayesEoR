@@ -270,7 +270,7 @@ if use_shg:
     if npl_sh > 0:
         shg_str += '_npl_sh_{}'.format(npl_sh)
     if p.fit_for_shg_amps:
-        shg_str += '_fit_for_shg_amps'
+        shg_str += '_ffsa'
     array_save_directory = array_save_directory[:-1] + shg_str + '/'
 
 print('\nArray save directory: {}'.format(array_save_directory))
