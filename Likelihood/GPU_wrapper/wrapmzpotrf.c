@@ -16,9 +16,9 @@ void cpu_interface( int n, int nrhs , magmaDoubleComplex *A1, magmaDoubleComplex
 {
 	magma_init();
 	magma_int_t lda  = n;
-	magma_int_t ldb  = lda;
+	// magma_int_t ldb  = lda;
 	magma_int_t info = 0;
-	char UL='L';
+	// char UL='L';
 
 	if (Print != 0){
 		printf( "using MAGMA CPU interface\n" );
@@ -44,6 +44,7 @@ void cpu_interface( int n, int nrhs , magmaDoubleComplex *A1, magmaDoubleComplex
 	}
 
 	info = 0;
+	/*
 	if (Print != 0){
 		printf( "about to run zpotrs...\n" );
 	}
@@ -57,6 +58,7 @@ void cpu_interface( int n, int nrhs , magmaDoubleComplex *A1, magmaDoubleComplex
 	if (info != 0){
 		printf("zpotrs returned error %d: %s.\n", (int) info, magma_strerror( info ));
 	}
+	*/
 
 	magma_finalize();
 }
