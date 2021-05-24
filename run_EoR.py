@@ -681,21 +681,19 @@ if overwrite_data_with_WN:
 zero_the_LW_modes = False
 
 if p.file_root is None:
-    file_root = 'Test-{}_{}_{}_{}_{}_s_{:.1E}-lp_F-dPS_F-'.format(
+    file_root = 'Test-{}_{}_{}_{}_{}_{:.1E}-'.format( # lp_F-dPS_F-
         nu, nv, neta, nq, npl, sigma).replace('.', 'd')
     if chan_selection != '':
         file_root = chan_selection + file_root
     if npl == 1:
-        file_root = file_root.replace('-dPS_F',
-                                      '-dPS_F-beta_{:.2E}'.format(p.beta))
-    if npl == 2:
-        file_root = file_root.replace(
-            '-dPS_F',
-            '-dPS_F_b1_{:.2F}_b2_{:.2F}'.format(p.beta[0], p.beta[1]))
-    if log_priors:
-        file_root = file_root.replace('lp_F', 'lp_T')
+        file_root += '{:.2E}-'.format(p.beta)
+    elif npl == 2:
+        file_root += (
+            '{:.2F}_{:.2F}-'.format(p.beta[0], p.beta[1]))
+    if log_priors and p.n_uniform_prior_k_bins == 0:
+        file_root += 'lp-'
     if dimensionless_PS:
-        file_root = file_root.replace('dPS_F', 'dPS_T')
+        file_root += 'dPS-'
     if nq == 0:
         file_root = file_root.replace('mini-', 'mini-NQ-')
     elif zero_the_LW_modes:
@@ -705,7 +703,7 @@ if p.file_root is None:
     if use_MultiNest:
         file_root = 'MN-' + file_root
     if use_shg:
-        file_root += 'SHG_{}_{}_{}_{}-'.format(
+        file_root += 'SH_{}_{}_{}_{}-'.format(
             nu_sh, nv_sh, nq_sh, npl_sh)
         if p.fit_for_shg_amps:
             file_root += 'ffsa-'
