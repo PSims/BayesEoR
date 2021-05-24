@@ -48,6 +48,11 @@ nu_sh = p.nu_sh
 nv_sh = p.nv_sh
 nq_sh = p.nq_sh
 npl_sh = p.npl_sh
+use_shg = nu_sh > 0 and nv_sh > 0
+if use_shg:
+    nuv_sh = nu_sh*nv_sh - 1
+else:
+    nuv_sh = None
 
 # Improve numerical precision.
 # Can be used for improving numerical precision when
@@ -185,11 +190,6 @@ if p.unphased:
     array_save_directory = array_save_directory[:-1] + '_unphased/'
 
 # Subharmonic grid (SHG) modifiers
-use_shg = (
-    (nu_sh > 0 and nv_sh > 0)
-    or (nq_sh > 0
-    or npl_sh > 0)
-)
 if use_shg:
     shg_str = '_SHG'
     if nu_sh > 0:
@@ -687,11 +687,11 @@ if p.file_root is None:
         file_root = chan_selection + file_root
     if npl == 1:
         file_root = file_root.replace('-dPS_F',
-                                      '-dPS_F-beta_{:.2E}-v1'.format(p.beta))
+                                      '-dPS_F-beta_{:.2E}'.format(p.beta))
     if npl == 2:
         file_root = file_root.replace(
             '-dPS_F',
-            '-dPS_F_b1_{:.2F}_b2_{:.2F}-v1'.format(p.beta[0], p.beta[1]))
+            '-dPS_F_b1_{:.2F}_b2_{:.2F}'.format(p.beta[0], p.beta[1]))
     if log_priors:
         file_root = file_root.replace('lp_F', 'lp_T')
     if dimensionless_PS:
@@ -709,7 +709,7 @@ if p.file_root is None:
             nu_sh, nv_sh, nq_sh, npl_sh)
         if p.fit_for_shg_amps:
             file_root += 'ffsa-'
-
+    file_root += 'v1-'
     file_root = generate_output_file_base(file_root, version_number='1')
 else:
     file_root = p.file_root
@@ -723,7 +723,9 @@ PSPP_block_diag_Polychord = PowerSpectrumPosteriorProbability(
     intrinsic_noise_fitting=p.use_intrinsic_noise_fitting, k_vals=k_vals,
     n_uniform_prior_k_bins=p.n_uniform_prior_k_bins,
     ps_box_size_perp_Mpc=ps_box_size_perp_Mpc,
-    ps_box_size_para_Mpc=ps_box_size_para_Mpc
+    ps_box_size_para_Mpc=ps_box_size_para_Mpc,
+    use_shg=use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
+    nuv_sh=nuv_sh, nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh
     )
 if p.include_instrumental_effects and not zero_the_LW_modes:
     # Include minimal prior over LW modes required for numerical stability
@@ -750,6 +752,8 @@ if p.useGPU:
     for _ in range(Nit):
         # L =  PSPP_block_diag_Polychord.posterior_probability([3.e0]*nDims)[0]
         L = PSPP_block_diag_Polychord.posterior_probability(x_bad)[0]
+        if not np.isfinite(L):
+            print('WARNING: Infinite value returned in posterior calculation!')
     print('Average evaluation time: {}'.format((time.time() - start)/float(Nit)),
           end='\n\n')
 
