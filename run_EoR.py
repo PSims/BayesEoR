@@ -143,7 +143,6 @@ else:
 
 # Auxiliary and derived params
 small_cube = nu <= 7 and nv <= 7
-nuv = (nu*nv - 1)
 Show = False
 chan_selection = ''
 n_Fourier = (nu*nv - 1) * nf
