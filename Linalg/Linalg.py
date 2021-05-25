@@ -49,7 +49,7 @@ def make_Uniform_beam(image_size_pix, beam_peak_amplitude=1.0):
 
 
 # FT array coordinate functions
-def Produce_Coordinate_Arrays_ZM(nu, nv, **kwargs):
+def Produce_Coordinate_Arrays_ZM(nu, nv, nx=None, ny=None, exclude_mean=True):
     """
     Creates vectorized arrays of 2D grid coordinates for the rectilinear
     model uv-plane and, if nx and ny are passed, and the rectilinear
@@ -63,79 +63,36 @@ def Produce_Coordinate_Arrays_ZM(nu, nv, **kwargs):
         Number of pixels on a side for the v-axis in the model uv-plane.
     nx : int
         Number of pixels on a side for the l-axis in the lm-space
-        sky model. Defaults to None.
+        sky model. Defaults to None. (Deprecated).
     ny : int
         Number of pixels on a side for the m-axis in the lm-space
-        sky model. Defaults to None.
+        sky model. Defaults to None. (Deprecated).
     exclude_mean : bool
         If True, remove the (u, v) = (0, 0) pixel from the model
         uv-plane coordinate arrays. Defaults to True.
     """
-    # ===== Defaults =====
-    default_exclude_mean = True
-    default_nx = None
-    default_ny = None
+    us, vs = np.meshgrid(np.arange(nu) - nu//2, np.arange(nv) - nv//2)
+    us_vec = us.flatten().reshape(1, nu*nv)
+    vs_vec = vs.flatten().reshape(1, nu*nv)
 
-    # ===== Inputs =====
-    exclude_mean = kwargs.pop('exclude_mean', default_exclude_mean)
-    nx = kwargs.pop('nx', default_nx)
-    ny = kwargs.pop('ny', default_ny)
-
-    if ny is not None:
-        # Updated for python 3: floor division
-        i_y_Vector = (np.arange(ny) - ny//2)
-        i_y_Vector = i_y_Vector.reshape(1, ny)
-        i_y_Array = np.tile(i_y_Vector, ny)
-        i_y_Array_Vectorised = i_y_Array.reshape(nx*ny, 1)
-        i_y_AV = i_y_Array_Vectorised
-
-    if nx is not None:
-        # Updated for python 3: floor division
-        i_x_Vector = (np.arange(nx) - nx//2)
-        i_x_Vector = i_x_Vector.reshape(nx, 1)
-        i_x_Array = np.tile(i_x_Vector, nx)
-        i_x_Array_Vectorised = i_x_Array.reshape(nx*ny, 1)
-        i_x_AV = i_x_Array_Vectorised
-
-    # Updated for python 3: floor division
-    i_v_Vector = (np.arange(nu) - nu//2)
-    i_v_Vector = i_v_Vector.reshape(1, nu)
-    i_v_Array = np.tile(i_v_Vector, nv)
-    i_v_Array_Vectorised = i_v_Array.reshape(1, nu*nv)
-    i_v_AV = i_v_Array_Vectorised
     if exclude_mean:
-        i_v_AV = np.delete(i_v_AV, [i_v_AV.size//2]) # Remove the centre uv-pix
+        us_vec = np.delete(us_vec, (nu*nv)//2, axis=1)
+        vs_vec = np.delete(vs_vec, (nu*nv)//2, axis=1)
 
-    # Updated for python 3: floor division
-    i_u_Vector = (np.arange(nv) - nv//2)
-    i_u_Vector = i_u_Vector.reshape(nv, 1)
-    i_u_Array = np.tile(i_u_Vector, nu)
-    i_u_Array_Vectorised = i_u_Array.reshape(1, nv*nu)
-    i_u_AV = i_u_Array_Vectorised
-    if exclude_mean:
-        i_u_AV = np.delete(i_u_AV, [i_u_AV.size//2]) # Remove the centre uv-pix
-
-    # ExponentArray calculated as
-    # 	np.exp(-2.0*np.pi*1j*(
-    # 			(i_x_AV*i_u_AV/float(nx))
-    # 			+  (i_v_AV*i_y_AV/float(ny)) ))
-    if not (nx is None or ny is None):
-        return i_x_AV, i_y_AV, i_u_AV, i_v_AV
-    else:
-        return i_u_AV, i_v_AV
+    return us_vec, vs_vec
 
 
 def Produce_Coordinate_Arrays_ZM_SH(
-        nu_sh, nv_sh, exclude_mean=True, spacing='linear'):
+        nu, nv, exclude_mean=True, spacing='linear'):
     """
     Creates vectorized arrays of 2D subharmonic grid (SHG) coordinates for the
     model uv-plane.
 
     Parameters
     ----------
-    nu_sh : int
+    nu : int
         Number of pixels on a side for the u-axis in the SH model uv-plane.
-    nv_sh : int
+    nv : int
         Number of pixels on a side for the v-axis in the SH model uv-plane.
     exclude_mean : bool
         If True, remove the (u, v) = (0, 0) pixel from the SH model
@@ -143,23 +100,16 @@ def Produce_Coordinate_Arrays_ZM_SH(
     spacing : str
         Needs development. Can be 'linear' or 'log' spacing of the SHG pixels.
     """
-    i_v_Vector = (np.arange(nu_sh) - nu_sh//2)
-    i_v_Vector = i_v_Vector.reshape(1, nu_sh)
-    i_v_Array = np.tile(i_v_Vector, nv_sh)
-    i_v_Array_Vectorised = i_v_Array.reshape(1, nu_sh*nv_sh)
-    i_v_AV = i_v_Array_Vectorised
-    if exclude_mean:
-        i_v_AV = np.delete(i_v_AV, [i_v_AV.size//2]) # Remove the centre uv-pix
+    # Assuming uniform spacing for now
+    us, vs = np.meshgrid(np.arange(nu) - nu//2, np.arange(nv) - nv//2)
+    us_vec = us.flatten().reshape(1, nu*nv)
+    vs_vec = vs.flatten().reshape(1, nu*nv)
 
-    i_u_Vector = (np.arange(nv_sh) - nv_sh//2)
-    i_u_Vector = i_u_Vector.reshape(nv_sh, 1)
-    i_u_Array = np.tile(i_u_Vector, nu_sh)
-    i_u_Array_Vectorised = i_u_Array.reshape(1, nv_sh*nu_sh)
-    i_u_AV = i_u_Array_Vectorised
     if exclude_mean:
-        i_u_AV = np.delete(i_u_AV, [i_u_AV.size//2]) # Remove the centre uv-pix
+        us_vec = np.delete(us_vec, (nu*nv)//2, axis=1)
+        vs_vec = np.delete(vs_vec, (nu*nv)//2, axis=1)
 
-    return i_u_AV, i_v_AV
+    return us_vec, vs_vec
 
 
 # Finv functions
@@ -701,7 +651,7 @@ def idft_array_idft_1d_sh(
 
 # Gridding matrix functions
 def calc_vis_selection_numbers(nu, nv):
-    required_chan_order = np.arange(nu*nv).reshape(nu, nv)
+    required_chan_order = np.arange(nu*nv).reshape(nv, nu)
     visibility_spectrum_order = required_chan_order.T
     # Updated for python 3: floor division
     r = np.sqrt(
@@ -758,10 +708,30 @@ def calc_vis_selection_numbers_SH(
 
 def generate_gridding_matrix_vis_ordered_to_chan_ordered(
         nu, nv, nf, exclude_mean=True):
-    if exclude_mean:
-        vis_grab_order = calc_vis_selection_numbers_ZM(nu, nv)
-    else:
-        vis_grab_order = calc_vis_selection_numbers(nu, nv)
+    """
+    Generates a matrix which transforms a visibility ordered vector to a
+    channel ordered vector.
+
+    Parameters
+    ----------
+    nu : int
+        Number of pixels on a side for the u-axis in the model uv-plane.
+    nv : int
+        Number of pixels on a side for the v-axis in the model uv-plane.
+    nf : int
+        Number of frequency channels.
+    exclude_mean : bool
+        If True, excludes the (u, v) = (0, 0) pixel from the model
+        uv-plane coordinate arrays. Defaults to True.
+
+    Returns
+    -------
+    gridding_matrix_vis_ordered_to_chan_ordered : np.ndarray
+        Array containing the mapping from visibility ordering to channel
+        ordering.
+    """
+    nuv = nu*nv - exclude_mean
+    vis_grab_order = np.arange(nuv)
     vals_per_chan = vis_grab_order.size
 
     gridding_matrix_vis_ordered_to_chan_ordered = np.zeros(
@@ -773,10 +743,10 @@ def generate_gridding_matrix_vis_ordered_to_chan_ordered(
             # Pixel to grab from vis-ordered vector
             # and place as next chan-ordered value
             grid_pix = i + vis_grab_val*nf
-            # print(i, j, vis_grab_val, row_number, grid_pix)
             gridding_matrix_vis_ordered_to_chan_ordered[
                     row_number, grid_pix
                 ] = 1
+
     return gridding_matrix_vis_ordered_to_chan_ordered
 
 

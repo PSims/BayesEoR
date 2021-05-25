@@ -149,7 +149,7 @@ n_Fourier = (nu*nv - 1) * nf
 n_LW = (nu*nv - 1) * nq
 n_model = n_Fourier+n_LW
 n_dat = n_Fourier
-current_file_version = 'Likelihood_v2d5_3D_ZM'
+current_file_version = 'Likelihood_v2d6_3D_ZM'
 array_save_directory = (
     'array_storage/batch_1/'
     + '{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(
