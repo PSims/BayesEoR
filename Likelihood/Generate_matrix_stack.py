@@ -13,7 +13,8 @@ from BayesEoR.Linalg import\
     generate_gridding_matrix_vis_ordered_to_chan_ordered,\
     IDFT_Array_IDFT_1D_WQ,\
     nuDFT_Array_DFT_2D_v2d0,\
-    make_Gaussian_beam, make_Uniform_beam
+    make_Gaussian_beam, make_Uniform_beam,\
+    idft_array_idft_1d_sh, IDFT_Array_IDFT_2D_ZM_SH
 from BayesEoR.Linalg.healpix import Healpix
 
 
@@ -280,6 +281,18 @@ class BuildMatrices(BuildMatrixTree):
         the effective_noise vector contains the estimate of the
         noise in the data vector.  Must have the shape and ordering
         of the data vector, i.e. (ndata,).
+    nu_sh : int, optional
+        Number of pixels on a side for the u-axis in the subharmonic model
+        uv-plane.
+    nv_sh : int, optional
+        Number of pixels on a side for the v-axis in the subharmonic model
+        uv-plane.
+    nq_sh : int, optional
+        Number of large spectral scale modes for each pixel in the subharmonic
+        grid.
+    npl_sh : int, optional
+        Number of power law coefficients used in the large spectral scale model
+        for each pixel in the subharmonic grid.
     """
     def __init__(self, array_save_directory, nu, nv, nx, ny,
                  n_vis, neta, nf, nq, sigma, **kwargs):
@@ -337,6 +350,13 @@ class BuildMatrices(BuildMatrixTree):
         self.nf = nf
         self.nq = nq
         self.sigma = sigma
+        # SHG params
+        self.use_shg = kwargs.pop('use_shg', False)
+        self.fit_for_shg_amps = kwargs.pop('fit_for_shg_amps', False)
+        self.nu_sh = kwargs.pop('nu_sh', 0)
+        self.nv_sh = kwargs.pop('nv_sh', 0)
+        self.nq_sh = kwargs.pop('nq_sh', 0)
+        self.npl_sh = kwargs.pop('npl_sh', 0)
 
         # Fz normalization
         self.delta_eta_inv_Hz = 1.0 / (p.nf * p.channel_width_MHz * 1.0e6)
@@ -400,6 +420,25 @@ class BuildMatrices(BuildMatrixTree):
             'phasor_matrix':
                 self.build_phasor_matrix
             }
+        
+        if self.use_shg:
+            # update matrix_prerequisites_dictionary
+            self.matrix_prerequisites_dictionary.update({
+                'multi_vis_idft_array_1D': [
+                    'idft_array_1D', 'idft_array_1d_sh'
+                    ],
+                'multi_vis_idft_array_1D_WQ': [
+                    'idft_array_1D_WQ', 'idft_array_1d_sh'
+                    ],
+                'Fprime': [
+                    'multi_chan_idft_array_noZMchan', 'idft_array_sh'
+                    ]
+            })
+            # update matrix_construction_methods_dictionary
+            self.matrix_construction_methods_dictionary.update({
+                'idft_array_1d_sh': self.build_idft_array_1d_sh,
+                'idft_array_sh': self.build_idft_array_sh
+            })
 
     def load_prerequisites(self, matrix_name):
         """
@@ -510,7 +549,17 @@ class BuildMatrices(BuildMatrixTree):
         if p.use_sparse_matrices:
             return sparse.vstack(matrices_list)
         else:
-            return np.vstack(*matrices_list)
+            return np.vstack(matrices_list)
+    
+    def sd_hstack(self, matrices_list):
+        """
+        Generate a horizontally stacked matrix from a 
+        list of matrices in `matrices_list`.
+        """
+        if p.use_sparse_matrices:
+            return sparse.hstack(matrices_list)
+        else:
+            return np.hstack(matrices_list)
 
     def sd_diags(self, diagonal_vals):
         """
@@ -778,8 +827,6 @@ class BuildMatrices(BuildMatrixTree):
                          matrix_name)
 
     # Fprime functions
-    # Fprime will need to be remade using vstack to transform
-    # to (l(t), m(t)) instead of a single set of (l, m) coords
     def build_idft_array(self):
         """
         Construct a block for `multi_chan_idft_array_noZMchan` which
@@ -799,10 +846,10 @@ class BuildMatrices(BuildMatrixTree):
             self.hp.jds[p.nt//2]
             )
         sampled_lm_coords_radians = np.vstack((ls_rad, ms_rad)).T
-
         idft_array = IDFT_Array_IDFT_2D_ZM(
             self.nu, self.nv,
-            sampled_lm_coords_radians)
+            sampled_lm_coords_radians,
+            exclude_mean=(not p.fit_for_monopole))
         idft_array *= self.Fprime_normalisation
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
@@ -819,8 +866,7 @@ class BuildMatrices(BuildMatrixTree):
         to a single frequency channel.
 
         Used to construct `Fprime`.
-        `multi_chan_idft_array_noZMchan` has shape
-        (npix * nf, nuv * nf).
+        ``multi_chan_idft_array_noZMchan`` has shape (npix * nf, nuv * nf).
         """
         matrix_name = 'multi_chan_idft_array_noZMchan'
         pmd = self.load_prerequisites(matrix_name)
@@ -832,6 +878,41 @@ class BuildMatrices(BuildMatrixTree):
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
         self.output_data(multi_chan_idft_array_noZMchan,
+                         self.array_save_directory,
+                         matrix_name,
+                         matrix_name)
+    
+    def build_idft_array_sh(self):
+        """
+        Construct a block diagonal matrix used in Fprime when using the
+        subharmonic grid (SHG).  Each block in the matrix is a non-uniform
+        DFT matrix that takes the SHG model (u, v) plane and transforms
+        it to HEALPix sky model (l, m) space at a single frequency.
+
+        Used to construct `Fprime` if using the SHG.
+        ``idft_array_sh`` has shape
+        (npix*nf, nuv_sh*fit_for_shg_amps + nuv_sh*nq_sh).
+        """
+        matrix_name = 'idft_array_sh'
+        pmd = self.load_prerequisites(matrix_name)
+        start = time.time()
+        print('Performing matrix algebra')
+        # Get (l, m) coordinates from Healpix object
+        ls_rad, ms_rad, _ = self.hp.calc_lmn_from_radec(
+            self.hp.jds[p.nt//2]
+            )
+        sampled_lm_coords_radians = np.vstack((ls_rad, ms_rad)).T
+
+        idft_array_sh_block = IDFT_Array_IDFT_2D_ZM_SH(
+            self.nu_sh, self.nv_sh,
+            sampled_lm_coords_radians)
+        idft_array_sh_block *= self.Fprime_normalisation / (self.nu*self.nv)
+        idft_array_sh = self.sd_block_diag(
+            [idft_array_sh_block for i in range(self.nf)]
+        )
+        print('Time taken: {}'.format(time.time() - start))
+        # Save matrix to HDF5 or sparse matrix to npz
+        self.output_data(idft_array_sh,
                          self.array_save_directory,
                          matrix_name,
                          matrix_name)
@@ -848,7 +929,12 @@ class BuildMatrices(BuildMatrixTree):
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
         print('Performing matrix algebra')
-        Fprime = pmd['multi_chan_idft_array_noZMchan']
+        if self.use_shg:
+            Fprime = self.sd_hstack(
+                [pmd['multi_chan_idft_array_noZMchan'], pmd['idft_array_sh']]
+            )
+        else:
+            Fprime = pmd['multi_chan_idft_array_noZMchan']
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
         self.output_data(Fprime,
@@ -857,6 +943,40 @@ class BuildMatrices(BuildMatrixTree):
                          matrix_name)
 
     # Fz functions
+    def build_idft_array_1d_sh(self):
+        """
+        Construct a 1D LoS DFT matrix for a each (u, v) pixel
+        in the subharmonic grid (SHG).
+
+        Used to construct `Fz` if using the SHG.
+        ``shg_idft_array`` has shape (, ).
+        """
+        matrix_name = 'idft_array_1d_sh'
+        pmd = self.load_prerequisites(matrix_name)
+        start = time.time()
+        print('Performing matrix algebra')
+        idft_array_1d_sh_block = idft_array_idft_1d_sh(
+            self.nf,
+            self.neta,
+            self.nq_sh,
+            self.npl_sh,
+            fit_for_shg_amps=self.fit_for_shg_amps,
+            nu_min_MHz=p.nu_min_MHz,
+            channel_width_MHz=p.channel_width_MHz,
+            beta=p.beta)
+        idft_array_1d_sh_block *= self.Fz_normalisation
+        nuv_sh = self.nu_sh*self.nv_sh - 1
+        idft_array_1d_sh = self.sd_block_diag(
+            [idft_array_1d_sh_block for i in range(nuv_sh)]
+        )
+        print('Time taken: {}'.format(time.time() - start))
+        # Save matrix to HDF5 or sparse matrix to npz
+        self.output_data(idft_array_1d_sh,
+                         self.array_save_directory,
+                         matrix_name,
+                         matrix_name)
+        return idft_array_1d_sh
+
     def build_idft_array_1D(self):
         """
         Construct a 1D LoS DFT matrix for a single (u, v) pixel
@@ -884,8 +1004,8 @@ class BuildMatrices(BuildMatrixTree):
         Construct a block diagonal matrix of 1D LoS DFT matrices for
         every (u, v) pixel in the model uv-plane.
 
-        Used to construct `Fz` if `nq = 0`.
-        `multi_vis_idft_array_1D` has shape (nuv * nf, nuv * neta).
+        Used to construct `Fz` if `nq` = 0.
+        ``multi_vis_idft_array_1D`` has shape (nuv * nf, nuv * neta).
         """
         matrix_name = 'multi_vis_idft_array_1D'
         pmd = self.load_prerequisites(matrix_name)
@@ -899,6 +1019,11 @@ class BuildMatrices(BuildMatrixTree):
             multi_vis_idft_array_1D = self.sd_block_diag(
                 [pmd['idft_array_1D'] for i in range(self.nu*self.nv-1)]
                 )
+        if self.use_shg:
+            # Use subarhomic grid
+            multi_vis_idft_array_1D = self.sd_block_diag(
+                [multi_vis_idft_array_1D, pmd['idft_array_1d_sh']]
+            )
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
         self.output_data(multi_vis_idft_array_1D,
@@ -909,10 +1034,10 @@ class BuildMatrices(BuildMatrixTree):
     def build_idft_array_1D_WQ(self):
         """
         Construct a 1D LoS DFT matrix for a single (u, v) pixel
-        with `nq > 0`.  Constructs one block within
-        `multi_vis_idft_array_1D_WQ`.
+        with `nq` > 0.  Constructs one block within
+        ``multi_vis_idft_array_1D_WQ``.
 
-        Used to construct `Fz` if `nq > 0`.
+        Used to construct `Fz` if `nq` > 0.
         `idft_array_1D_WQ` has shape (nf, neta + nq).
         """
         matrix_name = 'idft_array_1D_WQ'
@@ -956,6 +1081,11 @@ class BuildMatrices(BuildMatrixTree):
             multi_vis_idft_array_1D_WQ = self.sd_block_diag(
                 [pmd['idft_array_1D_WQ'].T for i in range(self.nu*self.nv - 1)]
                 )
+        if self.use_shg:
+            # Use subarhomic grid
+            multi_vis_idft_array_1D_WQ = self.sd_block_diag(
+                [multi_vis_idft_array_1D_WQ, pmd['idft_array_1d_sh']]
+            )
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
         self.output_data(multi_vis_idft_array_1D_WQ,
@@ -965,32 +1095,40 @@ class BuildMatrices(BuildMatrixTree):
 
     def build_gridding_matrix_vis_ordered_to_chan_ordered(self):
         """
-        Constructs a matrix which takes a vector that is vis ordered:
-          - the first `nf` (`nf + nq` if `nq > 0`) entries correspond
-            to the spectrum of a single model (u, v) pixel
-          - the second `nf` (`nf + nq` if `nq > 0`) entries correspond
-            to the spectrum of the next model (u, v) pixel
+        Constructs a matrix which takes a (u, v, f) space vector that is vis
+        ordered:
+          - the first `nf` entries correspond to the spectrum of a single
+            model (u, v) pixel
+          - the second `nf` entries correspond to the spectrum of the next
+            model (u, v) pixel
           - etc.
         and converts it to chan ordered:
-          - the first 'nuv' (`nuv + nq` if `nq > 0`) entries correspond
-            to the values of the model (u, v) plane at the zeroth
-            frequency channel
-          - the second 'nuv' (`nuv + nq` if `nq > 0`) entries correspond
-            to the values of the model (u, v) plane at the first
-            frequency channel
+          - the first 'nuv' entries correspond to the values of the model
+            (u, v) plane at the zeroth frequency channel
+          - the second 'nuv' entries correspond to the values of the model
+            (u, v) plane at the first frequency channel
           - etc.
 
-        `gridding_matrix_vis_ordered_to_chan_ordered` has shape
-        (nuv * (neta + nq), nuv * (neta + nq)).
+        ``gridding_matrix_vis_ordered_to_chan_ordered`` has shape
+        (nuv*nf, nuv*nf).
         """
         matrix_name = 'gridding_matrix_vis_ordered_to_chan_ordered'
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
         print('Performing matrix algebra')
         gridding_matrix_vis_ordered_to_chan_ordered =\
-            generate_gridding_matrix_vis_ordered_to_chan_ordered(self.nu,
-                                                                 self.nv,
-                                                                 self.nf)
+            generate_gridding_matrix_vis_ordered_to_chan_ordered(
+                self.nu, self.nv, self.nf,
+                exclude_mean=(not p.fit_for_monopole))
+        if self.use_shg:
+            gridding_matrix_vo_to_co_sh =\
+                generate_gridding_matrix_vis_ordered_to_chan_ordered(
+                    self.nu_sh, self.nv_sh, self.nf
+                )
+            gridding_matrix_vis_ordered_to_chan_ordered = self.sd_block_diag(
+                [gridding_matrix_vis_ordered_to_chan_ordered,
+                 gridding_matrix_vo_to_co_sh]
+            )
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
         self.output_data(gridding_matrix_vis_ordered_to_chan_ordered,
@@ -1034,6 +1172,8 @@ class BuildMatrices(BuildMatrixTree):
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
         print('Performing matrix algebra')
+        if self.use_shg and sparse.issparse(pmd['Fprime']):
+            pmd['Fprime'] = pmd['Fprime'].toarray()
         Fprime_Fz = self.dot_product(pmd['Fprime'], pmd['Fz'])
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
@@ -1386,7 +1526,8 @@ class BuildMatrices(BuildMatrixTree):
                 self.overwrite_existing_matrix_stack)
         # Build matrices
         self.build_matrix_if_it_doesnt_already_exist('T_Ninv_T')
-        self.build_matrix_if_it_doesnt_already_exist('block_T_Ninv_T')
+        if not p.include_instrumental_effects:
+            self.build_matrix_if_it_doesnt_already_exist('block_T_Ninv_T')
         self.build_matrix_if_it_doesnt_already_exist('N')
         if matrix_stack_dir_exists and self.overwrite_existing_matrix_stack:
             if not self.proceed_without_overwrite_confirmation:

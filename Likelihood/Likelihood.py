@@ -122,6 +122,12 @@ class PowerSpectrumPosteriorProbability(object):
         self.n_uniform_prior_k_bins = kwargs.pop('n_uniform_prior_k_bins')
         self.ps_box_size_perp_Mpc = kwargs.pop('ps_box_size_perp_Mpc')
         self.ps_box_size_para_Mpc = kwargs.pop('ps_box_size_para_Mpc')
+        self.use_shg = kwargs.pop('use_shg', False)
+        self.fit_for_shg_amps = kwargs.pop('fit_for_shg_amps', False)
+        self.nuv_sh = kwargs.pop('nuv_sh', None)
+        self.nu_sh = kwargs.pop('nu_sh', None)
+        self.nv_sh = kwargs.pop('nv_sh', None)
+        self.nq_sh = kwargs.pop('nq_sh', None)
 
         self.fit_single_elems = fit_single_elems
         self.T_Ninv_T = T_Ninv_T
@@ -193,70 +199,77 @@ class PowerSpectrumPosteriorProbability(object):
 
     def calc_PowerI(self, x, **kwargs):
         """
-            Place restrictions on the power in the long spectral scale
-            model either for,
-            inverse_LW_power:
-                constrain the amplitude distribution of all of
-                the large spectral scale model components
-            inverse_LW_power_zeroth_LW_term:
-                constrain the amplitude of monopole-term basis vector
-            inverse_LW_power_first_LW_term:
-                constrain the amplitude of the model components
-                of the 1st LW basis vector (e.g. linear model comp.)
-            inverse_LW_power_second_LW_term:
-                constrain the amplitude of the model components
-                of the 2nd LW basis vector (e.g. quad model comp.)
+        Calculate an estimate of the variance of the k-cube (uveta cube) from
+        a set of power spectrum k-bin amplitudes `x`.
 
-            Note: The indices used are correct for the current
-            ordering of basis vectors when nf is an even number...
+        Place restrictions on the power in the long spectral scale
+        model either for,
+
+        Parameters
+        ----------
+        x : array_like, shape (nDims,)
+        inverse_LW_power: float
+            Constrains the amplitude distribution of all of
+            the large spectral scale model components.
+        inverse_LW_power_zeroth_LW_term: float
+            Constrains the amplitude of monopole-term basis vector.
+        inverse_LW_power_first_LW_term: float
+            Constrains the amplitude of the model components
+            of the 1st LW basis vector (e.g. linear model comp.).
+        inverse_LW_power_second_LW_term: float
+            Constrains the amplitude of the model components
+            of the 2nd LW basis vector (e.g. quad model comp.).
+
+        Notes
+        -----
+        The indices used are correct for the current
+        ordering of basis vectors when nf is an even number...
         """
         PowerI = np.zeros(self.Npar)
 
         if p.include_instrumental_effects:
-            # Updated for python 3: floor division
             q0_index = self.neta//2
         else:
-            # Updated for python 3: floor division
             q0_index = self.nf//2 - 1
         q1_index = self.neta
         q2_index = self.neta + 1
+        if self.use_shg:
+            cg_end = self.nuv*self.nf
+        else:
+            cg_end = None
 
         # Constrain LW mode amplitude distribution
         dimensionless_PS_scaling =\
             self.calc_physical_dimensionless_power_spectral_normalisation(0)
         if p.use_LWM_Gaussian_prior:
             Fourier_mode_start_index = 3
-            # Set to zero for a uniform distribution
-            # Updated for python 3: floor division
-            # PowerI[self.nf//2 - 1 :: self.nf] =\
-            #     np.mean(dimensionless_PS_scaling) / x[0]
-            # # Updated for python 3: floor division
-            # PowerI[self.nf - 2 :: self.nf] =\
-            #     np.mean(dimensionless_PS_scaling) / x[1]
-            # # Updated for python 3: floor division
-            # PowerI[self.nf - 1 :: self.nf] =\
-            #     np.mean(dimensionless_PS_scaling) / x[2]
-            PowerI[q0_index :: self.neta+self.nq] =\
+            PowerI[:cg_end][q0_index :: self.neta+self.nq] =\
                 np.mean(dimensionless_PS_scaling) / x[0]
-            PowerI[q1_index :: self.neta+self.nq] =\
+            PowerI[:cg_end][q1_index :: self.neta+self.nq] =\
                 np.mean(dimensionless_PS_scaling) / x[1]
-            PowerI[q2_index :: self.neta+self.nq] =\
+            PowerI[:cg_end][q2_index :: self.neta+self.nq] =\
                 np.mean(dimensionless_PS_scaling) / x[2]
         else:
             Fourier_mode_start_index = 0
             # Set to zero for a uniform distribution
-            PowerI[q0_index :: self.neta+self.nq] = self.inverse_LW_power
-            PowerI[q1_index :: self.neta+self.nq] = self.inverse_LW_power
-            PowerI[q2_index :: self.neta+self.nq] = self.inverse_LW_power
+            PowerI[:cg_end][q0_index :: self.neta+self.nq] = self.inverse_LW_power
+            PowerI[:cg_end][q1_index :: self.neta+self.nq] = self.inverse_LW_power
+            PowerI[:cg_end][q2_index :: self.neta+self.nq] = self.inverse_LW_power
 
             if self.inverse_LW_power == 0.0:
                 # Set to zero for a uniform distribution
-                PowerI[q0_index :: self.neta+self.nq] =\
+                PowerI[:cg_end][q0_index :: self.neta+self.nq] =\
                     self.inverse_LW_power_zeroth_LW_term
-                PowerI[q1_index :: self.neta+self.nq] =\
+                PowerI[:cg_end][q1_index :: self.neta+self.nq] =\
                     self.inverse_LW_power_first_LW_term
-                PowerI[q2_index :: self.neta+self.nq] =\
+                PowerI[:cg_end][q2_index :: self.neta+self.nq] =\
                     self.inverse_LW_power_second_LW_term
+        
+        if self.use_shg:
+            # This should not be a permanent fix
+            # Is a minimal prior on the SHG amplitudes
+            # and LSSM the right choice?
+            PowerI[cg_end:] = self.inverse_LW_power
 
         if self.dimensionless_PS:
             self.power_spectrum_normalisation_func =\
@@ -630,6 +643,8 @@ class PowerSpectrumPosteriorProbability(object):
                     time.time() - start))
             return MargLogL.squeeze()*1.0, phi
         except Exception as e:
+            # This won't catch a warning if, for example, PhiI contains
+            # any zeros in np.sum(np.log(PhiI))
             print('Exception encountered...')
             print(e)
             return -np.inf, -1

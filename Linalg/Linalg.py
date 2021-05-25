@@ -125,107 +125,41 @@ def Produce_Coordinate_Arrays_ZM(nu, nv, **kwargs):
         return i_u_AV, i_v_AV
 
 
-def Produce_Coordinate_Arrays_ZM_Coarse(nu, nv, nx, ny):
-    # U_oversampling_Factor=nu/float(nx) # Keeps uv-plane size
-    # constantand oversampled rather than DFTing to a larger uv-plane
-    # V_oversampling_Factor=nv/float(ny) # Keeps uv-plane size
-    # constant and oversampled rather than DFTing to a larger uv-plane
+def Produce_Coordinate_Arrays_ZM_SH(
+        nu_sh, nv_sh, exclude_mean=True, spacing='linear'):
+    """
+    Creates vectorized arrays of 2D subharmonic grid (SHG) coordinates for the
+    model uv-plane.
 
-    # Updated for python 3: floor division
-    i_y_Vector = (np.arange(ny) - ny//2)
-    i_y_Vector = i_y_Vector.reshape(1, ny)
-    i_y_Array = np.tile(i_y_Vector, ny)
-    i_y_Array_Vectorised = i_y_Array.reshape(nx*ny, 1)
-    i_y_AV = i_y_Array_Vectorised
-
-    # Updated for python 3: floor division
-    i_x_Vector = (np.arange(nx) - nx//2)
-    i_x_Vector = i_x_Vector.reshape(nx, 1)
-    i_x_Array = np.tile(i_x_Vector, nx)
-    i_x_Array_Vectorised = i_x_Array.reshape(nx*ny, 1)
-    i_x_AV = i_x_Array_Vectorised
-
-    # Updated for python 3: floor division
-    i_v_Vector = (np.arange(nu) - nu//2)
-    i_v_Vector = i_v_Vector.reshape(1, nu)
-    i_v_Array = np.tile(i_v_Vector, nv)
-    i_v_Array_Vectorised = i_v_Array.reshape(1, nu*nv)
+    Parameters
+    ----------
+    nu_sh : int
+        Number of pixels on a side for the u-axis in the SH model uv-plane.
+    nv_sh : int
+        Number of pixels on a side for the v-axis in the SH model uv-plane.
+    exclude_mean : bool
+        If True, remove the (u, v) = (0, 0) pixel from the SH model
+        uv-plane coordinate arrays. Defaults to True.
+    spacing : str
+        Needs development. Can be 'linear' or 'log' spacing of the SHG pixels.
+    """
+    i_v_Vector = (np.arange(nu_sh) - nu_sh//2)
+    i_v_Vector = i_v_Vector.reshape(1, nu_sh)
+    i_v_Array = np.tile(i_v_Vector, nv_sh)
+    i_v_Array_Vectorised = i_v_Array.reshape(1, nu_sh*nv_sh)
     i_v_AV = i_v_Array_Vectorised
+    if exclude_mean:
+        i_v_AV = np.delete(i_v_AV, [i_v_AV.size//2]) # Remove the centre uv-pix
 
-    GridSize = i_v_AV.size
-    GridIndex, MaskOuterPoints = Calc_Indices_Centre_3x3_Grid(GridSize)
-    InnerSubgridIndices = GridIndex[MaskOuterPoints]
-
-    # Updated for python 3: floor division
-    Centre_v_CoordIndex = i_v_AV.size//2
-    # Remove the centre 3x3 uv-grid (to be replaced by subharmonic grid)
-    i_v_AV = np.delete(i_v_AV, InnerSubgridIndices)
-
-    # Updated for python 3: floor division
-    i_u_Vector = (np.arange(nv) - nv//2)
-    i_u_Vector = i_u_Vector.reshape(nv, 1)
-    i_u_Array = np.tile(i_u_Vector, nu)
-    i_u_Array_Vectorised = i_u_Array.reshape(1, nv*nu)
+    i_u_Vector = (np.arange(nv_sh) - nv_sh//2)
+    i_u_Vector = i_u_Vector.reshape(nv_sh, 1)
+    i_u_Array = np.tile(i_u_Vector, nu_sh)
+    i_u_Array_Vectorised = i_u_Array.reshape(1, nv_sh*nu_sh)
     i_u_AV = i_u_Array_Vectorised
-    # Updated for python 3: floor division
-    Centre_u_CoordIndex = i_u_AV.size//2
-    # Remove the centre 3x3 uv-grid (to be replaced by subharmonic grid)
-    i_u_AV = np.delete(i_u_AV, InnerSubgridIndices)
+    if exclude_mean:
+        i_u_AV = np.delete(i_u_AV, [i_u_AV.size//2]) # Remove the centre uv-pix
 
-    # ExponentArray calculated as
-    # 	np.exp(-2.0*np.pi*1j*(
-    # 			(i_x_AV*i_u_AV/float(nx))
-    # 			+  (i_v_AV*i_y_AV/float(ny)) ))
-    return i_x_AV, i_y_AV, i_u_AV, i_v_AV
-
-
-def Produce_Coordinate_Arrays_ZM_SH(nu, nv, nx, ny):
-    # U_oversampling_Factor=nu/float(nx) # Keeps uv-plane size
-    # constantand oversampled rather than DFTing to a larger uv-plane
-    # V_oversampling_Factor=nv/float(ny) # Keeps uv-plane size
-    # constant and oversampled rather than DFTing to a larger uv-plane
-
-    # Updated for python 3: floor division
-    i_y_Vector = (np.arange(ny) - ny//2)
-    i_y_Vector = i_y_Vector.reshape(1, ny)
-    i_y_Array = np.tile(i_y_Vector, ny)
-    i_y_Array_Vectorised = i_y_Array.reshape(nx*ny, 1)
-    i_y_AV = i_y_Array_Vectorised
-
-    # Updated for python 3: floor division
-    i_x_Vector = (np.arange(nx) - nx//2)
-    i_x_Vector = i_x_Vector.reshape(nx, 1)
-    i_x_Array = np.tile(i_x_Vector, nx)
-    i_x_Array_Vectorised = i_x_Array.reshape(nx*ny, 1)
-    i_x_AV = i_x_Array_Vectorised
-
-    # Updated for python 3: floor division
-    i_v_Vector = (np.arange(nu) - nu//2)
-    i_v_Vector = i_v_Vector.reshape(1, nu)
-    i_v_Array = np.tile(i_v_Vector, nv)
-    i_v_Array_Vectorised = i_v_Array.reshape(1, nu*nv)
-    i_v_AV = i_v_Array_Vectorised
-    # Updated for python 3: floor division
-    Centre_v_CoordIndex = i_v_AV.size//2
-    # Remove the centre uv-pix
-    i_v_AV = np.delete(i_v_AV, [Centre_v_CoordIndex])
-
-    # Updated for python 3: floor division
-    i_u_Vector = (np.arange(nv) - nv//2)
-    i_u_Vector = i_u_Vector.reshape(nv, 1)
-    i_u_Array = np.tile(i_u_Vector, nu)
-    i_u_Array_Vectorised = i_u_Array.reshape(1, nv*nu)
-    i_u_AV = i_u_Array_Vectorised
-    # Updated for python 3: floor division
-    Centre_u_CoordIndex = i_u_AV.size//2
-    # Remove the centre uv-pix
-    i_u_AV = np.delete(i_u_AV, [Centre_u_CoordIndex])
-
-    # ExponentArray calculated as
-    # 	np.exp(-2.0*np.pi*1j*(
-    # 			(i_x_AV*i_u_AV/float(nx))
-    # 			+  (i_v_AV*i_y_AV/float(ny)) ))
-    return i_x_AV, i_y_AV, i_u_AV, i_v_AV
+    return i_u_AV, i_v_AV
 
 
 # Finv functions
@@ -322,6 +256,7 @@ def nuDFT_Array_DFT_2D_v2d0(
 def IDFT_Array_IDFT_2D_ZM(
         nu, nv,
         sampled_lm_coords_radians,
+        exclude_mean=True,
         U_oversampling_Factor=1.0, V_oversampling_Factor=1.0):
     """
     Generates a non-uniform (might want to update the function name)
@@ -340,6 +275,8 @@ def IDFT_Array_IDFT_2D_ZM(
     sampled_lm_coords_radians : np.ndarray of floats
         Array with shape (npix, 2) containing the (l, m) coordinates
         of the image space HEALPix model in units of radians.
+    exclude_mean : boolean
+        If True, exclude the (u, v) = (0, 0) pixel.
     U_oversampling_Factor : float
         Factor by which the subharmonic grid is oversampled relative
         to the coarse grid along the u-axis.
@@ -352,9 +289,6 @@ def IDFT_Array_IDFT_2D_ZM(
     ExponentArray : np.ndarray of complex floats
         Non-uniform 2D DFT matrix with shape (npix, nuv).
     """
-    exclude_mean = True
-    if p.fit_for_monopole:
-        exclude_mean = False
     i_u_AV, i_v_AV =\
         Produce_Coordinate_Arrays_ZM(nu, nv, exclude_mean=exclude_mean)
 
@@ -372,25 +306,9 @@ def IDFT_Array_IDFT_2D_ZM(
     # wavelengths by multiplying by the uv pixel area
     i_u_AV = i_u_AV.astype('float') * p.uv_pixel_width_wavelengths
     i_v_AV = i_v_AV.astype('float') * p.uv_pixel_width_wavelengths
-    # This formulation expects (l, m) and (u, v)
-    # in radians and wavelengths, respectively
     # Sign change for consistency, Finv chosen to
     # have + to match healvis
-    ExponentArray = np.exp(
-        -2.0*np.pi*1j*(
-                (i_x_AV*i_u_AV)
-                + (i_v_AV*i_y_AV)
-            )
-        )
-
-    # This formulation expects (l, m) and (u, v) in pixel units
-    # Updated for python 3: float division is default
-    # ExponentArray = np.exp(
-    # 	-2.0*np.pi*1j*(
-    # 			(i_x_AV*i_u_AV / nu)
-    # 			+ (i_v_AV*i_y_AV / nv)
-    # 		)
-    # 	)
+    ExponentArray = np.exp(-2.0*np.pi*1j*(i_x_AV*i_u_AV + i_v_AV*i_y_AV))
 
     ExponentArray /= (
             nu*U_oversampling_Factor
@@ -400,53 +318,55 @@ def IDFT_Array_IDFT_2D_ZM(
 
 
 def IDFT_Array_IDFT_2D_ZM_SH(
-        nu, nv, nx, ny,
-        X_oversampling_Factor=1.0, Y_oversampling_Factor=1.0,
-        U_oversampling_Factor=1.0, V_oversampling_Factor=1.0):
+        nu_sh, nv_sh, sampled_lm_coords_radians, exclude_mean=True):
     """
     Generates a non-uniform (might want to update the function name)
-    inverse DFT matrix that goes from rectilinear model (u, v) to
-    HEALPix (l, m) pixel centers when using a subharmonic (u, v) grid.
+    inverse DFT matrix that goes from subharmonic grid (SHG) model (u, v) to
+    HEALPix (l, m) pixel centers.  Includes the (u, v) = (0, 0) pixel
+    if `exclude_mean` = False.
 
-    Used in the construction of `Fprime`.
+    Used in the construction of `Fprime` if using the SHG.
 
     Parameters
     ----------
-    nu : int
-        Number of pixels on a side for the u-axis in the model uv-plane.
-    nv : int
-        Number of pixels on a side for the v-axis in the model uv-plane.
-    U_oversampling_Factor : float
-        Factor by which the subharmonic grid is oversampled relative
-        to the coarse grid along the u-axis.
-    V_oversampling_Factor : float
-        Factor by which the subharmonic grid is oversampled relative
-        to the coarse grid.
+    nu_sh : int
+        Number of pixels on a side for the u-axis in the SH model uv-plane.
+    nv_sh : int
+        Number of pixels on a side for the v-axis in the SH model uv-plane.
+    sampled_lm_coords_radians : array_like, shape (nhpx, 2)
+        Array containing the (l, m) coordinates of the image space HEALPix
+        model in units of radians.
+    exclude_mean : boolean
+        If True, exclude the (u, v) = (0, 0) pixel from the SHG.
 
     Returns
     -------
-    ExponentArray : np.ndarray of complex floats
-        Uniform 2D DFT matrix with shape (ny * nx, nuv).
+    ExponentArray : np.ndarray, shape (npix, nuv_sh)
+        Non-uniform, complex 2D DFT matrix.
     """
+    u_vec, v_vec =\
+        Produce_Coordinate_Arrays_ZM_SH(nu_sh, nv_sh, exclude_mean=exclude_mean)
 
-    i_u_AV, i_v_AV, i_x_AV, i_y_AV =\
-        Generate_Combined_Coarse_plus_Subharmic_uv_grids(
-            nu, nv, nx, ny,
-            X_oversampling_Factor, Y_oversampling_Factor,
-            U_oversampling_Factor, V_oversampling_Factor)
+    # Replace x and y coordinate arrays with sampled_lm_coords_radians
+    x_vec = sampled_lm_coords_radians[:, 0].reshape(-1, 1)
+    y_vec = sampled_lm_coords_radians[:, 1].reshape(-1, 1)
 
-    # Updated for python 3: float division is default
-    ExponentArray = np.exp(
-        +2.0*np.pi*1j*(
-                (i_x_AV*i_u_AV / nu)
-                + (i_v_AV*i_y_AV / nv)
-            )
-        )
+    # The uv coordinates need to be rescaled to units of
+    # wavelengths by multiplying by the uv pixel area
+    # This calculation of the SHG pixel width is only true when using a
+    # linear spacing and will need to be reworked if using a log spacing.
+    # This also needs to be updated to account for a FoV which differs
+    # along the l and m axes.
+    du_sh = p.uv_pixel_width_wavelengths / nu_sh
+    dv_sh = p.uv_pixel_width_wavelengths / nv_sh
+    u_vec = u_vec.astype('float') * du_sh
+    v_vec = v_vec.astype('float') * dv_sh
 
-    NormalisedExponentArray = ExponentArray.T
-    NormalisedExponentArray = NormalisedExponentArray / (nu*nv)
+    # Sign change for consistency, Finv chosen to
+    # have + to match healvis
+    ExponentArray = np.exp(-2.0*np.pi*1j*(x_vec*u_vec + y_vec*v_vec))
 
-    return NormalisedExponentArray
+    return ExponentArray
 
 
 # Fz functions
@@ -502,7 +422,7 @@ def quadratic_array_linear_plus_quad_modes_only_v2(nf, nq=2, **kwargs):
     nu_array_MHz = (
             nu_min_MHz + np.arange(float(nf)) * channel_width_MHz)
     if nq == 1:
-        x = arange(nf) - nf/2.
+        x = np.arange(nf) - nf/2.
         quadratic_array[0] = x
         if npl == 1:
             m_pl = np.array(
@@ -516,7 +436,7 @@ def quadratic_array_linear_plus_quad_modes_only_v2(nf, nq=2, **kwargs):
             print('beta = ', beta, '\n')
 
     if nq == 2:
-        x = arange(nf) - nf/2.
+        x = np.arange(nf) - nf/2.
         quadratic_array[0] = x
         quadratic_array[1] = x**2
         if npl == 1:
@@ -548,7 +468,7 @@ def quadratic_array_linear_plus_quad_modes_only_v2(nf, nq=2, **kwargs):
             print('beta2 = ', beta[1], '\n')
 
     if nq == 3:
-        x = arange(nf) - nf/2.
+        x = np.arange(nf) - nf/2.
         quadratic_array[0] = x
         quadratic_array[1] = x**2
         quadratic_array[1] = x**3
@@ -609,10 +529,10 @@ def quadratic_array_linear_plus_quad_modes_only_v2(nf, nq=2, **kwargs):
             print('beta3 = ', beta[2], '\n')
 
     if nq == 4:
-        quadratic_array[0] = arange(nf)
-        quadratic_array[1] = arange(nf)**2.0
-        quadratic_array[2] = 1j*arange(nf)
-        quadratic_array[3] = 1j*arange(nf)**2
+        quadratic_array[0] = np.arange(nf)
+        quadratic_array[1] = np.arange(nf)**2.0
+        quadratic_array[2] = 1j*np.arange(nf)
+        quadratic_array[3] = 1j*np.arange(nf)**2
 
     return quadratic_array
 
@@ -714,9 +634,74 @@ def IDFT_Array_IDFT_1D_WQ(nf, neta, nq, **kwargs):
         )
     return Exponent_plus_quadratic_array.T
 
+def idft_array_idft_1d_sh(
+        nf, neta, nq_sh, npl_sh,
+        fit_for_shg_amps=False,
+        nu_min_MHz=None,
+        channel_width_MHz=None,
+        beta=None
+    ):
+    """
+    Generate a 1D DFT matrix for the FT along the
+    LoS axis from eta -> frequency.  Analagous to
+    IDFT_Array_IDFT_1D with the exception that this
+    function includes the subharmonic grid (SHG) terms used
+    for modeling power on scales larger than the image
+    size.
+
+    Used in the construction of `Fz` if using the subharmonic grid.
+
+    Parameters
+    ----------
+    nf : int
+        Number of frequency channels.
+    neta : int
+        Number of LoS Fourier modes.
+    nq_sh : int
+        Number of quadratic modes.
+    npl_sh : int
+        Number of power law modes.
+    fit_for_shg_amps : boolean
+        If true, include pixels in DFT matrix.  Otherwise,
+        only model large spectral scale structure.
+    nu_min_MHz : float, optional
+        Minimum frequency channel bin center in MHz. Required if `nq_sh` > 0.
+    channel_width_MHz : float, optional
+        Frequency channel width in MHz. Required if `nq_sh` > 0.
+    beta : list or tuple of floats, optional
+        Power law spectral indices. Required if `nq_sh` > 0.
+
+    Returns
+    -------
+    idft_array_sh : np.ndarray of complex floats
+        Matrix containing the 1D DFT matrix and/or the LSSM for the SHG pixels
+        if `fit_for_shg_amps` = True and/or `nq_sh` > 0.
+    """
+    if fit_for_shg_amps:
+        i_f = (np.arange(nf) - nf//2).reshape(-1, 1)
+        i_eta = (np.arange(neta) - neta//2).reshape(1, -1)
+
+        # Sign change for consistency, Finv chosen
+        # to have + sign to match healvis
+        ExponentArray = np.exp(-2.0*np.pi*1j*(i_eta*i_f / nf))
+        ExponentArray /= nf
+    if nq_sh > 0:
+        # Construct large spectral scale model (LSSM) for the SHG modes
+        lssm_sh = quadratic_array_linear_plus_quad_modes_only_v2(
+            nf, nq_sh, npl=npl_sh, nu_min_MHz=nu_min_MHz,
+            channel_width_MHz=channel_width_MHz, beta=beta)
+
+    if fit_for_shg_amps and nq_sh > 0:
+        idft_array_sh = np.hstack([ExponentArray, lssm_sh.T])
+    elif fit_for_shg_amps:
+        idft_array_sh = ExponentArray
+    elif nq_sh > 0:
+        idft_array_sh = lssm_sh.T
+    return idft_array_sh
+
 # Gridding matrix functions
 def calc_vis_selection_numbers(nu, nv):
-    required_chan_order = arange(nu*nv).reshape(nu, nv)
+    required_chan_order = np.arange(nu*nv).reshape(nu, nv)
     visibility_spectrum_order = required_chan_order.T
     # Updated for python 3: floor division
     r = np.sqrt(
@@ -733,7 +718,7 @@ def calc_vis_selection_numbers(nu, nv):
 
 
 def calc_vis_selection_numbers_ZM(nu, nv):
-    required_chan_order = arange(nu*nv).reshape(nu, nv)
+    required_chan_order = np.arange(nu*nv).reshape(nu, nv)
     visibility_spectrum_order = required_chan_order.T
     # Updated for python 3: floor division
     r = np.sqrt(
@@ -751,7 +736,7 @@ def calc_vis_selection_numbers_ZM(nu, nv):
 
 def calc_vis_selection_numbers_SH(
         nu, nv, U_oversampling_Factor=1.0, V_oversampling_Factor=1.0):
-    required_chan_order = arange(nu*nv).reshape(nu, nv)
+    required_chan_order = np.arange(nu*nv).reshape(nu, nv)
     visibility_spectrum_order = required_chan_order.T
     # Updated for python 3: floor division
     r = np.sqrt(
@@ -771,11 +756,12 @@ def calc_vis_selection_numbers_SH(
            grab_order_for_vis_spectrum_ordered_to_chan_ordered_ZM_SH_grid
 
 
-def generate_gridding_matrix_vis_ordered_to_chan_ordered(nu, nv, nf):
-    if p.fit_for_monopole:
-        vis_grab_order = calc_vis_selection_numbers(nu, nv)
-    else:
+def generate_gridding_matrix_vis_ordered_to_chan_ordered(
+        nu, nv, nf, exclude_mean=True):
+    if exclude_mean:
         vis_grab_order = calc_vis_selection_numbers_ZM(nu, nv)
+    else:
+        vis_grab_order = calc_vis_selection_numbers(nu, nv)
     vals_per_chan = vis_grab_order.size
 
     gridding_matrix_vis_ordered_to_chan_ordered = np.zeros(
@@ -904,7 +890,7 @@ def Calc_Indices_Centre_3x3_Grid(GridSize):
 
     LenX = LenY = GridLength
 
-    GridIndex = arange(LenX*LenY).reshape(LenX, LenY)
+    GridIndex = np.arange(LenX*LenY).reshape(LenX, LenY)
     Mask = zeros(LenX*LenY).reshape(LenX, LenY)
     # Updated for python 3: floor division
     Mask[
@@ -931,7 +917,7 @@ def Calc_Indices_Centre_NxN_Grid(GridSize, N):
     GridLength = int(GridSize**0.5)
     LenX = LenY = GridLength
 
-    GridIndex = arange(LenX*LenY).reshape(LenX, LenY)
+    GridIndex = np.arange(LenX*LenY).reshape(LenX, LenY)
     Mask = zeros(LenX*LenY).reshape(LenX, LenY)
     if N_is_Odd(N):
         # Updated for python 3: floor division

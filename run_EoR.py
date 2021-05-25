@@ -44,6 +44,15 @@ npl = p.npl
 nq = p.nq
 if nq > npl:
     nq = npl
+nu_sh = p.nu_sh
+nv_sh = p.nv_sh
+nq_sh = p.nq_sh
+npl_sh = p.npl_sh
+use_shg = nu_sh > 0 and nv_sh > 0
+if use_shg:
+    nuv_sh = nu_sh*nv_sh - 1
+else:
+    nuv_sh = None
 
 # Improve numerical precision.
 # Can be used for improving numerical precision when
@@ -141,12 +150,59 @@ n_Fourier = (nu*nv - 1) * nf
 n_LW = (nu*nv - 1) * nq
 n_model = n_Fourier+n_LW
 n_dat = n_Fourier
-current_file_version = 'Likelihood_v2d4_3D_ZM'
+current_file_version = 'Likelihood_v2d5_3D_ZM'
 array_save_directory = (
     'array_storage/batch_1/'
     + '{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(
         current_file_version, nu, nv, neta, nq, npl, sigma).replace('.', 'd')
     )
+
+if p.fit_for_monopole:
+    array_save_directory = (
+            array_save_directory[:-1]
+            + '_fit_for_monopole/'
+        )
+# nside modifier
+array_save_directory = (
+        array_save_directory[:-1]
+        + '_nside{}/'.format(p.nside)
+    )
+# FoV modifier
+array_save_directory = (
+        array_save_directory[:-1]
+        + '_fov_deg_{:.1f}/'.format(p.simulation_FoV_deg)
+    )
+# Append a beam center classifier
+if p.beam_center is not None:
+    beam_center_signs = [
+        '+' if p.beam_center[i] >= 0 else '' for i in range(2)
+        ]
+    beam_center_str = \
+        '_beam_center_RA0{}{:.2f}_DEC0{}{:.2f}'.format(
+            beam_center_signs[0],
+            p.beam_center[0],
+            beam_center_signs[1],
+            p.beam_center[1]
+            )
+    array_save_directory = array_save_directory[:-1] + beam_center_str + '/'
+
+if p.unphased:
+    array_save_directory = array_save_directory[:-1] + '_unphased/'
+
+# Subharmonic grid (SHG) modifiers
+if use_shg:
+    shg_str = '_SHG'
+    if nu_sh > 0:
+        shg_str += '_nu_sh_{}'.format(nu_sh)
+    if nv_sh > 0:
+        shg_str += '_nv_sh_{}'.format(nv_sh)
+    if nq_sh > 0:
+        shg_str += '_nq_sh_{}'.format(nq_sh)
+    if npl_sh > 0:
+        shg_str += '_npl_sh_{}'.format(npl_sh)
+    if p.fit_for_shg_amps:
+        shg_str += '_ffsa'
+    array_save_directory = array_save_directory[:-1] + shg_str + '/'
 
 if p.include_instrumental_effects:
     beam_info_str = ''
@@ -216,44 +272,6 @@ elif npl == 2:
         '_b1_{:.2E}_b2_{:.2E}_sigma'.format(p.beta[0], p.beta[1])
         )
 
-if p.fit_for_monopole:
-    array_save_directory = (
-            array_save_directory[:-1]
-            + '_fit_for_monopole_eq_True/'
-        )
-
-array_save_directory = (
-        array_save_directory[:-1]
-        + '_nside{}/'.format(p.nside)
-        # + '_nside{}_healpix_coords/'.format(p.nside)
-    )
-# Adding a FoV specific bit to the array save directory for FoV tests
-array_save_directory = (
-        array_save_directory[:-1]
-        + '_fov_deg_{:.1f}/'.format(p.simulation_FoV_deg)
-    )
-# Append a beam center classifier
-if p.beam_center is not None:
-    beam_center_signs = [
-        '+' if p.beam_center[i] >= 0 else '' for i in range(2)
-        ]
-    beam_center_str = \
-        '_beam_center_RA0{}{:.2f}_DEC0{}{:.2f}'.format(
-            beam_center_signs[0],
-            p.beam_center[0],
-            beam_center_signs[1],
-            p.beam_center[1]
-            )
-    array_save_directory = array_save_directory[:-1] + beam_center_str + '/'
-
-if p.unphased:
-    array_save_directory = array_save_directory[:-1] + '_unphased/'
-
-# Uncomment for tests where npix is not identical between nsides
-# array_save_directory = (
-#         array_save_directory[:-1] +
-#         '_fov_deg_{:.1f}_diff_npix/'.format(p.simulation_FoV_deg))
-
 print('\nArray save directory: {}'.format(array_save_directory))
 
 #--------------------------------------------
@@ -278,7 +296,9 @@ if p.include_instrumental_effects:
             beam_center=p.beam_center,
             FWHM_deg_at_ref_freq_MHz=p.FWHM_deg_at_ref_freq_MHz,
             PB_ref_freq_MHz=p.PB_ref_freq_MHz,
-            antenna_diameter=p.antenna_diameter
+            antenna_diameter=p.antenna_diameter,
+            use_shg=use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
+            nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh, npl_sh=npl_sh
             )
     else:
         BM = BuildMatrices(
@@ -299,7 +319,9 @@ if p.include_instrumental_effects:
             FWHM_deg_at_ref_freq_MHz=p.FWHM_deg_at_ref_freq_MHz,
             PB_ref_freq_MHz=p.PB_ref_freq_MHz,
             antenna_diameter=p.antenna_diameter,
-            effective_noise=effective_noise
+            effective_noise=effective_noise,
+            use_shg=use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
+            nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh, npl_sh=npl_sh
             )
 else:
     BM = BuildMatrices(
@@ -342,7 +364,7 @@ mod_k, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z =\
         ps_box_size_para_Mpc
         )
 k = mod_k.copy()
-k_vis_ordered = k.T.flatten()
+k_vis_ordered = k.T.flatten() # not used for anything
 k_x_masked = generate_masked_coordinate_cubes(
     k_x, nu, nv, nx, ny, nf, neta, nq,
     ps_box_size_perp_Mpc, ps_box_size_para_Mpc
@@ -659,21 +681,19 @@ if overwrite_data_with_WN:
 zero_the_LW_modes = False
 
 if p.file_root is None:
-    file_root = 'Test-{}_{}_{}_{}_{}_s_{:.1E}-lp_F-dPS_F-'.format(
+    file_root = 'Test-{}_{}_{}_{}_{}_{:.1E}-'.format( # lp_F-dPS_F-
         nu, nv, neta, nq, npl, sigma).replace('.', 'd')
     if chan_selection != '':
         file_root = chan_selection + file_root
     if npl == 1:
-        file_root = file_root.replace('-dPS_F',
-                                      '-dPS_F-beta_{:.2E}-v1'.format(p.beta))
-    if npl == 2:
-        file_root = file_root.replace(
-            '-dPS_F',
-            '-dPS_F_b1_{:.2F}_b2_{:.2F}-v1'.format(p.beta[0], p.beta[1]))
-    if log_priors:
-        file_root = file_root.replace('lp_F', 'lp_T')
+        file_root += '{:.2E}-'.format(p.beta)
+    elif npl == 2:
+        file_root += (
+            '{:.2F}_{:.2F}-'.format(p.beta[0], p.beta[1]))
+    if log_priors and p.n_uniform_prior_k_bins == 0:
+        file_root += 'lp-'
     if dimensionless_PS:
-        file_root = file_root.replace('dPS_F', 'dPS_T')
+        file_root += 'dPS-'
     if nq == 0:
         file_root = file_root.replace('mini-', 'mini-NQ-')
     elif zero_the_LW_modes:
@@ -682,7 +702,12 @@ if p.file_root is None:
         file_root = file_root.replace('Test', 'EoR')
     if use_MultiNest:
         file_root = 'MN-' + file_root
-
+    if use_shg:
+        file_root += 'SH_{}_{}_{}_{}-'.format(
+            nu_sh, nv_sh, nq_sh, npl_sh)
+        if p.fit_for_shg_amps:
+            file_root += 'ffsa-'
+    file_root += 'v1-'
     file_root = generate_output_file_base(file_root, version_number='1')
 else:
     file_root = p.file_root
@@ -696,7 +721,9 @@ PSPP_block_diag_Polychord = PowerSpectrumPosteriorProbability(
     intrinsic_noise_fitting=p.use_intrinsic_noise_fitting, k_vals=k_vals,
     n_uniform_prior_k_bins=p.n_uniform_prior_k_bins,
     ps_box_size_perp_Mpc=ps_box_size_perp_Mpc,
-    ps_box_size_para_Mpc=ps_box_size_para_Mpc
+    ps_box_size_para_Mpc=ps_box_size_para_Mpc,
+    use_shg=use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
+    nuv_sh=nuv_sh, nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh
     )
 if p.include_instrumental_effects and not zero_the_LW_modes:
     # Include minimal prior over LW modes required for numerical stability
@@ -723,6 +750,8 @@ if p.useGPU:
     for _ in range(Nit):
         # L =  PSPP_block_diag_Polychord.posterior_probability([3.e0]*nDims)[0]
         L = PSPP_block_diag_Polychord.posterior_probability(x_bad)[0]
+        if not np.isfinite(L):
+            print('WARNING: Infinite value returned in posterior calculation!')
     print('Average evaluation time: {}'.format((time.time() - start)/float(Nit)),
           end='\n\n')
 
@@ -747,17 +776,6 @@ else:
           'run_single_node_analysis is set to True'.format(mpi_size))
     print('run_single_node_analysis = {}'.format(run_single_node_analysis),
           end='\n\n')
-
-# import psutil
-# process = psutil.Process(os.getpid())
-# print('MaxRSS before log write = {} GB'.format(
-#     process.memory_info()[0] / 1.0e9))
-#
-# if MPI.COMM_WORLD.Get_rank() == 0:
-# 	write_log_file(array_save_directory, file_root)
-#
-# print('MaxRSS after log write = {} GB'.format(
-#     process.memory_info()[0] / 1.0e9))
 
 if run_single_node_analysis or mpi_size > 1:
     # Write log file
