@@ -11,11 +11,15 @@ def BayesEoRParser():
         help="Number of LWM basis vectors (0-2)"
         )
     parser.add_argument(
-        '--npix',
+        '--nu',
         type=int,
-        default=-1,
-        help='Sets the number of pixels on a side '
-             '(nx, ny, nu, nv).'
+        help="Number of pixels on the u-axis of the model uv-plane."
+        )
+    parser.add_argument(
+        '--nv',
+        type=int,
+        help="Number of pixels on the v-axis of the model uv-plane. "
+             "Defaults to `nu`."
         )
     parser.add_argument(
         "-beta", "--beta",
@@ -77,15 +81,18 @@ def BayesEoRParser():
         help="If passed, overwrite existing matrix stack."
         )
     parser.add_argument(
-        '--simulation_FoV_deg',
+        '--fov_ra_deg',
         type=float,
-        default=12.9080728652,
-        help="Field of View of the sky model in degrees."
+        help="Field of view of the RA axis of the sky model in degrees."
         )
+    parser.add_argument(
+        '--fov_dec_deg',
+        type=float,
+        help="Field of view of the DEC axis of the sky model in degrees."
+    )
     parser.add_argument(
         '--nside',
         type=int,
-        default=256,
         help="Resolution parameter for HEALPix coordinate maps."
         )
     parser.add_argument(

@@ -120,7 +120,8 @@ class PowerSpectrumPosteriorProbability(object):
             default_fit_for_spectral_model_parameters)
         self.k_vals = kwargs.pop('k_vals')
         self.n_uniform_prior_k_bins = kwargs.pop('n_uniform_prior_k_bins')
-        self.ps_box_size_perp_Mpc = kwargs.pop('ps_box_size_perp_Mpc')
+        self.ps_box_size_ra_Mpc = kwargs.pop('ps_box_size_ra_Mpc')
+        self.ps_box_size_dec_Mpc = kwargs.pop('ps_box_size_dec_Mpc')
         self.ps_box_size_para_Mpc = kwargs.pop('ps_box_size_para_Mpc')
         self.use_shg = kwargs.pop('use_shg', False)
         self.fit_for_shg_amps = kwargs.pop('fit_for_shg_amps', False)
@@ -182,7 +183,11 @@ class PowerSpectrumPosteriorProbability(object):
             Dimensionless power spectrum normalization with units of
             1 / (sr**2 Hz**2).
         """
-        volume = self.ps_box_size_perp_Mpc**2 * self.ps_box_size_para_Mpc
+        volume = (
+            self.ps_box_size_ra_Mpc
+            * self.ps_box_size_dec_Mpc
+            * self.ps_box_size_para_Mpc
+        )
 
         # Normalization calculated relative to mean
         # of vector k within the i_bin-th k-bin

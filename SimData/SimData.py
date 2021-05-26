@@ -7,7 +7,7 @@ import BayesEoR.Params.params as p
 
 def generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(
         nu, nv, nx, ny, nf, neta,
-        ps_box_size_perp_Mpc, ps_box_size_para_Mpc
+        ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc
     ):
     # Rename this function? This is the default funciton
     # Generate k_cube pixel coordinates
@@ -16,14 +16,15 @@ def generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(
                        -(nv//2) : (nv//2)+1]
 
     # Setup k-space arrays
-    deltakperp = 2.*np.pi / ps_box_size_perp_Mpc
-    deltakpara = 2.*np.pi / ps_box_size_para_Mpc
-    k_z = z * deltakpara
-    k_y = y * deltakperp
-    k_x = x * deltakperp
+    deltakx = 2.*np.pi / ps_box_size_ra_Mpc
+    deltaky = 2.*np.pi / ps_box_size_dec_Mpc
+    deltakz = 2.*np.pi / ps_box_size_para_Mpc
+    k_z = z * deltakz
+    k_y = y * deltaky
+    k_x = x * deltakx
     mod_k_physical = (k_z**2. + k_y**2. + k_x**2.)**0.5
 
-    return mod_k_physical, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z
+    return mod_k_physical, k_x, k_y, k_z, x, y, z
 
 
 def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector(
@@ -155,14 +156,14 @@ def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vec
 
 def generate_masked_coordinate_cubes(
         cube_to_mask, nu, nv, nx, ny, nf, neta, nq,
-        ps_box_size_perp_Mpc, ps_box_size_para_Mpc
+        ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc
     ):
     # Generate k_cube physical coordinates
     # to match the 21cmFAST input simulation
-    mod_k, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z =\
+    mod_k, k_x, k_y, k_z, x, y, z =\
         generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(
             nu, nv, nx, ny, nf, neta,
-            ps_box_size_perp_Mpc, ps_box_size_para_Mpc)
+            ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc)
 
     # Do not include high spatial frequency structure in the power
     # spectral data since these terms aren't included in the data model
@@ -249,17 +250,18 @@ def generate_masked_coordinate_cubes(
 
 def generate_k_cube_model_spherical_binning_v2d1(
         mod_k_masked, k_z_masked, nu, nv, nx, ny, nf, neta, nq,
-        ps_box_size_perp_Mpc, ps_box_size_para_Mpc
+        ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc
     ):
     # Need to rename this function, it's now the default
     # Generate k_cube physical coordinates
     # to match the 21cmFAST input simulation
-    mod_k, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z =\
+    mod_k, k_x, k_y, k_z, x, y, z =\
         generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(
             nu, nv, nx, ny, nf, neta,
-            ps_box_size_perp_Mpc, ps_box_size_para_Mpc)
+            ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc)
 
     modkscaleterm = 1.35
+    deltakpara = 2.*np.pi / ps_box_size_para_Mpc
     binsize = deltakpara * 2.0
 
     numKbins = 50
@@ -357,16 +359,18 @@ def calc_mean_binned_k_vals(mod_k_masked, k_cube_voxels_in_bin, **kwargs):
 
 def generate_k_cube_model_cylindrical_binning(
         mod_k_masked, k_z_masked, k_y_masked, k_x_masked, n_k_perp_bins,
-        nu, nv, nx, ny, nf, neta, nq):
+        nu, nv, nx, ny, nf, neta, nq,
+        ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc):
     # Generate k_cube physical coordinates to
     # match the 21cmFAST input simulation
-    mod_k, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z =\
+    mod_k, k_x, k_y, k_z, x, y, z =\
         generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(
             nu, nv, nx, ny, nf, neta,
-            ps_box_size_perp_Mpc, ps_box_size_para_Mpc)
+            ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc)
 
     # define mod_k binning
     modkscaleterm = 1.5 # Value used in BEoRfgs and in 21cmFAST binning
+    deltakperp = 2.*np.pi / ps_box_size_para_Mpc
     binsize = deltakperp * 2 # Value used in BEoRfgs
 
     numKbins = 50

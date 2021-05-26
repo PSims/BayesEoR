@@ -32,40 +32,40 @@ class Healpix(HEALPix):
 
     Parameters
     ----------
-    fov_deg : float
-        Specifies the field of view in degrees which sets a cutoff
-        at zenith angles > fov_deg / 2 for pixels that are included
-        in the sky model.
+    fov_ra_deg : float
+        Field of view in degrees of the RA axis of the sky model.
+    fov_dec_deg : float
+        Field of view in degrees of the DEC axis of the sky model.  
+        Defaults to `fov_ra_deg`.
     nside : int
-        Sets the nside resolution of the HEALPix map.  Defaults to
-        512.
+        Nside resolution of the HEALPix map.  Defaults to 256.
     telescope_latlonalt : tuple
         Tuple containing the latitude, longitude, and altitude of the
-        telescope in degrees.
+        telescope in degrees, degrees, and meters, respectively.
     central_jd : float
         Central time step of the observation in JD2000 format.
     nt : int
         Number of time integrations. Defaults to 1.
     int_time : float, optional
-        Integration time in seconds. Required if `nt > 1`.
+        Integration time in seconds. Required if `nt` > 1.
     beam_type : str, optional
         Can be either (case insensitive) 'uniform', 'gaussian',
-        or 'airy'. Specifies the type of beam to use.
-        Defaults to 'uniform'.
+        or 'airy'.  Defaults to 'uniform'.
     peak_amp : float, optional
-        Sets the peak amplitude of the beam.  Defaults to 1.0.
+        Peak amplitude of the beam.  Defaults to 1.0.
     fwhm_deg : float, optional
-        Required if `beam_type='gaussian'`. Sets the full width half
+        Required if `beam_type` = 'gaussian'. Sets the full width at half
         maximum of the beam in degrees.
     diam : float, optional
         Effective diameter of the antenna in meters.  Used if
-        `beam_type = 'airy'`.
-    """
+        `beam_type` = 'airy'.
 
+    """
     def __init__(
             self,
-            fov_deg=None,
-            nside=512,
+            fov_ra_deg=None,
+            fov_dec_deg=None,
+            nside=256,
             telescope_latlonalt=None,
             central_jd=None,
             nt=1,
@@ -79,7 +79,11 @@ class Healpix(HEALPix):
         # useful astropy_healpix functions
         super().__init__(nside, frame=ICRS())
 
-        self.fov_deg = fov_deg
+        self.fov_ra_deg = fov_ra_deg
+        if fov_dec_deg is None:
+            self.fov_dec_deg = fov_ra_deg
+        else:
+            self.fov_dec_deg = fov_dec_deg
         self.pixel_area_sr = self.pixel_area.value
         self.lat, self.lon, self.alt = telescope_latlonalt
         # Set telescope location
@@ -186,12 +190,12 @@ class Healpix(HEALPix):
             )
         thetas = (90 - lats) * np.pi / 180
         lons_inds = np.logical_and(
-            (lons - self.field_center[0]) * np.sin(thetas) >= -self.fov_deg / 2,
-            (lons - self.field_center[0]) * np.sin(thetas) <= self.fov_deg / 2,
+            (lons - self.field_center[0])*np.sin(thetas) >= -self.fov_ra_deg/2,
+            (lons - self.field_center[0])*np.sin(thetas) <= self.fov_ra_deg/2,
             )
         lats_inds = np.logical_and(
-            lats >= self.field_center[1] - self.fov_deg / 2,
-            lats <= self.field_center[1] + self.fov_deg / 2
+            lats >= self.field_center[1] - self.fov_dec_deg / 2,
+            lats <= self.field_center[1] + self.fov_dec_deg / 2
             )
         if inverse:
             pix = np.where(np.logical_not(lons_inds * lats_inds))[0]
