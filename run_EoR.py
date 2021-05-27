@@ -161,11 +161,11 @@ if p.fit_for_monopole:
             + '_fit_for_monopole/'
         )
 # nside modifier
-array_save_directory = array_save_directory[:-1] + '_nside{}/'.format(p.nside))
+array_save_directory = array_save_directory[:-1] + '_nside{}/'.format(p.nside)
 
 # FoV modifier
 if p.fov_ra_deg != p.fov_dec_deg:
-    fov_str = '_fov_deg_ra_{:.1f}_dec{:.1f}'.format(p.fov_ra_deg, p.fov_dec_deg)
+    fov_str = '_fov_deg_ra_{:.1f}_dec_{:.1f}'.format(p.fov_ra_deg, p.fov_dec_deg)
 else:
     fov_str = '_fov_deg_{:.1f}'.format(p.fov_ra_deg)
 array_save_directory = array_save_directory[:-1] + fov_str + '/'
