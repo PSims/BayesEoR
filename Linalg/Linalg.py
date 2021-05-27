@@ -584,13 +584,14 @@ def IDFT_Array_IDFT_1D_WQ(nf, neta, nq, **kwargs):
         )
     return Exponent_plus_quadratic_array.T
 
+
 def idft_array_idft_1d_sh(
         nf, neta, nq_sh, npl_sh,
         fit_for_shg_amps=False,
         nu_min_MHz=None,
         channel_width_MHz=None,
         beta=None
-    ):
+        ):
     """
     Generate a 1D DFT matrix for the FT along the
     LoS axis from eta -> frequency.  Analagous to
@@ -627,27 +628,25 @@ def idft_array_idft_1d_sh(
         Matrix containing the 1D DFT matrix and/or the LSSM for the SHG pixels
         if `fit_for_shg_amps` = True and/or `nq_sh` > 0.
     """
-    if fit_for_shg_amps:
-        i_f = (np.arange(nf) - nf//2).reshape(-1, 1)
-        i_eta = (np.arange(neta) - neta//2).reshape(1, -1)
+    if not fit_for_shg_amps:
+        neta = 1
+    i_f = (np.arange(nf) - nf//2).reshape(-1, 1)
+    i_eta = (np.arange(neta) - neta//2).reshape(1, -1)
 
-        # Sign change for consistency, Finv chosen
-        # to have + sign to match healvis
-        ExponentArray = np.exp(-2.0*np.pi*1j*(i_eta*i_f / nf))
-        ExponentArray /= nf
+    # Sign change for consistency, Finv chosen
+    # to have + sign to match healvis
+    idft_array_sh = np.exp(-2.0*np.pi*1j*(i_eta*i_f / nf))
+    idft_array_sh /= nf
+    
     if nq_sh > 0:
         # Construct large spectral scale model (LSSM) for the SHG modes
         lssm_sh = quadratic_array_linear_plus_quad_modes_only_v2(
             nf, nq_sh, npl=npl_sh, nu_min_MHz=nu_min_MHz,
             channel_width_MHz=channel_width_MHz, beta=beta)
+        idft_array_sh = np.hstack([idft_array_sh, lssm_sh.T])
 
-    if fit_for_shg_amps and nq_sh > 0:
-        idft_array_sh = np.hstack([ExponentArray, lssm_sh.T])
-    elif fit_for_shg_amps:
-        idft_array_sh = ExponentArray
-    elif nq_sh > 0:
-        idft_array_sh = lssm_sh.T
     return idft_array_sh
+
 
 # Gridding matrix functions
 def calc_vis_selection_numbers(nu, nv):

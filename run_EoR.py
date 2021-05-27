@@ -54,6 +54,7 @@ nu = p.nu
 nv = p.nv
 nx = p.nx
 ny = p.ny
+nuv = nu*nv - 1*(not p.fit_for_monopole)
 
 if p.fov_dec_deg is None:
     p.fov_dec_deg = p.fov_ra_deg
@@ -67,8 +68,7 @@ nu_sh = p.nu_sh
 nv_sh = p.nv_sh
 nq_sh = p.nq_sh
 npl_sh = p.npl_sh
-use_shg = nu_sh > 0 and nv_sh > 0
-if use_shg:
+if p.use_shg:
     nuv_sh = nu_sh*nv_sh - 1
 else:
     nuv_sh = None
@@ -148,7 +148,7 @@ n_Fourier = (nu*nv - 1) * nf
 n_LW = (nu*nv - 1) * nq
 n_model = n_Fourier+n_LW
 n_dat = n_Fourier
-current_file_version = 'Likelihood_v2d7_3D_ZM'
+current_file_version = 'Likelihood_v2d8_3D_ZM'
 array_save_directory = (
     'array_storage/batch_1/'
     + '{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(
@@ -188,7 +188,7 @@ if p.unphased:
     array_save_directory = array_save_directory[:-1] + '_unphased/'
 
 # Subharmonic grid (SHG) modifiers
-if use_shg:
+if p.use_shg:
     shg_str = '_SHG'
     if nu_sh > 0:
         shg_str += '_nu_sh_{}'.format(nu_sh)
@@ -297,7 +297,7 @@ if p.include_instrumental_effects:
             antenna_diameter=p.antenna_diameter,
             delta_u_irad=p.delta_u_irad, delta_v_irad=p.delta_v_irad,
             delta_eta_iHz=p.delta_eta_iHz,
-            use_shg=use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
+            use_shg=p.use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
             nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh, npl_sh=npl_sh
             )
     else:
@@ -321,7 +321,7 @@ if p.include_instrumental_effects:
             antenna_diameter=p.antenna_diameter,
             delta_u_irad=p.delta_u_irad, delta_v_irad=p.delta_v_irad,
             delta_eta_iHz=p.delta_eta_iHz,
-            use_shg=use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
+            use_shg=p.use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
             nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh, npl_sh=npl_sh,
             effective_noise=effective_noise
             )
@@ -538,10 +538,6 @@ if p.use_LWM_Gaussian_prior:
     nDims += 3
 
 x = [100.e0]*nDims
-if p.fit_for_monopole:
-    nuv = nu*nv
-else:
-    nuv = nu*nv-1
 
 if p.include_instrumental_effects:
     block_T_Ninv_T = []
@@ -708,7 +704,7 @@ if p.file_root is None:
         file_root = file_root.replace('Test', 'EoR')
     if use_MultiNest:
         file_root = 'MN-' + file_root
-    if use_shg:
+    if p.use_shg:
         file_root += 'SH_{}_{}_{}_{}-'.format(
             nu_sh, nv_sh, nq_sh, npl_sh)
         if p.fit_for_shg_amps:
@@ -729,7 +725,7 @@ PSPP_block_diag_Polychord = PowerSpectrumPosteriorProbability(
     ps_box_size_ra_Mpc=ps_box_size_ra_Mpc,
     ps_box_size_dec_Mpc=ps_box_size_dec_Mpc,
     ps_box_size_para_Mpc=ps_box_size_para_Mpc,
-    use_shg=use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
+    use_shg=p.use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
     nuv_sh=nuv_sh, nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh
     )
 if p.include_instrumental_effects and not zero_the_LW_modes:

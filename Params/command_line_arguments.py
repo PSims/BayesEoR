@@ -130,6 +130,11 @@ def BayesEoRParser():
              "the output file specified."
         )
     parser.add_argument(
+        '--use_shg',
+        action='store_true',
+        help="If passed, use the subharmonic grid."
+    )
+    parser.add_argument(
         '--nu_sh',
         type=int,
         help="Number of pixels on a side for the u-axis in the subharmonic "
@@ -150,13 +155,14 @@ def BayesEoRParser():
     parser.add_argument(
         '--npl_sh',
         type=int,
-        help="Number of power law coefficients used in the large spectral scale"
-             " model for the subharmonic grid."
+        help="Number of power law coefficients used in the large spectral "
+             "scale model for the subharmonic grid."
     )
     parser.add_argument(
         '--fit_for_shg_amps',
         action='store_true',
-        help="If passed, fit for the amplitudes of the subharmonic grid pixels."
+        help="If passed, fit for the amplitudes of the subharmonic grid "
+             "pixels."
     )
 
     args = parser.parse_args()
