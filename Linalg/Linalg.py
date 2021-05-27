@@ -253,9 +253,9 @@ def IDFT_Array_IDFT_2D_ZM(
                 U_oversampling_Factor, V_oversampling_Factor)
 
     # The uv coordinates need to be rescaled to units of
-    # wavelengths by multiplying by the uv pixel area
-    i_u_AV = i_u_AV.astype('float') * p.uv_pixel_width_wavelengths
-    i_v_AV = i_v_AV.astype('float') * p.uv_pixel_width_wavelengths
+    # wavelengths by multiplying by the uv pixel width
+    i_u_AV = i_u_AV.astype('float') * p.delta_u_irad
+    i_v_AV = i_v_AV.astype('float') * p.delta_v_irad
     # Sign change for consistency, Finv chosen to
     # have + to match healvis
     ExponentArray = np.exp(-2.0*np.pi*1j*(i_x_AV*i_u_AV + i_v_AV*i_y_AV))
@@ -307,8 +307,8 @@ def IDFT_Array_IDFT_2D_ZM_SH(
     # linear spacing and will need to be reworked if using a log spacing.
     # This also needs to be updated to account for a FoV which differs
     # along the l and m axes.
-    du_sh = p.uv_pixel_width_wavelengths / nu_sh
-    dv_sh = p.uv_pixel_width_wavelengths / nv_sh
+    du_sh = p.delta_u_irad / nu_sh
+    dv_sh = p.delta_v_irad / nv_sh
     u_vec = u_vec.astype('float') * du_sh
     v_vec = v_vec.astype('float') * dv_sh
 

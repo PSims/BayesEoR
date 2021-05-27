@@ -44,6 +44,25 @@ npl = p.npl
 nq = p.nq
 if nq > npl:
     nq = npl
+nf = p.nf
+neta = p.neta
+if not p.include_instrumental_effects:
+    neta = neta - nq
+if p.nv is None:
+    p.nv = p.nu
+nu = p.nu
+nv = p.nv
+nx = p.nx
+ny = p.ny
+
+if p.fov_dec_deg is None:
+    p.fov_dec_deg = p.fov_ra_deg
+
+p.delta_u_irad = 1.0 / np.deg2rad(p.fov_ra_deg)
+p.delta_v_irad = 1.0 / np.deg2rad(p.fov_dec_deg)
+p.delta_eta_iHz = 1.0 / (p.nf*p.channel_width_MHz*1e6)
+p.sky_model_pixel_area_sr = 4 * np.pi / (12 * p.nside**2)
+
 nu_sh = p.nu_sh
 nv_sh = p.nv_sh
 nq_sh = p.nq_sh
@@ -58,26 +77,6 @@ else:
 # Can be used for improving numerical precision when
 # performing evidence comparison.
 sub_ML_monopole_term_model = False
-nf = p.nf
-neta = p.neta
-if not p.include_instrumental_effects:
-    neta = neta - nq
-if not p.npix == -1:
-    nu = p.npix
-    nv = p.npix
-    nx = p.npix
-    ny = p.npix
-    p.nu = p.npix
-    p.nv = p.npix
-    p.nx = p.npix
-    p.ny = p.npix
-else:
-    nu = p.nu
-    nv = p.nv
-    nx = p.nx
-    ny = p.ny
-p.uv_pixel_width_wavelengths = 1.0 / np.deg2rad(p.simulation_FoV_deg)
-p.sky_model_pixel_area_sr = 4 * np.pi / (12 * p.nside**2)
 
 # Data noise
 if 'noise_data_path' not in p.__dict__.keys():
@@ -149,7 +148,7 @@ n_Fourier = (nu*nv - 1) * nf
 n_LW = (nu*nv - 1) * nq
 n_model = n_Fourier+n_LW
 n_dat = n_Fourier
-current_file_version = 'Likelihood_v2d6_3D_ZM'
+current_file_version = 'Likelihood_v2d7_3D_ZM'
 array_save_directory = (
     'array_storage/batch_1/'
     + '{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(
@@ -162,15 +161,15 @@ if p.fit_for_monopole:
             + '_fit_for_monopole/'
         )
 # nside modifier
-array_save_directory = (
-        array_save_directory[:-1]
-        + '_nside{}/'.format(p.nside)
-    )
+array_save_directory = array_save_directory[:-1] + '_nside{}/'.format(p.nside)
+
 # FoV modifier
-array_save_directory = (
-        array_save_directory[:-1]
-        + '_fov_deg_{:.1f}/'.format(p.simulation_FoV_deg)
-    )
+if p.fov_ra_deg != p.fov_dec_deg:
+    fov_str = '_fov_deg_ra_{:.1f}_dec_{:.1f}'.format(p.fov_ra_deg, p.fov_dec_deg)
+else:
+    fov_str = '_fov_deg_{:.1f}'.format(p.fov_ra_deg)
+array_save_directory = array_save_directory[:-1] + fov_str + '/'
+
 # Append a beam center classifier
 if p.beam_center is not None:
     beam_center_signs = [
@@ -296,6 +295,8 @@ if p.include_instrumental_effects:
             FWHM_deg_at_ref_freq_MHz=p.FWHM_deg_at_ref_freq_MHz,
             PB_ref_freq_MHz=p.PB_ref_freq_MHz,
             antenna_diameter=p.antenna_diameter,
+            delta_u_irad=p.delta_u_irad, delta_v_irad=p.delta_v_irad,
+            delta_eta_iHz=p.delta_eta_iHz,
             use_shg=use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
             nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh, npl_sh=npl_sh
             )
@@ -318,9 +319,11 @@ if p.include_instrumental_effects:
             FWHM_deg_at_ref_freq_MHz=p.FWHM_deg_at_ref_freq_MHz,
             PB_ref_freq_MHz=p.PB_ref_freq_MHz,
             antenna_diameter=p.antenna_diameter,
-            effective_noise=effective_noise,
+            delta_u_irad=p.delta_u_irad, delta_v_irad=p.delta_v_irad,
+            delta_eta_iHz=p.delta_eta_iHz,
             use_shg=use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
-            nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh, npl_sh=npl_sh
+            nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh, npl_sh=npl_sh,
+            effective_noise=effective_noise
             )
 else:
     BM = BuildMatrices(
@@ -352,38 +355,39 @@ cosmo = Cosmology()
 freqs_MHz = p.nu_min_MHz + np.arange(p.nf)*p.channel_width_MHz
 bandwidth_MHz = p.channel_width_MHz * p.nf
 redshift = cosmo.f2z((freqs_MHz.mean() * units.MHz).to('Hz'))
-ps_box_size_perp_Mpc = (
-    cosmo.dL_dth(redshift) * np.deg2rad(p.simulation_FoV_deg))
+ps_box_size_ra_Mpc = (
+    cosmo.dL_dth(redshift) * np.deg2rad(p.fov_ra_deg))
+ps_box_size_dec_Mpc = (
+    cosmo.dL_dth(redshift) * np.deg2rad(p.fov_dec_deg))
 ps_box_size_para_Mpc = (
     cosmo.dL_df(redshift) * (bandwidth_MHz * 1e6))
-mod_k, k_x, k_y, k_z, deltakperp, deltakpara, x, y, z =\
+mod_k, k_x, k_y, k_z, x, y, z =\
     generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(
         nu, nv, nx, ny, nf, neta,
-        ps_box_size_perp_Mpc,
-        ps_box_size_para_Mpc
+        ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc
         )
 k = mod_k.copy()
 k_vis_ordered = k.T.flatten() # not used for anything
 k_x_masked = generate_masked_coordinate_cubes(
     k_x, nu, nv, nx, ny, nf, neta, nq,
-    ps_box_size_perp_Mpc, ps_box_size_para_Mpc
+    ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc
 )
 k_y_masked = generate_masked_coordinate_cubes(
     k_y, nu, nv, nx, ny, nf, neta, nq,
-    ps_box_size_perp_Mpc, ps_box_size_para_Mpc
+    ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc
 )
 k_z_masked = generate_masked_coordinate_cubes(
     k_z, nu, nv, nx, ny, nf, neta, nq,
-    ps_box_size_perp_Mpc, ps_box_size_para_Mpc
+    ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc
 )
 mod_k_masked = generate_masked_coordinate_cubes(
     mod_k, nu, nv, nx, ny, nf, neta, nq,
-    ps_box_size_perp_Mpc, ps_box_size_para_Mpc
+    ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc
 )
 k_cube_voxels_in_bin, modkbins_containing_voxels = \
     generate_k_cube_model_spherical_binning_v2d1(
         mod_k_masked, k_z_masked, nu, nv, nx, ny, nf, neta, nq,
-        ps_box_size_perp_Mpc, ps_box_size_para_Mpc
+        ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc
     )
 modk_vis_ordered_list = [
     mod_k_masked[k_cube_voxels_in_bin[i_bin]]
@@ -391,8 +395,8 @@ modk_vis_ordered_list = [
     ]
 
 k_vals_file_name = (
-    'k_vals_nu_{}_nv_{}_nf_{}_nq_{}_binning_v2d1_fov{:.1f}.txt'.format(
-        nu, nv, nf, nq, p.simulation_FoV_deg
+    'k_vals_nu_{}_nv_{}_nf_{}_nq_{}_binning_v2d1{}.txt'.format(
+        nu, nv, nf, nq, fov_str
         )
     )
 k_vals = calc_mean_binned_k_vals(
@@ -405,7 +409,8 @@ if do_cylindrical_binning:
     k_cube_voxels_in_bin, modkbins_containing_voxels, k_perp_bins =\
         generate_k_cube_model_cylindrical_binning(
             mod_k_masked, k_z_masked, k_y_masked, k_x_masked,
-            n_k_perp_bins, nu, nv, nx, ny, nf, neta, nq)
+            n_k_perp_bins, nu, nv, nx, ny, nf, neta, nq,
+            ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc)
 
 
 #--------------------------------------------
@@ -552,7 +557,8 @@ if small_cube:
         modk_vis_ordered_list, Ninv, d_Ninv_d, log_priors=False,
         intrinsic_noise_fitting=p.use_intrinsic_noise_fitting, k_vals=k_vals,
         n_uniform_prior_k_bins=p.n_uniform_prior_k_bins,
-        ps_box_size_perp_Mpc=ps_box_size_perp_Mpc,
+        ps_box_size_ra_Mpc=ps_box_size_ra_Mpc,
+        ps_box_size_dec_Mpc=ps_box_size_dec_Mpc,
         ps_box_size_para_Mpc=ps_box_size_para_Mpc
         )
 PSPP_block_diag = PowerSpectrumPosteriorProbability(
@@ -562,7 +568,8 @@ PSPP_block_diag = PowerSpectrumPosteriorProbability(
     Print=True, log_priors=False, k_vals=k_vals,
     intrinsic_noise_fitting=p.use_intrinsic_noise_fitting,
     n_uniform_prior_k_bins=p.n_uniform_prior_k_bins,
-    ps_box_size_perp_Mpc=ps_box_size_perp_Mpc,
+    ps_box_size_ra_Mpc=ps_box_size_ra_Mpc,
+    ps_box_size_dec_Mpc=ps_box_size_dec_Mpc,
     ps_box_size_para_Mpc=ps_box_size_para_Mpc
     )
 
@@ -719,7 +726,8 @@ PSPP_block_diag_Polychord = PowerSpectrumPosteriorProbability(
     log_priors=log_priors, dimensionless_PS=dimensionless_PS, Print=True,
     intrinsic_noise_fitting=p.use_intrinsic_noise_fitting, k_vals=k_vals,
     n_uniform_prior_k_bins=p.n_uniform_prior_k_bins,
-    ps_box_size_perp_Mpc=ps_box_size_perp_Mpc,
+    ps_box_size_ra_Mpc=ps_box_size_ra_Mpc,
+    ps_box_size_dec_Mpc=ps_box_size_dec_Mpc,
     ps_box_size_para_Mpc=ps_box_size_para_Mpc,
     use_shg=use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
     nuv_sh=nuv_sh, nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh

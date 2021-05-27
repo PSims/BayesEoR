@@ -328,7 +328,8 @@ class BuildMatrices(BuildMatrixTree):
 
             # Set up Healpix instance
             self.hp = Healpix(
-                fov_deg=p.simulation_FoV_deg,
+                fov_ra_deg=p.fov_ra_deg,
+                fov_dec_deg=p.fov_dec_deg,
                 nside=p.nside,
                 telescope_latlonalt=p.telescope_latlonalt,
                 central_jd=p.central_jd,
@@ -359,13 +360,14 @@ class BuildMatrices(BuildMatrixTree):
         self.npl_sh = kwargs.pop('npl_sh', 0)
 
         # Fz normalization
-        self.delta_eta_inv_Hz = 1.0 / (p.nf * p.channel_width_MHz * 1.0e6)
-        self.Fz_normalisation = self.nf * self.delta_eta_inv_Hz
+        self.delta_eta_iHz = kwargs.pop('delta_eta_iHz')
+        self.Fz_normalization = self.nf * self.delta_eta_iHz
 
         # Fprime normalization
-        self.delta_u_inv_rad = p.uv_pixel_width_wavelengths
-        self.Fprime_normalisation = (
-                (self.nu * self.nv) * self.delta_u_inv_rad**2
+        self.delta_u_irad = kwargs.pop('delta_u_irad')
+        self.delta_v_irad = kwargs.pop('delta_v_irad')
+        self.Fprime_normalization = (
+                self.nu * self.nv * self.delta_u_irad * self.delta_v_irad
             )
 
         # Finv normalization
@@ -850,7 +852,7 @@ class BuildMatrices(BuildMatrixTree):
             self.nu, self.nv,
             sampled_lm_coords_radians,
             exclude_mean=(not p.fit_for_monopole))
-        idft_array *= self.Fprime_normalisation
+        idft_array *= self.Fprime_normalization
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
         self.output_data(idft_array,
@@ -906,7 +908,7 @@ class BuildMatrices(BuildMatrixTree):
         idft_array_sh_block = IDFT_Array_IDFT_2D_ZM_SH(
             self.nu_sh, self.nv_sh,
             sampled_lm_coords_radians)
-        idft_array_sh_block *= self.Fprime_normalisation / (self.nu*self.nv)
+        idft_array_sh_block *= self.Fprime_normalization / (self.nu*self.nv)
         idft_array_sh = self.sd_block_diag(
             [idft_array_sh_block for i in range(self.nf)]
         )
@@ -964,7 +966,7 @@ class BuildMatrices(BuildMatrixTree):
             nu_min_MHz=p.nu_min_MHz,
             channel_width_MHz=p.channel_width_MHz,
             beta=p.beta)
-        idft_array_1d_sh_block *= self.Fz_normalisation
+        idft_array_1d_sh_block *= self.Fz_normalization
         nuv_sh = self.nu_sh*self.nv_sh - 1
         idft_array_1d_sh = self.sd_block_diag(
             [idft_array_1d_sh_block for i in range(nuv_sh)]
@@ -991,7 +993,7 @@ class BuildMatrices(BuildMatrixTree):
         start = time.time()
         print('Performing matrix algebra')
         idft_array_1D = IDFT_Array_IDFT_1D(self.nf, self.neta)
-        idft_array_1D *= self.Fz_normalisation
+        idft_array_1D *= self.Fz_normalization
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
         self.output_data(idft_array_1D,
@@ -1052,7 +1054,7 @@ class BuildMatrices(BuildMatrixTree):
             nu_min_MHz=p.nu_min_MHz,
             channel_width_MHz=p.channel_width_MHz,
             beta=p.beta)
-        idft_array_1D_WQ *= self.Fz_normalisation
+        idft_array_1D_WQ *= self.Fz_normalization
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
         self.output_data(idft_array_1D_WQ,

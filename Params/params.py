@@ -22,8 +22,8 @@ file_root = None
 ###
 nf = 38
 neta = 38
-nu = 9  # 9 for 12.9 deg FoV, 7 for 9.68 deg FoV, 5 for 6.45 deg FoV
-nv = 9
+nu = 9
+nv = None
 nx = 9
 ny = 9
 nq = 0
@@ -46,9 +46,11 @@ nu_min_MHz = 158.304048743
 channel_width_MHz = 0.237618986858
 
 ###
-# FoV parameters
+# Sky model params
 ###
-simulation_FoV_deg = 12.9080728652
+fov_ra_deg = 12.9080728652
+fov_dec_deg = None
+nside = 256
 
 # --------------------------------------------
 # Parameters below this shouldn't require editing
@@ -81,7 +83,7 @@ Tb_experimental_std_K = (
 
 # Matches EoR sim (note: use closest odd val., so 127 rather than 128,
 # for easier FFT normalisation)
-simulation_resolution_deg = simulation_FoV_deg / 511.
+# simulation_resolution_deg = simulation_FoV_deg / 511.
 fits_storage_dir = ''
 # HF_nu_min_MHz_array = [210,220,230]
 HF_nu_min_MHz_array = [220]
