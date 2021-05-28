@@ -48,9 +48,9 @@ nf = p.nf
 neta = p.neta
 if not p.include_instrumental_effects:
     neta = neta - nq
-if p.nv is None:
-    p.nv = p.nu
 nu = p.nu
+if p.nv is None:
+    p.nv = nu
 nv = p.nv
 nx = p.nx
 ny = p.ny
@@ -65,6 +65,8 @@ p.delta_eta_iHz = 1.0 / (p.nf*p.channel_width_MHz*1e6)
 p.sky_model_pixel_area_sr = 4 * np.pi / (12 * p.nside**2)
 
 nu_sh = p.nu_sh
+if p.nv_sh is None:
+    p.nv_sh = nu_sh
 nv_sh = p.nv_sh
 nq_sh = p.nq_sh
 npl_sh = p.npl_sh
