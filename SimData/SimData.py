@@ -354,7 +354,7 @@ def calc_mean_binned_k_vals(mod_k_masked, k_cube_voxels_in_bin, **kwargs):
                    + k_vals_file.replace('.txt', '_nsamples.txt'),
                    nsamples)
 
-    return k_vals
+    return np.array(k_vals)
 
 
 def generate_k_cube_model_cylindrical_binning(
