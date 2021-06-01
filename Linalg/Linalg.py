@@ -646,28 +646,6 @@ def calc_vis_selection_numbers_ZM(nu, nv):
     return grab_order_for_vis_spectrum_ordered_to_chan_ordered_ZM
 
 
-def calc_vis_selection_numbers_SH(
-        nu, nv, U_oversampling_Factor=1.0, V_oversampling_Factor=1.0):
-    required_chan_order = np.arange(nu*nv).reshape(nu, nv)
-    visibility_spectrum_order = required_chan_order.T
-    # Updated for python 3: floor division
-    r = np.sqrt(
-        (np.arange(nu) - nu // 2).reshape(-1, 1) ** 2.
-        + (np.arange(nv) - nv // 2).reshape(1, -1) ** 2.
-        )
-    # True for everything other than the central 9 pix
-    non_excluded_values_mask = r > 1.5
-    visibility_spectrum_order_ZM_coarse_grid =\
-        visibility_spectrum_order[non_excluded_values_mask]
-    grab_order_for_vis_spectrum_ordered_to_chan_ordered_ZM_coarse_grid =\
-        visibility_spectrum_order_ZM_coarse_grid.argsort()
-    grab_order_for_vis_spectrum_ordered_to_chan_ordered_ZM_SH_grid =\
-        calc_vis_selection_numbers_ZM(
-            3*U_oversampling_Factor, 3*V_oversampling_Factor)
-    return grab_order_for_vis_spectrum_ordered_to_chan_ordered_ZM_coarse_grid,\
-           grab_order_for_vis_spectrum_ordered_to_chan_ordered_ZM_SH_grid
-
-
 def generate_gridding_matrix_vis_ordered_to_chan_ordered(
         nu, nv, nf, exclude_mean=True):
     """
@@ -709,71 +687,6 @@ def generate_gridding_matrix_vis_ordered_to_chan_ordered(
                     row_number, grid_pix
                 ] = 1
 
-    return gridding_matrix_vis_ordered_to_chan_ordered
-
-
-def generate_gridding_matrix_vis_ordered_to_chan_ordered_ZM(nu, nv, nf):
-    if p.fit_for_monopole:
-        vis_grab_order = calc_vis_selection_numbers(nu, nv)
-    else:
-        vis_grab_order = calc_vis_selection_numbers_ZM(nu, nv)
-    vals_per_chan = vis_grab_order.size
-
-    gridding_matrix_vis_ordered_to_chan_ordered = np.zeros(
-        [vals_per_chan*(nf-1), vals_per_chan*(nf-1)]
-        )
-    for i in range(nf-1):
-        for j, vis_grab_val in enumerate(vis_grab_order):
-            row_number = (i*vals_per_chan) + j
-            # Pixel to grab from vis-ordered vector
-            # and place as next chan-ordered value
-            grid_pix = i + vis_grab_val*(nf-1)
-            # print(i, j, vis_grab_val, row_number, grid_pix)
-            gridding_matrix_vis_ordered_to_chan_ordered[
-                    row_number, grid_pix
-                ] = 1
-    return gridding_matrix_vis_ordered_to_chan_ordered
-
-
-def generate_gridding_matrix_vis_ordered_to_chan_ordered_WQ(nu,nv,nf):
-    """
-        Re-order matrix from vis-ordered to chan-ordered and place
-        Fourier modes at the top and quadratic modes at the bottom.
-    """
-    if p.fit_for_monopole:
-        vis_grab_order = calc_vis_selection_numbers(nu, nv)
-    else:
-        vis_grab_order = calc_vis_selection_numbers_ZM(nu, nv)
-    vals_per_chan = vis_grab_order.size
-    Fourier_vals_per_chan = vis_grab_order.size
-    quadratic_vals_per_chan = 2
-
-    gridding_matrix_vis_ordered_to_chan_ordered = np.zeros(
-        [vals_per_chan*(nf+2), vals_per_chan*(nf+2)]
-        )
-    for i in range(nf):
-        for j, vis_grab_val in enumerate(vis_grab_order):
-            row_number = (i*Fourier_vals_per_chan) + j
-            # pixel to grab from vis-ordered vector
-            # and place as next chan-ordered value
-            grid_pix = i + vis_grab_val*(nf+2)
-            # print(i, j, vis_grab_val, row_number, grid_pix)
-            gridding_matrix_vis_ordered_to_chan_ordered[
-                    row_number, grid_pix
-                ] = 1
-    for j, vis_grab_val in enumerate(vis_grab_order):
-        for i in range(2):
-            # Place quadratic modes after all of the
-            # Fourier modes in the resulting vector
-            n_fourier_modes = nf*Fourier_vals_per_chan
-            row_number = n_fourier_modes + j*quadratic_vals_per_chan + i
-            # Pixel to grab from vis-ordered vector
-            # and place as next chan-ordered value
-            grid_pix = nf + i + vis_grab_val*(nf+2)
-            # print(i, j, vis_grab_val, row_number, grid_pix)
-            gridding_matrix_vis_ordered_to_chan_ordered[
-                    row_number, grid_pix
-                ] = 1
     return gridding_matrix_vis_ordered_to_chan_ordered
 
 
