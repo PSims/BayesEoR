@@ -29,7 +29,7 @@ ny = 9
 nq = 0
 # Subharmonic grid (SHG) params
 nu_sh = 0
-nv_sh = 0
+nv_sh = None
 nq_sh = 0
 npl_sh = 0
 
