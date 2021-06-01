@@ -544,85 +544,6 @@ x = [100.e0]*nDims
 if p.include_instrumental_effects:
     block_T_Ninv_T = []
 
-#--------------------------------------------
-# Instantiate class and check that posterior_probability returns a
-# finite probability (so no obvious binning errors etc.)
-#--------------------------------------------
-if small_cube:
-    PSPP = PowerSpectrumPosteriorProbability(
-        T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin,
-        nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes,
-        modk_vis_ordered_list, Ninv, d_Ninv_d, log_priors=False,
-        intrinsic_noise_fitting=p.use_intrinsic_noise_fitting, k_vals=k_vals,
-        n_uniform_prior_k_bins=p.n_uniform_prior_k_bins,
-        ps_box_size_ra_Mpc=ps_box_size_ra_Mpc,
-        ps_box_size_dec_Mpc=ps_box_size_dec_Mpc,
-        ps_box_size_para_Mpc=ps_box_size_para_Mpc
-        )
-PSPP_block_diag = PowerSpectrumPosteriorProbability(
-    T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin,
-    nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes,
-    modk_vis_ordered_list, Ninv, d_Ninv_d, block_T_Ninv_T=block_T_Ninv_T,
-    Print=True, log_priors=False, k_vals=k_vals,
-    intrinsic_noise_fitting=p.use_intrinsic_noise_fitting,
-    n_uniform_prior_k_bins=p.n_uniform_prior_k_bins,
-    ps_box_size_ra_Mpc=ps_box_size_ra_Mpc,
-    ps_box_size_dec_Mpc=ps_box_size_dec_Mpc,
-    ps_box_size_para_Mpc=ps_box_size_para_Mpc
-    )
-
-if small_cube:
-    print(PSPP_block_diag.posterior_probability(
-        [1.e0]*nDims,
-        diagonal_sigma=False,
-        block_T_Ninv_T=block_T_Ninv_T)[0])
-
-
-if sub_ML_monopole_term_model:
-    pre_sub_dbar = PSPP_block_diag.dbar
-    PSPP_block_diag.inverse_LW_power = 0.0
-    PSPP_block_diag.inverse_LW_power_zeroth_LW_term = p.inverse_LW_power
-    # Don't fit for the first LW term (only fitting for the monopole)
-    PSPP_block_diag.inverse_LW_power_first_LW_term = 2.e18
-    # Don't fit for the second LW term (only fitting for the monopole)
-    PSPP_block_diag.inverse_LW_power_second_LW_term = 2.e18
-
-    if p.use_LWM_Gaussian_prior:
-        fit_constraints = [2.e18] + [1.e-20] * (nDims-1)
-    else:
-        fit_constraints = [1.e-20] * nDims
-
-    maxL_LW_fit = PSPP_block_diag.calc_SigmaI_dbar_wrapper(
-        fit_constraints, T_Ninv_T, pre_sub_dbar,
-        block_T_Ninv_T=block_T_Ninv_T)[0]
-    maxL_LW_signal = np.dot(T, maxL_LW_fit)
-
-    Ninv_maxL_LW_signal = Ninv * maxL_LW_signal
-    ML_qbar = np.dot(T.conjugate().T, Ninv_maxL_LW_signal)
-    q_sub_dbar = pre_sub_dbar - ML_qbar
-    if small_cube:
-        PSPP.dbar = q_sub_dbar
-    PSPP_block_diag.dbar = q_sub_dbar
-    # Remove the constraints on the LW model for subsequent parts
-    # of the analysis
-    PSPP_block_diag.inverse_LW_power = p.inverse_LW_power
-    print('Foreground pre-subtraction complete, '
-          ' {} orders of magnitude foreground supression achieved.\n'.format(
-                np.log10(
-                    (d-effective_noise).std()
-                    / (d-maxL_LW_signal-effective_noise).std()
-                    )
-                ))
-
-    if small_cube:
-        print(PSPP.posterior_probability(
-            [1.e0]*nDims,
-            diagonal_sigma=False)[0])
-        print(PSPP_block_diag.posterior_probability(
-            [1.e0]*nDims,
-            diagonal_sigma=False,
-            block_T_Ninv_T=block_T_Ninv_T)[0])
-
 
 #--------------------------------------------
 # Sample from the posterior
@@ -630,8 +551,6 @@ if sub_ML_monopole_term_model:
 ###
 # PolyChord setup
 ###
-# log_priors_min_max = [[-5.0, 3.0] for _ in range(nDims)]
-# log_priors_min_max = [[-1.0, 7.0] for _ in range(nDims)]
 log_priors_min_max = [
     [-2.0, 2.0], [-1.2, 2.8], [-0.7, 3.3], [-0.3, 3.7], [0.1, 4.1],
     [0.5, 4.5], [1.0, 5.0], [1.4, 5.4], [1.7, 5.7]
