@@ -11,43 +11,6 @@ import BayesEoR.Params.params as p
 """
 
 
-def make_Gaussian_beam(
-        image_size_pix, fwhm_pix, beam_peak_amplitude, center_pix=[]):
-    # Need to delete this function after updating build_multi_chan_P
-    """
-        Make a square gaussian kernel centered on center_pix=[x0, y0].
-    """
-    x = np.arange(0, image_size_pix, 1, float)
-    y = x[:, np.newaxis]
-    if not center_pix:
-        x0 = y0 = image_size_pix // 2
-    else:
-        x0 = center_pix[0]
-        y0 = center_pix[1]
-    gaussian_beam = (
-            beam_peak_amplitude
-            * np.exp(-4*np.log(2) * ((x-x0)**2 + (y-y0)**2) / fwhm_pix**2))
-
-    # Temporary workaround for using HEALPix coordinates in Finv
-    # hpx_dir = '/users/jburba/data/jburba/bayes/BayesEoR/Linalg/'\
-    #           'hpx_coords/nside{}/'.format(p.nside)
-    # filename = 'fov-{:.1f}deg_gauss-beam_fwhm-{:.1f}deg.npy'.format(
-    #     p.simulation_FoV_deg, p.FWHM_deg_at_ref_freq_MHz)
-    # gaussian_beam = np.load(os.path.join(hpx_dir, filename))
-
-    return gaussian_beam
-
-
-def make_Uniform_beam(image_size_pix, beam_peak_amplitude=1.0):
-    # Need to delete this function after updating build_multi_chan_P
-    """
-        Make a square uniform kernel.
-    """
-    uniform_beam = (beam_peak_amplitude
-                    * np.ones([image_size_pix, image_size_pix]))
-    return uniform_beam
-
-
 # FT array coordinate functions
 def Produce_Coordinate_Arrays_ZM(nu, nv, nx=None, ny=None, exclude_mean=True):
     """

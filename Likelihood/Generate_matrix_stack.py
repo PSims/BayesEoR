@@ -13,7 +13,6 @@ from BayesEoR.Linalg import\
     generate_gridding_matrix_vis_ordered_to_chan_ordered,\
     IDFT_Array_IDFT_1D_WQ,\
     nuDFT_Array_DFT_2D_v2d0,\
-    make_Gaussian_beam, make_Uniform_beam,\
     idft_array_idft_1d_sh, IDFT_Array_IDFT_2D_ZM_SH
 from BayesEoR.Linalg.healpix import Healpix
 
