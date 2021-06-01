@@ -12,8 +12,8 @@ def generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(
     # Rename this function? This is the default funciton
     # Generate k_cube pixel coordinates
     z, y, x = np.mgrid[-(nf//2) : (nf//2),
-                       -(nu//2) : (nu//2)+1,
-                       -(nv//2) : (nv//2)+1]
+                       -(nv//2) : (nv//2)+1,
+                       -(nu//2) : (nu//2)+1]
 
     # Setup k-space arrays
     deltakx = 2.*np.pi / ps_box_size_ra_Mpc
