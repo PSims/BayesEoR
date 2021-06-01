@@ -218,7 +218,7 @@ def write_log_file(array_save_directory, file_root):
     with open(log_file, 'w') as f:
         f.write('#' + dashed_line + '\n# GitHub Info\n#' + dashed_line + '\n')
         for key in version_info.keys():
-            f.write('{}: {}'.format(key, version_info[key]))
+            f.write('{}: {}\n'.format(key, version_info[key]))
         f.write('\n\n')
         f.write('#' + dashed_line + '\n# Directories\n#' + dashed_line + '\n')
         f.write('Array save directory:\t{}\n'.format(array_save_directory))
