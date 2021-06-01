@@ -210,6 +210,8 @@ def write_log_file(array_save_directory, file_root):
     version_info['git_branch'] = subprocess.check_output(
         ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
         stderr=subprocess.STDOUT)
+    for key in version_info.keys():
+        version_info[key] = version_info[key].decode('utf8').strip('\n')
 
     log_file = log_dir + file_root + '.log'
     dashed_line = '-'*44
