@@ -6,9 +6,8 @@ import BayesEoR.Params.params as p
 
 
 def generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(
-        nu, nv, nx, ny, nf, neta,
-        ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc
-    ):
+        nu, nv, nf, neta, ps_box_size_ra_Mpc,
+        ps_box_size_dec_Mpc, ps_box_size_para_Mpc):
     # Rename this function? This is the default funciton
     # Generate k_cube pixel coordinates
     z, y, x = np.mgrid[-(nf//2) : (nf//2),
@@ -27,68 +26,9 @@ def generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(
     return mod_k_physical, k_x, k_y, k_z, x, y, z
 
 
-def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector(
-        sigma, s, nu, nv, nx, ny, nf, neta, nq, **kwargs):
-    # Need to rename this function, the name is too long
-
-    # ===== Defaults =====
-    default_random_seed = ''
-
-    # ===== Inputs =====
-    random_seed = kwargs.pop('random_seed', default_random_seed)
-
-    if random_seed:
-        print('Using the following random_seed for dataset noise:',
-              random_seed)
-        np.random.seed(random_seed)
-
-    real_noise_cube = np.random.normal(0, sigma, [nf, ny, nx])
-
-    axes_tuple = (1, 2)
-    vfft1 = np.fft.ifftshift(real_noise_cube + 0j, axes=axes_tuple)
-    # FFT (python pre-normalises correctly! -- see
-    # parsevals theorem for discrete fourier transform.)
-    vfft1 = np.fft.fftn(vfft1, axes=axes_tuple)
-    vfft1 = np.fft.fftshift(vfft1, axes=axes_tuple)
-
-    sci_f, sci_v, sci_u = vfft1.shape
-    # Updated for python 3: floor division
-    sci_v_centre = sci_v//2
-    # Updated for python 3: floor division
-    sci_u_centre = sci_u//2
-    # Updated for python 3: floor division
-    vfft1_subset = vfft1[
-                   0 : nf,
-                   sci_u_centre - nu//2 : sci_u_centre + nu//2+1,
-                   sci_v_centre - nv//2 : sci_v_centre + nv//2+1]
-    noise_before_ZM = vfft1_subset.flatten()
-    ZM_vis_ordered_mask = np.ones(nu*nv*nf)
-    # Updated for python 3: floor division
-    ZM_vis_ordered_mask[nf * ((nu*nv)//2) : nf * ((nu*nv)//2+1)] = 0
-    ZM_vis_ordered_mask = ZM_vis_ordered_mask.astype('bool')
-    ZM_chan_ordered_mask = ZM_vis_ordered_mask.reshape(-1, neta+nq).T.flatten()
-    noise = noise_before_ZM[ZM_chan_ordered_mask]
-    if sigma == 0:
-        noise = noise*0.0
-    else:
-        noise = noise * sigma/noise.std()
-
-    sigma_squared_array = (np.ones(s.size)*sigma**2
-                           + 0j*np.ones(s.size)*sigma**2)
-    N = np.diag(sigma_squared_array)
-    Ninv = np.diag(1./sigma_squared_array)
-    if sigma > 0:
-        logNDet = np.sum(np.log(sigma_squared_array))
-
-    d = s + noise
-
-    return d, noise, N, Ninv
-
-
 def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental(
-        sigma, s, nu, nv, nx, ny, nf, neta, nq, nt,
-        uvw_array_meters,
-        bl_redundancy_array, **kwargs):
+        sigma, s, nu, nv, nf, neta, nq, nt,
+        uvw_array_meters, bl_redundancy_array, **kwargs):
     # Need to rename this function, the name is too long
     # ===== Defaults =====
     default_random_seed = ''
@@ -155,14 +95,13 @@ def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vec
 
 
 def generate_masked_coordinate_cubes(
-        cube_to_mask, nu, nv, nx, ny, nf, neta, nq,
-        ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc
-    ):
+        cube_to_mask, nu, nv, nf, neta, nq,
+        ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc):
     # Generate k_cube physical coordinates
     # to match the 21cmFAST input simulation
     mod_k, k_x, k_y, k_z, x, y, z =\
         generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(
-            nu, nv, nx, ny, nf, neta,
+            nu, nv, nf, neta,
             ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc)
 
     # Do not include high spatial frequency structure in the power
@@ -249,16 +188,15 @@ def generate_masked_coordinate_cubes(
 
 
 def generate_k_cube_model_spherical_binning_v2d1(
-        mod_k_masked, k_z_masked, nu, nv, nx, ny, nf, neta, nq,
-        ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc
-    ):
+        mod_k_masked, k_z_masked, nu, nv, nf, neta, nq,
+        ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc):
     # Need to rename this function, it's now the default
     # Generate k_cube physical coordinates
     # to match the 21cmFAST input simulation
     mod_k, k_x, k_y, k_z, x, y, z =\
         generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(
-            nu, nv, nx, ny, nf, neta,
-            ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc)
+            nu, nv, nf, neta, ps_box_size_ra_Mpc,
+            ps_box_size_dec_Mpc, ps_box_size_para_Mpc)
 
     modkscaleterm = 1.35
     deltakpara = 2.*np.pi / ps_box_size_para_Mpc
@@ -359,13 +297,13 @@ def calc_mean_binned_k_vals(mod_k_masked, k_cube_voxels_in_bin, **kwargs):
 
 def generate_k_cube_model_cylindrical_binning(
         mod_k_masked, k_z_masked, k_y_masked, k_x_masked, n_k_perp_bins,
-        nu, nv, nx, ny, nf, neta, nq,
-        ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc):
+        nu, nv, nf, neta, nq, ps_box_size_ra_Mpc,
+        ps_box_size_dec_Mpc, ps_box_size_para_Mpc):
     # Generate k_cube physical coordinates to
     # match the 21cmFAST input simulation
     mod_k, k_x, k_y, k_z, x, y, z =\
         generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(
-            nu, nv, nx, ny, nf, neta,
+            nu, nv, nf, neta,
             ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc)
 
     # define mod_k binning

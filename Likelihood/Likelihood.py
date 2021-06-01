@@ -61,7 +61,7 @@ except Exception as e:
 class PowerSpectrumPosteriorProbability(object):
     def __init__(
             self, T_Ninv_T, dbar, Sigma_Diag_Indices, Npar,
-            k_cube_voxels_in_bin, nuv, nu, nv, nx, ny, neta, nf, nq,
+            k_cube_voxels_in_bin, nuv, nu, nv, neta, nf, nq,
             masked_power_spectral_modes, modk_vis_ordered_list,
             Ninv, d_Ninv_d, fit_single_elems=False, **kwargs):
 
@@ -143,8 +143,6 @@ class PowerSpectrumPosteriorProbability(object):
         self.nuv = nuv
         self.nu = nu
         self.nv = nv
-        self.nx = nx
-        self.ny = ny
         self.neta = neta
         self.nf = nf
         self.nq = nq

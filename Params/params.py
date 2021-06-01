@@ -24,8 +24,6 @@ nf = 38
 neta = 38
 nu = 9
 nv = None
-nx = 9
-ny = 9
 nq = 0
 # Subharmonic grid (SHG) params
 nu_sh = 0

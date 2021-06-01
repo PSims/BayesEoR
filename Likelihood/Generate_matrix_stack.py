@@ -9,7 +9,7 @@ from pathlib import Path
 
 import BayesEoR.Params.params as p
 from BayesEoR.Linalg import\
-    DFT_Array_DFT_2D_ZM, IDFT_Array_IDFT_2D_ZM, IDFT_Array_IDFT_1D,\
+    IDFT_Array_IDFT_2D_ZM, IDFT_Array_IDFT_1D,\
     generate_gridding_matrix_vis_ordered_to_chan_ordered,\
     IDFT_Array_IDFT_1D_WQ,\
     nuDFT_Array_DFT_2D_v2d0,\
@@ -219,12 +219,6 @@ class BuildMatrices(BuildMatrixTree):
         Number of pixels on a side for the u axis in the model uv-plane.
     nv : int
         Number of pixels on a side for the v axis in the model uv-plane.
-    nx : int
-        Number of pixels on a side for the l axis in the sky model.
-        Potentially deprecated parameter.
-    ny : int
-        Number of pixels on a side for the m axis in the sky model.
-        Potentially deprecated parameter.
     n_vis : int
         Number of visibilities per channel, i.e. number of
         redundant baselines * number of time steps.
@@ -293,7 +287,7 @@ class BuildMatrices(BuildMatrixTree):
         Number of power law coefficients used in the large spectral scale model
         for each pixel in the subharmonic grid.
     """
-    def __init__(self, array_save_directory, nu, nv, nx, ny,
+    def __init__(self, array_save_directory, nu, nv,
                  n_vis, neta, nf, nq, sigma, **kwargs):
         super(BuildMatrices, self).__init__(array_save_directory)
 
@@ -343,8 +337,6 @@ class BuildMatrices(BuildMatrixTree):
         # Set necessary / useful parameter values
         self.nu = nu
         self.nv = nv
-        self.nx = nx
-        self.ny = ny
         self.n_vis = n_vis
         self.neta = neta
         self.nf = nf
@@ -392,10 +384,6 @@ class BuildMatrices(BuildMatrixTree):
                 self.build_multi_vis_idft_array_1D,
             'idft_array':
                 self.build_idft_array,
-            'multi_chan_dft_array_noZMchan':
-                self.build_multi_chan_dft_array_noZMchan,
-            'dft_array':
-                self.build_dft_array,
             'Fprime':
                 self.build_Fprime,
             'multi_chan_idft_array_noZMchan':
@@ -421,7 +409,7 @@ class BuildMatrices(BuildMatrixTree):
             'phasor_matrix':
                 self.build_phasor_matrix
             }
-        
+
         if self.use_shg:
             # update matrix_prerequisites_dictionary
             self.matrix_prerequisites_dictionary.update({
@@ -573,54 +561,6 @@ class BuildMatrices(BuildMatrixTree):
             return np.diag(diagonal_vals)
 
     # Finv functions
-    def build_dft_array(self):
-        """
-        Construct a block for `multi_chan_dft_array_noZMchan` which
-        is a uniform DFT matrix that takes a rectilinear sky model
-        in (l, m) space and transforms it a rectilinear (u, v) plane
-        for a single frequency channel.
-
-        Used to construct `Finv` if
-        `p.include_instrumental_effects = False`.
-        dft_array has shape (nuv, nx * ny).
-        """
-        matrix_name = 'dft_array'
-        pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
-        dft_array = DFT_Array_DFT_2D_ZM(self.nu, self.nv, self.nx, self.ny)
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(dft_array,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
-
-    def build_multi_chan_dft_array_noZMchan(self):
-        """
-        Constructs a block-diagonal uniform DFT matrix which takes
-        a rectilinear model sky vector in (l, m, f) space and transforms
-        it to a rectilinear (u, v, f) data space.
-
-        Used to construct `Finv` if
-        `p.include_instrumental_effects = False`.
-        multi_chan_dft_array_noZMchan has shape
-        (nuv * nf, nx * ny * nf).
-        """
-        matrix_name = 'multi_chan_dft_array_noZMchan'
-        pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
-        multi_chan_dft_array_noZMchan =\
-            self.sd_block_diag([pmd['dft_array'].T for i in range(self.nf)])
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(
-            multi_chan_dft_array_noZMchan,
-            self.array_save_directory,
-            matrix_name,
-            matrix_name)
-
     def build_phasor_matrix(self):
         """
         Construct phasor matrix which is multiplied elementwise into
@@ -703,7 +643,7 @@ class BuildMatrices(BuildMatrixTree):
                         nuDFT_Array_DFT_2D_v2d0(
                             sampled_lmn_coords_radians,
                             sampled_uvw_coords_wavelengths[
-                            freq_i, 0, :, :
+                                freq_i, 0, :, :
                             ].reshape(-1, 3))
                         for freq_i in range(p.nf)
                         ]

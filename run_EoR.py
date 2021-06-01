@@ -52,8 +52,6 @@ nu = p.nu
 if p.nv is None:
     p.nv = nu
 nv = p.nv
-nx = p.nx
-ny = p.ny
 nuv = nu*nv - 1*(not p.fit_for_monopole)
 
 if p.fov_dec_deg is None:
@@ -280,7 +278,7 @@ print('\nArray save directory: {}'.format(array_save_directory))
 if p.include_instrumental_effects:
     if 'noise_data_path' not in p.__dict__.keys():
         BM = BuildMatrices(
-            array_save_directory, nu, nv, nx, ny,
+            array_save_directory, nu, nv,
             n_vis, neta, nf, nq, sigma, npl=npl,
             uvw_multi_time_step_array_meters=\
                 uvw_multi_time_step_array_meters,
@@ -304,7 +302,7 @@ if p.include_instrumental_effects:
             )
     else:
         BM = BuildMatrices(
-            array_save_directory, nu, nv, nx, ny,
+            array_save_directory, nu, nv,
             n_vis, neta, nf, nq, sigma, npl=npl,
             uvw_multi_time_step_array_meters=\
                 uvw_multi_time_step_array_meters,
@@ -329,7 +327,7 @@ if p.include_instrumental_effects:
             )
 else:
     BM = BuildMatrices(
-        array_save_directory, nu, nv, nx, ny,
+        array_save_directory, nu, nv,
         n_vis, neta, nf, nq, sigma, npl=npl)
 
 if p.overwrite_matrices:
@@ -365,30 +363,30 @@ ps_box_size_para_Mpc = (
     cosmo.dL_df(redshift) * (bandwidth_MHz * 1e6))
 mod_k, k_x, k_y, k_z, x, y, z =\
     generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(
-        nu, nv, nx, ny, nf, neta,
-        ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc
+        nu, nv, nf, neta, ps_box_size_ra_Mpc,
+        ps_box_size_dec_Mpc, ps_box_size_para_Mpc
         )
 k = mod_k.copy()
 k_vis_ordered = k.T.flatten() # not used for anything
 k_x_masked = generate_masked_coordinate_cubes(
-    k_x, nu, nv, nx, ny, nf, neta, nq,
-    ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc
+    k_x, nu, nv, nf, neta, nq, ps_box_size_ra_Mpc,
+    ps_box_size_dec_Mpc, ps_box_size_para_Mpc
 )
 k_y_masked = generate_masked_coordinate_cubes(
-    k_y, nu, nv, nx, ny, nf, neta, nq,
-    ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc
+    k_y, nu, nv, nf, neta, nq, ps_box_size_ra_Mpc,
+    ps_box_size_dec_Mpc, ps_box_size_para_Mpc
 )
 k_z_masked = generate_masked_coordinate_cubes(
-    k_z, nu, nv, nx, ny, nf, neta, nq,
-    ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc
+    k_z, nu, nv, nf, neta, nq, ps_box_size_ra_Mpc,
+    ps_box_size_dec_Mpc, ps_box_size_para_Mpc
 )
 mod_k_masked = generate_masked_coordinate_cubes(
-    mod_k, nu, nv, nx, ny, nf, neta, nq,
-    ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc
+    mod_k, nu, nv, nf, neta, nq, ps_box_size_ra_Mpc,
+    ps_box_size_dec_Mpc, ps_box_size_para_Mpc
 )
 k_cube_voxels_in_bin, modkbins_containing_voxels = \
     generate_k_cube_model_spherical_binning_v2d1(
-        mod_k_masked, k_z_masked, nu, nv, nx, ny, nf, neta, nq,
+        mod_k_masked, k_z_masked, nu, nv, nf, neta, nq,
         ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc
     )
 modk_vis_ordered_list = [
@@ -411,45 +409,8 @@ if do_cylindrical_binning:
     k_cube_voxels_in_bin, modkbins_containing_voxels, k_perp_bins =\
         generate_k_cube_model_cylindrical_binning(
             mod_k_masked, k_z_masked, k_y_masked, k_x_masked,
-            n_k_perp_bins, nu, nv, nx, ny, nf, neta, nq,
+            n_k_perp_bins, nu, nv, nf, neta, nq,
             ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc)
-
-
-#--------------------------------------------
-# Non-instrumental data creation
-#--------------------------------------------
-if not p.include_instrumental_effects:
-    # This needs to be updated to use astropy_healpix?
-    #--------------------------------------------
-    # Load EoR data
-    #--------------------------------------------
-    if use_EoR_cube:
-        print('Using use_EoR_cube data')
-        s_EoR, abc, scidata1 = generate_data_from_loaded_EoR_cube_v2d0(
-            nu, nv, nx, ny, nf, neta, nq, k_x, k_y, k_z,
-            Show, chan_selection, p.EoR_npz_path_sc)
-
-    #--------------------------------------------
-    # Define data vector
-    #--------------------------------------------
-    non_instrmental_noise_seed = 42123
-    if use_EoR_cube:
-        print('Using EoR cube')
-        d = generate_data_and_noise_vector(
-            sigma, s_EoR, nu, nv, nx, ny, nf, neta, nq,
-            random_seed=non_instrmental_noise_seed)[0]
-        s_Tot = s_EoR.copy()
-    else:
-        d = generate_data_and_noise_vector(
-            sigma, s_EoR, nu,nv, nx, ny, nf, neta, nq,
-            random_seed=non_instrmental_noise_seed)[0]
-        s_Tot = s_EoR.copy()
-        print('Using EoR cube')
-
-    effective_noise = generate_data_and_noise_vector(
-        sigma, np.zeros(d.shape), nu, nv, nx, ny, nf, neta, nq,
-        random_seed=non_instrmental_noise_seed)[1]
-    effective_noise_std = effective_noise.std()
 
 
 #--------------------------------------------
@@ -474,10 +435,9 @@ if p.include_instrumental_effects:
     if use_EoR_cube:
         Finv = BM.read_data_s2d(array_save_directory + 'Finv', 'Finv')
         s_EoR, abc, scidata1 = generate_EoR_signal_instrumental_im_2_vis(
-            nu, nv, nx, ny, nf, neta, nq, k_x, k_y, k_z,
+            nu, nv, nf, neta, nq, k_x, k_y, k_z,
             Finv, Show, chan_selection, masked_power_spectral_modes,
             mod_k, p.EoR_npz_path_sc)
-        # Temporary measure to save space since Finv can be large
         del Finv
     else:
         print('\nUsing data at {}'.format(p.data_path))
@@ -491,7 +451,7 @@ if p.include_instrumental_effects:
         # instrument model
         d, effective_noise, bl_conjugate_pairs_map =\
             generate_data_and_noise_vector_instrumental(
-                1.0*sigma, s_EoR, nu, nv, nx, ny, nf, neta, nq, p.nt,
+                1.0*sigma, s_EoR, nu, nv, nf, neta, nq, p.nt,
                 uvw_multi_time_step_array_meters[0],
                 baseline_redundancy_array_time_vis_shaped[0],
                 random_seed=EoR_noise_seed)
@@ -638,7 +598,7 @@ print('\nOutput file_root:', file_root)
 
 PSPP_block_diag_Polychord = PowerSpectrumPosteriorProbability(
     T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin,
-    nuv, nu, nv, nx, ny, neta, nf, nq, masked_power_spectral_modes,
+    nuv, nu, nv, neta, nf, nq, masked_power_spectral_modes,
     modk_vis_ordered_list, Ninv, d_Ninv_d, block_T_Ninv_T=block_T_Ninv_T,
     log_priors=log_priors, dimensionless_PS=dimensionless_PS, Print=True,
     intrinsic_noise_fitting=p.use_intrinsic_noise_fitting, k_vals=k_vals,

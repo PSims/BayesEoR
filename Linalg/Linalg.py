@@ -12,11 +12,10 @@ import BayesEoR.Params.params as p
 
 
 # FT array coordinate functions
-def Produce_Coordinate_Arrays_ZM(nu, nv, nx=None, ny=None, exclude_mean=True):
+def Produce_Coordinate_Arrays_ZM(nu, nv, exclude_mean=True):
     """
     Creates vectorized arrays of 2D grid coordinates for the rectilinear
-    model uv-plane and, if nx and ny are passed, and the rectilinear
-    lm-space sky model.
+    model uv-plane.
 
     Parameters
     ----------
@@ -24,12 +23,6 @@ def Produce_Coordinate_Arrays_ZM(nu, nv, nx=None, ny=None, exclude_mean=True):
         Number of pixels on a side for the u-axis in the model uv-plane.
     nv : int
         Number of pixels on a side for the v-axis in the model uv-plane.
-    nx : int
-        Number of pixels on a side for the l-axis in the lm-space
-        sky model. Defaults to None. (Deprecated).
-    ny : int
-        Number of pixels on a side for the m-axis in the lm-space
-        sky model. Defaults to None. (Deprecated).
     exclude_mean : bool
         If True, remove the (u, v) = (0, 0) pixel from the model
         uv-plane coordinate arrays. Defaults to True.
@@ -76,45 +69,6 @@ def Produce_Coordinate_Arrays_ZM_SH(
 
 
 # Finv functions
-def DFT_Array_DFT_2D_ZM(
-        nu, nv, nx, ny,
-        X_oversampling_Factor=1.0, Y_oversampling_Factor=1.0,
-        U_oversampling_Factor=1.0, V_oversampling_Factor=1.0):
-    """
-    Constructs a uniform DFT matrix which goes from rectilinear
-    (l, m, f) sky model coordinates to rectilinear (u, v, f)
-    coordinates.
-
-    Used to construct `Finv` if `include_instrumental_effects = False`.
-    """
-    exclude_mean = True
-    if p.fit_for_monopole:
-        exclude_mean = False
-    i_x_AV, i_y_AV, i_u_AV, i_v_AV =\
-        Produce_Coordinate_Arrays_ZM(
-            nu, nv, nx=nx, ny=ny, exclude_mean=exclude_mean)
-
-    if U_oversampling_Factor != 1.0:
-        i_x_AV, i_y_AV, i_u_AV, i_v_AV =\
-            Calc_Coords_Large_Im_to_High_Res_uv(
-                i_x_AV, i_y_AV, i_u_AV, i_v_AV,
-                U_oversampling_Factor, V_oversampling_Factor)
-    if X_oversampling_Factor != 1.0:
-        i_x_AV, i_y_AV, i_u_AV, i_v_AV =\
-            Calc_Coords_High_Res_Im_to_Large_uv(
-                i_x_AV, i_y_AV, i_u_AV, i_v_AV,
-                U_oversampling_Factor, V_oversampling_Factor)
-
-    # Updated for python 3: float division is default
-    ExponentArray = np.exp(
-        -2.0*np.pi*1j*(
-                (i_x_AV*i_u_AV / nx)
-                + (i_v_AV*i_y_AV / ny)
-            )
-        )
-    return ExponentArray
-
-
 def nuDFT_Array_DFT_2D_v2d0(
         sampled_lmn_coords_radians,
         sampled_uvw_coords_wavelengths):
@@ -788,45 +742,3 @@ def Restore_Centre_NxN_Grid(Array1, Array2, N):
     Restored_Array = Restored_Array_Unsorted[SortedIndices]
 
     return Restored_Array
-
-
-def Generate_Combined_Coarse_plus_Subharmic_uv_grids(
-        nu, nv, nx, ny,
-        X_oversampling_Factor, Y_oversampling_Factor,
-        U_oversampling_Factor, V_oversampling_Factor,
-        ReturnSeparateCoarseandSHarrays=False):
-    # U_oversampling_Factor and V_oversampling_Factor are the
-    # factors by which the subharmonic grid is oversampled
-    # relative to the coarse grid.
-
-    nu_SH = 3 * int(U_oversampling_Factor)
-    nv_SH = 3 * int(V_oversampling_Factor)
-    n_SH = (nu_SH*nv_SH) - 1
-
-    i_x_AV_C, i_y_AV_C, i_u_AV_C, i_v_AV_C =\
-        Produce_Coordinate_Arrays_ZM_Coarse(nu, nv, nx, ny)
-    i_x_AV_SH, i_y_AV_SH, i_u_AV_SH, i_v_AV_SH =\
-        Produce_Coordinate_Arrays_ZM_SH(nu_SH, nv_SH, nx, ny)
-
-    if U_oversampling_Factor != 1.0:
-        i_x_AV_SH, i_y_AV_SH, i_u_AV_SH, i_v_AV_SH =\
-            Calc_Coords_Large_Im_to_High_Res_uv(
-                i_x_AV_SH, i_y_AV_SH, i_u_AV_SH, i_v_AV_SH,
-                U_oversampling_Factor, V_oversampling_Factor)
-    if X_oversampling_Factor != 1.0:
-        i_x_AV_C, i_y_AV_C, i_u_AV_C, i_v_AV_C =\
-            Calc_Coords_High_Res_Im_to_Large_uv(
-                i_x_AV_C, i_y_AV_C, i_u_AV_C, i_v_AV_C,
-                X_oversampling_Factor, Y_oversampling_Factor)
-
-    # Combine Coarse and subharmic uv-grids.
-    i_u_AV = np.concatenate((i_u_AV_C, i_u_AV_SH))
-    i_v_AV = np.concatenate((i_v_AV_C, i_v_AV_SH))
-
-    i_x_AV = i_x_AV_C
-    i_y_AV = i_y_AV_C
-
-    if not ReturnSeparateCoarseandSHarrays:
-        return i_u_AV, i_v_AV, i_x_AV, i_y_AV
-    else:
-        return i_u_AV_C, i_u_AV_SH, i_v_AV_C, i_v_AV_SH, i_x_AV, i_y_AV

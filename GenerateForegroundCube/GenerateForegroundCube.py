@@ -9,51 +9,41 @@ use_foreground_cube = True
 
 
 def generate_data_from_loaded_EoR_cube_v2d0(
-        nu, nv, nx, ny, nf, neta, nq, k_x, k_y, k_z, Show, chan_selection,
-        EoR_npz_path=('/users/psims/EoR/EoR_simulations/'
-                      '21cmFAST_512MPc_512pix_128pix/Fits/21cm_z10d2_mK.npz')):
+        nu, nv, nf, neta, nq, k_x, k_y, k_z, Show, chan_selection,
+        EoR_npz_path=None):
 
     print('Using use_EoR_cube data')
     # Replace Gaussian signal with EoR cube
     scidata1 = np.load(EoR_npz_path)['arr_0']
 
-    base_dir = 'Plots'
-    save_dir = base_dir+'/Likelihood_v1d75_3D_ZM/'
-    if not os.path.isdir(save_dir):
-        os.makedirs(save_dir)
-
     import numpy
     axes_tuple = (1, 2)
     if chan_selection == '0_38_':
         vfft1 = np.fft.ifftshift(scidata1[0:38]-scidata1[0].mean() + 0j,
-                                    axes=axes_tuple)
+                                 axes=axes_tuple)
     elif chan_selection == '38_76_':
         vfft1 = np.fft.ifftshift(scidata1[38:76]-scidata1[0].mean() + 0j,
-                                    axes=axes_tuple)
+                                 axes=axes_tuple)
     elif chan_selection == '76_114_':
         vfft1 = np.fft.ifftshift(scidata1[76:114]-scidata1[0].mean() + 0j,
-                                    axes=axes_tuple)
+                                 axes=axes_tuple)
     else:
         vfft1 = np.fft.ifftshift(scidata1[0:nf]-scidata1[0].mean() + 0j,
-                                    axes=axes_tuple)
+                                 axes=axes_tuple)
     # FFT (python pre-normalises correctly! -- see
     # parsevals theorem for discrete fourier transform.)
     vfft1 = np.fft.fftn(vfft1, axes=axes_tuple)
     vfft1 = np.fft.fftshift(vfft1, axes=axes_tuple)
 
     sci_f, sci_v, sci_u = vfft1.shape
-    # Updated for python 3: floor division
     sci_v_centre = sci_v//2
-    # Updated for python 3: floor division
     sci_u_centre = sci_u//2
-    # Updated for python 3: floor division
     vfft1_subset = vfft1[0 : nf,
                          sci_u_centre - nu//2 : sci_u_centre + nu//2 + 1,
                          sci_v_centre - nv//2 : sci_v_centre + nv//2 + 1]
     # s_before_ZM = vfft1_subset.flatten() / vfft1[0].size**0.5
     s_before_ZM = vfft1_subset.flatten()
     ZM_vis_ordered_mask = np.ones(nu*nv*nf)
-    # Updated for python 3: floor division
     ZM_vis_ordered_mask[nf*((nu*nv)//2) : nf*((nu*nv)//2 + 1)] = 0
     ZM_vis_ordered_mask = ZM_vis_ordered_mask.astype('bool')
     ZM_chan_ordered_mask = ZM_vis_ordered_mask.reshape(-1, neta+nq).T.flatten()
@@ -64,7 +54,7 @@ def generate_data_from_loaded_EoR_cube_v2d0(
 
 
 def generate_EoR_signal_instrumental_im_2_vis(
-        nu, nv, nx, ny, nf, neta, nq, k_x, k_y, k_z,
+        nu, nv, nf, neta, nq, k_x, k_y, k_z,
         Finv, Show, chan_selection, masked_power_spectral_modes,
         mod_k, EoR_npz_path):
 

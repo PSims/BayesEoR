@@ -4,8 +4,6 @@ from .SimData import\
     generate_k_cube_model_cylindrical_binning,\
     calc_mean_binned_k_vals,\
     generate_k_cube_model_spherical_binning_v2d1,\
-    generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector\
-    as generate_data_and_noise_vector,\
     generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental\
     as generate_data_and_noise_vector_instrumental
 
@@ -25,11 +23,3 @@ from .GenerateForegroundCube import\
     generate_EoR_signal_instrumental_im_2_vis
 
 from .Params import update_params_with_command_line_arguments
-
-
-
-
-
-
-
-
