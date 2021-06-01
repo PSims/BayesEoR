@@ -612,40 +612,6 @@ def idft_array_idft_1d_sh(
 
 
 # Gridding matrix functions
-def calc_vis_selection_numbers(nu, nv):
-    required_chan_order = np.arange(nu*nv).reshape(nv, nu)
-    visibility_spectrum_order = required_chan_order.T
-    # Updated for python 3: floor division
-    r = np.sqrt(
-        (np.arange(nu) - nu//2).reshape(-1, 1)**2.
-        + (np.arange(nv) - nv//2).reshape(1, -1)**2.
-        )
-    # No values should be masked if the mean is included
-    non_excluded_values_mask = r >= 0.0
-    visibility_spectrum_order_ZM =\
-        visibility_spectrum_order[non_excluded_values_mask]
-    grab_order_for_vis_spectrum_ordered_to_chan_ordered_ZM =\
-        visibility_spectrum_order_ZM.argsort()
-    return grab_order_for_vis_spectrum_ordered_to_chan_ordered_ZM
-
-
-def calc_vis_selection_numbers_ZM(nu, nv):
-    required_chan_order = np.arange(nu*nv).reshape(nu, nv)
-    visibility_spectrum_order = required_chan_order.T
-    # Updated for python 3: floor division
-    r = np.sqrt(
-        (np.arange(nu) - nu // 2).reshape(-1, 1) ** 2.
-        + (np.arange(nv) - nv // 2).reshape(1, -1) ** 2.
-        )
-    # True for everything other than the central pixel (note r == r.T)
-    non_excluded_values_mask = r > 0.5
-    visibility_spectrum_order_ZM =\
-        visibility_spectrum_order[non_excluded_values_mask]
-    grab_order_for_vis_spectrum_ordered_to_chan_ordered_ZM =\
-        visibility_spectrum_order_ZM.argsort()
-    return grab_order_for_vis_spectrum_ordered_to_chan_ordered_ZM
-
-
 def generate_gridding_matrix_vis_ordered_to_chan_ordered(
         nu, nv, nf, exclude_mean=True):
     """
