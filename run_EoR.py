@@ -1,6 +1,7 @@
-#--------------------------------------------
+""" Driver script for running BayesEoR """
+# --------------------------------------------
 # Imports
-#--------------------------------------------
+# --------------------------------------------
 # Make everything available for now, this can be refined later
 from BayesEoR import *
 import BayesEoR.Params.params as p
@@ -31,10 +32,9 @@ if run_full_analysis:
 else:
     mpi_rank = 0
 
-#--------------------------------------------
+# --------------------------------------------
 # Set analysis parameters
-#--------------------------------------------
-# Model Params
+# --------------------------------------------
 update_params_with_command_line_arguments()
 if p.beam_center is not None:
     p.beam_center = ast.literal_eval(p.beam_center)
@@ -73,9 +73,7 @@ if p.use_shg:
 else:
     nuv_sh = None
 
-# Improve numerical precision.
-# Can be used for improving numerical precision when
-# performing evidence comparison.
+# Improve numerical precision when performing evidence comparison.
 sub_ML_monopole_term_model = False
 
 # Data noise
@@ -120,7 +118,6 @@ if p.include_instrumental_effects:
     if 'noise_data_path' not in p.__dict__.keys():
         sigma = sigma * average_baseline_redundancy**0.5
     else:
-        # Ensure sigma is cast as a float
         sigma = sigma*1.
 
     phasor_vector = np.load(
@@ -130,7 +127,6 @@ if p.include_instrumental_effects:
         phasor_vector = np.ones_like(phasor_vector)
 
 else:
-    # Ensure sigma is cast as a float
     sigma = sigma*1.
 
 # Check for HERA data path
@@ -139,15 +135,13 @@ if 'data_path' in p.__dict__.keys():
 else:
     use_EoR_cube = True
 
-
 # Auxiliary and derived params
-small_cube = nu <= 7 and nv <= 7
 Show = False
 chan_selection = ''
-n_Fourier = (nu*nv - 1) * nf
-n_LW = (nu*nv - 1) * nq
-n_model = n_Fourier+n_LW
-n_dat = n_Fourier
+
+# --------------------------------------------
+# Construct matrices
+# --------------------------------------------
 current_file_version = 'Likelihood_v2d8_3D_ZM'
 array_save_directory = (
     'array_storage/batch_1/'
@@ -272,9 +266,6 @@ elif npl == 2:
 
 print('\nArray save directory: {}'.format(array_save_directory))
 
-#--------------------------------------------
-# Construct matrices
-#--------------------------------------------
 if p.include_instrumental_effects:
     if 'noise_data_path' not in p.__dict__.keys():
         BM = BuildMatrices(
@@ -346,9 +337,9 @@ BM.build_minimum_sufficient_matrix_stack(
     proceed_without_overwrite_confirmation)
 
 
-#--------------------------------------------
+# --------------------------------------------
 # Define power spectral bins and coordinate cubes
-#--------------------------------------------
+# --------------------------------------------
 cosmo = Cosmology()
 # The box size parameters determine the side lengths of the
 # cosmological volume from which the power spectrum is estimated
@@ -413,31 +404,26 @@ if do_cylindrical_binning:
             ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc)
 
 
-#--------------------------------------------
+# --------------------------------------------
 # Load base matrices used in the likelihood and define related variables
-#--------------------------------------------
-T_Ninv_T = BM.read_data_s2d(
-    array_save_directory +
-    'T_Ninv_T',
-    'T_Ninv_T')
+# --------------------------------------------
+T = BM.read_data_s2d(array_save_directory + 'T', 'T')
+T_Ninv_T = BM.read_data_s2d(array_save_directory + 'T_Ninv_T', 'T_Ninv_T')
 Npar = T_Ninv_T.shape[0]
-fit_for_LW_power_spectrum = True
 masked_power_spectral_modes = np.ones(Npar)
 masked_power_spectral_modes = masked_power_spectral_modes.astype('bool')
-T = BM.read_data_s2d(array_save_directory + 'T', 'T')
 
 
-#--------------------------------------------
+# --------------------------------------------
 # Data creation with instrumental effects
-#--------------------------------------------
-overwrite_data_with_WN = False
+# --------------------------------------------
 if p.include_instrumental_effects:
     if use_EoR_cube:
         Finv = BM.read_data_s2d(array_save_directory + 'Finv', 'Finv')
         s_EoR, abc, scidata1 = generate_EoR_signal_instrumental_im_2_vis(
             nu, nv, nf, neta, nq, k_x, k_y, k_z,
             Finv, Show, chan_selection, masked_power_spectral_modes,
-            mod_k, p.EoR_npz_path_sc)
+            mod_k, p.eor_sim_path)
         del Finv
     else:
         print('\nUsing data at {}'.format(p.data_path))
@@ -474,40 +460,27 @@ print('effective SNR = {:.4e}'.format(s_EoR.std() / effective_noise_std),
       end='\n\n')
 
 
-#--------------------------------------------
+# --------------------------------------------
 # Continue loading base matrices used in the
 # likelihood and defining related variables
-#--------------------------------------------
+# --------------------------------------------
 Ninv = BM.read_data(array_save_directory + 'Ninv', 'Ninv')
 Ninv_d = Ninv * d
 dbar = np.dot(T.conjugate().T, Ninv_d)
 Sigma_Diag_Indices = np.diag_indices(T_Ninv_T.shape[0])
-nDims = len(k_cube_voxels_in_bin)
 d_Ninv_d = np.dot(d.conjugate(), Ninv_d)
-
-print('size of T = {:.2f} GB'.format(sys.getsizeof(T) / 1.0e9))
-print('size of T_Ninv_T = {:.2f} GB'.format(sys.getsizeof(T_Ninv_T) / 1.0e9))
-print('size of Ninv = {:.2f} GB'.format(sys.getsizeof(Ninv) / 1.0e9))
-
+nDims = len(k_cube_voxels_in_bin)
 if p.use_intrinsic_noise_fitting:
     nDims += 1
-
-###
-# nDims = nDims+3 for Gaussian prior over the
-# three long wavelength model vectors
-###
 if p.use_LWM_Gaussian_prior:
     nDims += 3
-
-x = [100.e0]*nDims
-
 if p.include_instrumental_effects:
     block_T_Ninv_T = []
+x = [100.e0]*nDims
 
-
-#--------------------------------------------
+# --------------------------------------------
 # Sample from the posterior
-#--------------------------------------------
+# --------------------------------------------
 ###
 # PolyChord setup
 ###
@@ -541,17 +514,8 @@ else:
 print('\nlog_priors_min_max = {}'.format(log_priors_min_max))
 prior_c = PriorC(log_priors_min_max)
 nDerived = 0
-nDims = len(k_cube_voxels_in_bin)
-if p.use_intrinsic_noise_fitting:
-    nDims += 1
 
-###
-# nDims = nDims+3 for Gaussian prior over the three long
-# wavelength model vectors
-###
-if p.use_LWM_Gaussian_prior:
-    nDims += 3
-
+# Sampler output
 outputfiles_base_dir = 'chains/'
 base_dir = outputfiles_base_dir+'clusters/'
 if not os.path.isdir(base_dir):
@@ -559,8 +523,6 @@ if not os.path.isdir(base_dir):
 
 log_priors = True
 dimensionless_PS = True
-if overwrite_data_with_WN:
-    dimensionless_PS = False
 zero_the_LW_modes = False
 
 if p.file_root is None:
@@ -656,7 +618,7 @@ run_single_node_analysis = False
 if mpi_size > 1:
     print('mpi_size greater than 1, running multi-node analysis', end='\n\n')
 else:
-    print('mpi_size = {}, analysis will only be run if'\
+    print('mpi_size = {}, analysis will only be run if '
           'run_single_node_analysis is set to True'.format(mpi_size))
     print('run_single_node_analysis = {}'.format(run_single_node_analysis),
           end='\n\n')
