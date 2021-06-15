@@ -59,14 +59,9 @@ def BayesEoRParser():
         help="Peak amplitude of the beam."
         )
     parser.add_argument(
-        '--FWHM_deg_at_ref_freq_MHz',
+        '--fwhm_deg',
         type=float,
-        help="FWHM of beam at the reference frequency in degrees."
-        )
-    parser.add_argument(
-        '--PB_ref_freq_MHz',
-        type=float,
-        help="Reference frequency for primary beam in MHz."
+        help="FWHM of beam in degrees."
         )
     parser.add_argument(
         '--antenna_diameter',

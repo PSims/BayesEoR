@@ -92,8 +92,7 @@ if include_instrumental_effects:
     # Primary beam params
     beam_type = 'Airy'
     beam_peak_amplitude = 1.0
-    FWHM_deg_at_ref_freq_MHz = None  # degrees
-    PB_ref_freq_MHz = 150.0  # MHz
+    fwhm_deg = None  # degrees
     antenna_diameter = None
     # Set the primary beam pointing center in (RA, DEC)
     # If None, will use the pointing center at zenith according to

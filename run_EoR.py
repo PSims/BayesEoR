@@ -209,12 +209,10 @@ if p.include_instrumental_effects:
                 p.beam_type,
                 str(p.beam_peak_amplitude).replace('.', 'd'))
             )
-        if p.FWHM_deg_at_ref_freq_MHz is not None:
+        if p.fwhm_deg is not None:
             beam_info_str += (
-                '_beam_width_{}_deg_at_{}_MHz'.format(
-                    str(p.FWHM_deg_at_ref_freq_MHz).replace('.', 'd'),
-                    str(p.PB_ref_freq_MHz).replace('.', 'd'))
-                )
+                '_beam_width_{}_deg'.format(str(p.fwhm_deg).replace('.', 'd'))
+            )
         elif p.antenna_diameter is not None:
             beam_info_str += (
                 '_antenna-diameter-{}m'.format(
@@ -283,8 +281,7 @@ if p.include_instrumental_effects:
             beam_type=p.beam_type,
             beam_peak_amplitude=p.beam_peak_amplitude,
             beam_center=p.beam_center,
-            FWHM_deg_at_ref_freq_MHz=p.FWHM_deg_at_ref_freq_MHz,
-            PB_ref_freq_MHz=p.PB_ref_freq_MHz,
+            fwhm_deg=p.fwhm_deg,
             antenna_diameter=p.antenna_diameter,
             delta_u_irad=p.delta_u_irad, delta_v_irad=p.delta_v_irad,
             delta_eta_iHz=p.delta_eta_iHz,
@@ -307,8 +304,7 @@ if p.include_instrumental_effects:
             beam_type=p.beam_type,
             beam_peak_amplitude=p.beam_peak_amplitude,
             beam_center=p.beam_center,
-            FWHM_deg_at_ref_freq_MHz=p.FWHM_deg_at_ref_freq_MHz,
-            PB_ref_freq_MHz=p.PB_ref_freq_MHz,
+            fwhm_deg=p.fwhm_deg,
             antenna_diameter=p.antenna_diameter,
             delta_u_irad=p.delta_u_irad, delta_v_irad=p.delta_v_irad,
             delta_eta_iHz=p.delta_eta_iHz,

@@ -264,11 +264,15 @@ class BuildMatrices(BuildMatrixTree):
         relative to the pointing center of the sky model determined
         from the instrument model parameters `telescope_latlonalt`
         and `central_jd`.
-    FWHM_deg_at_ref_freq_MHz : float
-        FWHM of the beam if using a Gaussian beam.
-    PB_ref_freq_MHz : float
-        If using a chromatic beam, sets the reference frequency
-        that the beam is scaled against spectrally.
+    fwhm_deg : float
+        FWHM of the beam if using a Gaussian beam, or the effective FWHM of
+        the main lobe of an Airy beam from which the diameter of the aperture
+        is calculated.
+    antenna_diameter : float
+        Diameter of the antenna aperture in meters.  Used in the calculation
+        of an Airy beam pattern or when using a Gaussian beam with a FWHM that
+        varies as a function of frequency.  The FWHM evolves according to the
+        effective FWHM of the main lobe of an Airy beam.
     effective_noise : np.ndarray of complex floats
         If the data vector being analyzed contains signal + noise,
         the effective_noise vector contains the estimate of the
@@ -305,18 +309,12 @@ class BuildMatrices(BuildMatrixTree):
                 kwargs.pop('baseline_redundancy_array_time_vis_shaped')
             self.baseline_redundancy_array_vectorised =\
                 kwargs.pop('baseline_redundancy_array_vectorised')
-            # Load in phasor data vector to phase data after performing
-            # the nuDFT from lmf -> instrumentally sampled uvf
             self.phasor_vector = kwargs.pop('phasor_vector')
             self.beam_type = kwargs.pop('beam_type')
             self.beam_peak_amplitude = kwargs.pop('beam_peak_amplitude')
             self.beam_center = kwargs.pop('beam_center', None)
-            self.FWHM_deg_at_ref_freq_MHz =\
-                kwargs.pop('FWHM_deg_at_ref_freq_MHz')
-            self.PB_ref_freq_MHz = kwargs.pop('PB_ref_freq_MHz')
+            self.fwhm_deg = kwargs.pop('fwhm_deg')
             self.antenna_diameter = kwargs.pop('antenna_diameter', None)
-            # Estimate for the noise vector in the data if input data
-            # vector contains noise
             self.effective_noise = kwargs.pop('effective_noise', None)
 
             # Set up Healpix instance
@@ -330,7 +328,7 @@ class BuildMatrices(BuildMatrixTree):
                 int_time=p.integration_time_minutes * 60,
                 beam_type=self.beam_type,
                 peak_amp=self.beam_peak_amplitude,
-                fwhm_deg=self.FWHM_deg_at_ref_freq_MHz,
+                fwhm_deg=self.fwhm_deg,
                 diam=self.antenna_diameter
                 )
 
