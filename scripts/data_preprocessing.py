@@ -95,8 +95,8 @@ o.add_option(
     '--start_freq_MHz',
     type=float,
     help=('Starting frequency in MHz from which 76 right-adjacent '
-          'frequency channels will be extracted. Default is 150 MHz.'),
-    default=150.0
+          'frequency channels will be extracted. Defaults to the first '
+          'frequency channel in `filename`.')
     )
 
 o.add_option(
@@ -296,6 +296,9 @@ else:
 print('Reading data from %s...\n' %(data_path + filename))
 uvd.read(data_path + filename, blt_inds=blt_inds)
 
+if not opts.start_freq_MHz:
+    opts.start_freq_MHz = uvd.freq_array[0, 0] / 1e6
+
 times_to_keep = np.unique(uvd.time_array)
 
 # Perform initial select
@@ -360,12 +363,12 @@ def data_processing(
     # ------------------- DATA PREPROCESSING -------------------
 
     outfile = filename.replace(
-        'uvh5',
-        'start_freq_{:.2f}_Nbls_{}_'.format(
+        '.uvh5',
+        '_start_freq_{:.2f}_Nbls_{}_'.format(
             opts.start_freq_MHz,
             uvd_select.Nbls
             )
-        + 'weighted_average_phased_flattened_mK_sr.npy'
+        + 'wavg_phased_mK_sr.npy'
         )
     if not phase_data:
         outfile = outfile.replace('phased', 'unphased')
