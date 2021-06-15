@@ -155,16 +155,17 @@ class Healpix(HEALPix):
         # Pixel params
         self.pix = None  # HEALPix pixel numbers within the FoV
         self.npix_fov = None  # Number of pixels within the FoV
-        self.ra = None # Array to hold right ascension values
-        self.dec = None # Array to hold declination values
+        self.ra = None  # Array to hold right ascension values
+        self.dec = None  # Array to hold declination values
         # Set self.pix and self.npix_fov
         self.set_pixel_filter()
 
     def set_pixel_filter(self, inverse=False):
         """
         Filter pixels that lie outside of a rectangular region
-        centered on `self.field_center`.
-        
+        centered on `self.field_center`.  This rectangular region is
+        constructed such that the arc length of each side is identical.
+
         Parameters
         ----------
         inverse: boolean
@@ -189,6 +190,8 @@ class Healpix(HEALPix):
             lonlat=True
             )
         thetas = (90 - lats) * np.pi / 180
+        if self.field_center[0] - self.fov_ra_deg/2 < 0:
+            lons[lons > 180] -= 360  # lons in (-180, 180]
         lons_inds = np.logical_and(
             (lons - self.field_center[0])*np.sin(thetas) >= -self.fov_ra_deg/2,
             (lons - self.field_center[0])*np.sin(thetas) <= self.fov_ra_deg/2,
@@ -203,6 +206,7 @@ class Healpix(HEALPix):
             pix = np.where(lons_inds * lats_inds)[0]
         self.pix = pix
         self.npix_fov = pix.size
+        lons[lons < 0] += 360  # RA in [0, 360)
         self.ra = lons[pix]
         self.dec = lats[pix]
 
