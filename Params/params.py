@@ -80,17 +80,13 @@ if include_instrumental_effects:
         '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/'
         'Hex_61-10m_healvis_model_for_{}_{}_sec_time_'
         'steps_bl_less_than_41m/'.format(nt, integration_time_seconds))
-    # instrument_model_directory = (
-    #     '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/'
-    #     'Hex_61-10m_healvis_model_for_{}_{}_min_time_'
-    #     'steps_bl_less_than_41m/'.format(nt, integration_time_minutes_str))
     telescope_latlonalt = (-30.72152777777791,
                            21.428305555555557,
                            1073.0000000093132)
     central_jd = 2458098.5521759833
 
     # Primary beam params
-    beam_type = 'Airy'
+    beam_type = 'gaussian'
     beam_peak_amplitude = 1.0
     fwhm_deg = None  # degrees
     antenna_diameter = None

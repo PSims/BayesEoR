@@ -51,7 +51,8 @@ def BayesEoRParser():
     parser.add_argument(
         '--beam_type',
         type=str,
-        help="Can be either 'Gaussian' or 'Uniform'. Defaults to 'Gaussian'."
+        help="Can be either 'gaussian' or 'uniform' (case insensitive). "
+             "Defaults to 'gaussian'."
         )
     parser.add_argument(
         '--beam_peak_amplitude',

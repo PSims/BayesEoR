@@ -198,12 +198,13 @@ if p.use_shg:
 
 if p.include_instrumental_effects:
     beam_info_str = ''
-    if p.beam_type.lower() == 'uniform':
+    p.beam_type = p.beam_type.lower()
+    if p.beam_type == 'uniform':
         beam_info_str += '{}_beam_peak_amplitude_{}'.format(
             p.beam_type,
             str(p.beam_peak_amplitude).replace('.', 'd')
             )
-    elif p.beam_type.lower() == 'gaussian':
+    elif p.beam_type == 'gaussian':
         beam_info_str += (
             '{}_beam_peak_amplitude_{}'.format(
                 p.beam_type,
@@ -226,7 +227,7 @@ if p.include_instrumental_effects:
                   end='\n\n'
                   )
             sys.exit()
-    elif p.beam_type.lower() == 'airy':
+    elif p.beam_type == 'airy':
         beam_info_str += '{}_beam_antenna-diameter-{}m'.format(
             p.beam_type,
             str(np.round(p.antenna_diameter, decimals=2)).replace('.', 'd')
