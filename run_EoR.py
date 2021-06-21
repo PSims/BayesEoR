@@ -576,7 +576,7 @@ if zero_the_LW_modes:
     print('Setting PSPP_block_diag_Polychord.inverse_LW_power to:',
           PSPP_block_diag_Polychord.inverse_LW_power)
 if sub_ML_monopole_term_model:
-    SPP_block_diag_Polychord.dbar = q_sub_dbar
+    PSPP_block_diag_Polychord.dbar = q_sub_dbar
 if p.use_intrinsic_noise_fitting and sub_ML_monopole_term_model:
     print('Using use_intrinsic_noise_fitting')
     PSPP_block_diag_Polychord.d_Ninv_d = q_sub_d_Ninv_q_sub_d
