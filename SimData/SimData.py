@@ -26,7 +26,7 @@ def generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(
     return mod_k_physical, k_x, k_y, k_z, x, y, z
 
 
-def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vector_instrumental(
+def generate_data_and_noise_vector_instrumental(
         sigma, s, nu, nv, nf, neta, nq, nt,
         uvw_array_meters, bl_redundancy_array, **kwargs):
     # Need to rename this function, the name is too long
@@ -58,7 +58,7 @@ def generate_visibility_covariance_matrix_and_noise_realisation_and_the_data_vec
 
     """
     How to create a conjugate baseline map from the instrument model:
-    
+
     1. Create a map for a single time step that maps the array indices
        of baselines with (u, v) and (-u, -v)
     2. Add noise to (u, v) and conjugate noise to (-u, -v) using the
