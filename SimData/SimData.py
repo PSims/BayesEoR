@@ -6,10 +6,49 @@ import BayesEoR.Params.params as p
 
 
 def generate_k_cube_in_physical_coordinates(
-        nu, nv, nf, neta, ps_box_size_ra_Mpc,
+        nu, nv, neta, ps_box_size_ra_Mpc,
         ps_box_size_dec_Mpc, ps_box_size_para_Mpc):
+    """
+    Generates rectilinear k-space cubes in units of inverse Mpc.
+
+    Parameters
+    ----------
+    nu : int
+        Number of pixels on a side for the u-axis in the model uv-plane.
+    nv : int
+        Number of pixels on a side for the v-axis in the model uv-plane.
+    neta : int
+        Number of Line of Sight (LoS, frequency axis) Fourier modes.
+    ps_box_size_ra_Mpc : float
+        Right ascension (RA) axis extent of the cosmological volume in Mpc from
+        which the power spectrum is estimated.
+    ps_box_size_dec_Mpc : float
+        Declination (DEC) axis extent of the cosmological volume in Mpc from
+        which the power spectrum is estimated.
+    ps_box_size_para_Mpc : float
+        LoS extent of the cosmological volume in Mpc from which the power
+        spectrum is estimated.
+
+    Returns
+    -------
+    mod_k_physical : np.ndarray of floats
+        Modulus of each 3D k-space voxel, i.e. sqrt(k_x**2 + k_y**2 + kz**2).
+    k_x : np.ndarray of floats
+        Array of RA axis k-space amplitudes in inverse Mpc.
+    k_y : np.ndarray of floats
+        Array of DEC axis k-space amplitudes in inverse Mpc.
+    k_z : np.ndarray of floats
+        Array of LoS axis k-space amplitudes in inverse Mpc.
+    x : np.ndarray of ints
+        Array of RA axis k-space pixel coordinates.
+    y : np.ndarray of ints
+        Array of DEC axis k-space pixel coordinates.
+    z : np.ndarray of ints
+        Array of LoS axis k-space pixel coordinates.
+
+    """
     # Generate k_cube pixel coordinates
-    z, y, x = np.mgrid[-(nf//2):(nf//2),
+    z, y, x = np.mgrid[-(neta//2):(neta//2),
                        -(nv//2):(nv//2)+1,
                        -(nu//2):(nu//2)+1]
 
@@ -94,13 +133,13 @@ def generate_data_and_noise_vector_instrumental(
 
 
 def generate_masked_coordinate_cubes(
-        cube_to_mask, nu, nv, nf, neta, nq,
+        cube_to_mask, nu, nv, neta, nq,
         ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc):
     # Generate k_cube physical coordinates
     # to match the 21cmFAST input simulation
     mod_k, k_x, k_y, k_z, x, y, z =\
         generate_k_cube_in_physical_coordinates(
-            nu, nv, nf, neta,
+            nu, nv, neta,
             ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc)
 
     # Do not include high spatial frequency structure in the power
@@ -187,14 +226,14 @@ def generate_masked_coordinate_cubes(
 
 
 def generate_k_cube_model_spherical_binning_v2d1(
-        mod_k_masked, k_z_masked, nu, nv, nf, neta, nq,
+        mod_k_masked, k_z_masked, nu, nv, neta, nq,
         ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc):
     # Need to rename this function, it's now the default
     # Generate k_cube physical coordinates
     # to match the 21cmFAST input simulation
     mod_k, k_x, k_y, k_z, x, y, z =\
         generate_k_cube_in_physical_coordinates(
-            nu, nv, nf, neta, ps_box_size_ra_Mpc,
+            nu, nv, neta, ps_box_size_ra_Mpc,
             ps_box_size_dec_Mpc, ps_box_size_para_Mpc)
 
     modkscaleterm = 1.35
@@ -296,13 +335,13 @@ def calc_mean_binned_k_vals(mod_k_masked, k_cube_voxels_in_bin, **kwargs):
 
 def generate_k_cube_model_cylindrical_binning(
         mod_k_masked, k_z_masked, k_y_masked, k_x_masked, n_k_perp_bins,
-        nu, nv, nf, neta, nq, ps_box_size_ra_Mpc,
+        nu, nv, neta, nq, ps_box_size_ra_Mpc,
         ps_box_size_dec_Mpc, ps_box_size_para_Mpc):
     # Generate k_cube physical coordinates to
     # match the 21cmFAST input simulation
     mod_k, k_x, k_y, k_z, x, y, z =\
         generate_k_cube_in_physical_coordinates(
-            nu, nv, nf, neta,
+            nu, nv, neta,
             ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc)
 
     # define mod_k binning

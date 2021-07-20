@@ -351,30 +351,30 @@ ps_box_size_para_Mpc = (
     cosmo.dL_df(redshift) * (bandwidth_MHz * 1e6))
 mod_k, k_x, k_y, k_z, x, y, z =\
     generate_k_cube_in_physical_coordinates(
-        nu, nv, nf, neta, ps_box_size_ra_Mpc,
+        nu, nv, neta, ps_box_size_ra_Mpc,
         ps_box_size_dec_Mpc, ps_box_size_para_Mpc
         )
 k = mod_k.copy()
 k_vis_ordered = k.T.flatten() # not used for anything
 k_x_masked = generate_masked_coordinate_cubes(
-    k_x, nu, nv, nf, neta, nq, ps_box_size_ra_Mpc,
+    k_x, nu, nv, neta, nq, ps_box_size_ra_Mpc,
     ps_box_size_dec_Mpc, ps_box_size_para_Mpc
 )
 k_y_masked = generate_masked_coordinate_cubes(
-    k_y, nu, nv, nf, neta, nq, ps_box_size_ra_Mpc,
+    k_y, nu, nv, neta, nq, ps_box_size_ra_Mpc,
     ps_box_size_dec_Mpc, ps_box_size_para_Mpc
 )
 k_z_masked = generate_masked_coordinate_cubes(
-    k_z, nu, nv, nf, neta, nq, ps_box_size_ra_Mpc,
+    k_z, nu, nv, neta, nq, ps_box_size_ra_Mpc,
     ps_box_size_dec_Mpc, ps_box_size_para_Mpc
 )
 mod_k_masked = generate_masked_coordinate_cubes(
-    mod_k, nu, nv, nf, neta, nq, ps_box_size_ra_Mpc,
+    mod_k, nu, nv, neta, nq, ps_box_size_ra_Mpc,
     ps_box_size_dec_Mpc, ps_box_size_para_Mpc
 )
 k_cube_voxels_in_bin, modkbins_containing_voxels = \
     generate_k_cube_model_spherical_binning_v2d1(
-        mod_k_masked, k_z_masked, nu, nv, nf, neta, nq,
+        mod_k_masked, k_z_masked, nu, nv, neta, nq,
         ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc
     )
 modk_vis_ordered_list = [
@@ -397,7 +397,7 @@ if do_cylindrical_binning:
     k_cube_voxels_in_bin, modkbins_containing_voxels, k_perp_bins =\
         generate_k_cube_model_cylindrical_binning(
             mod_k_masked, k_z_masked, k_y_masked, k_x_masked,
-            n_k_perp_bins, nu, nv, nf, neta, nq,
+            n_k_perp_bins, nu, nv, neta, nq,
             ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc)
 
 
