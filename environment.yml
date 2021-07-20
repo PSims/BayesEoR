@@ -1,0 +1,19 @@
+name: beor_p100
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python>=3.6
+  - pip
+  - numpy=1.19.2
+  - pymultinest=2.10
+  - astropy>=4.0
+  - pyuvdata
+  - scipy>=1.0.1
+  - astropy-healpix>=0.5
+  - h5py
+  - gcc_linux-64
+  # Uncomment the following two lines if using conda
+  # installations of CUDA and MPI
+  # - pycuda
+  # - mpi4py>=3.0.0
