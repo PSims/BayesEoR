@@ -481,10 +481,7 @@ x = [100.e0]*nDims
 ###
 # PolyChord setup
 ###
-log_priors_min_max = [
-    [-2.0, 2.0], [-1.2, 2.8], [-0.7, 3.3], [-0.3, 3.7], [0.1, 4.1],
-    [0.5, 4.5], [1.0, 5.0], [1.4, 5.4], [1.7, 5.7]
-    ]
+log_priors_min_max = [[-2., 6.] for _ in range(nDims)]
 if p.use_LWM_Gaussian_prior:
     # Set minimum LW model priors using LW power spectrum in fit to
     # white noise (i.e the prior min should incorporate knowledge of
@@ -580,14 +577,8 @@ if p.useGPU:
     start = time.time()
     PSPP_block_diag_Polychord.Print = False
     Nit = 10
-    # x_bad = [2.81531369, 2.4629003, -0.28626515, 5.39490566, 1.19703521,
-    #          -0.77159866, 2.9684211, 4.28956387, 3.0131297]
-    x_bad = [-0.48731995, 0.97696114, -0.0966692, 0.40549231, 5.35780334,
-             -0.11230135, 5.95898771, 3.93845129, 6.81375599]
-    print('Testing posterior calc with x={}'.format(x_bad))
     for _ in range(Nit):
-        # L =  PSPP_block_diag_Polychord.posterior_probability([3.e0]*nDims)[0]
-        L = PSPP_block_diag_Polychord.posterior_probability(x_bad)[0]
+        L = PSPP_block_diag_Polychord.posterior_probability([1.e0]*nDims)[0]
         if not np.isfinite(L):
             print('WARNING: Infinite value returned in posterior calculation!')
     print('Average evaluation time: {}'.format((time.time() - start)/float(Nit)),
@@ -616,7 +607,6 @@ else:
           end='\n\n')
 
 if run_single_node_analysis or mpi_size > 1:
-    # Write log file
     if MPI.COMM_WORLD.Get_rank() == 0:
         write_log_file(array_save_directory, file_root)
 
