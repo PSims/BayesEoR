@@ -35,8 +35,8 @@ class Healpix(HEALPix):
     fov_ra_deg : float
         Field of view in degrees of the RA axis of the sky model.
     fov_dec_deg : float
-        Field of view in degrees of the DEC axis of the sky model.  
-        Defaults to `fov_ra_deg`.
+        Field of view in degrees of the DEC axis of the sky model.
+        Defaults to ``fov_ra_deg``.
     nside : int
         Nside resolution of the HEALPix map.  Defaults to 256.
     telescope_latlonalt : tuple
@@ -47,18 +47,16 @@ class Healpix(HEALPix):
     nt : int
         Number of time integrations. Defaults to 1.
     int_time : float, optional
-        Integration time in seconds. Required if `nt` > 1.
-    beam_type : str, optional
-        Can be either (case insensitive) 'uniform', 'gaussian',
-        or 'airy'.  Defaults to 'uniform'.
+        Integration time in seconds. Required if ``nt>1``.
+    beam_type : {'uniform', 'gaussian', 'airy'}, optional
+        Beam type to use.  Defaults to uniform.
     peak_amp : float, optional
         Peak amplitude of the beam.  Defaults to 1.0.
     fwhm_deg : float, optional
-        Required if `beam_type` = 'gaussian'. Sets the full width at half
+        Required if ``beam_type='gaussian'``. Sets the full width at half
         maximum of the beam in degrees.
     diam : float, optional
-        Effective diameter of the antenna in meters.  Used if
-        `beam_type` = 'airy'.
+        Antenna (aperture) diameter in meters.  Used if ``beam_type='airy'``.
 
     """
     def __init__(
@@ -123,7 +121,6 @@ class Healpix(HEALPix):
         self.pointing_centers = []
         for jd in self.jds:
             t = Time(jd, scale='utc', format='jd')
-            # Calculate zenith angle in (alt, az)
             zen = AltAz(alt=Angle('90d'),
                         az=Angle('0d'),
                         obstime=t,
@@ -135,7 +132,7 @@ class Healpix(HEALPix):
         if beam_type is not None:
             beam_type = beam_type.lower()
             assert beam_type in ['uniform', 'gaussian', 'airy'], \
-                "Only uniform, Gaussian, and Airy beams are currently supported."
+                "Only uniform, Gaussian, and Airy beams are supported."
             self.beam_type = beam_type
         else:
             self.beam_type = 'uniform'
@@ -155,8 +152,8 @@ class Healpix(HEALPix):
         # Pixel params
         self.pix = None  # HEALPix pixel numbers within the FoV
         self.npix_fov = None  # Number of pixels within the FoV
-        self.ra = None  # Array to hold right ascension values
-        self.dec = None  # Array to hold declination values
+        self.ra = None  # Right ascension values of HEALPix pixels
+        self.dec = None  # Declination values of HEALPix pixels
         # Set self.pix and self.npix_fov
         self.set_pixel_filter()
 
@@ -166,23 +163,23 @@ class Healpix(HEALPix):
         centered on `self.field_center`.  This rectangular region is
         constructed such that the arc length of each side is identical.
 
-        Parameters
-        ----------
-        inverse: boolean
-            If False, return the pixels within the rectangular region.
-            If True, return the pixels outside the rectangular region.
-
-        This function sets:
+        This function updates the following attributes in-place:
         pix : array of ints
             Array of HEALPix pixel indices lying within the rectangular
             region with shape (npix_fov,).
         npix_fov : int
             Number of HEALPix pixels lying within the rectangular region
         ra : array of floats
-            Array of right ascension values for each pixel in
-            `self.pix`.
+            Array of right ascension values for each pixel in `self.pix`.
         dec : array of floats
             Array of declination values for each pixel in `self.pix`.
+
+        Parameters
+        ----------
+        inverse : boolean
+            If `False`, return the pixels within the rectangular region.
+            If `True`, return the pixels outside the rectangular region.
+
         """
         lons, lats = hp.pix2ang(
             self.nside,
@@ -221,26 +218,22 @@ class Healpix(HEALPix):
         Parameters
         ----------
         time : float
-            Julian date at which to convert from
-            ICRS to AltAz coordinate frames.
+            Julian date at which to convert from ICRS to AltAz coordinate
+            frames.
         return_azza : boolean
-            If True, return both (l, m) and (az, za)
-            coordinate arrays.  Otherwise return only
-            (l, m).  Defaults to 'False'.
+            If True, return both (l, m, n) and (az, za) coordinate arrays.
+            Otherwise return only (l, m, n).  Defaults to 'False'.
         radec_offset : tuple of floats
             Will likely be deprecated.
 
         Returns
         -------
         l : np.ndarray of floats
-            Array containing the EW direction cosine
-            of each HEALPix pixel.
+            Array containing the EW direction cosine of each HEALPix pixel.
         m : np.ndarray of floats
-            Array containing the NS direction cosine
-            of each HEALPix pixel.
+            Array containing the NS direction cosine of each HEALPix pixel.
         n : np.ndarray of floats
-            Array containing the radial direction
-            cosine of each HEALPix pixel.
+            Array containing the radial direction cosine of each HEALPix pixel.
         """
         if not isinstance(time, Time):
             time = Time(time, format='jd')
@@ -264,18 +257,18 @@ class Healpix(HEALPix):
 
     def get_beam_vals(self, az, za, freq=None):
         """
-        Get an array of beam values from (l, m) coordinates.
-        If `beam_type='gaussian'`, this function assumes that the
+        Get an array of beam values from (az, za) coordinates.
+        If `self.beam_type='gaussian'`, this function assumes that the
         beam width is symmetric along the l and m axes.
 
         Parameters
         ----------
         az : np.ndarray of floats
-            Azimuthal angle of each pixel in units of radians.
+            Azimuthal angle of each pixel in radians.
         za : np.ndarray of floats
-            Zenith angle of each pixel in units of radians.
+            Zenith angle of each pixel in radians.
         freq : float, optional
-            Frequency in Hz at which to calculate the beam.
+            Frequency in Hz.
 
         Returns
         -------
@@ -286,7 +279,6 @@ class Healpix(HEALPix):
             beam_vals = np.ones(self.npix_fov)
 
         elif self.beam_type == 'gaussian':
-            # Calculate Gaussian beam values from za
             if self.fwhm_deg is not None:
                 stddev_rad = np.deg2rad(
                     self._fwhm_to_stddev(self.fwhm_deg)
@@ -306,32 +298,35 @@ class Healpix(HEALPix):
 
     def _gaussian_za(self, za, sigma, amp):
         """
-        Calculates the value of an azimuthally symmetric
-        Gaussian function from an array of zenith angles.
+        Calculates an azimuthally symmetric Gaussian beam from an array of
+        zenith angles.
 
         Parameters
         ----------
         za : np.ndarray
-            Zenith angles of each pixel in units of radians.
+            Zenith angle of each pixel in radians.
         sigma : float
-            Standard deviation of the Gaussian function
-            in units of radians.
+            Standard deviation in radians.
         amp : float
-            Peak amplitude of the Gaussian function.
+            Peak amplitude at ``za=0``.
 
         Returns
         -------
         beam_vals : np.ndarray
-            Array of Gaussian function amplitudes for each
-            zenith angle in `za`.
+            Array of Gaussian beam amplitudes for each zenith angle in `za`.
         """
         beam_vals = amp * np.exp(-za ** 2 / (2 * sigma ** 2))
         return beam_vals
 
     def _fwhm_to_stddev(self, fwhm):
         """
-        Converts a full width half maximum to a standard deviation
-        for a Gaussian beam.
+        Converts a full width half maximum to a standard deviation for a
+        Gaussian beam.
+
+        Parameters
+        ----------
+        fwhm : float
+            Full width half maximum in degrees.
         """
         return fwhm / 2.355
 
@@ -342,17 +337,16 @@ class Healpix(HEALPix):
         Parameters
         ----------
         za : np.ndarray of floats
-            Zenith angle of each pixel in units of radians.
+            Zenith angle of each pixel in radians.
         diam : float
-            Antenna diameter in units of meters.
+            Antenna (aperture) diameter in meters.
         freq : float
             Frequency in Hz.
 
         Returns
         -------
         beam_vals : np.ndarray
-            Array of Airy disk amplitudes for each zenith
-            angle in `za`.
+            Array of Airy disk amplitudes for each zenith angle in `za`.
         """
         xvals = (
                 diam / 2. * np.sin(za)
@@ -367,11 +361,24 @@ class Healpix(HEALPix):
 
     def _fwhm_to_diam(self, fwhm, freq):
         """
-        Converts the FWHM [deg] of a Gaussian into an effective
-        dish diameter for use in the calculation of an
-        Airy disk.
+        Converts the full width at half maximum in degrees of a Gaussian into
+        an effective dish diameter for use in the calculation of an Airy disk.
 
         Modified from `pyuvsim.analyticbeam.diameter_to_sigma`.
+
+        Parameters
+        ----------
+        fwhm : float
+            Full width at half maximum of a Gaussian beam in degrees.
+        freq : float
+            Frequency in Hz.
+
+        Returns
+        -------
+        diam : float
+            Antenna (aperture) diameter in meters with an Airy disk beam
+            pattern whose main lobe is described by a Gaussian beam with a
+            FWHM of `fwhm`.
         """
         scalar = 2.2150894
         wavelength = c_ms / freq
@@ -383,11 +390,23 @@ class Healpix(HEALPix):
 
     def _diam_to_stddev(self, diam, freq):
         """
-        Approximates the effective stddev [deg] of an Airy disk
-        corresponding to an antenna with a diameter of `diam`
-        in meters.
+        Approximates the effective standard deviation in radians of an Airy
+        disk corresponding to an antenna with a diameter of `diam` in meters.
 
         Copied from `pyuvsim.analyticbeam.diameter_to_sigma`.
+
+        Parameters
+        ----------
+        diam : float
+            Antenna (aperture) diameter in meters.
+        freq : float
+            Frequency in Hz.
+
+        Returns
+        -------
+        sigma : float
+            Standard deviation of a Gaussian envelope which describes the main
+            lobe of an Airy disk with aperture `diam`.
         """
         scalar = 2.2150894
         wavelength = c_ms / freq
