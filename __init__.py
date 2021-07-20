@@ -1,5 +1,5 @@
 from .SimData import\
-    generate_k_cube_in_physical_coordinates_21cmFAST_v2d0,\
+    generate_k_cube_in_physical_coordinates,\
     generate_masked_coordinate_cubes,\
     generate_k_cube_model_cylindrical_binning,\
     calc_mean_binned_k_vals,\

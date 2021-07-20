@@ -350,7 +350,7 @@ ps_box_size_dec_Mpc = (
 ps_box_size_para_Mpc = (
     cosmo.dL_df(redshift) * (bandwidth_MHz * 1e6))
 mod_k, k_x, k_y, k_z, x, y, z =\
-    generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(
+    generate_k_cube_in_physical_coordinates(
         nu, nv, nf, neta, ps_box_size_ra_Mpc,
         ps_box_size_dec_Mpc, ps_box_size_para_Mpc
         )

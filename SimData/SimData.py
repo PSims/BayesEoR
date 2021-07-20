@@ -1,18 +1,17 @@
 import numpy as np
-from numpy import * # don't know if this is necessary
+from numpy import *
 from subprocess import os
 
 import BayesEoR.Params.params as p
 
 
-def generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(
+def generate_k_cube_in_physical_coordinates(
         nu, nv, nf, neta, ps_box_size_ra_Mpc,
         ps_box_size_dec_Mpc, ps_box_size_para_Mpc):
-    # Rename this function? This is the default funciton
     # Generate k_cube pixel coordinates
-    z, y, x = np.mgrid[-(nf//2) : (nf//2),
-                       -(nv//2) : (nv//2)+1,
-                       -(nu//2) : (nu//2)+1]
+    z, y, x = np.mgrid[-(nf//2):(nf//2),
+                       -(nv//2):(nv//2)+1,
+                       -(nu//2):(nu//2)+1]
 
     # Setup k-space arrays
     deltakx = 2.*np.pi / ps_box_size_ra_Mpc
@@ -100,7 +99,7 @@ def generate_masked_coordinate_cubes(
     # Generate k_cube physical coordinates
     # to match the 21cmFAST input simulation
     mod_k, k_x, k_y, k_z, x, y, z =\
-        generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(
+        generate_k_cube_in_physical_coordinates(
             nu, nv, nf, neta,
             ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc)
 
@@ -194,7 +193,7 @@ def generate_k_cube_model_spherical_binning_v2d1(
     # Generate k_cube physical coordinates
     # to match the 21cmFAST input simulation
     mod_k, k_x, k_y, k_z, x, y, z =\
-        generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(
+        generate_k_cube_in_physical_coordinates(
             nu, nv, nf, neta, ps_box_size_ra_Mpc,
             ps_box_size_dec_Mpc, ps_box_size_para_Mpc)
 
@@ -302,7 +301,7 @@ def generate_k_cube_model_cylindrical_binning(
     # Generate k_cube physical coordinates to
     # match the 21cmFAST input simulation
     mod_k, k_x, k_y, k_z, x, y, z =\
-        generate_k_cube_in_physical_coordinates_21cmFAST_v2d0(
+        generate_k_cube_in_physical_coordinates(
             nu, nv, nf, neta,
             ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc)
 
