@@ -399,7 +399,7 @@ def IDFT_Array_IDFT_1D(nf, neta):
     nf : int
         Number of frequency channels.
     neta : int
-        Number of LoS Fourier modes.
+        Number of Line of Sight (LoS, frequency axis) Fourier modes.
 
     Returns
     -------
@@ -434,7 +434,7 @@ def IDFT_Array_IDFT_1D_WQ(
     nf : int
         Number of frequency channels.
     neta : int
-        Number of LoS Fourier modes.
+        Number of Line of Sight (LoS, frequency axis) Fourier modes.
     nq : int
         Number of quadratic modes in the Large Spectral Scale Model (LSSM).
 
@@ -483,7 +483,7 @@ def idft_array_idft_1d_sh(
     nf : int
         Number of frequency channels.
     neta : int
-        Number of LoS Fourier modes.
+        Number of Line of Sight (LoS, frequency axis) Fourier modes.
     nq_sh : int
         Number of quadratic modes.
     npl_sh : int
