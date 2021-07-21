@@ -76,13 +76,23 @@ class BuildMatrixTree(object):
             for child_matrix\
                     in self.matrix_prerequisites_dictionary[parent_matrix]:
                 matrix_available = self.check_if_matrix_exists(child_matrix)
-                prerequisites_status[child_matrix]= matrix_available
+                prerequisites_status[child_matrix] = matrix_available
         return prerequisites_status
 
     def check_if_matrix_exists(self, matrix_name):
         """
-        Check is hdf5 or npz file with matrix_name exists.
-        If it does, return 1 for an hdf5 file or 2 for an npz
+        Check is hdf5 or npz file with `matrix_name` exists.
+
+        Parameters
+        ----------
+        matrix_name : str
+            Name of matrix.
+
+        Returns
+        -------
+        matrix_available : int
+            If matrix exists, 1 or 2 if matrix is an hdf5 or npz file,
+            respectively.
         """
         hdf5_matrix_available = os.path.exists(
             self.array_save_directory+matrix_name+'.h5')
@@ -98,26 +108,44 @@ class BuildMatrixTree(object):
                           ' representation is available.')
                     print('Using sparse representation and'
                           ' setting p.use_sparse_matrices=True')
-                    p.use_sparse_matrices=True
+                    p.use_sparse_matrices = True
             else:
                 matrix_available = 0
         return matrix_available
 
-    def create_directory(self, Directory, **kwargs):
+    def create_directory(self, directory):
         """
-        Create output directory if it doesn't exist
+        Create output directory if it doesn't already exist.
+
+        Parameters
+        ----------
+        directory : str
+            Name of directory.
+
         """
-        if not os.path.exists(Directory):
-            print('Directory not found: \n\n'+Directory+"\n")
+        if not os.path.exists(directory):
+            print('Directory not found:\n\n' + directory + "\n")
             print('Creating required directory structure..')
-            os.makedirs(Directory)
+            os.makedirs(directory)
         return 0
 
     def output_data(
             self, output_array, output_directory, file_name, dataset_name):
         """
         Check if the data is an array or sparse matrix and call the
-        corresponding method to output to HDF5 or npz
+        corresponding method to output to HDF5 or npz.
+
+        Parameters
+        ----------
+        output_array : array
+            Array to be written to disk.
+        output_directory : str
+            Directory in which to write `output_array`.
+        file_name : str
+            Filename to use for `output_array`.
+        dataset_name : str
+            If saving as hdf5, the key used to access `output_array`.
+
         """
         output_array_is_sparse = sparse.issparse(output_array)
         if output_array_is_sparse:
@@ -131,7 +159,19 @@ class BuildMatrixTree(object):
     def output_to_hdf5(
             self, output_array, output_directory, file_name, dataset_name):
         """
-        Write array to HDF5 file
+        Write array to HDF5 file.
+
+        Parameters
+        ----------
+        output_array : array
+            Array to be written to disk.
+        output_directory : str
+            Directory in which to write `output_array`.
+        file_name : str
+            Filename to use for `output_array`.
+        dataset_name : str
+            If saving as hdf5, the key used to access `output_array`.
+
         """
         start = time.time()
         self.create_directory(output_directory)
@@ -142,11 +182,23 @@ class BuildMatrixTree(object):
         print('Time taken: {}'.format(time.time() - start))
         return 0
 
-    def output_sparse_matrix_to_npz(self, output_array, output_directory,
-                                    file_name, dataset_name):
+    def output_sparse_matrix_to_npz(
+            self, output_array, output_directory, file_name, dataset_name):
         """
         Write sparse matrix to npz (note: to maintain sparse matrix
-        attributes need to use sparse.save_npz rather than np.savez)
+        attributes need to use sparse.save_npz rather than np.savez).
+
+        Parameters
+        ----------
+        output_array : array
+            Array to be written to disk.
+        output_directory : str
+            Directory in which to write `output_array`.
+        file_name : str
+            Filename to use for `output_array`.
+        dataset_name : str
+            If saving as hdf5, the key used to access `output_array`.
+
         """
         start = time.time()
         self.create_directory(output_directory)
@@ -161,6 +213,14 @@ class BuildMatrixTree(object):
         Check if the data is an array (.h5) or sparse matrix (.npz)
         and call the corresponding method to read it in, then convert
         matrix to numpy array if it is sparse.
+
+        Parameters
+        ----------
+        file_path : str
+            Path to array file.
+        dataset_name : str
+            If reading an hdf5 file, the key used to access the dataset.
+
         """
         data = self.read_data(file_path, dataset_name)
         data = self.convert_sparse_matrix_to_dense_numpy_array(data)
@@ -169,7 +229,15 @@ class BuildMatrixTree(object):
     def read_data(self, file_path, dataset_name):
         """
         Check if the data is an array (.h5) or sparse matrix (.npz)
-        and call the corresponding method to read it in
+        and call the corresponding method to read it in.
+
+        Parameters
+        ----------
+        file_path : str
+            Path to array file.
+        dataset_name : str
+            If reading an hdf5 file, the key used to access the dataset.
+
         """
         if file_path.count('.h5'):
             data = self.read_data_from_hdf5(file_path, dataset_name)
@@ -191,7 +259,15 @@ class BuildMatrixTree(object):
 
     def read_data_from_hdf5(self, file_path, dataset_name):
         """
-        Read array from HDF5 file
+        Read array from HDF5 file.
+
+        Parameters
+        ----------
+        file_path : str
+            Path to array file.
+        dataset_name : str
+            If reading an hdf5 file, the key used to access the dataset.
+
         """
         with h5py.File(file_path, 'r') as hf:
             data = hf[dataset_name][:]
@@ -200,7 +276,15 @@ class BuildMatrixTree(object):
     def read_data_from_npz(self, file_path, dataset_name):
         """
         Read sparse matrix from npz (note: to maintain sparse matrix
-        attributes need to use sparse.load_npz rather than np.loadz)
+        attributes need to use sparse.load_npz rather than np.loadz).
+
+        Parameters
+        ----------
+        file_path : str
+            Path to array file.
+        dataset_name : str
+            If reading an hdf5 file, the key used to access the dataset.
+
         """
         data = sparse.load_npz(file_path)
         return data
@@ -208,8 +292,8 @@ class BuildMatrixTree(object):
 
 class BuildMatrices(BuildMatrixTree):
     """
-    Child class used to create minimum sufficient matrix stack
-    using BayesEoR.Linalg functions to create matrices.
+    Child class used to create a minimum sufficient matrix stack
+    using BayesEoR.Linalg matrix creation functions.
 
     Parameters
     ----------
@@ -220,64 +304,89 @@ class BuildMatrices(BuildMatrixTree):
     nv : int
         Number of pixels on a side for the v axis in the model uv-plane.
     n_vis : int
-        Number of visibilities per channel, i.e. number of
-        redundant baselines * number of time steps.
+        Number of visibilities per channel, i.e. number of redundant
+        baselines * number of time steps.
     neta : int
-        Number of LoS FT modes.
+        Number of Line of Sight (LoS) Fourier modes.
     nf : int
         Number of frequency channels.
+    nt : int
+        Number of times.
     nq : int
-        Number of large spectral scale quadratic modes.
-    sigma : float
-        Expected noise level in the data vector = signal + noise.
+        Number of quadratic modes in the Large Spectral Scale Model (LSSM).
     npl : int
-        Number of power law coefficients for the large
-        spectral scale model.
-    uvw_multi_time_step_array_meters : np.ndarray of floats
-        Array containing the (u(t), v(t), w(t)) coordinates
-        of the instrument model with shape (nt, nbls, 3).
-    uvw_multi_time_step_array_meters_vectorised : np.ndarray of floats
-        Reshaped `uvw_multi_time_step_array_meters` with shape
-        (nt * nbls, 3).  Each set of nbls entries contain
-        the (u, v, w) coordinates for a single integration.
-    baseline_redundancy_array_time_vis_shaped : np.ndarray of floats
-        Array containing the number of redundant baselines
-        at each (u(t), v(t), w(t)) in the instrument model
-        with shape (nt, nbls, 1).
-    baseline_redundancy_array_vectorised : np.ndarray of floats
-        Reshaped `baseline_redundancy_array_time_vis_shaped`
-        with shape (nt * nbls, 1).  Each set of nbls entries
-        contain the redundancy of each (u, v, w) for a
+        Number of power law coefficients which replace quadratic modes in
+        the LSSM.
+    sigma : float
+        Expected noise amplitude in the data vector = signal + noise.
+    uvw_multi_time_step_array_meters : :class:`numpy.ndarray`
+        Array containing the (u(t), v(t), w(t)) coordinates of the instrument
+        model with shape (nt, nbls, 3).
+    uvw_multi_time_step_array_meters_vectorised : :class:`numpy.ndarray`
+        Reshaped `uvw_multi_time_step_array_meters` with shape (nt * nbls, 3).
+        Each set of nbls entries contain the (u, v, w) coordinates for a
         single integration.
-    phasor_vector : np.ndarray of complex floats
-        Array with shape (ndata,) that contains the phasor term
-        used to phase visibilities after performing the nuDFT
-        from HEALPix (l, m, f) to instrumentally sampled,
-        unphased (u, v, f).
-    beam_type : str
-        Can be either 'uniform' or 'gaussian' (case insensitive).
+    baseline_redundancy_array_time_vis_shaped : :class:`numpy.ndarray`
+        Array containing the number of redundant baselines at each
+        (u(t), v(t), w(t)) in the instrument model with shape (nt, nbls, 1).
+    baseline_redundancy_array_vectorised : :class:`numpy.ndarray`
+        Reshaped `baseline_redundancy_array_time_vis_shaped` with shape
+        (nt * nbls, 1).  Each set of nbls entries contain the redundancy of
+        each (u, v, w) for a single integration.
+    phasor_vector : :class:`numpy.ndarray`
+        Array with shape (ndata,) that contains the phasor term used to phase
+        visibilities after performing the nuDFT from HEALPix (l, m, f) to
+        instrumentally sampled, unphased (u, v, f).
+    fov_ra_deg : float
+        Field of view in degrees of the RA axis of the sky model.
+    fov_dec_deg : float
+        Field of view in degrees of the DEC axis of the sky model.
+    nside : int
+        HEALPix nside parameter.
+    telescope_latlonalt : tuple
+        The latitude, longitude, and altitude of the telescope in degrees,
+        degrees, and meters, respectively.
+    central_jd : float
+        Central time step of the observation in JD2000 format.
+    int_time : float
+        Integration time in seconds.
+    beam_type : {'uniform', 'gaussian', 'airy'}
+        Beam type to use.
     beam_peak_amplitude : float
         Peak amplitude of the beam.
     beam_center : tuple of floats
-        Beam center in (RA, DEC) coordinates and units of degrees.
-        Assumed to be an tuple of offsets along the RA and DEC axes
-        relative to the pointing center of the sky model determined
-        from the instrument model parameters `telescope_latlonalt`
-        and `central_jd`.
+        Beam center in (RA, DEC) coordinates and units of degrees.  Assumed to
+        be an tuple of offsets along the RA and DEC axes relative to the
+        pointing center of the sky model determined from the instrument model
+        parameters `telescope_latlonalt` and `central_jd`.
     fwhm_deg : float
-        FWHM of the beam if using a Gaussian beam, or the effective FWHM of
-        the main lobe of an Airy beam from which the diameter of the aperture
-        is calculated.
+        Full Width at Half Maximum (FWHM) of the beam if using a Gaussian beam,
+        or the effective FWHM of the main lobe of an Airy beam from which the
+        diameter of the aperture is calculated.
     antenna_diameter : float
-        Diameter of the antenna aperture in meters.  Used in the calculation
-        of an Airy beam pattern or when using a Gaussian beam with a FWHM that
-        varies as a function of frequency.  The FWHM evolves according to the
+        Antenna (aperture) diameter in meters..  Used in the calculation of an
+        Airy beam pattern or when using a Gaussian beam with a FWHM that varies
+        as a function of frequency.  The FWHM evolves according to the
         effective FWHM of the main lobe of an Airy beam.
-    effective_noise : np.ndarray of complex floats
-        If the data vector being analyzed contains signal + noise,
-        the effective_noise vector contains the estimate of the
-        noise in the data vector.  Must have the shape and ordering
-        of the data vector, i.e. (ndata,).
+    effective_noise : :class:`numpy.ndarray`
+        If the data vector being analyzed contains signal + noise, the
+        effective_noise vector contains the estimate of the noise in the data
+        vector.  Must have the shape and ordering of the data vector,
+        i.e. (ndata,).
+    delta_eta_iHz : float
+        Fourier mode spacing along the eta (line of sight, frequency) axis in
+        inverse Hz.
+    delta_u_irad : float
+        Fourier mode spacing along the u axis in inverse radians of the
+        model uv-plane.
+    delta_v_irad : float
+        Fourier mode spacing along the v axis in inverse radians of the
+        model uv-plane.
+    use_shg : bool, optional
+        If `True`, use the SubHarmonic Grid (SHG) in the model uv-plane.
+    fit_for_shg_amps : bool, optional
+        if `True`, fit explicitly for the amplitudes of the individual SHG
+        pixels per frequency.
     nu_sh : int, optional
         Number of pixels on a side for the u-axis in the subharmonic model
         uv-plane.
@@ -290,6 +399,7 @@ class BuildMatrices(BuildMatrixTree):
     npl_sh : int, optional
         Number of power law coefficients used in the large spectral scale model
         for each pixel in the subharmonic grid.
+
     """
     def __init__(self, array_save_directory, nu, nv,
                  n_vis, neta, nf, nq, sigma, **kwargs):
@@ -409,7 +519,7 @@ class BuildMatrices(BuildMatrixTree):
             }
 
         if self.use_shg:
-            # update matrix_prerequisites_dictionary
+            # Add SHG matrices to matrix calculations
             self.matrix_prerequisites_dictionary.update({
                 'multi_vis_idft_array_1D': [
                     'idft_array_1D', 'idft_array_1d_sh'
@@ -421,7 +531,6 @@ class BuildMatrices(BuildMatrixTree):
                     'multi_chan_idft_array_noZMchan', 'idft_array_sh'
                     ]
             })
-            # update matrix_construction_methods_dictionary
             self.matrix_construction_methods_dictionary.update({
                 'idft_array_1d_sh': self.build_idft_array_1d_sh,
                 'idft_array_sh': self.build_idft_array_sh
@@ -431,18 +540,24 @@ class BuildMatrices(BuildMatrixTree):
         """
         Load any prerequisites for matrix_name if they exist,
         or build them if they don't.
+
+        Parameters
+        ----------
+        matrix_name : str
+            Name of matrix.
+
+        Returns
+        -------
+        prerequisite_matrices_dictionary : dict
+            Dictionary containing any and all loaded matrix prerequisites.
         """
         prerequisite_matrices_dictionary = {}
         print('About to check and load any prerequisites for', matrix_name)
         print('Checking for prerequisites')
         prerequisites_status = self.check_for_prerequisites(matrix_name)
         if prerequisites_status == {}:
-            # If matrix has no prerequisites
             print(matrix_name, 'has no prerequisites. Continuing...')
-
         else:
-            # Matrix has prerequisites that
-            # need to be built and/or loaded
             for child_matrix, matrix_available\
                     in prerequisites_status.items():
                 if matrix_available:
@@ -476,106 +591,186 @@ class BuildMatrices(BuildMatrixTree):
 
         return prerequisite_matrices_dictionary
 
-    def dot_product(self, matrix_A, matrix_B):
+    def dot_product(self, matrix_a, matrix_b):
         """
-        Calculate the dot product of matrix_A and matrix_B correctly
+        Calculate the dot product of matrix_a and matrix_b correctly
         whether either or both of A and B are sparse or dense.
-        """
-        matrix_A_is_sparse = sparse.issparse(matrix_A)
-        matrix_B_is_sparse = sparse.issparse(matrix_B)
-        if not (matrix_A_is_sparse or matrix_B_is_sparse):
-            # Both matrices are dense numpy.ndarrays
-            # Use np.dot to calculate the dot product
-            AB = np.dot(matrix_A, matrix_B)
-        else:
-            # One of the matrices is sparse - need to use
-            # python matrix syntax (i.e. * for dot product)
-            # NOTE:
-            # sparse * dense = dense
-            # dense * sparse = dense
-            # sparse * sparse = sparse
-            print(matrix_A.shape)
-            print(matrix_B.shape)
-            AB = matrix_A * matrix_B
-        return AB
 
-    def convert_sparse_to_dense_matrix(self, matrix_A):
+        Parameters
+        ----------
+        matrix_a : array
+            First argument.
+        matrix_b : array
+            Second argument.
+
+        Returns
+        -------
+        ab : array
+            Matrix dot product of `matrix_a` and `matrix_b`.
+
+        Notes
+        -----
+        For dot products of sparse and dense matrices:
+        * dot(sparse, dense) = dense
+        * dot(dense, sparse) = dense
+        * dot(sparse, sparse) = sparse
+        """
+        matrix_a_is_sparse = sparse.issparse(matrix_a)
+        matrix_b_is_sparse = sparse.issparse(matrix_b)
+        print(matrix_a.shape)
+        print(matrix_b.shape)
+        if not (matrix_a_is_sparse or matrix_b_is_sparse):
+            ab = np.dot(matrix_a, matrix_b)
+        else:
+            ab = matrix_a * matrix_b
+        return ab
+
+    def convert_sparse_to_dense_matrix(self, matrix_a):
         """
         Convert scipy.sparse matrix to dense matrix.
-        """
-        matrix_A_is_sparse = sparse.issparse(matrix_A)
-        if matrix_A_is_sparse:
-            matrix_A_dense = matrix_A.todense()
-        else:
-            matrix_A_dense = matrix_A
-        return matrix_A_dense
 
-    def convert_sparse_matrix_to_dense_numpy_array(self, matrix_A):
+        Parameters
+        ----------
+        matrix_a : :class:`scipy.sparse`
+            Sparse matrix.
+
+        Returns
+        -------
+        matrix_a_dense : :class:`numpy.matrix`
+            Dense representation of `matrix_a`.
+        """
+        matrix_a_is_sparse = sparse.issparse(matrix_a)
+        if matrix_a_is_sparse:
+            matrix_a_dense = matrix_a.todense()
+        else:
+            matrix_a_dense = matrix_a
+        return matrix_a_dense
+
+    def convert_sparse_matrix_to_dense_numpy_array(self, matrix_a):
         """
         Convert scipy.sparse matrix to dense numpy array.
+
+        Parameters
+        ----------
+        matrix_a : :class:`scipy.sparse`
+            Sparse matrix.
+
+        Returns
+        -------
+        matrix_a_dense_np_array : :class:`numpy.ndarray`
+            Dense representation of `matrix_a`.
         """
-        matrix_A_dense = self.convert_sparse_to_dense_matrix(matrix_A)
-        matrix_A_dense_np_array = np.array(matrix_A_dense)
-        return matrix_A_dense_np_array
+        matrix_a_dense = self.convert_sparse_to_dense_matrix(matrix_a)
+        matrix_a_dense_np_array = np.array(matrix_a_dense)
+        return matrix_a_dense_np_array
 
     def sd_block_diag(self, block_matrices_list):
         """
-        Generate block diagonal matrix from
-        blocks in `block_matrices_list`.
+        Generate a block diagonal matrix from blocks in `block_matrices_list`.
+
+        Parameters
+        ----------
+        block_matrices_list : list
+            List of input matrices.
+
+        Returns
+        -------
+        block_diag_matrix : array
+            If ``p.use_sparse_matrices = True``, return a sparse matrix.
+            Otherwise, return a dense numpy array.
+
         """
         if p.use_sparse_matrices:
-            return sparse.block_diag(block_matrices_list)
+            block_diag_matrix = sparse.block_diag(block_matrices_list)
         else:
-            return block_diag(*block_matrices_list)
+            block_diag_matrix = block_diag(*block_matrices_list)
+        return block_diag_matrix
 
     def sd_vstack(self, matrices_list):
         """
-        Generate a vertically stacked matrix from a
-        list of matrices in `matrices_list`.
+        Generate a vertically stacked matrix from a list of matrices
+        in `matrices_list`.
+
+        Parameters
+        ----------
+        matrices_list : list
+            List of input matrices.
+
+        Returns
+        -------
+        vstack_matrix : array
+            If ``p.use_sparse_matrices = True``, return a sparse matrix.
+            Otherwise, return a dense numpy array.
+
         """
         if p.use_sparse_matrices:
-            return sparse.vstack(matrices_list)
+            vstack_matrix = sparse.vstack(matrices_list)
         else:
-            return np.vstack(matrices_list)
-    
+            vstack_matrix = np.vstack(matrices_list)
+        return vstack_matrix
+
     def sd_hstack(self, matrices_list):
         """
-        Generate a horizontally stacked matrix from a 
-        list of matrices in `matrices_list`.
+        Generate a horizontally stacked matrix from a list of matrices
+        in `matrices_list`.
+
+        Parameters
+        ----------
+        matrices_list : list
+            List of input matrices.
+
+        Returns
+        -------
+        hstack_matrix : array
+            If ``p.use_sparse_matrices = True``, return a sparse matrix.
+            Otherwise, return a dense numpy array.
+
         """
         if p.use_sparse_matrices:
-            return sparse.hstack(matrices_list)
+            hstack_matrix = sparse.hstack(matrices_list)
         else:
-            return np.hstack(matrices_list)
+            hstack_matrix = np.hstack(matrices_list)
+        return hstack_matrix
 
     def sd_diags(self, diagonal_vals):
         """
-        Generate a diagonal matrix from a
-        list of entries in `diagonal_vals`.
+        Generate a diagonal matrix from a list of entries in `diagonal_vals`.
+
+        Parameters
+        ----------
+        diagonal_vals : array
+            Input values to be placed on the matrix diagonal.
+
+        Returns
+        -------
+        diagonal_matrix : array
+            If ``p.use_sparse_matrices = True``, return a sparse matrix.
+            Otherwise, return a dense numpy array.
+
         """
         if p.use_sparse_matrices:
-            return sparse.diags(diagonal_vals)
+            diagonal_matrix = sparse.diags(diagonal_vals)
         else:
-            return np.diag(diagonal_vals)
+            diagonal_matrix = np.diag(diagonal_vals)
+        return diagonal_matrix
 
     # Finv functions
     def build_phasor_matrix(self):
         """
-        Construct phasor matrix which is multiplied elementwise into
-        the visibility vector from Finv, constructed using unphased
-        (u, v, w) coordinates, to produce phased visibilities.
+        Construct a phasor matrix which is multiplied elementwise into the
+        visibility vector from Finv, constructed using unphased (u, v, w)
+        coordinates, to produce phased visibilities.
 
-        The phasor matrix is a diagonal matrix with the
-        `e^i*phi(t, u, v)` phase elements on the diagonal.
-        The phasor vector must be a part of the instrument
-        model being used.
+        The phasor matrix is a diagonal matrix with the `e^(i*phi(t, u, v))`
+        phase elements on the diagonal.  The phasor vector must be a part of
+        the instrument model being used.
 
-        NOTE:
-            This function assumes that
-            `use_nvis_nchan_nt_ordering = True`
+        Notes
+        -----
+        * Used to construct `Finv`.
+        * phasor_matrix has shape (ndata, ndata).
+        * This function assumes that `use_nvis_nchan_nt_ordering = True`.
 
-        Used to construct `Finv`.
-        phasor_matrix has shape (ndata, ndata).
         """
         matrix_name = 'phasor_matrix'
         pmd = self.load_prerequisites(matrix_name)
@@ -596,19 +791,18 @@ class BuildMatrices(BuildMatrixTree):
     def build_multi_chan_nudft(self):
         """
         Construct block-diagonal non-uniform DFT array from
-        (l(t), m(t), n(t), f) to unphased (u, v, f) in the
-        instrument model.
+        (l(t), m(t), n(t), f) to unphased (u, v, f) from the instrument model.
 
-        If use_nvis_nt_nchan_ordering:
-            model visibilities will be ordered (nvis*nt) per chan for
-            all channels (this is the old default).
-        If use_nvis_nchan_nt_ordering:
-            model visibilities will be ordered (nvis*nchan) per time
-            step for all time steps (this ordering is required when
-            using a drift scan primary beam).
+        Notes
+        -----
+        * If ``use_nvis_nt_nchan_ordering = True``: model visibilities will be
+          ordered (nvis*nt) per chan for all channels (old default).
+        * If ``use_nvis_nchan_nt_ordering = True``: model visibilities will be
+          ordered (nvis*nchan) per time step for all time steps.  This ordering
+          is required when using a drift scan primary beam (current default).
+        * Used to construct `Finv`.
+        * `multi_chan_nudft` has shape (ndata, npix * nf * nt).
 
-        Used to construct `Finv`.
-        `multi_chan_nudft` has shape (ndata, npix * nf * nt).
         """
         matrix_name = 'multi_chan_nudft'
         pmd = self.load_prerequisites(matrix_name)
@@ -652,21 +846,21 @@ class BuildMatrices(BuildMatrixTree):
             # (i.e. p.model_drift_scan_primary_beam=True)
 
             multi_chan_nudft = self.sd_block_diag([self.sd_block_diag([
-                nuDFT_Array_DFT_2D_v2d0(
-                    np.vstack(
-                        self.hp.calc_lmn_from_radec(
-                            self.hp.jds[time_i],
-                            radec_offset=self.beam_center
-                            ) # gets (l(t), m(t), n(t))
-                        ).T,
-                    sampled_uvw_coords_wavelengths[
-                        freq_i, time_i, :, :
-                    ].reshape(-1, 3))
+                    nuDFT_Array_DFT_2D_v2d0(
+                        np.vstack(
+                            self.hp.calc_lmn_from_radec(
+                                self.hp.jds[time_i],
+                                radec_offset=self.beam_center
+                                )  # gets (l(t), m(t), n(t))
+                            ).T,
+                        sampled_uvw_coords_wavelengths[
+                            freq_i, time_i, :, :
+                        ].reshape(-1, 3))
                     for freq_i in range(p.nf)])
                 for time_i in range(p.nt)])
 
-        # Multiply by sky model pixel area to get the
-        # units of the model visibilities correct
+        # Multiply by sky model pixel area to get the units of the
+        # model visibilities correct
         multi_chan_nudft *= self.Finv_normalisation
 
         print('Time taken: {}'.format(time.time() - start))
@@ -684,8 +878,11 @@ class BuildMatrices(BuildMatrixTree):
         diagonal matrix with nf blocks that contain the beam amplitude
         at each (l(t_i), m(t_i), f_i).
 
-        Used to construct `Finv`.
-        `multi_chan_P` has shape (npix * nf * nt, nuv * nf).
+        Notes
+        -----
+        * Used to construct `Finv`.
+        * `multi_chan_P` has shape (npix * nf * nt, nuv * nf).
+
         """
         matrix_name = 'multi_chan_P'
         pmd = self.load_prerequisites(matrix_name)
@@ -703,7 +900,7 @@ class BuildMatrices(BuildMatrixTree):
                             self.hp.jds[p.nt//2],
                             radec_offset=self.beam_center,
                             return_azza=True,
-                            )[3:], # Only need az, za
+                            )[3:],  # Only need az, za
                         freq=freq
                         )
                     )
@@ -720,7 +917,7 @@ class BuildMatrices(BuildMatrixTree):
                                 self.hp.jds[time_i],
                                 radec_offset=self.beam_center,
                                 return_azza=True
-                                )[3:], # Only need az, za
+                                )[3:],  # Only need az, za
                             freq=freq
                             )
                         )
@@ -744,7 +941,10 @@ class BuildMatrices(BuildMatrixTree):
           3. applies a phasor vector from the instrument model to phase
              the visibilities to the central time step
 
-        `Finv` has shape (ndata, nuv * nf).
+        Notes
+        -----
+        * `Finv` has shape (ndata, nuv * nf).
+
         """
         matrix_name = 'Finv'
         pmd = self.load_prerequisites(matrix_name)
@@ -773,8 +973,11 @@ class BuildMatrices(BuildMatrixTree):
         (u, v) plane and transforms it to HEALPix sky model (l, m)
         space for a single frequency channel.
 
-        Used to construct `Fprime`.
-        `idft_array` has shape (npix, nuv).
+        Notes
+        -----
+        * Used to construct `Fprime`.
+        * `idft_array` has shape (npix, nuv).
+
         """
         matrix_name = 'idft_array'
         pmd = self.load_prerequisites(matrix_name)
@@ -804,8 +1007,11 @@ class BuildMatrices(BuildMatrixTree):
         HEALPix sky model (l, m, f) space.  Each block corresponds
         to a single frequency channel.
 
-        Used to construct `Fprime`.
-        ``multi_chan_idft_array_noZMchan`` has shape (npix * nf, nuv * nf).
+        Notes
+        -----
+        * Used to construct `Fprime`.
+        * `multi_chan_idft_array_noZMchan` has shape (npix * nf, nuv * nf).
+
         """
         matrix_name = 'multi_chan_idft_array_noZMchan'
         pmd = self.load_prerequisites(matrix_name)
@@ -820,7 +1026,7 @@ class BuildMatrices(BuildMatrixTree):
                          self.array_save_directory,
                          matrix_name,
                          matrix_name)
-    
+
     def build_idft_array_sh(self):
         """
         Construct a block diagonal matrix used in Fprime when using the
@@ -828,9 +1034,12 @@ class BuildMatrices(BuildMatrixTree):
         DFT matrix that takes the SHG model (u, v) plane and transforms
         it to HEALPix sky model (l, m) space at a single frequency.
 
-        Used to construct `Fprime` if using the SHG.
-        ``idft_array_sh`` has shape
-        (npix*nf, nuv_sh*fit_for_shg_amps + nuv_sh*nq_sh).
+        Notes
+        -----
+        * Used to construct `Fprime` if using the SHG.
+        * `idft_array_sh` has shape
+          (npix*nf, nuv_sh*fit_for_shg_amps + nuv_sh*nq_sh).
+
         """
         matrix_name = 'idft_array_sh'
         pmd = self.load_prerequisites(matrix_name)
@@ -858,11 +1067,14 @@ class BuildMatrices(BuildMatrixTree):
 
     def build_Fprime(self):
         """
-        Construct a non-uniform, block-diagonal DFT matrix which
-        takes a rectilinear (u, v, f) model and transforms it to
-        HEALPix sky model (l, m, f) space.
+        Construct a non-uniform, block-diagonal DFT matrix which takes a
+        rectilinear (u, v, f) model and transforms it to HEALPix sky model
+        (l, m, f) space.
 
-        `Fprime` has shape (npix * nf, nuv * nf).
+        Notes
+        -----
+        * `Fprime` has shape (npix * nf, nuv * nf).
+
         """
         matrix_name = 'Fprime'
         pmd = self.load_prerequisites(matrix_name)
@@ -884,11 +1096,13 @@ class BuildMatrices(BuildMatrixTree):
     # Fz functions
     def build_idft_array_1d_sh(self):
         """
-        Construct a 1D LoS DFT matrix for a each (u, v) pixel
-        in the subharmonic grid (SHG).
+        Construct a 1D LoS DFT matrix for a each (u, v) pixel in the
+        SubHarmonic Grid (SHG).
 
-        Used to construct `Fz` if using the SHG.
-        ``shg_idft_array`` has shape (, ).
+        Notes
+        -----
+        * Used to construct `Fz` if using the SHG.
+
         """
         matrix_name = 'idft_array_1d_sh'
         pmd = self.load_prerequisites(matrix_name)
@@ -918,12 +1132,14 @@ class BuildMatrices(BuildMatrixTree):
 
     def build_idft_array_1D(self):
         """
-        Construct a 1D LoS DFT matrix for a single (u, v) pixel
-        with `nq = 0`.  Constructs one block within
-        `multi_vis_idft_array_1D`.
+        Construct a 1D LoS DFT matrix for a single (u, v) pixel with
+        ``nq = 0``.  Constructs one block within `multi_vis_idft_array_1D`.
 
-        Used to construct `Fz` if `nq = 0`.
-        `idft_array_1D` has shape (nf, neta).
+        Notes
+        -----
+        * Used to construct `Fz` if ``nq = 0``.
+        * `idft_array_1D` has shape (nf, neta).
+
         """
         matrix_name = 'idft_array_1D'
         pmd = self.load_prerequisites(matrix_name)
@@ -940,11 +1156,14 @@ class BuildMatrices(BuildMatrixTree):
 
     def build_multi_vis_idft_array_1D(self):
         """
-        Construct a block diagonal matrix of 1D LoS DFT matrices for
-        every (u, v) pixel in the model uv-plane.
+        Construct a block diagonal matrix of 1D LoS DFT matrices for every
+        (u, v) pixel in the model uv-plane.
 
-        Used to construct `Fz` if `nq` = 0.
-        ``multi_vis_idft_array_1D`` has shape (nuv * nf, nuv * neta).
+        Notes
+        -----
+        * Used to construct `Fz` if `nq` = 0.
+        * `multi_vis_idft_array_1D` has shape (nuv * nf, nuv * neta).
+
         """
         matrix_name = 'multi_vis_idft_array_1D'
         pmd = self.load_prerequisites(matrix_name)
@@ -972,12 +1191,14 @@ class BuildMatrices(BuildMatrixTree):
 
     def build_idft_array_1D_WQ(self):
         """
-        Construct a 1D LoS DFT matrix for a single (u, v) pixel
-        with `nq` > 0.  Constructs one block within
-        ``multi_vis_idft_array_1D_WQ``.
+        Construct a 1D LoS DFT matrix for a single (u, v) pixel with
+        ``nq > 0``.  Constructs one block within `multi_vis_idft_array_1D_WQ`.
 
-        Used to construct `Fz` if `nq` > 0.
-        `idft_array_1D_WQ` has shape (nf, neta + nq).
+        Notes
+        -----
+        * Used to construct `Fz` if ``nq > 0``.
+        * `idft_array_1D_WQ` has shape (nf, neta + nq).
+
         """
         matrix_name = 'idft_array_1D_WQ'
         pmd = self.load_prerequisites(matrix_name)
@@ -1001,12 +1222,14 @@ class BuildMatrices(BuildMatrixTree):
 
     def build_multi_vis_idft_array_1D_WQ(self):
         """
-        Construct a block diagonal matrix of 1D LoS DFT matrices
-        with `nq > 0` for every (u, v) pixel in the model uv-plane.
+        Construct a block diagonal matrix of 1D LoS DFT matrices with
+        ``nq > 0`` for every (u, v) pixel in the model uv-plane.
 
-        Used to construct `Fz` if `nq > 0`.
-        `multi_vis_idft_array_1D_WQ` has shape
-        (nuv * nf, nuv * (neta + nq))
+        Notes
+        -----
+        * Used to construct `Fz` if ``nq > 0``.
+        * `multi_vis_idft_array_1D_WQ` has shape (nuv * nf, nuv * (neta + nq)).
+
         """
         matrix_name = 'multi_vis_idft_array_1D_WQ'
         pmd = self.load_prerequisites(matrix_name)
@@ -1048,8 +1271,10 @@ class BuildMatrices(BuildMatrixTree):
             (u, v) plane at the first frequency channel
           - etc.
 
-        ``gridding_matrix_vis_ordered_to_chan_ordered`` has shape
-        (nuv*nf, nuv*nf).
+        Notes
+        -----
+        * `gridding_matrix_vis_ordered_to_chan_ordered` has shape
+          (nuv*nf, nuv*nf).
         """
         matrix_name = 'gridding_matrix_vis_ordered_to_chan_ordered'
         pmd = self.load_prerequisites(matrix_name)
@@ -1081,7 +1306,10 @@ class BuildMatrices(BuildMatrixTree):
         (u, v, eta) space data vector and transforms it to a chan
         ordered (u, v, f) space data vector.
 
-        `Fz` has shape (nuv * nf, nuv * (neta + nq)).
+        Notes
+        -----
+        * `Fz` has shape (nuv * nf, nuv * (neta + nq)).
+
         """
         matrix_name = 'Fz'
         pmd = self.load_prerequisites(matrix_name)
@@ -1104,8 +1332,12 @@ class BuildMatrices(BuildMatrixTree):
 
     def build_Fprime_Fz(self):
         """
-        Matrix product of `Fprime * Fz` with
-        shape (npix, nuv * (neta + nq)).
+        Constructs `Fprime_Fz`.
+
+        Notes
+        -----
+        * `Fprime_Fz` has shape (npix, nuv * (neta + nq)).
+
         """
         matrix_name = 'Fprime_Fz'
         pmd = self.load_prerequisites(matrix_name)
@@ -1137,8 +1369,11 @@ class BuildMatrices(BuildMatrixTree):
             to the spectrum of the next model (u, v) pixel
           - etc.
 
-        `gridding_matrix_chan_ordered_to_vis_ordered` has shape
-        (nuv * (neta + nq), nuv * (neta + nq)).
+        Notes
+        -----
+        * `gridding_matrix_chan_ordered_to_vis_ordered` has shape
+          (nuv * (neta + nq), nuv * (neta + nq)).
+
         """
         matrix_name = 'gridding_matrix_chan_ordered_to_vis_ordered'
         pmd = self.load_prerequisites(matrix_name)
@@ -1164,11 +1399,14 @@ class BuildMatrices(BuildMatrixTree):
     def build_Ninv(self):
         """
         Constructs a sparse diagonal inverse covariance matrix.
-        Each diagonal component contains an estimate of the
-        `1 / noise_amplitude**2` in the data vector
-        at the index of the diagonal entry, i.d. data[i] for Ninv[i, i].
+        Each diagonal component contains an estimate of
+        1 / noise_amplitude**2 in the data vector
+        at the index of the diagonal entry, i.e. data[i] for Ninv[i, i].
 
-        `Ninv` has shape (ndata, ndata).
+        Notes
+        -----
+        * `Ninv` has shape (ndata, ndata).
+
         """
         matrix_name = 'Ninv'
         pmd = self.load_prerequisites(matrix_name)
@@ -1247,6 +1485,8 @@ class BuildMatrices(BuildMatrixTree):
         `noise_amplitude**2` in the data vector at the index of the
         diagonal entry, i.d. data[i] for N[i, i].
 
+        Notes
+        -----
         `N` has shape (ndata, ndata).
         """
         matrix_name = 'N'
@@ -1322,13 +1562,16 @@ class BuildMatrices(BuildMatrixTree):
     # T functions
     def build_T(self):
         """
-        Construct `T = Finv * Fprime * Fz` which takes a model
-        (u, v, eta) space data vector and transforms it to:
+        Construct `T` as a matrix product of `Finv`, `Fprime`, and Fz`.  `T`
+        takes a model (u, v, eta) space data vector and transforms it to:
           1. model (u, v, f) space via Fz
-          2. model (l, m, f) HEALPix space via Fprime
-          3. data (u, v, f) space via Finv
+          2. model (l, m, n, f) HEALPix space via Fprime
+          3. data (u, v, w, f) space via Finv
 
-        T has shape (ndata, nuv * (neta + nq)).
+        Notes
+        -----
+        * `T` has shape (ndata, nuv * (neta + nq)).
+
         """
         matrix_name = 'T'
         pmd = self.load_prerequisites(matrix_name)
@@ -1346,10 +1589,13 @@ class BuildMatrices(BuildMatrixTree):
 
     def build_Ninv_T(self):
         """
-        Matrix product of Ninv * T.  Can be used to take a (u, v, eta)
+        Matrix product of `Ninv` and `T`.  Can be used to take a (u, v, eta)
         data vector and compute a noise weighted vector in data space.
 
-        Ninv_T has shape (ndata, nuv * (neta + nq)).
+        Notes
+        -----
+        * `Ninv_T` has shape (ndata, nuv * (neta + nq)).
+
         """
         matrix_name = 'Ninv_T'
         pmd = self.load_prerequisites(matrix_name)
@@ -1367,8 +1613,12 @@ class BuildMatrices(BuildMatrixTree):
 
     def build_T_Ninv_T(self):
         """
-        Matrix product of T.conjugate().T * Ninv * T
-        with shape (nuv * (neta + nq), nuv * (neta + nq)).
+        Matrix product of `T.conjugate().T`, `Ninv`, and `T`.
+
+        Notes
+        -----
+        * `T_Ninv_T` has shape (nuv * (neta + nq), nuv * (neta + nq)).
+
         """
         matrix_name = 'T_Ninv_T'
         pmd = self.load_prerequisites(matrix_name)
@@ -1390,6 +1640,10 @@ class BuildMatrices(BuildMatrixTree):
                          matrix_name)
 
     def build_block_T_Ninv_T(self):
+        """
+        Constructs a block diagonal representation of `T_Ninv_T`.  Only used
+        if ``p.use_instrumental_effects = False``.
+        """
         matrix_name = 'block_T_Ninv_T'
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
@@ -1400,7 +1654,7 @@ class BuildMatrices(BuildMatrixTree):
             self.nuv = (self.nu*self.nv - 1)
         block_T_Ninv_T = np.array(
             [np.hsplit(block, self.nuv)
-             for block in np.vsplit(pmd['T_Ninv_T'],self.nuv)]
+             for block in np.vsplit(pmd['T_Ninv_T'], self.nuv)]
             )
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
@@ -1410,24 +1664,54 @@ class BuildMatrices(BuildMatrixTree):
                          matrix_name)
 
     def build_matrix_if_it_doesnt_already_exist(self, matrix_name):
+        """
+        Constructs a matrix with name `matrix_name` if it doesn't
+        already exist.
+
+        This function doesn't return anything.  It instead calls the
+        corresponding build matrix function.
+
+        Parameters
+        ----------
+        matrix_name : str
+            Name of matrix.
+
+        """
         matrix_available = self.check_if_matrix_exists(matrix_name)
         if not matrix_available:
             self.matrix_construction_methods_dictionary[matrix_name]()
 
     def prepare_matrix_stack_for_deletion(
             self, src, overwrite_existing_matrix_stack):
+        """
+        Archive an existing matrix stack on disk by prepending 'delete_'
+        to the child directory.
+
+        Parameters
+        ----------
+        src : str
+            Path to existing matrix stack directory.
+        overwrite_existing_matrix_stack : bool
+            If `True`, overwrite a previously archived matrix stack.
+
+        Returns
+        -------
+        dst : str
+            If ``overwrite_existing_matrix_stack = True``, path to matrix
+            stack directory to be deleted.
+
+        """
         if overwrite_existing_matrix_stack:
             if src[-1] == '/':
                 src = src[:-1]
             head, tail = os.path.split(src)
             dst = os.path.join(head, 'delete_'+tail)
             print('Archiving existing matrix stack to:', dst)
-            del_error_flag = 0
             try:
                 shutil.move(src, dst)
-            except:
-                print('Archive path already existed.'
-                      ' Deleting the previous archive.')
+            except Exception:
+                print('Archive path already existed. '
+                      'Deleting the previous archive.')
                 self.delete_old_matrix_stack(dst, 'y')
                 self.prepare_matrix_stack_for_deletion(
                     self.array_save_directory,
@@ -1436,6 +1720,18 @@ class BuildMatrices(BuildMatrixTree):
 
     def delete_old_matrix_stack(
             self, path_to_old_matrix_stack, confirm_deletion):
+        """
+        Delete or archive an existing matrix stack.
+
+        Parameters
+        ----------
+        path_to_old_matrix_stack : str
+            Path to the existing matrix stack.
+        confirm_deletion : str
+            If 'y', delete existing matrix stack.  Otherwise, archive the
+            matrix stack.
+
+        """
         if (confirm_deletion.lower() == 'y'
                 or confirm_deletion.lower() == 'yes'):
             shutil.rmtree(path_to_old_matrix_stack)
@@ -1443,22 +1739,30 @@ class BuildMatrices(BuildMatrixTree):
             print('Prior matrix tree archived but not deleted.'
                   ' \nPath to archive:', path_to_old_matrix_stack)
 
-    def build_minimum_sufficient_matrix_stack(self, **kwargs):
-        # ===== Defaults =====
-        default_overwrite_existing_matrix_stack = False
-        # Set to true when submitting to cluster
-        default_proceed_without_overwrite_confirmation = False
+    def build_minimum_sufficient_matrix_stack(
+            self,
+            overwrite_existing_matrix_stack=False,
+            proceed_without_overwrite_confirmation=False):
+        """
+        Construct a minimum sufficient matrix stack needed to run BayesEoR.
 
-        # ===== Inputs =====
-        self.overwrite_existing_matrix_stack = kwargs.pop(
-            'overwrite_existing_matrix_stack',
-            default_overwrite_existing_matrix_stack)
-        self.proceed_without_overwrite_confirmation = kwargs.pop(
-            'proceed_without_overwrite_confirmation',
-            default_proceed_without_overwrite_confirmation)
+        Parameters
+        ----------
+        overwrite_existing_matrix_stack : bool
+            If `True`, overwrite the existing matrix stack.
+        proceed_without_overwrite_confirmation : bool
+            If `True`, delete the old matrix stack without user input.
+            If `False`, prompt the user to specify wether the matrix stack
+            should be deleted ('y') or archived ('n').
+
+        """
+        self.overwrite_existing_matrix_stack = (
+            overwrite_existing_matrix_stack)
+        self.proceed_without_overwrite_confirmation = (
+            proceed_without_overwrite_confirmation)
 
         # Prepare matrix directory
-        matrix_stack_dir_exists =  os.path.exists(self.array_save_directory)
+        matrix_stack_dir_exists = os.path.exists(self.array_save_directory)
         if matrix_stack_dir_exists:
             dst = self.prepare_matrix_stack_for_deletion(
                 self.array_save_directory,
@@ -1470,11 +1774,11 @@ class BuildMatrices(BuildMatrixTree):
         self.build_matrix_if_it_doesnt_already_exist('N')
         if matrix_stack_dir_exists and self.overwrite_existing_matrix_stack:
             if not self.proceed_without_overwrite_confirmation:
-                confirm_deletion = raw_input(
-                    'Confirm deletion of archived matrix stack? y/n\n')
+                confirm_deletion = input(
+                    'Confirm deletion of archived matrix stack? (y/n)\n')
             else:
-                print('Deletion of archived matrix stack has'
-                      ' been pre-confirmed. Continuing...')
+                print('Deletion of archived matrix stack has '
+                      'been pre-confirmed. Continuing...')
                 confirm_deletion = 'y'
             self.delete_old_matrix_stack(dst, confirm_deletion)
 
