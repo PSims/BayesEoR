@@ -434,7 +434,7 @@ if p.include_instrumental_effects:
         # instrument model
         d, effective_noise, bl_conjugate_pairs_map =\
             generate_data_and_noise_vector_instrumental(
-                1.0*sigma, s_EoR, nu, nv, nf, neta, nq, p.nt,
+                1.0*sigma, s_EoR, nf, p.nt,
                 uvw_multi_time_step_array_meters[0],
                 baseline_redundancy_array_time_vis_shaped[0],
                 random_seed=EoR_noise_seed)

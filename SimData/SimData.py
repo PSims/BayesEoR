@@ -65,15 +65,42 @@ def generate_k_cube_in_physical_coordinates(
 
 
 def generate_data_and_noise_vector_instrumental(
-        sigma, s, nu, nv, nf, neta, nq, nt,
-        uvw_array_meters, bl_redundancy_array, **kwargs):
-    # Need to rename this function, the name is too long
-    # ===== Defaults =====
-    default_random_seed = ''
+        sigma, s, nf, nt, uvw_array_meters, bl_redundancy_array,
+        random_seed=''):
+    """
+    Creates a noise vector (n), with Hermitian structure based upon the
+    uv sampling in the instrument model, and adds this noise to the input,
+    noiseless visibilities (s) to form the data vector d = s + n.
 
-    # ===== Inputs =====
-    random_seed = kwargs.pop('random_seed', default_random_seed)
+    Parameters
+    ----------
+    sigma : float
+        Noise amplitude of |n|^2.  The complex amplitude is calculated as
+        sigma/sqrt(2).
+    s : np.ndarray of complex floats
+        Input signal (visibilities).
+    nf : int
+        Number of frequency channels.
+    nt : int
+        Number of times.
+    uvw_array_meters : np.ndarray of floats
+        Instrument model uv-sampling with shape (nbls, 3).
+    bl_redundancy_array : np.ndarray of floats
+        Number of baselines per redundant baseline group.
+    random_seed : int
+        Used to seed `np.random` when generating the noise vector.
 
+    Returns
+    -------
+    d : np.ndarray of complex floats
+        Data vector of complex signal + noise visibilities.
+    complex_noise_hermitian : np.ndarray of complex floats
+        Vector of complex noise amplitudes.
+    bl_conjugate_pairs_map : np.ndarray
+        Dictionary containing the array index mapping of conjugate baseline
+        pairs based on `uvw_array_meters`.
+
+    """
     if sigma == 0.0:
         complex_noise_hermitian = np.zeros(len(s)) + 0.0j
         d = s + complex_noise_hermitian.flatten()
