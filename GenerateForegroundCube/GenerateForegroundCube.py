@@ -100,7 +100,7 @@ def generate_mock_eor_signal_instrumental(
         Field of view in degrees of the DEC axis of the sky model.
     nside : int
         HEALPix nside parameter.
-    telescope_latlonalt : tupe of floats
+    telescope_latlonalt : tuple of floats
         The latitude, longitude, and altitude of the telescope in degrees,
         degrees, and meters, respectively.
     central_jd : float
