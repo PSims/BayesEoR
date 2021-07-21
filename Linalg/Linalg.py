@@ -1,5 +1,5 @@
-from numpy import * # don't know if this will be an issue
-import os # can be removed after astropy_healpix fixes
+from numpy import *  # don't know if this will be an issue
+import os  # can be removed after astropy_healpix fixes
 import numpy as np
 
 from BayesEoR.Linalg.healpix import Healpix
@@ -70,8 +70,7 @@ def Produce_Coordinate_Arrays_ZM_SH(
 
 # Finv functions
 def nuDFT_Array_DFT_2D_v2d0(
-        sampled_lmn_coords_radians,
-        sampled_uvw_coords_wavelengths):
+        sampled_lmn_coords_radians, sampled_uvw_coords_wavelengths):
     """
     Non-uniform DFT from floating point (l, m, n) to instrumentally
     sampled (u, v, w) from the instrument model.
@@ -121,9 +120,7 @@ def nuDFT_Array_DFT_2D_v2d0(
 
 # Fprime functions
 def IDFT_Array_IDFT_2D_ZM(
-        nu, nv,
-        sampled_lm_coords_radians,
-        exclude_mean=True,
+        nu, nv, sampled_lm_coords_radians, exclude_mean=True,
         U_oversampling_Factor=1.0, V_oversampling_Factor=1.0):
     """
     Generates a non-uniform (might want to update the function name)
@@ -212,7 +209,8 @@ def IDFT_Array_IDFT_2D_ZM_SH(
         Non-uniform, complex 2D DFT matrix.
     """
     u_vec, v_vec =\
-        Produce_Coordinate_Arrays_ZM_SH(nu_sh, nv_sh, exclude_mean=exclude_mean)
+        Produce_Coordinate_Arrays_ZM_SH(
+            nu_sh, nv_sh, exclude_mean=exclude_mean)
 
     # Replace x and y coordinate arrays with sampled_lm_coords_radians
     x_vec = sampled_lm_coords_radians[:, 0].reshape(-1, 1)
@@ -237,7 +235,9 @@ def IDFT_Array_IDFT_2D_ZM_SH(
 
 
 # Fz functions
-def quadratic_array_linear_plus_quad_modes_only_v2(nf, nq=2, **kwargs):
+def quadratic_array_linear_plus_quad_modes_only_v2(
+        nf, nq=2, npl=0, nu_min_MHz=159.0,
+        channel_width_MHz=0.2, beta=2.63):
     """
     Construct the quadratic (long wavelength) arrays or replace the
     quadratic arrays with polynomial coefficients given by `npl`'
@@ -248,11 +248,7 @@ def quadratic_array_linear_plus_quad_modes_only_v2(nf, nq=2, **kwargs):
     nf : int
         Number of frequency channels.
     nq : int
-        Number of quadratic modes. Permissible values of `nq` are:
-          - 1: include the linear mode
-          - 2: include the linear and quadratic mode
-          - 3: include the linear, quadratic, and cubic mode
-          - 4: include complex linear and quadratic modes
+        Number of quadratic modes in the Large Spectral Scale Model (LSSM).
     npl : int
         Number of polynomial modes in `beta`.
     nu_min_MHz : float
@@ -269,22 +265,6 @@ def quadratic_array_linear_plus_quad_modes_only_v2(nf, nq=2, **kwargs):
         Array containing the long wavelength modes, either quadratic
         or polynomial if `npl > 0`, with shape (nq, nf).
     """
-    # ===== Defaults =====
-    default_npl = 0
-    default_nu_min_MHz = (163.0-4.0)
-    default_channel_width_MHz = 0.2
-    default_beta = 2.63
-
-    # ===== Inputs =====
-    npl = kwargs.pop(
-        'npl', default_npl)
-    nu_min_MHz = kwargs.pop(
-        'nu_min_MHz', default_nu_min_MHz)
-    channel_width_MHz = kwargs.pop(
-        'channel_width_MHz', default_channel_width_MHz)
-    beta = kwargs.pop(
-        'beta', default_beta)
-
     quadratic_array = np.zeros([nq, nf]) + 0j
     nu_array_MHz = (
             nu_min_MHz + np.arange(float(nf)) * channel_width_MHz)
@@ -426,19 +406,19 @@ def IDFT_Array_IDFT_1D(nf, neta):
     ExponentArray : np.ndarray of complex floats
         Uniform 1D DFT matrix with shape (nf, neta).
     """
-    # Updated for python 3: floor division
     i_f = (np.arange(nf)-nf//2).reshape(-1, 1)
     i_eta = (np.arange(neta)-neta//2).reshape(1, -1)
 
     # Sign change for consistency, Finv chosen
     # to have + sign to match healvis
-    # Updated for python 3: float division is default
     ExponentArray = np.exp(-2.0*np.pi*1j*(i_eta*i_f / nf))
 
     return ExponentArray / float(nf)
 
 
-def IDFT_Array_IDFT_1D_WQ(nf, neta, nq, **kwargs):
+def IDFT_Array_IDFT_1D_WQ(
+        nf, neta, nq, npl=0, nu_min_MHz=159.0,
+        channel_width_MHz=0.2, beta=2.63):
     """
     Generate a 1D DFT matrix for the FT along the
     LoS axis from eta -> frequency.  Analagous to
@@ -456,40 +436,19 @@ def IDFT_Array_IDFT_1D_WQ(nf, neta, nq, **kwargs):
     neta : int
         Number of LoS Fourier modes.
     nq : int
-        Number of quadratic modes.
+        Number of quadratic modes in the Large Spectral Scale Model (LSSM).
 
     Returns
     -------
     ExponentArray : np.ndarray of complex floats
         1D DFT matrix with shape (nf, neta + nq).
     """
-
-    # ===== Defaults =====
-    default_npl = 0
-    default_nu_min_MHz = (163.0-4.0)
-    default_channel_width_MHz = 0.2
-    default_beta = 2.63
-
-    # ===== Inputs =====
-    npl = kwargs.pop(
-        'npl', default_npl)
-    nu_min_MHz = kwargs.pop(
-        'nu_min_MHz', default_nu_min_MHz)
-    channel_width_MHz = kwargs.pop(
-        'channel_width_MHz', default_channel_width_MHz)
-    beta = kwargs.pop(
-        'beta', default_beta)
-
-    # Updated for python 3: floor division
     i_f = (np.arange(nf) - nf//2).reshape(-1, 1)
-    # Updated for python 3: floor division
     i_eta = (np.arange(neta) - neta//2).reshape(1, -1)
 
     # Sign change for consistency, Finv chosen
     # to have + sign to match healvis
-    # Updated for python 3: float division is default
     ExponentArray = np.exp(-2.0*np.pi*1j*(i_eta*i_f / nf))
-    # Updated for python 3: float division is default
     ExponentArray /= nf
 
     quadratic_array = quadratic_array_linear_plus_quad_modes_only_v2(
@@ -554,7 +513,7 @@ def idft_array_idft_1d_sh(
     # to have + sign to match healvis
     idft_array_sh = np.exp(-2.0*np.pi*1j*(i_eta*i_f / nf))
     idft_array_sh /= nf
-    
+
     if nq_sh > 0:
         # Construct large spectral scale model (LSSM) for the SHG modes
         lssm_sh = quadratic_array_linear_plus_quad_modes_only_v2(
@@ -610,22 +569,6 @@ def generate_gridding_matrix_vis_ordered_to_chan_ordered(
     return gridding_matrix_vis_ordered_to_chan_ordered
 
 
-def Calc_Coords_High_Res_Im_to_Large_uv(
-        i_x_AV, i_y_AV, i_u_AV, i_v_AV,
-        X_oversampling_Factor=1.0, Y_oversampling_Factor=1.0):
-
-    # Updated for python 3: float division is default
-    # Y_oversampling_Factor = float(Y_oversampling_Factor)
-    # X_oversampling_Factor = float(X_oversampling_Factor)
-
-    # Keeps xy-plane size constant and oversampled
-    # rather than DFTing from a larger xy-plane
-    i_y_AV = i_y_AV / Y_oversampling_Factor
-    i_x_AV = i_x_AV / X_oversampling_Factor
-
-    return i_x_AV, i_y_AV, i_u_AV, i_v_AV
-
-
 def Calc_Coords_Large_Im_to_High_Res_uv(
         i_x_AV, i_y_AV, i_u_AV, i_v_AV,
         U_oversampling_Factor=1.0, V_oversampling_Factor=1.0):
@@ -636,109 +579,3 @@ def Calc_Coords_Large_Im_to_High_Res_uv(
     i_u_AV = i_u_AV / U_oversampling_Factor
 
     return i_x_AV, i_y_AV, i_u_AV, i_v_AV
-
-
-def Restore_Centre_Pixel(Array, MeanVal=0.0):
-    # Updated for python 3: floor division
-    Restored_Array = np.insert(Array, [Array.size//2], [MeanVal])
-    return Restored_Array
-
-
-def Delete_Centre_Pix(Array):
-    # Updated for python 3: floor division
-    Array = np.delete(Array, [Array.size//2])
-    return Array
-
-
-def Calc_Indices_Centre_3x3_Grid(GridSize):
-    GridLength = int(GridSize**0.5)
-
-    LenX = LenY = GridLength
-
-    GridIndex = np.arange(LenX*LenY).reshape(LenX, LenY)
-    Mask = zeros(LenX*LenY).reshape(LenX, LenY)
-    # Updated for python 3: floor division
-    Mask[
-    len(Mask)//2 - 1 : len(Mask)//2 + 2,
-    len(Mask[0])//2 - 1 : len(Mask[0])//2 + 2
-    ] = 1
-    MaskOuterPoints = Mask.astype('bool')
-
-    return GridIndex, MaskOuterPoints
-
-
-def Delete_Centre_3x3_Grid(Array):
-    GridSize = Array.size
-    GridIndex, MaskOuterPoints = Calc_Indices_Centre_3x3_Grid(GridSize)
-    OuterArray = np.delete(Array, GridIndex[MaskOuterPoints])
-    return OuterArray
-
-
-def N_is_Odd(N):
-    return N%2
-
-
-def Calc_Indices_Centre_NxN_Grid(GridSize, N):
-    GridLength = int(GridSize**0.5)
-    LenX = LenY = GridLength
-
-    GridIndex = np.arange(LenX*LenY).reshape(LenX, LenY)
-    Mask = zeros(LenX*LenY).reshape(LenX, LenY)
-    if N_is_Odd(N):
-        # Updated for python 3: floor division
-        Mask[
-        len(Mask)//2 - (N//2) : len(Mask)//2 + (N//2 + 1),
-        len(Mask[0])//2 - (N//2) : len(Mask[0])//2 + (N//2 + 1)
-        ] = 1
-    else:
-        # Updated for python 3: floor division
-        Mask[
-        len(Mask) // 2 - (N // 2): len(Mask) // 2 + (N // 2),
-        len(Mask[0]) // 2 - (N // 2): len(Mask[0]) // 2 + (N // 2)
-        ] = 1
-    MaskOuterPoints=Mask.astype('bool')
-
-    return GridIndex, MaskOuterPoints
-
-
-def Obtain_Centre_NxN_Grid(Array, N):
-    GridSize = Array.size
-    GridIndex, MaskOuterPoints = Calc_Indices_Centre_NxN_Grid(GridSize, N)
-    Centre_NxN_Grid = Array.flatten()[GridIndex[MaskOuterPoints]]
-    return Centre_NxN_Grid
-
-
-def Restore_Centre_3x3_Grid(Array, MeanVal=0.0):
-    LenRestoredArray = Array.size + 9
-
-    GridSize = LenRestoredArray
-    GridIndex, MaskOuterPoints = Calc_Indices_Centre_3x3_Grid(GridSize)
-
-    CurrentPointsIndex = GridIndex[np.where(np.logical_not(MaskOuterPoints))]
-    RestoredPointsIndex = GridIndex[np.where((MaskOuterPoints))]
-
-    ConcatIndices = np.concatenate((CurrentPointsIndex, RestoredPointsIndex))
-    SortedIndices = ConcatIndices.argsort()
-
-    Restored_Array_Unsorted = np.append(Array, [MeanVal]*9)
-    Restored_Array = Restored_Array_Unsorted[SortedIndices]
-
-    return Restored_Array
-
-
-def Restore_Centre_NxN_Grid(Array1, Array2, N):
-    LenRestoredArray = Array1.size + N*N
-
-    GridSize = LenRestoredArray
-    GridIndex, MaskOuterPoints = Calc_Indices_Centre_NxN_Grid(GridSize, N)
-
-    CurrentPointsIndex = GridIndex[np.where(np.logical_not(MaskOuterPoints))]
-    RestoredPointsIndex = GridIndex[np.where((MaskOuterPoints))]
-
-    ConcatIndices = np.concatenate((CurrentPointsIndex, RestoredPointsIndex))
-    SortedIndices = ConcatIndices.argsort()
-
-    Restored_Array_Unsorted = np.append(Array1, Array2)
-    Restored_Array = Restored_Array_Unsorted[SortedIndices]
-
-    return Restored_Array
