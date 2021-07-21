@@ -8,6 +8,7 @@ from .SimData import\
 
 from .Likelihood.Generate_matrix_stack\
     import BuildMatrices
+
 from .Likelihood.Likelihood\
     import PowerSpectrumPosteriorProbability
 
@@ -17,7 +18,7 @@ from .Utils import\
     Cosmology
 
 from .GenerateForegroundCube import\
-    generate_data_from_loaded_EoR_cube_v2d0,\
-    generate_EoR_signal_instrumental_im_2_vis
+    generate_data_from_loaded_eor_cube,\
+    generate_mock_eor_signal_instrumental
 
 from .Params import update_params_with_command_line_arguments

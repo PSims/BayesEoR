@@ -415,10 +415,10 @@ masked_power_spectral_modes = masked_power_spectral_modes.astype('bool')
 if p.include_instrumental_effects:
     if use_EoR_cube:
         Finv = BM.read_data_s2d(array_save_directory + 'Finv', 'Finv')
-        s_EoR, abc, scidata1 = generate_EoR_signal_instrumental_im_2_vis(
-            nu, nv, nf, neta, nq, k_x, k_y, k_z,
-            Finv, Show, chan_selection, masked_power_spectral_modes,
-            mod_k, p.eor_sim_path)
+        s_EoR, white_noise_sky = generate_mock_eor_signal_instrumental(
+            Finv, nf, p.fov_ra_deg, p.fov_dec_deg, p.nside,
+            p.telescope_latlonalt, p.central_jd, p.nt,
+            p.integration_time_seconds)
         del Finv
     else:
         print('\nUsing data at {}'.format(p.data_path))

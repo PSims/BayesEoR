@@ -2,33 +2,60 @@ import numpy as np
 from subprocess import os
 from astropy_healpix import HEALPix
 
+from BayesEoR.Linalg.healpix import Healpix
 import BayesEoR.Params.params as p
 
 use_foreground_cube = True
 # use_foreground_cube = False
 
 
-def generate_data_from_loaded_EoR_cube_v2d0(
-        nu, nv, nf, neta, nq, k_x, k_y, k_z, Show, chan_selection,
-        EoR_npz_path=None):
+def generate_data_from_loaded_eor_cube(
+        nu, nv, nf, neta, nq, chan_selection, eor_npz_path=None):
+    """
+    Genenerate a signal vector of visibilities from a 21cmFAST simulated cube
+    in mK.
 
+    Parameters
+    ----------
+    nu : int
+        Number of pixels on a side for the u-axis in the model uv-plane.
+    nv : int
+        Number of pixels on a side for the v-axis in the model uv-plane.
+    nf : int
+        Number of frequency channels.
+    neta : int
+        Number of Line of Sight (LoS, frequency axis) Fourier modes.
+    nq : int
+        Number of quadratic modes in the Large Spectral Scale Model (LSSM).
+    chan_selection : str
+        Frequency channel indices used to downselect the LoS axis of the
+        21cmFAST cube.
+    eor_npz_path : str
+        Path to a numpy compatible 21cmFAST cube file.
+
+    Returns
+    -------
+    s : np.ndarray of complex floats
+        Signal vector of visibilities generated from the 21cmFAST cube.
+    eor_cube : np.ndarray of floats
+        Full 21cmFAST cube.
+
+    """
     print('Using use_EoR_cube data')
-    # Replace Gaussian signal with EoR cube
-    scidata1 = np.load(EoR_npz_path)['arr_0']
+    eor_cube = np.load(eor_npz_path)['arr_0']
 
-    import numpy
     axes_tuple = (1, 2)
     if chan_selection == '0_38_':
-        vfft1 = np.fft.ifftshift(scidata1[0:38]-scidata1[0].mean() + 0j,
+        vfft1 = np.fft.ifftshift(eor_cube[0:38]-eor_cube[0].mean() + 0j,
                                  axes=axes_tuple)
     elif chan_selection == '38_76_':
-        vfft1 = np.fft.ifftshift(scidata1[38:76]-scidata1[0].mean() + 0j,
+        vfft1 = np.fft.ifftshift(eor_cube[38:76]-eor_cube[0].mean() + 0j,
                                  axes=axes_tuple)
     elif chan_selection == '76_114_':
-        vfft1 = np.fft.ifftshift(scidata1[76:114]-scidata1[0].mean() + 0j,
+        vfft1 = np.fft.ifftshift(eor_cube[76:114]-eor_cube[0].mean() + 0j,
                                  axes=axes_tuple)
     else:
-        vfft1 = np.fft.ifftshift(scidata1[0:nf]-scidata1[0].mean() + 0j,
+        vfft1 = np.fft.ifftshift(eor_cube[0:nf]-eor_cube[0].mean() + 0j,
                                  axes=axes_tuple)
     # FFT (python pre-normalises correctly! -- see
     # parsevals theorem for discrete fourier transform.)
@@ -48,100 +75,72 @@ def generate_data_from_loaded_EoR_cube_v2d0(
     ZM_vis_ordered_mask = ZM_vis_ordered_mask.astype('bool')
     ZM_chan_ordered_mask = ZM_vis_ordered_mask.reshape(-1, neta+nq).T.flatten()
     s = s_before_ZM[ZM_chan_ordered_mask]
-    abc = s
 
-    return s, abc, scidata1
+    return s, eor_cube
 
 
-def generate_EoR_signal_instrumental_im_2_vis(
-        nu, nv, nf, neta, nq, k_x, k_y, k_z,
-        Finv, Show, chan_selection, masked_power_spectral_modes,
-        mod_k, EoR_npz_path):
+def generate_mock_eor_signal_instrumental(
+        Finv, nf, fov_ra_deg, fov_dec_deg, nside, telescope_latlonalt,
+        central_jd, nt, int_time, wn_rms=6.4751478, random_seed=123456):
+    """
+    Generate a mock dataset using numpy generated white noise for the sky
+    signal.  Instrumental effects are included via the calculation of
+    visibilities using `Finv`.
 
-    # print('Using use_EoR_cube data')
-    ###
-    # Replace Gaussian signal with EoR cube
-    ###
-    # scidata1 = np.load(EoR_npz_path)['arr_0']
-    #
-    # #Overwrite EoR cube with white noise
-    # # np.random.seed(21287254)
-    # # np.random.seed(123)
-    # # scidata1 = np.random.normal(0,scidata1.std()*1.,[nf, nu, nv])*0.5
-    # scidata1 = np.random.normal(0, scidata1.std() * 1.0, (nf, nu, nv))
-    # print('EoR cube (white noise) stddev = {} mK'.format(scidata1.std()))
-    #
-    #
-    # # if not p.fit_for_monopole:
-    # # 	d_im = scidata1.copy()
-    # # 	for i_chan in range(len(d_im)):
-    # # 		d_im[i_chan] = d_im[i_chan]-d_im[i_chan].mean()
-    # # scidata1 = d_im.copy()
-    #
-    # axes_tuple = (0, 1, 2)
-    # scidata1_kcube = np.fft.ifftshift(
-    # 	scidata1[0:nf]-scidata1[0:nf].mean() + 0j, axes=axes_tuple)
-    # # FFT (python pre-normalises correctly! -- see
-    # # parsevals theorem for discrete fourier transform.)
-    # scidata1_kcube = np.fft.fftn(scidata1_kcube, axes=axes_tuple)
-    # scidata1_kcube = np.fft.fftshift(scidata1_kcube, axes=axes_tuple)
-    #
-    # sci_f, sci_v, sci_u = scidata1_kcube.shape
-    # # Updated for python 3: floor division
-    # sci_v_centre = sci_v//2
-    # # Updated for python 3: floor division
-    # sci_u_centre = sci_u//2
-    # scidata1_kcube_subset = scidata1_kcube[
-    # 						0: nf,
-    # 						sci_u_centre - nu // 2: sci_u_centre + nu // 2 + 1,
-    # 						sci_v_centre - nv // 2: sci_v_centre + nv // 2 + 1]
-    #
-    # # if not p.use_intrinsic_noise_fitting:
-    # # 	# Zero modes that are not currently fit for until intrinsic
-    # #     # noise fitting (which models these terms) has been implemented
-    # #
-    # # 	print('No intrinsic noise fitting model. '
-    # #           'Low-pass filtering the EoR cube')
-    # # 	Hermitian_small_spacial_scale_mask = np.zeros(
-    # #         scidata1_kcube_subset.shape)
-    # # 	Hermitian_small_spacial_scale_mask[0] = 1 #Nyquist mode
-    # # 	Hermitian_small_spacial_scale_mask[1] = 1 #2nd highest freq
-    # # 	# Hermitian_small_spacial_scale_mask[2] = 1 #3nd highest freq
-    # # 	# Hermitian_small_spacial_scale_mask[-2] = 1 #3nd highest freq
-    # # 	Hermitian_small_spacial_scale_mask[-1] = 1 #2nd highest freq
-    # # 	scidata1_kcube_subset[
-    # #             Hermitian_small_spacial_scale_mask.astype('bool')
-    # #         ] = 0.0
-    # # else:
-    # # 	print('Intrinsic noise fitting model included. '
-    # #           'Using full EoR cube (no low-pass filter)')
-    #
-    # axes_tuple = (0, 1, 2)
-    # scidata1_subset = np.fft.ifftshift(
-    # 	scidata1_kcube_subset + 0j, axes=axes_tuple)
-    # # FFT (python pre-normalises correctly! -- see
-    # # parsevals theorem for discrete fourier transform.)
-    # scidata1_subset = np.fft.ifftn(scidata1_subset, axes=axes_tuple)
-    # scidata1_subset = np.fft.fftshift(scidata1_subset, axes=axes_tuple)
+    Parameters
+    ----------
+    Finv : np.ndarray of complex floats
+        2D non-uniform DFT matrix describing the transformation from
+        (l, m, n, f) to instrumentally sampled, phased (u, v, w, f) space.
+    nf : int
+        Number of frequency channels.
+    fov_ra_deg : float
+        Field of view in degrees of the RA axis of the sky model.
+    fov_dec_deg : float
+        Field of view in degrees of the DEC axis of the sky model.
+    nside : int
+        HEALPix nside parameter.
+    telescope_latlonalt : tupe of floats
+        The latitude, longitude, and altitude of the telescope in degrees,
+        degrees, and meters, respectively.
+    central_jd : float
+        Central time step of the observation in JD2000 format.
+    nt : int
+        Number of times.
+    int_time : float
+        Integration time in seconds.
+    wn_rms : float
+        RMS of the white noise sky model in mili-Kelvin. Defaults to
+        6.4751478 mili-Kelvin.
+    random_seed : int
+        Used to seed `np.random` when generating the sky realization.
 
+    Returns
+    -------
+    s : np.ndarray of complex floats
+        Signal vector of visibilities generated from the white noise sky
+        realization.
+    white_noise_sky : np.ndarray of floats
+        White noise sky realization.
+
+    """
     print('Generating white noise signal...')
-    # This function needs to be updated to use astropy.healpix info
-    # to generate a sky model
-    # Make a cube in the subset space using a stddev
-    # scaled to match the healvis sky realizations
-    hp = HEALPix(p.nside)
-    np.random.seed(12346)
-    rms_mK = 12.951727094335597 # rms of healvis sky model for nside=512
-    # Scale rms based on pixel area
-    if not p.nside == 512:
-        scaling = p.nside / 512
-        rms_mK *= scaling
-    white_noise_sky = np.random.normal(0.0, rms_mK, (nf, hp.npix))
-
-    for i_f in range(nf):
-        white_noise_sky[i_f] -= white_noise_sky[i_f].mean()
-    scidata1 = white_noise_sky.copy()
+    hpx = Healpix(
+        fov_ra_deg=fov_ra_deg,
+        fov_dec_deg=fov_dec_deg,
+        nside=nside,
+        telescope_latlonalt=telescope_latlonalt,
+        central_jd=central_jd,
+        nt=nt,
+        int_time=int_time,
+        beam_type='uniform'
+    )
+    # RMS scaled to hold the power spectrum amplitude constant
+    wn_rms *= nside / 256
+    print('Seeding numpy.random with {}'.format(random_seed))
+    np.random.seed(random_seed)
+    white_noise_sky = np.random.normal(0.0, wn_rms, (nf, hpx.npix_fov))
+    white_noise_sky -= white_noise_sky.mean(axis=1)[:, None]
     s = np.dot(Finv, white_noise_sky.flatten())
-    abc = s
 
-    return s, abc, scidata1
+    return s, white_noise_sky
