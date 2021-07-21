@@ -3,7 +3,7 @@ from .SimData import\
     generate_masked_coordinate_cubes,\
     generate_k_cube_model_cylindrical_binning,\
     calc_mean_binned_k_vals,\
-    generate_k_cube_model_spherical_binning_v2d1,\
+    generate_k_cube_model_spherical_binning,\
     generate_data_and_noise_vector_instrumental
 
 from .Likelihood.Generate_matrix_stack\

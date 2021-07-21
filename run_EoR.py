@@ -355,7 +355,7 @@ mod_k, k_x, k_y, k_z, x, y, z =\
         ps_box_size_dec_Mpc, ps_box_size_para_Mpc
         )
 k = mod_k.copy()
-k_vis_ordered = k.T.flatten() # not used for anything
+k_vis_ordered = k.T.flatten()  # not used for anything
 k_x_masked = generate_masked_coordinate_cubes(
     k_x, nu, nv, neta, nq, ps_box_size_ra_Mpc,
     ps_box_size_dec_Mpc, ps_box_size_para_Mpc
@@ -373,9 +373,8 @@ mod_k_masked = generate_masked_coordinate_cubes(
     ps_box_size_dec_Mpc, ps_box_size_para_Mpc
 )
 k_cube_voxels_in_bin, modkbins_containing_voxels = \
-    generate_k_cube_model_spherical_binning_v2d1(
-        mod_k_masked, k_z_masked, nu, nv, neta, nq,
-        ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc
+    generate_k_cube_model_spherical_binning(
+        mod_k_masked, k_z_masked, ps_box_size_para_Mpc
     )
 modk_vis_ordered_list = [
     mod_k_masked[k_cube_voxels_in_bin[i_bin]]
@@ -397,8 +396,7 @@ if do_cylindrical_binning:
     k_cube_voxels_in_bin, modkbins_containing_voxels, k_perp_bins =\
         generate_k_cube_model_cylindrical_binning(
             mod_k_masked, k_z_masked, k_y_masked, k_x_masked,
-            n_k_perp_bins, nu, nv, neta, nq,
-            ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc)
+            n_k_perp_bins, ps_box_size_para_Mpc)
 
 
 # --------------------------------------------

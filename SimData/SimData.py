@@ -234,7 +234,6 @@ def generate_masked_coordinate_cubes(
         ZM_mask = k_perp_3D >= 0.0  # Don't exclude the mean from the fit
     else:
         ZM_mask = k_perp_3D > 0.0  # Exclude (u, v) = (0, 0)
-    ZM_selector_mask = np.logical_not(ZM_mask)
 
     ZM_2D_mask_vis_ordered = ZM_mask.T.flatten()
     high_spatial_frequency_mask_vis_ordered = np.logical_not(
@@ -254,9 +253,6 @@ def generate_masked_coordinate_cubes(
         model_cube_to_mask_vis_ordered_reshaped =\
             model_cube_to_mask_vis_ordered.reshape(-1, neta)
 
-        WQ_boolean_array = np.zeros(
-            [model_cube_to_mask_vis_ordered_reshaped.shape[0], nq]
-            ).astype('bool')
         WQ_inf_array = (
                 np.zeros(
                     [model_cube_to_mask_vis_ordered_reshaped.shape[0], nq])
@@ -267,26 +263,13 @@ def generate_masked_coordinate_cubes(
         model_cube_to_mask_vis_ordered_WQ =\
             model_cube_to_mask_vis_ordered_reshaped_WQ.flatten()
 
-        k_z_mean_mask_vis_ordered = np.logical_not(k_z_mean_mask).T[
-            np.logical_and(
-                ZM_mask.T,
-                np.logical_not(high_spatial_frequency_selector_mask).T)]
-        k_z_mean_mask_vis_ordered_reshaped =\
-            k_z_mean_mask_vis_ordered.reshape(
-                model_cube_to_mask_vis_ordered_reshaped.shape)
-
-        Quad_modes_only_boolean_array_vis_ordered = np.hstack(
-            (k_z_mean_mask_vis_ordered_reshaped.astype('bool'),
-             np.logical_not(WQ_boolean_array))).flatten()
-
         return model_cube_to_mask_vis_ordered_WQ
     else:
         return model_cube_to_mask_vis_ordered
 
 
-def generate_k_cube_model_spherical_binning_v2d1(
-        mod_k_masked, k_z_masked, nu, nv, neta, nq,
-        ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc):
+def generate_k_cube_model_spherical_binning(
+        mod_k_masked, k_z_masked, ps_box_size_para_Mpc):
     """
     Generates a set of spherical k-space bins from which the 1D power spectrum
     is calculated.
@@ -299,20 +282,6 @@ def generate_k_cube_model_spherical_binning_v2d1(
     k_z_masked : np.ndarray of floats
         Array of Line of Sight (LoS, frequency axis) Fourier modes containing
         only modes used to estimate the power spectrum.
-    nu : int
-        Number of pixels on a side for the u-axis in the model uv-plane.
-    nv : int
-        Number of pixels on a side for the v-axis in the model uv-plane.
-    neta : int
-        Number of Line of Sight (LoS, frequency axis) Fourier modes.
-    nq : int
-        Number of quadratic modes in the Larse Spectral Scale Model (LSSM).
-    ps_box_size_ra_Mpc : float
-        Right ascension (RA) axis extent of the cosmological volume in Mpc from
-        which the power spectrum is estimated.
-    ps_box_size_dec_Mpc : float
-        Declination (DEC) axis extent of the cosmological volume in Mpc from
-        which the power spectrum is estimated.
     ps_box_size_para_Mpc : float
         LoS extent of the cosmological volume in Mpc from which the power
         spectrum is estimated.
@@ -327,14 +296,6 @@ def generate_k_cube_model_spherical_binning_v2d1(
         Number of |k| that fall within each spherical k-bin.
 
     """
-    # Need to rename this function, it's now the default
-    # Generate k_cube physical coordinates
-    # to match the 21cmFAST input simulation
-    mod_k, k_x, k_y, k_z, x, y, z =\
-        generate_k_cube_in_physical_coordinates(
-            nu, nv, neta, ps_box_size_ra_Mpc,
-            ps_box_size_dec_Mpc, ps_box_size_para_Mpc)
-
     modkscaleterm = 1.35
     deltakpara = 2.*np.pi / ps_box_size_para_Mpc
     binsize = deltakpara * 2.0
@@ -447,8 +408,7 @@ def calc_mean_binned_k_vals(
 
 def generate_k_cube_model_cylindrical_binning(
         mod_k_masked, k_z_masked, k_y_masked, k_x_masked, n_k_perp_bins,
-        nu, nv, neta, nq, ps_box_size_ra_Mpc,
-        ps_box_size_dec_Mpc, ps_box_size_para_Mpc):
+        ps_box_size_para_Mpc):
     """
     Generates a set of cylindrical k-space bins from which the 2D power
     spectrum is calculated.
@@ -468,20 +428,6 @@ def generate_k_cube_model_cylindrical_binning(
     n_k_perp_bins : int
         Number of bins to make along the k-perpendicular axis where
         k_perp = sqrt(k_x**2 + k_y**2).
-    nu : int
-        Number of pixels on a side for the u-axis in the model uv-plane.
-    nv : int
-        Number of pixels on a side for the v-axis in the model uv-plane.
-    neta : int
-        Number of Line of Sight (LoS, frequency axis) Fourier modes.
-    nq : int
-        Number of quadratic modes in the Larse Spectral Scale Model (LSSM).
-    ps_box_size_ra_Mpc : float
-        Right ascension (RA) axis extent of the cosmological volume in Mpc from
-        which the power spectrum is estimated.
-    ps_box_size_dec_Mpc : float
-        Declination (DEC) axis extent of the cosmological volume in Mpc from
-        which the power spectrum is estimated.
     ps_box_size_para_Mpc : float
         LoS extent of the cosmological volume in Mpc from which the power
         spectrum is estimated.
@@ -498,11 +444,6 @@ def generate_k_cube_model_cylindrical_binning(
         List of k_perp Fourier modes.
 
     """
-    mod_k, k_x, k_y, k_z, x, y, z =\
-        generate_k_cube_in_physical_coordinates(
-            nu, nv, neta,
-            ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc)
-
     # define mod_k binning
     modkscaleterm = 1.5  # Value used in BEoRfgs and in 21cmFAST binning
     deltakperp = 2.*np.pi / ps_box_size_para_Mpc
