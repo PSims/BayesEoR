@@ -96,7 +96,7 @@ def generate_data_and_noise_vector_instrumental(
         Data vector of complex signal + noise visibilities.
     complex_noise_hermitian : np.ndarray of complex floats
         Vector of complex noise amplitudes.
-    bl_conjugate_pairs_map : np.ndarray
+    bl_conjugate_pairs_map : dictionary
         Dictionary containing the array index mapping of conjugate baseline
         pairs based on `uvw_array_meters`.
 
@@ -151,7 +151,7 @@ def generate_data_and_noise_vector_instrumental(
                 conj_bl_ind = bl_conjugate_pairs_map[bl_ind]
                 complex_noise_hermitian[start_ind+conj_bl_ind] =\
                     complex_noise_hermitian[start_ind+bl_ind].conjugate()
-            complex_noise_hermitian[start_ind : start_ind+nbls] /=\
+            complex_noise_hermitian[start_ind:start_ind+nbls] /=\
                 bl_redundancy_array[:, 0]**0.5
 
     d = s + complex_noise_hermitian.flatten()
