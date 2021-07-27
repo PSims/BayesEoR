@@ -54,87 +54,170 @@ except Exception as e:
     p.useGPU = False
 
 
-#--------------------------------------------
+# --------------------------------------------
 # Define posterior
-#--------------------------------------------
-
+# --------------------------------------------
 class PowerSpectrumPosteriorProbability(object):
+    """
+    Class containing posterior calculation functions.
+
+    Parameters
+    ----------
+    T_Ninv_T : np.ndarray
+        Complex matrix product `T.conjugate().T * Ninv * T`.  Used to construct
+        `Sigma` which is used to solve for the ML 3D Fourier space vector and
+        LSSM amplitudes.  `T_Ninv_T` must be a Hermitian, positive-definite
+        matrix.
+    dbar : np.ndarray
+        Noise weighted representation of the data (signal + noise) vector of
+        visibilities in model (u, v, eta) space.
+    Sigma_Diag_Indices : np.ndarray
+        Diagonal indices of `T_Ninv_T`.
+    Npar : int
+        Total number of model parameters being fit.
+    k_cube_voxels_in_bin : list
+        List containing sublists containing the flattened 3D k-space cube index
+        of all |k| that fall within a given k-bin.
+    nuv : int
+        Number of model uv-plane points per frequency channel.  Computed as
+        `nuv = nu*nv - 1*np.logical_not(p.fit_for_monopole)`.
+    nu : int
+        Number of pixels on a side for the u-axis in the model uv-plane.
+    nv : int
+        Number of pixels on a side for the v-axis in the model uv-plane.
+    neta : int
+        Number of Line of Sight (LoS, frequency axis) Fourier modes.
+    nf : int
+        Number of frequency channels.
+    nq : int
+        Number of quadratic modes in the Larse Spectral Scale Model (LSSM).
+    masked_power_spectral_modes : np.ndarray
+        Boolean array used to mask additional (u, v, eta) amplitudes from
+        being included in the posterior calculations.
+    modk_vis_ordered_list : list
+        List of sublists containing the |k| values for each |k| that falls
+        within a given k-bin.
+    Ninv : np.ndarray
+        Covariance matrix of the data (signal + noise) vector of visibilities.
+    d_Ninv_d : np.ndarray
+        Single complex number computed as `d.conjugate() * Ninv * d`.
+    k_vals : np.ndarray of floats
+        Array containing the mean k for each k-bin.
+    ps_box_size_ra_Mpc : float
+        Right ascension (RA) axis extent of the cosmological volume in Mpc from
+        which the power spectrum is estimated.
+    ps_box_size_dec_Mpc : float
+        Declination (DEC) axis extent of the cosmological volume in Mpc from
+        which the power spectrum is estimated.
+    ps_box_size_para_Mpc : float
+        LoS extent of the cosmological volume in Mpc from which the power
+        spectrum is estimated.
+    block_T_Ninv_T : list
+        Block diagonal representation of `T_Ninv_T`.  Only used if
+        ``p.use_instrumental_effects = False``.  Defaults to `[]`.
+    log_priors : boolean
+        If `True`, power spectrum k-bin amplitudes are assumed to be in log
+        units, otherwise they will be treated using linear units.
+    dimensionless_PS : boolean
+        If `True`, use a dimensionless power spectrum normalization
+        `Delta**2 ~ mK**2`, otherwise use a dimensionful power spectrum
+        normalization `P(k) ~ mK**2 Mpc**3`.
+    inverse_LW_power : float
+        Prior over the long wavelength modes in the large spectral scale model
+        (LSSM).  Defaults to 0.0.
+    inverse_LW_power_zeroth_LW_term : float
+        Prior for the zeroth (monopole) term in the LSSM.  Defaults to 0.0.
+    inverse_LW_power_first_LW_term : float
+        Prior for the first (linear) term in the LSSM.  Defaults to 0.0.
+    inverse_LW_power_second_LW_term : float
+        Prior for the second (quadratic) term in the LSSM.  Defaults to 0.0.
+    Print : boolean
+        If `True`, print execution time messages.  Defaults to `False`.
+    debug : boolean
+        If `True`, execute break statements for debugging.  Defaults to
+        `False`.
+    Print_debug : boolean
+        If `True`, print debug related messages.  Defaults to `False`.
+    intrinsic_noise_fitting : boolean
+        If `True`, fit for the amplitude of the noise in the data instead of
+        using the covariance estimate as is in `Ninv`.  Defaults to `False`.
+    return_Sigma : boolean
+        If `True`, break and return the matrix `Sigma = T_Ninv_T + PhiI`.
+        Defaults to `False`.
+    fit_for_spectral_model_parameters : boolean
+        If `True`, fit for the LSSM parameter values instead of using the
+        values in `p.beta`.  Defaults to `False`.
+    n_uniform_prior_k_bins : int
+        Number of k-bins, counting up from the lowest k_bin, that will use a
+        prior which is uniform in the amplitude.  The remaining k-bins will use
+        log-uniform priors.  Defaults to 0.
+    use_shg : bool
+        If `True`, use the SubHarmonic Grid (SHG) in the model uv-plane.
+    fit_for_shg_amps : bool
+        if `True`, fit explicitly for the amplitudes of the individual SHG
+        pixels per frequency.
+    nuv_sh : int
+        Number of pixels in the SHG model uv-plane `nuv_sh = nu_sh*nv_sh - 1`.
+    nu_sh : int
+        Number of pixels on a side for the u-axis in the subharmonic model
+        uv-plane.
+    nv_sh : int
+        Number of pixels on a side for the v-axis in the subharmonic model
+        uv-plane.
+    nq_sh : int
+        Number of LSSM quadratic modes for each pixel in the subharmonic grid.
+
+    """
     def __init__(
             self, T_Ninv_T, dbar, Sigma_Diag_Indices, Npar,
             k_cube_voxels_in_bin, nuv, nu, nv, neta, nf, nq,
             masked_power_spectral_modes, modk_vis_ordered_list,
-            Ninv, d_Ninv_d, fit_single_elems=False, **kwargs):
-
-        # ===== Defaults =====
-        default_diagonal_sigma = False
-        default_block_T_Ninv_T = []
-        default_log_priors = False
-        default_dimensionless_PS = False
-        default_inverse_LW_power = 0.0
-        default_inverse_LW_power_zeroth_LW_term = 0.0
-        default_inverse_LW_power_first_LW_term = 0.0
-        default_inverse_LW_power_second_LW_term = 0.0
-        default_Print = False
-        default_debug = False
-        default_Print_debug = False
-        default_intrinsic_noise_fitting = False
-        default_return_Sigma = False
-        default_fit_for_spectral_model_parameters = False
-
-        # ===== Inputs =====
-        self.diagonal_sigma = kwargs.pop(
-            'diagonal_sigma', default_diagonal_sigma)
-        self.block_T_Ninv_T = kwargs.pop(
-            'block_T_Ninv_T', default_block_T_Ninv_T)
-        self.log_priors = kwargs.pop(
-            'log_priors', default_log_priors)
+            Ninv, d_Ninv_d, k_vals, ps_box_size_ra_Mpc,
+            ps_box_size_dec_Mpc, ps_box_size_para_Mpc,
+            block_T_Ninv_T=[], log_priors=False, dimensionless_PS=False,
+            inverse_LW_power=0.0,
+            inverse_LW_power_zeroth_LW_term=0.0,
+            inverse_LW_power_first_LW_term=0.0,
+            inverse_LW_power_second_LW_term=0.0,
+            Print=False, debug=False, Print_debug=False,
+            intrinsic_noise_fitting=False, return_Sigma=False,
+            fit_for_spectral_model_parameters=False,
+            n_uniform_prior_k_bins=0, use_shg=False, fit_for_shg_amps=False,
+            nuv_sh=None, nu_sh=None, nv_sh=None, nq_sh=None
+            ):
+        self.block_T_Ninv_T = block_T_Ninv_T
+        self.log_priors = log_priors
         if self.log_priors:
             print('Using log-priors')
-        self.dimensionless_PS = kwargs.pop(
-            'dimensionless_PS', default_dimensionless_PS)
+        self.dimensionless_PS = dimensionless_PS
         if self.dimensionless_PS:
             print('Calculating dimensionless_PS')
-        self.inverse_LW_power = kwargs.pop(
-            'inverse_LW_power', default_inverse_LW_power)
-        self.inverse_LW_power_zeroth_LW_term = kwargs.pop(
-            'inverse_LW_power_zeroth_LW_term',
-            default_inverse_LW_power_zeroth_LW_term)
-        self.inverse_LW_power_first_LW_term = kwargs.pop(
-            'inverse_LW_power_first_LW_term',
-            default_inverse_LW_power_first_LW_term)
-        self.inverse_LW_power_second_LW_term = kwargs.pop(
-            'inverse_LW_power_second_LW_term',
-            default_inverse_LW_power_second_LW_term)
-        self.Print = kwargs.pop(
-            'Print', default_Print)
-        self.debug = kwargs.pop(
-            'debug', default_debug)
-        self.Print_debug = kwargs.pop(
-            'Print_debug', default_Print_debug)
-        self.intrinsic_noise_fitting = kwargs.pop(
-            'intrinsic_noise_fitting', default_intrinsic_noise_fitting)
-        self.return_Sigma = kwargs.pop(
-            'return_Sigma', default_return_Sigma)
-        self.fit_for_spectral_model_parameters = kwargs.pop(
-            'fit_for_spectral_model_parameters',
-            default_fit_for_spectral_model_parameters)
-        self.k_vals = kwargs.pop('k_vals')
-        self.n_uniform_prior_k_bins = kwargs.pop('n_uniform_prior_k_bins')
-        self.ps_box_size_ra_Mpc = kwargs.pop('ps_box_size_ra_Mpc')
-        self.ps_box_size_dec_Mpc = kwargs.pop('ps_box_size_dec_Mpc')
-        self.ps_box_size_para_Mpc = kwargs.pop('ps_box_size_para_Mpc')
-        self.use_shg = kwargs.pop('use_shg', False)
-        self.fit_for_shg_amps = kwargs.pop('fit_for_shg_amps', False)
-        self.nuv_sh = kwargs.pop('nuv_sh', None)
-        self.nu_sh = kwargs.pop('nu_sh', None)
-        self.nv_sh = kwargs.pop('nv_sh', None)
-        self.nq_sh = kwargs.pop('nq_sh', None)
+        self.inverse_LW_power = inverse_LW_power
+        self.inverse_LW_power_zeroth_LW_term = inverse_LW_power_zeroth_LW_term
+        self.inverse_LW_power_first_LW_term = inverse_LW_power_first_LW_term
+        self.inverse_LW_power_second_LW_term = inverse_LW_power_second_LW_term
+        self.Print = Print
+        self.debug = debug
+        self.Print_debug = Print_debug
+        self.intrinsic_noise_fitting = intrinsic_noise_fitting
+        self.return_Sigma = return_Sigma
+        self.fit_for_spectral_model_parameters =\
+            fit_for_spectral_model_parameters
+        self.k_vals = k_vals
+        self.n_uniform_prior_k_bins = n_uniform_prior_k_bins
+        self.ps_box_size_ra_Mpc = ps_box_size_ra_Mpc
+        self.ps_box_size_dec_Mpc = ps_box_size_dec_Mpc
+        self.ps_box_size_para_Mpc = ps_box_size_para_Mpc
+        self.use_shg = use_shg
+        self.fit_for_shg_amps = fit_for_shg_amps
+        self.nuv_sh = nuv_sh
+        self.nu_sh = nu_sh
+        self.nv_sh = nv_sh
+        self.nq_sh = nq_sh
 
-        self.fit_single_elems = fit_single_elems
         self.T_Ninv_T = T_Ninv_T
         self.dbar = dbar
         self.Sigma_Diag_Indices = Sigma_Diag_Indices
-        self.diagonal_sigma = False
         self.block_diagonal_sigma = False
         self.instantiation_time = time.time()
         self.count = 0
@@ -161,20 +244,38 @@ class PowerSpectrumPosteriorProbability(object):
             '_0d5_min_time_steps_Gaussian_beam_peak_amplitude_1d0_beam_'\
             'width_9d0_deg_at_150d0_MHz/'
 
+    def add_power_to_diagonals(self, T_Ninv_T_block, PhiI_block):
+        """
+        Add a matrix and a vector reshaped as a diagonal matrix.
 
-    def add_power_to_diagonals(self, T_Ninv_T_block, PhiI_block, **kwargs):
-        return T_Ninv_T_block+np.diag(PhiI_block)
+        Parameters
+        ----------
+        T_Ninv_T_block : np.ndarray
+            Single block matrix from block_T_Ninv_T.
+        PhiI_block : np.ndarray
+            Vector of the estimated inverse variance of each |k| voxel present
+            in `T_Ninv_T_block`.
+
+        Returns
+        -------
+        matrix_sum : np.ndarray
+            Sum of `T_Ninv_T_block` and a diagonal matrix constructed from
+            `PhiI_block`.
+
+        """
+        matrix_sum = T_Ninv_T_block + np.diag(PhiI_block)
+        return matrix_sum
 
     def calc_physical_dimensionless_power_spectral_normalisation(self, i_bin):
         """
         This normalization will calculate PowerI, an estimate for one over
         the variance of a in units of 1 / (mK**2 sr**2 Hz**2).
-        
+
         Parameters
         ----------
         i_bin : int
             Input spherically averaged k-bin index.
-            
+
         Returns
         -------
         dmps_norm : float
@@ -200,7 +301,7 @@ class PowerSpectrumPosteriorProbability(object):
 
         return dmps_norm
 
-    def calc_PowerI(self, x, **kwargs):
+    def calc_PowerI(self, x):
         """
         Calculate an estimate of the variance of the k-cube (uveta cube) from
         a set of power spectrum k-bin amplitudes `x`.
@@ -210,23 +311,19 @@ class PowerSpectrumPosteriorProbability(object):
 
         Parameters
         ----------
-        x : array_like, shape (nDims,)
-        inverse_LW_power: float
-            Constrains the amplitude distribution of all of
-            the large spectral scale model components.
-        inverse_LW_power_zeroth_LW_term: float
-            Constrains the amplitude of monopole-term basis vector.
-        inverse_LW_power_first_LW_term: float
-            Constrains the amplitude of the model components
-            of the 1st LW basis vector (e.g. linear model comp.).
-        inverse_LW_power_second_LW_term: float
-            Constrains the amplitude of the model components
-            of the 2nd LW basis vector (e.g. quad model comp.).
+        x : array_like
+            Input power spectrum amplitudes per |k|-bin with length `nDims`.
+
+        Returns
+        -------
+        PhiI : np.ndarray
+            Vector with estimates of the inverse variance of each |k| voxel.
 
         Notes
         -----
-        The indices used are correct for the current
-        ordering of basis vectors when nf is an even number...
+        The indices used are correct for the current ordering of basis vectors
+        when nf is an even number.
+
         """
         PowerI = np.zeros(self.Npar)
 
@@ -246,28 +343,31 @@ class PowerSpectrumPosteriorProbability(object):
             self.calc_physical_dimensionless_power_spectral_normalisation(0)
         if p.use_LWM_Gaussian_prior:
             Fourier_mode_start_index = 3
-            PowerI[:cg_end][q0_index :: self.neta+self.nq] =\
+            PowerI[:cg_end][q0_index::self.neta+self.nq] =\
                 np.mean(dimensionless_PS_scaling) / x[0]
-            PowerI[:cg_end][q1_index :: self.neta+self.nq] =\
+            PowerI[:cg_end][q1_index::self.neta+self.nq] =\
                 np.mean(dimensionless_PS_scaling) / x[1]
-            PowerI[:cg_end][q2_index :: self.neta+self.nq] =\
+            PowerI[:cg_end][q2_index::self.neta+self.nq] =\
                 np.mean(dimensionless_PS_scaling) / x[2]
         else:
             Fourier_mode_start_index = 0
             # Set to zero for a uniform distribution
-            PowerI[:cg_end][q0_index :: self.neta+self.nq] = self.inverse_LW_power
-            PowerI[:cg_end][q1_index :: self.neta+self.nq] = self.inverse_LW_power
-            PowerI[:cg_end][q2_index :: self.neta+self.nq] = self.inverse_LW_power
+            PowerI[:cg_end][q0_index::self.neta+self.nq] =\
+                self.inverse_LW_power
+            PowerI[:cg_end][q1_index::self.neta+self.nq] =\
+                self.inverse_LW_power
+            PowerI[:cg_end][q2_index::self.neta+self.nq] =\
+                self.inverse_LW_power
 
             if self.inverse_LW_power == 0.0:
                 # Set to zero for a uniform distribution
-                PowerI[:cg_end][q0_index :: self.neta+self.nq] =\
+                PowerI[:cg_end][q0_index::self.neta+self.nq] =\
                     self.inverse_LW_power_zeroth_LW_term
-                PowerI[:cg_end][q1_index :: self.neta+self.nq] =\
+                PowerI[:cg_end][q1_index::self.neta+self.nq] =\
                     self.inverse_LW_power_first_LW_term
-                PowerI[:cg_end][q2_index :: self.neta+self.nq] =\
+                PowerI[:cg_end][q2_index::self.neta+self.nq] =\
                     self.inverse_LW_power_second_LW_term
-        
+
         if self.use_shg:
             # This should not be a permanent fix
             # Is a minimal prior on the SHG amplitudes
@@ -286,21 +386,40 @@ class PowerSpectrumPosteriorProbability(object):
             power_spectrum_normalisation =\
                 self.power_spectrum_normalisation_func(i_bin)
             # NOTE: fitting for power not std here
-            PowerI[self.k_cube_voxels_in_bin[i_bin]] =(
+            PowerI[self.k_cube_voxels_in_bin[i_bin]] = (
                     power_spectrum_normalisation
                     / x[Fourier_mode_start_index+i_bin])
 
         return PowerI
-    
-    def calc_Sigma_block_diagonals(self, T_Ninv_T, PhiI, **kwargs):
+
+    def calc_Sigma_block_diagonals(self, T_Ninv_T, PhiI):
+        """
+        Constructs Sigma using block diagonal components like `block_T_Ninv_T`.
+
+        Parameters
+        ----------
+        T_Ninv_T : np.ndarray
+            Complex matrix product `T.conjugate().T * Ninv * T`.
+        PhiI : np.ndarray
+            Vector with estimates of the inverse variance of each |k| voxel.
+
+        Returns
+        -------
+        Sigma_block_diagonals : np.ndarray
+            Array containing a block diagonal representation of
+            `Sigma = T_Ninv_T + PhiI`.  Each block is an entry along the zeroth
+            axis of `Sigma_block_diagonals`.  This allows `Sigma` to be
+            inverted numerically block by block as opposed to all at once.
+
+        """
         PhiI_blocks = np.split(PhiI, self.nuv)
         Sigma_block_diagonals = np.array(
             [self.add_power_to_diagonals(
                 T_Ninv_T[
-                    (self.neta + self.nq)*i_block
-                    : (self.neta + self.nq)*(i_block+1),
-                    (self.neta + self.nq)*i_block
-                    : (self.neta + self.nq)*(i_block+1)
+                    (self.neta + self.nq)*i_block:
+                        (self.neta + self.nq)*(i_block+1),
+                    (self.neta + self.nq)*i_block:
+                        (self.neta + self.nq)*(i_block+1)
                     ],
                 PhiI_blocks[i_block]
                 )
@@ -308,13 +427,39 @@ class PowerSpectrumPosteriorProbability(object):
             )
         return Sigma_block_diagonals
 
-    def calc_SigmaI_dbar_wrapper(self, x, T_Ninv_T, dbar, **kwargs):
-        block_T_Ninv_T = []
+    def calc_SigmaI_dbar_wrapper(self, x, T_Ninv_T, dbar, block_T_Ninv_T=[]):
+        """
+        Wrapper of `calc_SigmaI_dbar` which calculates `SigmaI_dbar` via an
+        inversion per block diagonal element or as a single block-diagonal
+        matrix via `calc_SigmaI_dbar`.
 
-        # ===== Inputs =====
-        if 'block_T_Ninv_T' in kwargs:
-            block_T_Ninv_T = kwargs['block_T_Ninv_T']
+        Parameters
+        ----------
+        x : array_like
+            Input power spectrum amplitudes per |k|-bin with length `nDims`.
+        T_Ninv_T : np.ndarray
+            Complex matrix product `T.conjugate().T * Ninv * T`.
+        dbar : np.ndarray
+            Noise weighted representation of the data (signal + noise) vector
+            of visibilities in model (u, v, eta) space.
+        block_T_Ninv_T : list
+            Block diagonal representation of `T_Ninv_T`.  Only used if
+            ``p.use_instrumental_effects = False``.  Defaults to `[]`.
 
+        Returns
+        -------
+        SigmaI_dbar : np.ndarray
+            Complex array of maximum likelihood (u, v, eta) and Large Spectral
+            Scale Model (LSSM) amplitudes.  Used to compute the model data
+            vector via `m = T * SigmaI_dbar`.
+        dbarSigmaIdbar : np.ndarray
+            Complex array product `dbar * SigmaI_dbar`.
+        PhiI : np.ndarray
+            Vector with estimates of the inverse variance of each |k| voxel.
+        logSigmaDet : np.ndarray
+            Natural logarithm of the determinant of `Sigma = T_Ninv_T + PhiI`.
+
+        """
         start = time.time()
         PowerI = self.calc_PowerI(x)
         PhiI = PowerI
@@ -356,9 +501,6 @@ class PowerSpectrumPosteriorProbability(object):
                      for SigmaI_dbar_block, logdet_Sigma
                      in SigmaI_dbar_blocks_and_logdet_Sigma]
                     )
-                # This doesn't work because the array
-                # size is lost / flatten fails
-                # SigmaI_dbar_blocks = SigmaI_dbar_blocks_and_logdet_Sigma[:, 0]
                 logdet_Sigma_blocks = SigmaI_dbar_blocks_and_logdet_Sigma[:, 1]
             else:
                 SigmaI_dbar_blocks = np.array(
@@ -435,26 +577,44 @@ class PowerSpectrumPosteriorProbability(object):
 
         return SigmaI_dbar, dbarSigmaIdbar, PhiI, logSigmaDet
 
-    def calc_SigmaI_dbar(self, Sigma, dbar, **kwargs):
-        # ===== Defaults =====
-        block_T_Ninv_T = []
-        default_x_for_error_checking = \
-            "Params haven't been recorded... use x_for_error_checking "\
-            "kwarg when calling calc_SigmaI_dbar to change this."
+    def calc_SigmaI_dbar(self, Sigma, dbar, x_for_error_checking=[]):
+        """
+        Solves the linear system `Sigma * a = dbar` by calculating the Cholesky
+        decomposition (if ``p.useGPU = True``) of the matrix'
+        `Sigma = T_Ninv_T + PhiI`.  If not using GPUs to perform the matrix
+        inversion, `scipy.linalg.inv` will be used.  This is not desired as the
+        CPU based `scipy.linalg.inv` function does not always return the "true"
+        matrix inverse for the matrices used here.
 
-        # ===== Inputs =====
-        if 'block_T_Ninv_T' in kwargs:
-            block_T_Ninv_T = kwargs['block_T_Ninv_T']
-        if 'x_for_error_checking' in kwargs:
-            x_for_error_checking = kwargs['x_for_error_checking']
+        Parameters
+        ----------
+        Sigma : np.ndarray
+            Complex matrix `Sigma = T_Ninv_T + PhiI`.
+        dbar : np.ndarray
+            Noise weighted representation of the data (signal + noise) vector
+            of visibilities in model (u, v, eta) space.
+        x_for_error_checking : array_like
+            Input power spectrum amplitudes per |k|-bin with length `nDims`
+            used for error checking of the matrix inversion.  Defaults to `[]`.
 
+        Returns
+        -------
+        SigmaI_dbar : np.ndarray
+            Complex array of maximum likelihood (u, v, eta) and Large Spectral
+            Scale Model (LSSM) amplitudes.  Used to compute the model data
+            vector via `m = T * SigmaI_dbar`.
+        logdet_Magma_Sigma : np.ndarray
+            Natural logarith of the determinant of `Sigma`.  Only returned if
+            ``p.useGPU = True``.
+
+        """
         if not p.useGPU:
             # Sigmacho = scipy.linalg.cholesky(
             #         Sigma, lower=True
             #     ).astype(np.complex256)
             # SigmaI_dbar = scipy.linalg.cho_solve((Sigmacho, True), dbar)
             # scipy.linalg.inv is not numerically stable
-            # use with caution
+            # USE WITH CAUTION
             SigmaI = scipy.linalg.inv(Sigma)
             SigmaI_dbar = np.dot(SigmaI, dbar)
             return SigmaI_dbar
@@ -464,9 +624,9 @@ class PowerSpectrumPosteriorProbability(object):
             dbar_copy = dbar.copy()
             dbar_copy_copy = dbar.copy()
             self.GPU_error_flag = np.array([0])
-            # Replace 0 with 1 to pring debug in the following command
             if self.Print:
                 start = time.time()
+            # Replace 0 with 1 to pring debug in the following command
             wrapmzpotrf.cpu_interface(
                 len(Sigma), nrhs, Sigma, dbar_copy, 0, self.GPU_error_flag)
             if self.Print:
@@ -475,7 +635,6 @@ class PowerSpectrumPosteriorProbability(object):
             # Note: After wrapmzpotrf, Sigma is actually
             # SigmaCho (i.e. L with Sigma = LL^T)
             logdet_Magma_Sigma = np.sum(np.log(np.diag(abs(Sigma)))) * 2
-            # print(logdet_Magma_Sigma)
             if self.Print:
                 start = time.time()
             SigmaI_dbar = scipy.linalg.cho_solve(
@@ -487,26 +646,40 @@ class PowerSpectrumPosteriorProbability(object):
                 # If the inversion doesn't work, zero-weight the
                 # sample (may want to stop computing if this occurs?)
                 logdet_Magma_Sigma = +np.inf
-                print('GPU inversion error. Setting sample posterior probability to zero.')
+                print('GPU inversion error. Setting sample posterior '
+                      'probability to zero.')
                 print('Param values: ', x_for_error_checking)
                 print('GPU_error_flag = {}'.format(self.GPU_error_flag))
 
             return SigmaI_dbar, logdet_Magma_Sigma
 
-    def posterior_probability(self, x, **kwargs):
+    def posterior_probability(self, x, block_T_Ninv_T=[]):
+        """
+        Computes the posterior probability of a given set of power spectrum
+        amplitudes per |k|-bin.
+
+        Parameters
+        ----------
+        x : array_like
+            Input power spectrum amplitudes per |k|-bin with length `nDims`.
+        block_T_Ninv_T : list
+            Block diagonal representation of `T_Ninv_T`.  Only used if
+            ``p.use_instrumental_effects = False``.  Defaults to `[]`.
+
+        Returns
+        -------
+        MargLogL.squeeze()*1.0, phi
+        MargLogL : float
+            Posterior probability of `x`.
+        phi :
+            Only used if sampling with `PolyChord`.
+
+        """
         if self.debug:
             brk()
         phi = [0.0]
-
-        # ===== Defaults =====
-        block_T_Ninv_T = self.block_T_Ninv_T
-        fit_single_elems = self.fit_single_elems
         T_Ninv_T = self.T_Ninv_T
         dbar = self.dbar
-
-        # ===== Inputs =====
-        if 'block_T_Ninv_T' in kwargs:
-            block_T_Ninv_T = kwargs['block_T_Ninv_T']
 
         if self.fit_for_spectral_model_parameters:
             Print = self.Print
@@ -608,9 +781,6 @@ class PowerSpectrumPosteriorProbability(object):
             # logPhiDet from logPhiIDet. Note: the real part of this
             # calculation matches the solution given by
             # np.linalg.slogdet(Phi))
-            # logPhiDet = -1 * np.sum(np.log(
-            #     PhiI[np.logical_not(self.masked_power_spectral_modes)]
-            #     )).real
             start = time.time()
             logPhiDet = -1 * np.sum(np.log(PhiI)).real
             if self.Print:
