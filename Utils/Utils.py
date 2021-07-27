@@ -29,9 +29,9 @@ class Cosmology:
     """
     Class for performing cosmological distance
     calculations using `astropy.cosmology.Planck18`.
+
     """
     def __init__(self):
-        
         self.cosmo = Planck18
         self.Om0 = self.cosmo.Om0
         self.Ode0 = self.cosmo.Ode0
@@ -39,61 +39,64 @@ class Cosmology:
         self.H0 = self.cosmo.H0
         self.c = c.to('m/s')
         self.f_21 = 1420.40575177 * units.MHz
-        
+
     def f2z(self, f):
         """
-        Convert a frequency ``f`` in Hz to redshift
+        Convert a frequency `f` in Hz to redshift
         relative to `self.f_21`.
-        
+
         Parameters
         ----------
         f : float
             Input frequency in Hz.
-            
+
         Returns
         -------
         z : float
-            Redshift corresponding to frequency ``f``.
+            Redshift corresponding to frequency `f`.
+
         """
         if not isinstance(f, Quantity):
             f *= units.Hz
         else:
             f = f.to('Hz')
         return (self.f_21/f - 1).value
-    
+
     def z2f(self, z):
         """
-        Convert a redshift ``z`` relative to `self.f_21`
+        Convert a redshift `z` relative to `self.f_21`
         to a frequency in Hz.
-        
+
         Parameters
         ----------
         z : float
             Input redshift.
-            
+
         Returns
         -------
         f : float
-            Frequency corresponding to redshift ``z``.
+            Frequency corresponding to redshift `z`.
+
         """
         return (self.f_21 / (1 + z)).to('Hz').value
 
     def dL_df(self, z):
         """
         Comoving differential distance at redshift per frequency.
-        
+
         Parameters
         ----------
         z : float
             Input redshift.
-            
+
         Returns
         -------
         dl_df : float
-            Conversion factor relating a bandwidth $\Delta f$
-            in Hz to a comoving size in Mpc at redshift ``z``.
+            Conversion factor relating a bandwidth in Hz to a comoving size in
+            Mpc at redshift `z`.
+
         """
-        d_h = self.c.to('km/s') / self.H0 # Hubble distance
+        d_h = self.c.to('km/s') / self.H0  # Hubble distance
         e_z = self.cosmo.efunc(z)
         dl_df = d_h / e_z * (1 + z)**2 / self.f_21.to('Hz')
         return dl_df.value
@@ -101,18 +104,19 @@ class Cosmology:
     def dL_dth(self, z):
         """
         Comoving transverse distance per radian in Mpc.
-        
+
         Parameters
         ----------
         z : float
             Input redshift.
-            
+
         Returns
         -------
         dl_dth : float
             Conversion factor relating an angular size in
             radians to a comoving transverse size in Mpc
-            at redshift ``z``.
+            at redshift `z`.
+
         """
         dl_dth = self.cosmo.comoving_transverse_distance(z)
         return dl_dth.value
@@ -122,31 +126,41 @@ class Cosmology:
         Conversion factor to go from an instrumentally
         sampled volume in sr Hz to a comoving cosmological
         volume in Mpc^3.
-        
+
         Parameters
         ----------
         z : float
             Input redshift.
-            
+
         Returns
         -------
         i2cV : float
-            Volume conversion factor for
-            sr Hz --> Mpc^3 at redshift z.
+            Volume conversion factor for sr Hz --> Mpc^3 at redshift `z`.
+
         """
         i2cV = self.dL_dth(z)**2 * self.dL_df(z)
         return i2cV
 
 
-def generate_output_file_base(file_root, **kwargs):
+def generate_output_file_base(file_root, version_number='1'):
+    """
+    Generate a filename for the sampler output.  The version number of the
+    output file is incrimented until a new `file_root` is found to avoid
+    overwriting existing sampler data.
 
-    # ===== Defaults =====
-    default_version_number = '1'
+    Parameters
+    ----------
+    file_root : str
+        Filename root with a version number string `-v{}-` suffix.
+    version_number : str
+        Version number as a string.  Defaults to '1'.
 
-    # ===== Inputs =====
-    if 'version_number' in kwargs:
-        version_number = kwargs.pop('version_number', default_version_number)
+    Returns
+    -------
+    file_root : str
+        Updated filename root with a new, largest version number.
 
+    """
     file_name_exists = (
             os.path.isfile('chains/'+file_root+'_phys_live.txt')
             or os.path.isfile('chains/'+file_root+'.resume')
@@ -166,19 +180,49 @@ def generate_output_file_base(file_root, **kwargs):
 
 
 def load_uvw_instrument_sampling_m(instrument_model_directory):
+    """
+    Loads a pickled binary file of instrumental (u, v, w) coordinates.
+
+    Parameters
+    ----------
+    instrument_model_directory : str
+        Path to the instrument model directory.
+
+    Returns
+    -------
+    uvw_multi_time_step_array_meters : np.ndarray
+        Array of floating point (u, v, w) coordinates per time sample in
+        meters with shape (nt, nbls, 3).
+
+    """
     file_dir = instrument_model_directory
     file_name = "uvw_multi_time_step_array_meters"
-    with open(file_dir + file_name, 'rb') as f:
+    with open(os.path.join(file_dir, file_name), 'rb') as f:
         uvw_multi_time_step_array_meters = pickle.load(f)
     return uvw_multi_time_step_array_meters
 
 
 def load_baseline_redundancy_array(instrument_model_directory):
+    """
+    Loads a pickled binary file of the number of baselines within a given
+    redundant baseline group, i.e. a particular (u, v, w), in the instrument
+    model.
+
+    Parameters
+    ----------
+    instrument_model_directory : str
+        Path to the instrument model directory.
+
+    Returns
+    -------
+    uvw_redundancy_multi_time_step_array : np.ndarray
+        Array of baseline redundancy values per time sample with shape
+        (nt, nbls, 1).
+
+    """
     file_dir = instrument_model_directory
-    # uvw_redundancy_multi_time_step_array
-    file_name =\
-        "uvw_redundancy_multi_time_step_array"
-    with open(file_dir+file_name, 'rb') as f:
+    file_name = "uvw_redundancy_multi_time_step_array"
+    with open(os.path.join(file_dir, file_name), 'rb') as f:
         uvw_redundancy_multi_time_step_array =\
             pickle.load(f)
     return uvw_redundancy_multi_time_step_array
@@ -186,10 +230,18 @@ def load_baseline_redundancy_array(instrument_model_directory):
 
 def write_log_file(array_save_directory, file_root):
     """
-        Write a log file containing current git hash, array save
-        directory, multinest output file root, and parameters from
-        BayesEoR.Params.params for a complete record of what parameters
-        went into each analysis run.
+    Write a log file containing current git hash, array save
+    directory, multinest output file root, and parameters from
+    BayesEoR.Params.params for a complete record of what parameters
+    went into each analysis run.
+
+    Parameters
+    ----------
+    array_save_directory : str
+        Directory where arrays used in the analysis are saved.
+    file_root : str
+        Filename for sampler output files.
+
     """
     # Make log file directory if it doesn't exist
     log_dir = os.path.join(os.getcwd(), 'log_files/')
@@ -232,6 +284,7 @@ def write_log_file(array_save_directory, file_root):
                 f.write('{} = {}\n'.format(key, p.__dict__[key]))
     print('Log file written successfully to {}'.format(log_file))
 
+
 def vector_is_hermitian(data, conj_map, nt, nf, nbls):
     """
     Checks if the data in the vector `data` is Hermitian symmetric
@@ -239,12 +292,13 @@ def vector_is_hermitian(data, conj_map, nt, nf, nbls):
 
     Parameters
     ----------
-    data : array-like of complex numbers
-        Array of values used to infer Hermitian symmetry.
+    data : array-like
+        Array of values.
     conj_map : dictionary
         Dictionary object which contains the indices in the data vector
         per time and frequency corresponding to baselines and their
         conjugates.
+
     """
     hermitian = np.zeros(data.size)
     for i_t in range(nt):
