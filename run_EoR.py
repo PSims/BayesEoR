@@ -553,13 +553,10 @@ print('\nOutput file_root:', file_root)
 PSPP_block_diag_Polychord = PowerSpectrumPosteriorProbability(
     T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin,
     nuv, nu, nv, neta, nf, nq, masked_power_spectral_modes,
-    modk_vis_ordered_list, Ninv, d_Ninv_d, block_T_Ninv_T=block_T_Ninv_T,
+    modk_vis_ordered_list, Ninv, d_Ninv_d, k_vals, ps_box_size_ra_Mpc,
+    ps_box_size_dec_Mpc, ps_box_size_para_Mpc, block_T_Ninv_T=block_T_Ninv_T,
     log_priors=log_priors, dimensionless_PS=dimensionless_PS, Print=True,
-    intrinsic_noise_fitting=p.use_intrinsic_noise_fitting, k_vals=k_vals,
-    n_uniform_prior_k_bins=p.n_uniform_prior_k_bins,
-    ps_box_size_ra_Mpc=ps_box_size_ra_Mpc,
-    ps_box_size_dec_Mpc=ps_box_size_dec_Mpc,
-    ps_box_size_para_Mpc=ps_box_size_para_Mpc,
+    intrinsic_noise_fitting=p.use_intrinsic_noise_fitting,
     use_shg=p.use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
     nuv_sh=nuv_sh, nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh
     )
