@@ -234,6 +234,7 @@ class Healpix(HEALPix):
             Array containing the NS direction cosine of each HEALPix pixel.
         n : np.ndarray of floats
             Array containing the radial direction cosine of each HEALPix pixel.
+
         """
         if not isinstance(time, Time):
             time = Time(time, format='jd')
@@ -246,14 +247,14 @@ class Healpix(HEALPix):
         za = np.pi/2 - altaz.alt.rad
 
         # Convert from (az, za) to (l, m, n)
-        l = np.sin(za) * np.sin(az)
-        m = np.sin(za) * np.cos(az)
-        n = np.cos(za)
+        ls = np.sin(za) * np.sin(az)
+        ms = np.sin(za) * np.cos(az)
+        ns = np.cos(za)
 
         if return_azza:
-            return l, m, n, az, za
+            return ls, ms, ns, az, za
         else:
-            return l, m, n
+            return ls, ms, ns
 
     def get_beam_vals(self, az, za, freq=None):
         """
@@ -274,6 +275,7 @@ class Healpix(HEALPix):
         -------
         beam_vals : np.ndarray
             Array containing beam amplitude values at each (az, za).
+
         """
         if self.beam_type == 'uniform':
             beam_vals = np.ones(self.npix_fov)
@@ -314,6 +316,7 @@ class Healpix(HEALPix):
         -------
         beam_vals : np.ndarray
             Array of Gaussian beam amplitudes for each zenith angle in `za`.
+
         """
         beam_vals = amp * np.exp(-za ** 2 / (2 * sigma ** 2))
         return beam_vals
@@ -327,6 +330,7 @@ class Healpix(HEALPix):
         ----------
         fwhm : float
             Full width half maximum in degrees.
+
         """
         return fwhm / 2.355
 
@@ -347,6 +351,7 @@ class Healpix(HEALPix):
         -------
         beam_vals : np.ndarray
             Array of Airy disk amplitudes for each zenith angle in `za`.
+
         """
         xvals = (
                 diam / 2. * np.sin(za)
@@ -379,6 +384,7 @@ class Healpix(HEALPix):
             Antenna (aperture) diameter in meters with an Airy disk beam
             pattern whose main lobe is described by a Gaussian beam with a
             FWHM of `fwhm`.
+
         """
         scalar = 2.2150894
         wavelength = c_ms / freq
@@ -407,6 +413,7 @@ class Healpix(HEALPix):
         sigma : float
             Standard deviation of a Gaussian envelope which describes the main
             lobe of an Airy disk with aperture `diam`.
+
         """
         scalar = 2.2150894
         wavelength = c_ms / freq
