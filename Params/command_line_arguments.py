@@ -4,6 +4,10 @@ import BayesEoR.Params.params as p
 
 
 def BayesEoRParser():
+    """
+    Class used to parse command line arguments.
+
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-nq", "--nq",
@@ -166,6 +170,13 @@ def BayesEoRParser():
 
 
 def update_params_with_command_line_arguments():
+    """
+    Updates variable values stored in `BayesEoR.Params.params` using command
+    line arguments.  Command line arguments will overwrite any existing value
+    of a variable stored in `p` where `p` is a module imported with
+    `import BayesEoR.Params.params as p`.
+
+    """
     args = BayesEoRParser()
     cla_keys = [
         key for key in args.__dict__.keys()
