@@ -65,13 +65,13 @@ def generate_data_from_loaded_eor_cube(
     sci_f, sci_v, sci_u = vfft1.shape
     sci_v_centre = sci_v//2
     sci_u_centre = sci_u//2
-    vfft1_subset = vfft1[0 : nf,
-                         sci_u_centre - nu//2 : sci_u_centre + nu//2 + 1,
-                         sci_v_centre - nv//2 : sci_v_centre + nv//2 + 1]
+    vfft1_subset = vfft1[0:nf,
+                         sci_u_centre - nu//2:sci_u_centre + nu//2 + 1,
+                         sci_v_centre - nv//2:sci_v_centre + nv//2 + 1]
     # s_before_ZM = vfft1_subset.flatten() / vfft1[0].size**0.5
     s_before_ZM = vfft1_subset.flatten()
     ZM_vis_ordered_mask = np.ones(nu*nv*nf)
-    ZM_vis_ordered_mask[nf*((nu*nv)//2) : nf*((nu*nv)//2 + 1)] = 0
+    ZM_vis_ordered_mask[nf*((nu*nv)//2):nf*((nu*nv)//2 + 1)] = 0
     ZM_vis_ordered_mask = ZM_vis_ordered_mask.astype('bool')
     ZM_chan_ordered_mask = ZM_vis_ordered_mask.reshape(-1, neta+nq).T.flatten()
     s = s_before_ZM[ZM_chan_ordered_mask]
