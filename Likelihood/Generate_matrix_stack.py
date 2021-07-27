@@ -1673,7 +1673,7 @@ class BuildMatrices(BuildMatrixTree):
             self.matrix_construction_methods_dictionary[matrix_name]()
 
     def prepare_matrix_stack_for_deletion(
-            self, src, overwrite_existing_matrix_stack):
+            self, src, clobber_matrices):
         """
         Archive an existing matrix stack on disk by prepending 'delete_'
         to the child directory.
@@ -1682,17 +1682,17 @@ class BuildMatrices(BuildMatrixTree):
         ----------
         src : str
             Path to existing matrix stack directory.
-        overwrite_existing_matrix_stack : bool
+        clobber_matrices : bool
             If `True`, overwrite a previously archived matrix stack.
 
         Returns
         -------
         dst : str
-            If ``overwrite_existing_matrix_stack = True``, path to matrix
+            If ``clobber_matrices = True``, path to matrix
             stack directory to be deleted.
 
         """
-        if overwrite_existing_matrix_stack:
+        if clobber_matrices:
             if src[-1] == '/':
                 src = src[:-1]
             head, tail = os.path.split(src)
@@ -1706,7 +1706,7 @@ class BuildMatrices(BuildMatrixTree):
                 self.delete_old_matrix_stack(dst, 'y')
                 self.prepare_matrix_stack_for_deletion(
                     self.array_save_directory,
-                    self.overwrite_existing_matrix_stack)
+                    self.clobber_matrices)
             return dst
 
     def delete_old_matrix_stack(
@@ -1723,8 +1723,7 @@ class BuildMatrices(BuildMatrixTree):
             matrix stack.
 
         """
-        if (confirm_deletion.lower() == 'y'
-                or confirm_deletion.lower() == 'yes'):
+        if confirm_deletion.lower() in ['y', 'yes']:
             shutil.rmtree(path_to_old_matrix_stack)
         else:
             print('Prior matrix tree archived but not deleted.'
@@ -1732,39 +1731,37 @@ class BuildMatrices(BuildMatrixTree):
 
     def build_minimum_sufficient_matrix_stack(
             self,
-            overwrite_existing_matrix_stack=False,
-            proceed_without_overwrite_confirmation=False):
+            clobber_matrices=False,
+            force_clobber=False):
         """
         Construct a minimum sufficient matrix stack needed to run BayesEoR.
 
         Parameters
         ----------
-        overwrite_existing_matrix_stack : bool
+        clobber_matrices : bool
             If `True`, overwrite the existing matrix stack.
-        proceed_without_overwrite_confirmation : bool
+        force_clobber : bool
             If `True`, delete the old matrix stack without user input.
             If `False`, prompt the user to specify wether the matrix stack
             should be deleted ('y') or archived ('n').
 
         """
-        self.overwrite_existing_matrix_stack = (
-            overwrite_existing_matrix_stack)
-        self.proceed_without_overwrite_confirmation = (
-            proceed_without_overwrite_confirmation)
+        self.clobber_matrices = clobber_matrices
+        self.force_clobber = force_clobber
 
         # Prepare matrix directory
         matrix_stack_dir_exists = os.path.exists(self.array_save_directory)
         if matrix_stack_dir_exists:
             dst = self.prepare_matrix_stack_for_deletion(
                 self.array_save_directory,
-                self.overwrite_existing_matrix_stack)
+                self.clobber_matrices)
         # Build matrices
         self.build_matrix_if_it_doesnt_already_exist('T_Ninv_T')
         if not p.include_instrumental_effects:
             self.build_matrix_if_it_doesnt_already_exist('block_T_Ninv_T')
         self.build_matrix_if_it_doesnt_already_exist('N')
-        if matrix_stack_dir_exists and self.overwrite_existing_matrix_stack:
-            if not self.proceed_without_overwrite_confirmation:
+        if matrix_stack_dir_exists and self.clobber_matrices:
+            if not self.force_clobber:
                 confirm_deletion = input(
                     'Confirm deletion of archived matrix stack? (y/n)\n')
             else:

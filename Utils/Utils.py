@@ -180,11 +180,10 @@ def generate_output_file_base(file_root, version_number='1'):
 
 
 def load_inst_model(
-    inst_model_dir,
-    uvw_file='uvw_multi_time_step_array_meters',
-    red_file='uvw_redundancy_multi_time_step_array',
-    phasor_file='phasor_vector.npy'
-):
+        inst_model_dir,
+        uvw_file='uvw_multi_time_step_array_meters',
+        red_file='uvw_redundancy_multi_time_step_array',
+        phasor_file='phasor_vector.npy'):
     """
     Load the instrument model consisting of
     - a (u, v, w) array with shape (nt, nbls, 3)

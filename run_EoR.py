@@ -142,13 +142,13 @@ array_save_directory = (
     'array_storage/batch_1/'
     + '{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(
         current_file_version, nu, nv, neta, nq, npl, sigma).replace('.', 'd')
-    )
+)
 
 if p.fit_for_monopole:
     array_save_directory = (
             array_save_directory[:-1]
             + '_fit_for_monopole/'
-        )
+    )
 # nside modifier
 array_save_directory = array_save_directory[:-1] + '_nside{}/'.format(p.nside)
 
@@ -164,14 +164,13 @@ array_save_directory = array_save_directory[:-1] + fov_str + '/'
 if p.beam_center is not None:
     beam_center_signs = [
         '+' if p.beam_center[i] >= 0 else '' for i in range(2)
-        ]
-    beam_center_str = \
-        '_beam_center_RA0{}{:.2f}_DEC0{}{:.2f}'.format(
+    ]
+    beam_center_str = '_beam_center_RA0{}{:.2f}_DEC0{}{:.2f}'.format(
             beam_center_signs[0],
             p.beam_center[0],
             beam_center_signs[1],
             p.beam_center[1]
-            )
+    )
     array_save_directory = array_save_directory[:-1] + beam_center_str + '/'
 
 if p.unphased:
@@ -199,13 +198,13 @@ if p.include_instrumental_effects:
         beam_info_str += '{}_beam_peak_amplitude_{}'.format(
             p.beam_type,
             str(p.beam_peak_amplitude).replace('.', 'd')
-            )
+        )
     elif p.beam_type == 'gaussian':
         beam_info_str += (
             '{}_beam_peak_amplitude_{}'.format(
                 p.beam_type,
                 str(p.beam_peak_amplitude).replace('.', 'd'))
-            )
+        )
         if p.fwhm_deg is not None:
             beam_info_str += (
                 '_beam_width_{}_deg'.format(str(p.fwhm_deg).replace('.', 'd'))
@@ -215,24 +214,23 @@ if p.include_instrumental_effects:
                 '_antenna-diameter-{}m'.format(
                     str(np.round(p.antenna_diameter, decimals=2)).replace(
                         '.', 'd')
-                    )
+                )
             )
         else:
             print('\nIf using a Gaussian beam, must specify either a FWHM in'
                   ' deg or an antenna diameter in meters.\nExiting...',
-                  end='\n\n'
-                  )
+                  end='\n\n')
             sys.exit()
     elif p.beam_type == 'airy':
         beam_info_str += '{}_beam_antenna-diameter-{}m'.format(
             p.beam_type,
             str(np.round(p.antenna_diameter, decimals=2)).replace('.', 'd')
-            )
+        )
 
     instrument_model_directory_plus_beam_info = (
             p.instrument_model_directory[:-1]
             + '_{}/'.format(beam_info_str)
-        )
+    )
     instrument_info =\
         instrument_model_directory_plus_beam_info.split('/')[-2]
     if p.model_drift_scan_primary_beam:
@@ -244,7 +242,7 @@ if p.include_instrumental_effects:
             + '_instrumental/'
             + instrument_info
             + '/'
-        )
+    )
 else:
     n_vis = 0
 
@@ -252,12 +250,12 @@ if npl == 1:
     array_save_directory = array_save_directory.replace(
         '_sigma',
         '_beta_{:.2E}_sigma'.format(p.beta)
-        )
+    )
 elif npl == 2:
     array_save_directory = array_save_directory.replace(
         '_sigma',
         '_b1_{:.2E}_b2_{:.2E}_sigma'.format(p.beta[0], p.beta[1])
-        )
+    )
 
 print('\nArray save directory: {}'.format(array_save_directory))
 
@@ -279,7 +277,7 @@ if p.include_instrumental_effects:
             delta_eta_iHz=p.delta_eta_iHz,
             use_shg=p.use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
             nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh, npl_sh=npl_sh
-            )
+        )
     else:
         BM = BuildMatrices(
             array_save_directory, nu, nv,
@@ -298,26 +296,25 @@ if p.include_instrumental_effects:
             use_shg=p.use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
             nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh, npl_sh=npl_sh,
             effective_noise=effective_noise
-            )
+        )
 else:
     BM = BuildMatrices(
         array_save_directory, nu, nv,
-        n_vis, neta, nf, nq, sigma, npl=npl)
+        n_vis, neta, nf, nq, sigma, npl=npl
+    )
 
 if p.overwrite_matrices:
     print('Overwriting matrix stack')
     # Can be set to False unless npl>0
-    overwrite_existing_matrix_stack = True
-    proceed_without_overwrite_confirmation = True
+    clobber_matrices = True
+    force_clobber = True
 else:
-    # Can be set to False unless npl>0
-    overwrite_existing_matrix_stack = False
-    proceed_without_overwrite_confirmation = False
+    clobber_matrices = False
+    force_clobber = False
 
 BM.build_minimum_sufficient_matrix_stack(
-    overwrite_existing_matrix_stack=overwrite_existing_matrix_stack,
-    proceed_without_overwrite_confirmation=
-    proceed_without_overwrite_confirmation)
+    clobber_matrices=clobber_matrices, force_clobber=force_clobber
+)
 
 
 # --------------------------------------------
@@ -335,13 +332,11 @@ ps_box_size_dec_Mpc = (
     cosmo.dL_dth(redshift) * np.deg2rad(p.fov_dec_deg))
 ps_box_size_para_Mpc = (
     cosmo.dL_df(redshift) * (bandwidth_MHz * 1e6))
-mod_k, k_x, k_y, k_z, x, y, z =\
-    generate_k_cube_in_physical_coordinates(
+mod_k, k_x, k_y, k_z, x, y, z = generate_k_cube_in_physical_coordinates(
         nu, nv, neta, ps_box_size_ra_Mpc,
         ps_box_size_dec_Mpc, ps_box_size_para_Mpc
-        )
+)
 k = mod_k.copy()
-k_vis_ordered = k.T.flatten()  # not used for anything
 k_x_masked = generate_masked_coordinate_cubes(
     k_x, nu, nv, neta, nq, ps_box_size_ra_Mpc,
     ps_box_size_dec_Mpc, ps_box_size_para_Mpc
@@ -370,11 +365,12 @@ modk_vis_ordered_list = [
 k_vals_file_name = (
     'k_vals_nu_{}_nv_{}_nf_{}_nq_{}_binning_v2d1{}.txt'.format(
         nu, nv, nf, nq, fov_str
-        )
     )
+)
 k_vals = calc_mean_binned_k_vals(
     mod_k_masked, k_cube_voxels_in_bin,
-    save_k_vals=True, k_vals_file=k_vals_file_name)
+    save_k_vals=True, k_vals_file=k_vals_file_name
+)
 
 do_cylindrical_binning = False
 if do_cylindrical_binning:
@@ -404,7 +400,8 @@ if p.include_instrumental_effects:
         s_EoR, white_noise_sky = generate_mock_eor_signal_instrumental(
             Finv, nf, p.fov_ra_deg, p.fov_dec_deg, p.nside,
             p.telescope_latlonalt, p.central_jd, p.nt,
-            p.integration_time_seconds)
+            p.integration_time_seconds
+        )
         del Finv
     else:
         print('\nUsing data at {}'.format(p.data_path))
@@ -483,10 +480,10 @@ if p.use_LWM_Gaussian_prior:
         log_priors_min_max[1] = log_priors_min_max[0]
         log_priors_min_max[2] = log_priors_min_max[1]
         log_priors_min_max[3] = log_priors_min_max[2]
-        log_priors_min_max[0] = [1.0, 2.0] # Linear alpha_prime range
+        log_priors_min_max[0] = [1.0, 2.0]  # Linear alpha_prime range
 else:
     if p.use_intrinsic_noise_fitting:
-        log_priors_min_max[0] = [1.0, 2.0] # Linear alpha_prime range
+        log_priors_min_max[0] = [1.0, 2.0]  # Linear alpha_prime range
 
 
 print('\nlog_priors_min_max = {}'.format(log_priors_min_max))
@@ -504,15 +501,14 @@ dimensionless_PS = True
 zero_the_LW_modes = False
 
 if p.file_root is None:
-    file_root = 'Test-{}_{}_{}_{}_{}_{:.1E}-'.format( # lp_F-dPS_F-
+    file_root = 'Test-{}_{}_{}_{}_{}_{:.1E}-'.format(
         nu, nv, neta, nq, npl, sigma).replace('.', 'd')
     if chan_selection != '':
         file_root = chan_selection + file_root
     if npl == 1:
         file_root += '{:.2E}-'.format(p.beta)
     elif npl == 2:
-        file_root += (
-            '{:.2F}_{:.2F}-'.format(p.beta[0], p.beta[1]))
+        file_root += '{:.2F}_{:.2F}-'.format(p.beta[0], p.beta[1])
     if log_priors and p.n_uniform_prior_k_bins == 0:
         file_root += 'lp-'
     if dimensionless_PS:
@@ -526,8 +522,7 @@ if p.file_root is None:
     if use_MultiNest:
         file_root = 'MN-' + file_root
     if p.use_shg:
-        file_root += 'SH_{}_{}_{}_{}-'.format(
-            nu_sh, nv_sh, nq_sh, npl_sh)
+        file_root += 'SH_{}_{}_{}_{}-'.format(nu_sh, nv_sh, nq_sh, npl_sh)
         if p.fit_for_shg_amps:
             file_root += 'ffsa-'
     file_root += 'v1-'
@@ -545,7 +540,7 @@ PSPP_block_diag_Polychord = PowerSpectrumPosteriorProbability(
     intrinsic_noise_fitting=p.use_intrinsic_noise_fitting,
     use_shg=p.use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
     nuv_sh=nuv_sh, nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh
-    )
+)
 if p.include_instrumental_effects and not zero_the_LW_modes:
     # Include minimal prior over LW modes required for numerical stability
     PSPP_block_diag_Polychord.inverse_LW_power = p.inverse_LW_power
@@ -562,7 +557,7 @@ if p.useGPU:
         L = PSPP_block_diag_Polychord.posterior_probability([1.e0]*nDims)[0]
         if not np.isfinite(L):
             print('WARNING: Infinite value returned in posterior calculation!')
-    print('Average evaluation time: {}'.format((time.time() - start)/float(Nit)),
+    print('Average evaluation time: {}'.format((time.time()-start)/float(Nit)),
           end='\n\n')
 
 
