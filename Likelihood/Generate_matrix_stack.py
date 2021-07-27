@@ -319,21 +319,21 @@ class BuildMatrices(BuildMatrixTree):
         the LSSM.
     sigma : float
         Expected noise amplitude in the data vector = signal + noise.
-    uvw_multi_time_step_array_meters : :class:`numpy.ndarray`
+    uvw_array_m : :class:`numpy.ndarray`
         Array containing the (u(t), v(t), w(t)) coordinates of the instrument
         model with shape (nt, nbls, 3).
-    uvw_multi_time_step_array_meters_vectorised : :class:`numpy.ndarray`
-        Reshaped `uvw_multi_time_step_array_meters` with shape (nt * nbls, 3).
+    uvw_array_m_vec : :class:`numpy.ndarray`
+        Reshaped `uvw_array_m` with shape (nt * nbls, 3).
         Each set of nbls entries contain the (u, v, w) coordinates for a
         single integration.
-    baseline_redundancy_array_time_vis_shaped : :class:`numpy.ndarray`
+    bl_red_array : :class:`numpy.ndarray`
         Array containing the number of redundant baselines at each
         (u(t), v(t), w(t)) in the instrument model with shape (nt, nbls, 1).
-    baseline_redundancy_array_vectorised : :class:`numpy.ndarray`
-        Reshaped `baseline_redundancy_array_time_vis_shaped` with shape
+    bl_red_array_vec : :class:`numpy.ndarray`
+        Reshaped `bl_red_array` with shape
         (nt * nbls, 1).  Each set of nbls entries contain the redundancy of
         each (u, v, w) for a single integration.
-    phasor_vector : :class:`numpy.ndarray`
+    phasor_vec : :class:`numpy.ndarray`
         Array with shape (ndata,) that contains the phasor term used to phase
         visibilities after performing the nuDFT from HEALPix (l, m, f) to
         instrumentally sampled, unphased (u, v, f).
@@ -411,15 +411,10 @@ class BuildMatrices(BuildMatrixTree):
         # ===== Inputs =====
         self.npl = kwargs.pop('npl', default_npl)
         if p.include_instrumental_effects:
-            self.uvw_multi_time_step_array_meters =\
-                kwargs.pop('uvw_multi_time_step_array_meters')
-            self.uvw_multi_time_step_array_meters_vectorised =\
-                kwargs.pop('uvw_multi_time_step_array_meters_vectorised')
-            self.baseline_redundancy_array_time_vis_shaped =\
-                kwargs.pop('baseline_redundancy_array_time_vis_shaped')
-            self.baseline_redundancy_array_vectorised =\
-                kwargs.pop('baseline_redundancy_array_vectorised')
-            self.phasor_vector = kwargs.pop('phasor_vector')
+            self.uvw_array_m = kwargs.pop('uvw_array_m')
+            self.bl_red_array = kwargs.pop('bl_red_array')
+            self.bl_red_array_vec = kwargs.pop('bl_red_array_vec')
+            self.phasor_vec = kwargs.pop('phasor_vec')
             self.beam_type = kwargs.pop('beam_type')
             self.beam_peak_amplitude = kwargs.pop('beam_peak_amplitude')
             self.beam_center = kwargs.pop('beam_center', None)
@@ -777,9 +772,9 @@ class BuildMatrices(BuildMatrixTree):
         start = time.time()
         print('Performing matrix algebra')
         if p.use_sparse_matrices:
-            phasor_matrix = sparse.diags(self.phasor_vector)
+            phasor_matrix = sparse.diags(self.phasor_vec)
         else:
-            phasor_matrix = np.diag(self.phasor_vector)
+            phasor_matrix = np.diag(self.phasor_vec)
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
         self.output_data(
@@ -812,7 +807,7 @@ class BuildMatrices(BuildMatrixTree):
                 p.nu_min_MHz
                 + np.arange(p.nf)*p.channel_width_MHz
             )
-        sampled_uvw_coords_m = self.uvw_multi_time_step_array_meters.copy()
+        sampled_uvw_coords_m = self.uvw_array_m.copy()
         # Convert uv-coordinates from meters to wavelengths at frequency
         # chan_freq_MHz for all chan_freq_MHz in nu_array_MHz
         sampled_uvw_coords_wavelengths = \
@@ -1418,8 +1413,7 @@ class BuildMatrices(BuildMatrixTree):
                 # matrix assumes a channel_ordered data set
                 # (this vector should be re-ordered if
                 # the data is in a different order)
-                baseline_redundancy_array =\
-                    self.baseline_redundancy_array_vectorised
+                baseline_redundancy_array = self.bl_red_array_vec
                 s_size = self.n_vis * self.nf
                 multifreq_baseline_redundancy_array = np.array(
                     [baseline_redundancy_array for i in range(p.nf)]
@@ -1437,8 +1431,7 @@ class BuildMatrices(BuildMatrixTree):
                     )
             elif p.use_nvis_nchan_nt_ordering:
                 if self.effective_noise is None:
-                    red_array_time_vis_shaped =\
-                        self.baseline_redundancy_array_time_vis_shaped
+                    red_array_time_vis_shaped = self.bl_red_array
                     baseline_redundancy_array_time_freq_vis = np.array([
                         [red_array_vis for i in range(p.nf)]
                         for red_array_vis in red_array_time_vis_shaped
@@ -1499,8 +1492,7 @@ class BuildMatrices(BuildMatrixTree):
                 # matrix assumes a channel_ordered data set
                 # (this vector should be re-ordered if
                 # the data is in a different order)
-                baseline_redundancy_array = \
-                    self.baseline_redundancy_array_vectorised
+                baseline_redundancy_array = self.bl_red_array_vec
                 s_size = self.n_vis * self.nf
                 multifreq_baseline_redundancy_array = np.array(
                     [baseline_redundancy_array for i in range(p.nf)]
@@ -1518,8 +1510,7 @@ class BuildMatrices(BuildMatrixTree):
                     )
             elif p.use_nvis_nchan_nt_ordering:
                 if self.effective_noise is None:
-                    red_array_time_vis_shaped = \
-                        self.baseline_redundancy_array_time_vis_shaped
+                    red_array_time_vis_shaped = self.bl_red_array
                     baseline_redundancy_array_time_freq_vis = np.array([
                         [red_array_vis for i in range(p.nf)]
                         for red_array_vis in red_array_time_vis_shaped

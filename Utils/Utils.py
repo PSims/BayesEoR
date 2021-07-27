@@ -179,53 +179,51 @@ def generate_output_file_base(file_root, version_number='1'):
     return file_root
 
 
-def load_uvw_instrument_sampling_m(instrument_model_directory):
+def load_inst_model(
+    inst_model_dir,
+    uvw_file='uvw_multi_time_step_array_meters',
+    red_file='uvw_redundancy_multi_time_step_array',
+    phasor_file='phasor_vector.npy'
+):
     """
-    Loads a pickled binary file of instrumental (u, v, w) coordinates.
+    Load the instrument model consisting of
+    - a (u, v, w) array with shape (nt, nbls, 3)
+    - baseline redundancy array with shape (nt, nbls, 1)
+    - a phasor vector with shape (ndata,)
+
+    The phasor vector takes an unphased set of visibilities and phases them
+    to the central time step in the observation.
 
     Parameters
     ----------
-    instrument_model_directory : str
-        Path to the instrument model directory.
+    inst_model_dir : str
+        Path to the instrument model directory
+    uvw_file : str
+        File containing instrumentally sampled (u, v, w) coords.  Defaults to
+        'uvw_multi_time_step_array_meters'.
+    red_file : str
+        File containing baseline redundancy info.  Defaults to
+        'uvw_redundancy_multi_time_step_array'.
+    phasor_file : str
+        File containing the phasor vector.  Defaults to 'phasor_vector.npy'.
 
     Returns
     -------
-    uvw_multi_time_step_array_meters : np.ndarray
-        Array of floating point (u, v, w) coordinates per time sample in
-        meters with shape (nt, nbls, 3).
+    uvw_array_m : np.ndarray
+        Array of (u, v, w) coordinates.
+    bl_red_array : np.ndarray
+        Array of baseline redundancies.
+    phasor_vec : np.ndarray
+        Array of phasor values.
 
     """
-    file_dir = instrument_model_directory
-    file_name = "uvw_multi_time_step_array_meters"
-    with open(os.path.join(file_dir, file_name), 'rb') as f:
-        uvw_multi_time_step_array_meters = pickle.load(f)
-    return uvw_multi_time_step_array_meters
+    with open(os.path.join(inst_model_dir, uvw_file), 'rb') as f:
+        uvw_array_m = pickle.load(f)
+    with open(os.path.join(inst_model_dir, red_file), 'rb') as f:
+        bl_red_array = pickle.load(f)
+    phasor_vec = np.load(os.path.join(inst_model_dir, phasor_file))
 
-
-def load_baseline_redundancy_array(instrument_model_directory):
-    """
-    Loads a pickled binary file of the number of baselines within a given
-    redundant baseline group, i.e. a particular (u, v, w), in the instrument
-    model.
-
-    Parameters
-    ----------
-    instrument_model_directory : str
-        Path to the instrument model directory.
-
-    Returns
-    -------
-    uvw_redundancy_multi_time_step_array : np.ndarray
-        Array of baseline redundancy values per time sample with shape
-        (nt, nbls, 1).
-
-    """
-    file_dir = instrument_model_directory
-    file_name = "uvw_redundancy_multi_time_step_array"
-    with open(os.path.join(file_dir, file_name), 'rb') as f:
-        uvw_redundancy_multi_time_step_array =\
-            pickle.load(f)
-    return uvw_redundancy_multi_time_step_array
+    return uvw_array_m, bl_red_array, phasor_vec
 
 
 def write_log_file(array_save_directory, file_root):

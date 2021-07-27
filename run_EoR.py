@@ -24,7 +24,7 @@ if run_full_analysis:
     mpi_size = mpi_comm.Get_size()
     print('\nmpi_rank: {}'.format(mpi_rank))
     print('mpi_size: {}\n'.format(mpi_size))
-    use_MultiNest = True # Set to false for large parameter spaces
+    use_MultiNest = True  # Set to false for large parameter spaces
     if use_MultiNest:
         from pymultinest.solve import solve
     else:
@@ -84,47 +84,42 @@ else:
     sigma = effective_noise.std()
 
 if p.include_instrumental_effects:
-    # Load uvw model in (nvis_per_chan, nchan) order
-    uvw_multi_time_step_array_meters = load_uvw_instrument_sampling_m(
-        p.instrument_model_directory)
-    # uvw_multi_time_step_array_meters[:,:,:].reshape(-1,3)
-    uvw_multi_time_step_array_meters_vectorised = np.reshape(
-        uvw_multi_time_step_array_meters[:, :, :], (-1, 3))
-    baseline_redundancy_array_time_vis_shaped = load_baseline_redundancy_array(
-        p.instrument_model_directory)
+    # uvw_array_m must have shape (nt, nbls, 3) and stores the (u, v, w)
+    # coordinates sampled by the instrument.
+    # bl_red_array must have shape (nt, nbls, 1) and stores the number of
+    # redundant baselines per time and per baseline.
+    # phasor_vec must have shape (ndata,) and stores a phasor per time,
+    # frequency, and baseline that phases the visibilities to the central
+    # time step in the observation.
+    uvw_array_m, bl_red_array, phasor_vec = load_inst_model(
+        p.instrument_model_directory
+    )
+    uvw_array_m_vec = np.reshape(uvw_array_m, (-1, 3))
 
-    # n_vis sets the Number of visibilities per channel
-    # (i.e. number of redundant baselines * number of time steps)
-    n_vis = len(uvw_multi_time_step_array_meters_vectorised)
+    # n_vis sets the number of visibilities per channel,
+    # i.e. number of redundant baselines * number of time steps
+    n_vis = len(uvw_array_m_vec)
 
     # Re-weight baseline_redundancy_array (downweight to minimum
     # redundance baseline) to provide uniformly weighted data as input
     # to the analysis, so that the quick intrinsic noise fitting
     # approximation is valid, until generalised intrinsic noise fitting
     # is implemented.
-    baseline_redundancy_array_time_vis_shaped = (
-            baseline_redundancy_array_time_vis_shaped*0 +
-            baseline_redundancy_array_time_vis_shaped.min())
-    # baseline_redundancy_array_time_vis_shaped.reshape(-1,1).flatten()
-    baseline_redundancy_array_vectorised = np.reshape(
-        baseline_redundancy_array_time_vis_shaped, (-1, 1)).flatten()
+    bl_red_array = bl_red_array*0 + bl_red_array.min()
+    bl_red_array_vec = np.reshape(bl_red_array, (-1, 1)).flatten()
 
     # Keep average noise level consistent with the non-instrumental
     # case by normalizing sigma by the average baseline redundancy
     # before scaling individual baselines by their respective
     # redundancies
-    average_baseline_redundancy = np.mean(
-        baseline_redundancy_array_time_vis_shaped)
+    avg_bl_red = np.mean(bl_red_array)
     if 'noise_data_path' not in p.__dict__.keys():
-        sigma = sigma * average_baseline_redundancy**0.5
+        sigma = sigma * avg_bl_red**0.5
     else:
         sigma = sigma*1.
 
-    phasor_vector = np.load(
-        os.path.join(p.instrument_model_directory,
-                     'phasor_vector.npy'))
     if p.unphased:
-        phasor_vector = np.ones_like(phasor_vector)
+        phasor_vec = np.ones_like(phasor_vec)
 
 else:
     sigma = sigma*1.
@@ -159,7 +154,8 @@ array_save_directory = array_save_directory[:-1] + '_nside{}/'.format(p.nside)
 
 # FoV modifier
 if p.fov_ra_deg != p.fov_dec_deg:
-    fov_str = '_fov_deg_ra_{:.1f}_dec_{:.1f}'.format(p.fov_ra_deg, p.fov_dec_deg)
+    fov_str = '_fov_deg_ra_{:.1f}_dec_{:.1f}'.format(
+        p.fov_ra_deg, p.fov_dec_deg)
 else:
     fov_str = '_fov_deg_{:.1f}'.format(p.fov_ra_deg)
 array_save_directory = array_save_directory[:-1] + fov_str + '/'
@@ -270,15 +266,10 @@ if p.include_instrumental_effects:
         BM = BuildMatrices(
             array_save_directory, nu, nv,
             n_vis, neta, nf, nq, sigma, npl=npl,
-            uvw_multi_time_step_array_meters=\
-                uvw_multi_time_step_array_meters,
-            uvw_multi_time_step_array_meters_vectorised=\
-                uvw_multi_time_step_array_meters_vectorised,
-            baseline_redundancy_array_time_vis_shaped=\
-                baseline_redundancy_array_time_vis_shaped,
-            baseline_redundancy_array_vectorised=\
-                baseline_redundancy_array_vectorised,
-            phasor_vector=phasor_vector,
+            uvw_array_m=uvw_array_m,
+            bl_red_array=bl_red_array,
+            bl_red_array_vec=bl_red_array_vec,
+            phasor_vec=phasor_vec,
             beam_type=p.beam_type,
             beam_peak_amplitude=p.beam_peak_amplitude,
             beam_center=p.beam_center,
@@ -293,15 +284,10 @@ if p.include_instrumental_effects:
         BM = BuildMatrices(
             array_save_directory, nu, nv,
             n_vis, neta, nf, nq, sigma, npl=npl,
-            uvw_multi_time_step_array_meters=\
-                uvw_multi_time_step_array_meters,
-            uvw_multi_time_step_array_meters_vectorised=\
-                uvw_multi_time_step_array_meters_vectorised,
-            baseline_redundancy_array_time_vis_shaped=\
-                baseline_redundancy_array_time_vis_shaped,
-            baseline_redundancy_array_vectorised=\
-                baseline_redundancy_array_vectorised,
-            phasor_vector=phasor_vector,
+            uvw_array_m=uvw_array_m,
+            bl_red_array=bl_red_array,
+            bl_red_array_vec=bl_red_array_vec,
+            phasor_vec=phasor_vec,
             beam_type=p.beam_type,
             beam_peak_amplitude=p.beam_peak_amplitude,
             beam_center=p.beam_center,
@@ -433,8 +419,8 @@ if p.include_instrumental_effects:
         d, effective_noise, bl_conjugate_pairs_map =\
             generate_data_and_noise_vector_instrumental(
                 1.0*sigma, s_EoR, nf, p.nt,
-                uvw_multi_time_step_array_meters[0],
-                baseline_redundancy_array_time_vis_shaped[0],
+                uvw_array_m[0],
+                bl_red_array[0],
                 random_seed=EoR_noise_seed)
     else:
         d = s_EoR.copy()
@@ -442,12 +428,12 @@ if p.include_instrumental_effects:
 effective_noise_std = effective_noise.std()
 print('\ns_EoR.std = {:.4e}'.format(s_EoR.std()))
 print('signal is Hermitian: {}'.format(
-    vector_is_hermitian(s_EoR, bl_conjugate_pairs_map, p.nt, nf,
-                        uvw_multi_time_step_array_meters.shape[1])
+    vector_is_hermitian(
+        s_EoR, bl_conjugate_pairs_map, p.nt, nf, uvw_array_m.shape[1])
 ))
 print('signal + noise is Hermitian: {}'.format(
-    vector_is_hermitian(d, bl_conjugate_pairs_map, p.nt, nf,
-                        uvw_multi_time_step_array_meters.shape[1])
+    vector_is_hermitian(
+        d, bl_conjugate_pairs_map, p.nt, nf, uvw_array_m.shape[1])
 ))
 print('effective_noise.std = {:.4e}'.format(effective_noise_std))
 print('dA = {:.4e}'.format(p.sky_model_pixel_area_sr))

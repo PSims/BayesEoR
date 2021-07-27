@@ -13,9 +13,8 @@ from .Likelihood.Likelihood\
     import PowerSpectrumPosteriorProbability
 
 from .Utils import\
-    PriorC, generate_output_file_base, load_uvw_instrument_sampling_m,\
-    load_baseline_redundancy_array, write_log_file, vector_is_hermitian,\
-    Cosmology
+    PriorC, generate_output_file_base, load_inst_model,\
+    write_log_file, vector_is_hermitian, Cosmology
 
 from .GenerateForegroundCube import\
     generate_data_from_loaded_eor_cube,\
