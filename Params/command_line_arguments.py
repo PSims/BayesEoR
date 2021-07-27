@@ -12,89 +12,92 @@ def BayesEoRParser():
     parser.add_argument(
         "-nq", "--nq",
         type=int,
-        help="Number of LWM basis vectors (0-2)"
-        )
+        help="Number of Large Spectral Scale Model (LSSM) quadratic modes."
+    )
     parser.add_argument(
         '--nu',
         type=int,
         help="Number of pixels on the u-axis of the model uv-plane."
-        )
+    )
     parser.add_argument(
         '--nv',
         type=int,
         help="Number of pixels on the v-axis of the model uv-plane. "
              "Defaults to `nu`."
-        )
+    )
     parser.add_argument(
         "-beta", "--beta",
         help="Power law spectral index used in data model"
-        )
+    )
     parser.add_argument(
         '--sigma',
         type=float,
         help="RMS of the visibility noise."
-        )
+    )
     parser.add_argument(
         '--data_path',
         type=str,
-        help="Path to data file for analysis.",
+        help="Path to numpy readable visibility data file in mK sr.",
         default=None
-        )
+    )
     parser.add_argument(
         '--noise_data_path',
         type=str,
         help="Path to noise file associated with data_path argument.",
         default=None
-        )
+    )
     parser.add_argument(
         '--noise_seed',
         type=int,
-        help="Seed for numpy.random. Used to generate the noise vector.",
+        help="Seed for numpy.random. Used to generate the noise vector. "
+             "Defaults to 742123.",
         default=742123
-        )
+    )
     parser.add_argument(
         '--beam_type',
         type=str,
-        help="Can be either 'gaussian' or 'uniform' (case insensitive). "
-             "Defaults to 'gaussian'."
-        )
+        help="Can be 'gaussian', 'uniform', or 'airy' (case insensitive)."
+    )
     parser.add_argument(
         '--beam_peak_amplitude',
         type=float,
         help="Peak amplitude of the beam."
-        )
+    )
     parser.add_argument(
         '--fwhm_deg',
         type=float,
-        help="FWHM of beam in degrees."
-        )
+        help="Full Width at Half Maximum (FWHM) of beam in degrees."
+    )
     parser.add_argument(
         '--antenna_diameter',
         type=float,
         help="Antenna diameter in meters used for Airy beam calculations."
-        )
+    )
     parser.add_argument(
         '--overwrite_matrices',
         action='store_true',
         default=False,
         dest='overwrite_matrices',
         help="If passed, overwrite existing matrix stack."
-        )
+    )
     parser.add_argument(
         '--fov_ra_deg',
         type=float,
-        help="Field of view of the RA axis of the sky model in degrees."
-        )
+        help="Field of view of the Right Ascension (RA) axis of the sky model "
+             "in degrees."
+    )
     parser.add_argument(
         '--fov_dec_deg',
         type=float,
-        help="Field of view of the DEC axis of the sky model in degrees."
+        help="Field of view of the Declination (DEC) axis of the sky model in "
+             "degrees."
     )
     parser.add_argument(
         '--nside',
         type=int,
-        help="Resolution parameter for HEALPix coordinate maps."
-        )
+        help="HEALPix resolution parameter. Sets the resolution of the "
+             "sky model."
+    )
     parser.add_argument(
         '--beam_center',
         type=str,
@@ -102,67 +105,65 @@ def BayesEoRParser():
              "the pointing center of the sky model defined by "
              "`p.telescope_latlonalt` and `p.central_jd` at zenith. "
              "Must be set via a string argument as "
-             "--beam_center\"(RA_offset,DEC_offset)\" with no spaces."
-        )
+             "--beam_center=\"(RA_offset,DEC_offset)\" with no spaces."
+    )
     parser.add_argument(
         '--unphased',
         action='store_true',
-        help="If passed, the data are treated as unphased and the identity"
-             " matrix will be used in place of the phasor matrix."
-        )
+        help="If passed, the data are treated as unphased."
+    )
     parser.add_argument(
         '--fit_for_monopole',
         action='store_true',
-        help="If passed, include the (u, v) = (0, 0) pixel in the uvf model."
-        )
+        help="If passed, include the (u, v) = (0, 0) pixel in the "
+             "model uv-plane."
+    )
     parser.add_argument(
         '--n_uniform_prior_k_bins',
         type=int,
         help="Number of k-bins, counting up from the lowest k-bin, that will "
              "use a prior which is uniform in the amplitude.  The remaining "
              "k-bins will use log-uniform priors."
-        )
+    )
     parser.add_argument(
         '--file_root',
         type=str,
         help="Sets the file root for the sampler (Multinest/Polychord) output."
              " If passed, analysis will continue from the last checkpoint in "
              "the output file specified."
-        )
+    )
     parser.add_argument(
         '--use_shg',
         action='store_true',
-        help="If passed, use the subharmonic grid."
+        help="If passed, use the SubHarmonic Grid (SHG)."
     )
     parser.add_argument(
         '--nu_sh',
         type=int,
-        help="Number of pixels on a side for the u-axis in the subharmonic "
+        help="Number of pixels on a side for the u-axis in the SHG "
              "model uv-plane."
-        )
+    )
     parser.add_argument(
         '--nv_sh',
         type=int,
-        help="Number of pixels on a side for the v-axis in the subharmonic "
+        help="Number of pixels on a side for the v-axis in the SHG "
              "model uv-plane."
     )
     parser.add_argument(
         '--nq_sh',
         type=int,
-        help="Number of large spectral scale quadratic modes for the "
-             "subharmonic grid."
+        help="Number of LSSM quadratic modes for the SHG."
     )
     parser.add_argument(
         '--npl_sh',
         type=int,
-        help="Number of power law coefficients used in the large spectral "
-             "scale model for the subharmonic grid."
+        help="Number of power law coefficients used in the LSSM for the "
+             "subharmonic grid."
     )
     parser.add_argument(
         '--fit_for_shg_amps',
         action='store_true',
-        help="If passed, fit for the amplitudes of the subharmonic grid "
-             "pixels."
+        help="If passed, fit for the amplitudes of the SHG pixels."
     )
 
     args = parser.parse_args()
@@ -219,5 +220,5 @@ def update_params_with_command_line_arguments():
                 else:
                     print('Setting params p.{} = {}'.format(
                         key, args.__dict__[key])
-                        )
+                    )
                 p.__dict__[key] = args.__dict__[key]
