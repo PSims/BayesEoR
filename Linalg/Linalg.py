@@ -26,6 +26,7 @@ def Produce_Coordinate_Arrays_ZM(nu, nv, exclude_mean=True):
     exclude_mean : bool
         If True, remove the (u, v) = (0, 0) pixel from the model
         uv-plane coordinate arrays. Defaults to True.
+
     """
     us, vs = np.meshgrid(np.arange(nu) - nu//2, np.arange(nv) - nv//2)
     us_vec = us.flatten().reshape(1, nu*nv)
@@ -55,6 +56,7 @@ def Produce_Coordinate_Arrays_ZM_SH(
         uv-plane coordinate arrays. Defaults to True.
     spacing : str
         Needs development. Can be 'linear' or 'log' spacing of the SHG pixels.
+
     """
     # Assuming uniform spacing for now
     us, vs = np.meshgrid(np.arange(nu) - nu//2, np.arange(nv) - nv//2)
@@ -90,6 +92,7 @@ def nuDFT_Array_DFT_2D_v2d0(
     -------
     ExponentArray : np.ndarray of complex floats
         Non-uniform DFT array with shape (nbls, npix).
+
     """
 
     # Use HEALPix sampled (l, m) coords
@@ -152,6 +155,7 @@ def IDFT_Array_IDFT_2D_ZM(
     -------
     ExponentArray : np.ndarray of complex floats
         Non-uniform 2D DFT matrix with shape (npix, nuv).
+
     """
     i_u_AV, i_v_AV =\
         Produce_Coordinate_Arrays_ZM(nu, nv, exclude_mean=exclude_mean)
@@ -207,6 +211,7 @@ def IDFT_Array_IDFT_2D_ZM_SH(
     -------
     ExponentArray : np.ndarray, shape (npix, nuv_sh)
         Non-uniform, complex 2D DFT matrix.
+
     """
     u_vec, v_vec =\
         Produce_Coordinate_Arrays_ZM_SH(
@@ -264,6 +269,7 @@ def quadratic_array_linear_plus_quad_modes_only_v2(
     quadratic_array : np.ndarray of floats
         Array containing the long wavelength modes, either quadratic
         or polynomial if `npl > 0`, with shape (nq, nf).
+
     """
     quadratic_array = np.zeros([nq, nf]) + 0j
     nu_array_MHz = (
@@ -405,6 +411,7 @@ def IDFT_Array_IDFT_1D(nf, neta):
     -------
     ExponentArray : np.ndarray of complex floats
         Uniform 1D DFT matrix with shape (nf, neta).
+
     """
     i_f = (np.arange(nf)-nf//2).reshape(-1, 1)
     i_eta = (np.arange(neta)-neta//2).reshape(1, -1)
@@ -442,6 +449,7 @@ def IDFT_Array_IDFT_1D_WQ(
     -------
     ExponentArray : np.ndarray of complex floats
         1D DFT matrix with shape (nf, neta + nq).
+
     """
     i_f = (np.arange(nf) - nf//2).reshape(-1, 1)
     i_eta = (np.arange(neta) - neta//2).reshape(1, -1)
@@ -503,6 +511,7 @@ def idft_array_idft_1d_sh(
     idft_array_sh : np.ndarray of complex floats
         Matrix containing the 1D DFT matrix and/or the LSSM for the SHG pixels
         if `fit_for_shg_amps` = True and/or `nq_sh` > 0.
+
     """
     if not fit_for_shg_amps:
         neta = 1
@@ -548,6 +557,7 @@ def generate_gridding_matrix_vis_ordered_to_chan_ordered(
     gridding_matrix_vis_ordered_to_chan_ordered : np.ndarray
         Array containing the mapping from visibility ordering to channel
         ordering.
+
     """
     nuv = nu*nv - exclude_mean
     vis_grab_order = np.arange(nuv)
