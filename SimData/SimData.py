@@ -20,7 +20,7 @@ def generate_k_cube_in_physical_coordinates(
     neta : int
         Number of Line of Sight (LoS, frequency axis) Fourier modes.
     ps_box_size_ra_Mpc : float
-        Right ascension (RA) axis extent of the cosmological volume in Mpc from
+        Right Ascension (RA) axis extent of the cosmological volume in Mpc from
         which the power spectrum is estimated.
     ps_box_size_dec_Mpc : float
         Declination (DEC) axis extent of the cosmological volume in Mpc from
@@ -161,37 +161,35 @@ def generate_data_and_noise_vector_instrumental(
 
 def mask_k_cubes(k_x, k_y, k_z, mod_k, neta, nq):
     """
-    Creates a mask and masks Fourier modes that are unused when estimating
-    the power spectrum.
+    Creates a mask and masks Fourier and Large Spectral Scale Model (LSSM)
+    modes that are unused for estimating the power spectrum.
 
     Parameters
     ----------
-    cube_to_mask : np.ndarray of floats
-        Input Fourier cube to be masked.
-    nu : int
-        Number of pixels on a side for the u-axis in the model uv-plane.
-    nv : int
-        Number of pixels on a side for the v-axis in the model uv-plane.
+    k_x : np.ndarray of floats
+        Array of Right Ascension (RA) axis Fourier modes in inverse Mpc.
+    k_y : np.ndarray of floats
+        Array of Declination (DEC) axis Fourier modes in inverse Mpc.
+    k_z : np.ndarray of floats
+        Array of Line of Sight (LoS, frequency axis) axis Fourier modes in
+        inverse Mpc.
+    mod_k : np.ndarray of floats
+        Modulus of each 3D k-space voxel, i.e. sqrt(k_x**2 + k_y**2 + kz**2).
     neta : int
         Number of Line of Sight (LoS, frequency axis) Fourier modes.
     nq : int
         Number of quadratic modes in the Larse Spectral Scale Model (LSSM).
-    ps_box_size_ra_Mpc : float
-        Right ascension (RA) axis extent of the cosmological volume in Mpc from
-        which the power spectrum is estimated.
-    ps_box_size_dec_Mpc : float
-        Declination (DEC) axis extent of the cosmological volume in Mpc from
-        which the power spectrum is estimated.
-    ps_box_size_para_Mpc : float
-        LoS extent of the cosmological volume in Mpc from which the power
-        spectrum is estimated.
 
     Returns
     -------
-    model_cube_to_mask_vis_ordered : np.ndarray of floats
-        Array of masked Fourier modes if ``nq = 0``.
-    model_cube_to_mask_vis_ordered_WQ : np.ndarray of floats
-        Array of masked Fourier modes if ``nq > 0``.
+    k_x_masked : np.ndarray of floats
+        `k_x` with only modes used for power spectrum estimation.
+    k_y_masked : np.ndarray of floats
+        `k_y` with only modes used for power spectrum estimation.
+    k_z_masked : np.ndarray of floats
+        `k_z` with only modes used for power spectrum estimation.
+    mod_k_masked : np.ndarray of floats
+        `mod_k` with only modes used for power spectrum estimation.
 
     """
     # Do not include high spatial frequency structure in the power
