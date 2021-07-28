@@ -159,9 +159,7 @@ def generate_data_and_noise_vector_instrumental(
     return d, complex_noise_hermitian.flatten(), bl_conjugate_pairs_map
 
 
-def generate_masked_coordinate_cubes(
-        cube_to_mask, nu, nv, neta, nq,
-        ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc):
+def mask_k_cubes(k_x, k_y, k_z, mod_k, neta, nq):
     """
     Creates a mask and masks Fourier modes that are unused when estimating
     the power spectrum.
@@ -196,76 +194,75 @@ def generate_masked_coordinate_cubes(
         Array of masked Fourier modes if ``nq > 0``.
 
     """
-    mod_k, k_x, k_y, k_z, x, y, z =\
-        generate_k_cube_in_physical_coordinates(
-            nu, nv, neta,
-            ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc)
-
     # Do not include high spatial frequency structure in the power
     # spectral data since these terms aren't included in the data model
-    Nyquist_k_z_mode = k_z[0, 0, 0]
-    Second_highest_frequency_k_z_mode = k_z[-1, 0, 0]
+    nyquist_k_z_mode = k_z[0, 0, 0]
+    sub_nyquist_k_z_mode = k_z[-1, 0, 0]
     # NOTE: the k_z=0 term should not necessarily be masked out since it
     # is still required as a quadratic component (and is not currently
     # explicitly added in there) even if it is not used for calculating
     # the power spectrum.
     if nq == 1:
-        high_spatial_frequency_selector_mask = k_z == Nyquist_k_z_mode
+        high_k_z_selector = k_z == nyquist_k_z_mode
     else:
-        high_spatial_frequency_selector_mask = np.logical_or.reduce(
-            (k_z == Nyquist_k_z_mode,
-             k_z == Second_highest_frequency_k_z_mode))
-    high_spatial_frequency_mask = np.logical_not(
-        high_spatial_frequency_selector_mask)
+        high_k_z_selector = np.logical_or(
+            k_z == nyquist_k_z_mode, k_z == sub_nyquist_k_z_mode
+        )
+    high_k_z_mask = np.logical_not(
+        high_k_z_selector)
 
     if p.include_instrumental_effects:
-        high_spatial_frequency_mask = (
-                high_spatial_frequency_mask
-                == high_spatial_frequency_mask)
-        high_spatial_frequency_selector_mask = (
-                high_spatial_frequency_selector_mask
-                != high_spatial_frequency_selector_mask)
+        high_k_z_mask = high_k_z_mask == high_k_z_mask
+        high_k_z_selector = high_k_z_selector != high_k_z_selector
 
-    Mean_k_z_mode = 0.0
-    k_z_mean_mask = k_z != Mean_k_z_mode
-
-    k_perp_3D = (k_x**2. + k_y**2)**0.5
+    k_perp = (k_x**2. + k_y**2)**0.5
     if p.fit_for_monopole:
-        ZM_mask = k_perp_3D >= 0.0  # Don't exclude the mean from the fit
+        zm_mask = k_perp >= 0.0  # Don't exclude the mean from the fit
     else:
-        ZM_mask = k_perp_3D > 0.0  # Exclude (u, v) = (0, 0)
+        zm_mask = k_perp > 0.0  # Exclude (u, v) = (0, 0)
 
-    ZM_2D_mask_vis_ordered = ZM_mask.T.flatten()
-    high_spatial_frequency_mask_vis_ordered = np.logical_not(
-        high_spatial_frequency_selector_mask.T.flatten())
+    zm_mask_vo = zm_mask.T.flatten()
+    high_k_z_mask_vo = np.logical_not(high_k_z_selector.T.flatten())
 
     if nq > 0:
-        ZM_2D_and_high_spatial_frequencies_mask_vis_ordered = np.logical_and(
-            high_spatial_frequency_mask_vis_ordered, ZM_2D_mask_vis_ordered)
+        masked_modes = np.logical_and(high_k_z_mask_vo, zm_mask_vo)
     else:
-        ZM_2D_and_high_spatial_frequencies_mask_vis_ordered =\
-            ZM_2D_mask_vis_ordered
+        masked_modes = zm_mask_vo
 
-    model_cube_to_mask_vis_ordered = cube_to_mask.T.flatten()[
-        ZM_2D_and_high_spatial_frequencies_mask_vis_ordered]
+    # Power spectrum will be fit using only unmasked Fourier modes
+    k_x_masked = k_x.T.flatten()[masked_modes]
+    k_y_masked = k_y.T.flatten()[masked_modes]
+    k_z_masked = k_z.T.flatten()[masked_modes]
+    mod_k_masked = mod_k.T.flatten()[masked_modes]
 
     if nq > 0:
-        model_cube_to_mask_vis_ordered_reshaped =\
-            model_cube_to_mask_vis_ordered.reshape(-1, neta)
+        # Mask the Large Spectral Scale Model (LSSM) modes.  These
+        # modes are only intended to model the spectrum of a ForeGround (FG)
+        # component and should not be used to esimate the EoR power spectrum.
 
-        WQ_inf_array = (
-                np.zeros(
-                    [model_cube_to_mask_vis_ordered_reshaped.shape[0], nq])
-                + np.inf)
-        model_cube_to_mask_vis_ordered_reshaped_WQ = np.hstack(
-            (model_cube_to_mask_vis_ordered_reshaped, WQ_inf_array))
+        # In the reshaped arrays below:
+        # Moving along the zeroth axis moves first along k_y, then k_x.
+        # Moving along the first axis moves along k_z.
+        k_x_masked = k_x_masked.reshape(-1, neta)
+        k_y_masked = k_y_masked.reshape(-1, neta)
+        k_z_masked = k_z_masked.reshape(-1, neta)
+        mod_k_masked = mod_k_masked.reshape(-1, neta)
 
-        model_cube_to_mask_vis_ordered_WQ =\
-            model_cube_to_mask_vis_ordered_reshaped_WQ.flatten()
+        # Append infinities to mask the Large Spectral Scale Model (LSSM)
+        # model modes from conributing to the power spectrum estimation
+        WQ_inf_array = np.zeros((k_x_masked.shape[0], nq)) + np.inf
+        k_x_masked = np.hstack((k_x_masked, WQ_inf_array))
+        k_y_masked = np.hstack((k_y_masked, WQ_inf_array))
+        k_z_masked = np.hstack((k_z_masked, WQ_inf_array))
+        mod_k_masked = np.hstack((mod_k_masked, WQ_inf_array))
 
-        return model_cube_to_mask_vis_ordered_WQ
-    else:
-        return model_cube_to_mask_vis_ordered
+        # Flattened arrays move first along k_z, then k_y, and lastly k_x.
+        k_x_masked = k_x_masked.flatten()
+        k_y_masked = k_y_masked.flatten()
+        k_z_masked = k_z_masked.flatten()
+        mod_k_masked = mod_k_masked.flatten()
+
+    return k_x_masked, k_y_masked, k_z_masked, mod_k_masked
 
 
 def generate_k_cube_model_spherical_binning(

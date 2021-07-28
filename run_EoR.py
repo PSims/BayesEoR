@@ -78,6 +78,7 @@ sub_ML_monopole_term_model = False
 
 # Data noise
 if 'noise_data_path' not in p.__dict__.keys():
+    effective_noise = None
     sigma = p.sigma
 else:
     effective_noise = np.load(p.noise_data_path)
@@ -260,43 +261,24 @@ elif npl == 2:
 print('\nArray save directory: {}'.format(array_save_directory))
 
 if p.include_instrumental_effects:
-    if 'noise_data_path' not in p.__dict__.keys():
-        BM = BuildMatrices(
-            array_save_directory, nu, nv,
-            n_vis, neta, nf, nq, sigma, npl=npl,
-            uvw_array_m=uvw_array_m,
-            bl_red_array=bl_red_array,
-            bl_red_array_vec=bl_red_array_vec,
-            phasor_vec=phasor_vec,
-            beam_type=p.beam_type,
-            beam_peak_amplitude=p.beam_peak_amplitude,
-            beam_center=p.beam_center,
-            fwhm_deg=p.fwhm_deg,
-            antenna_diameter=p.antenna_diameter,
-            delta_u_irad=p.delta_u_irad, delta_v_irad=p.delta_v_irad,
-            delta_eta_iHz=p.delta_eta_iHz,
-            use_shg=p.use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
-            nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh, npl_sh=npl_sh
-        )
-    else:
-        BM = BuildMatrices(
-            array_save_directory, nu, nv,
-            n_vis, neta, nf, nq, sigma, npl=npl,
-            uvw_array_m=uvw_array_m,
-            bl_red_array=bl_red_array,
-            bl_red_array_vec=bl_red_array_vec,
-            phasor_vec=phasor_vec,
-            beam_type=p.beam_type,
-            beam_peak_amplitude=p.beam_peak_amplitude,
-            beam_center=p.beam_center,
-            fwhm_deg=p.fwhm_deg,
-            antenna_diameter=p.antenna_diameter,
-            delta_u_irad=p.delta_u_irad, delta_v_irad=p.delta_v_irad,
-            delta_eta_iHz=p.delta_eta_iHz,
-            use_shg=p.use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
-            nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh, npl_sh=npl_sh,
-            effective_noise=effective_noise
-        )
+    BM = BuildMatrices(
+        array_save_directory, nu, nv,
+        n_vis, neta, nf, nq, sigma, npl=npl,
+        uvw_array_m=uvw_array_m,
+        bl_red_array=bl_red_array,
+        bl_red_array_vec=bl_red_array_vec,
+        phasor_vec=phasor_vec,
+        beam_type=p.beam_type,
+        beam_peak_amplitude=p.beam_peak_amplitude,
+        beam_center=p.beam_center,
+        fwhm_deg=p.fwhm_deg,
+        antenna_diameter=p.antenna_diameter,
+        delta_u_irad=p.delta_u_irad, delta_v_irad=p.delta_v_irad,
+        delta_eta_iHz=p.delta_eta_iHz,
+        use_shg=p.use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
+        nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh, npl_sh=npl_sh,
+        effective_noise=effective_noise
+    )
 else:
     BM = BuildMatrices(
         array_save_directory, nu, nv,
@@ -305,7 +287,6 @@ else:
 
 if p.overwrite_matrices:
     print('Overwriting matrix stack')
-    # Can be set to False unless npl>0
     clobber_matrices = True
     force_clobber = True
 else:
@@ -321,11 +302,11 @@ BM.build_minimum_sufficient_matrix_stack(
 # Define power spectral bins and coordinate cubes
 # --------------------------------------------
 cosmo = Cosmology()
-# The box size parameters determine the side lengths of the
-# cosmological volume from which the power spectrum is estimated
 freqs_MHz = p.nu_min_MHz + np.arange(p.nf)*p.channel_width_MHz
 bandwidth_MHz = p.channel_width_MHz * p.nf
 redshift = cosmo.f2z((freqs_MHz.mean() * units.MHz).to('Hz'))
+# The various box size parameters determine the side lengths of the
+# cosmological volume from which the power spectrum is estimated
 ps_box_size_ra_Mpc = (
     cosmo.dL_dth(redshift) * np.deg2rad(p.fov_ra_deg))
 ps_box_size_dec_Mpc = (
@@ -336,22 +317,8 @@ mod_k, k_x, k_y, k_z, x, y, z = generate_k_cube_in_physical_coordinates(
         nu, nv, neta, ps_box_size_ra_Mpc,
         ps_box_size_dec_Mpc, ps_box_size_para_Mpc
 )
-k = mod_k.copy()
-k_x_masked = generate_masked_coordinate_cubes(
-    k_x, nu, nv, neta, nq, ps_box_size_ra_Mpc,
-    ps_box_size_dec_Mpc, ps_box_size_para_Mpc
-)
-k_y_masked = generate_masked_coordinate_cubes(
-    k_y, nu, nv, neta, nq, ps_box_size_ra_Mpc,
-    ps_box_size_dec_Mpc, ps_box_size_para_Mpc
-)
-k_z_masked = generate_masked_coordinate_cubes(
-    k_z, nu, nv, neta, nq, ps_box_size_ra_Mpc,
-    ps_box_size_dec_Mpc, ps_box_size_para_Mpc
-)
-mod_k_masked = generate_masked_coordinate_cubes(
-    mod_k, nu, nv, neta, nq, ps_box_size_ra_Mpc,
-    ps_box_size_dec_Mpc, ps_box_size_para_Mpc
+k_x_masked, k_y_masked, k_z_masked, mod_k_masked = mask_k_cubes(
+    k_x, k_y, k_z, mod_k, neta, nq
 )
 k_cube_voxels_in_bin, modkbins_containing_voxels = \
     generate_k_cube_model_spherical_binning(
@@ -360,7 +327,7 @@ k_cube_voxels_in_bin, modkbins_containing_voxels = \
 modk_vis_ordered_list = [
     mod_k_masked[k_cube_voxels_in_bin[i_bin]]
     for i_bin in range(len(k_cube_voxels_in_bin))
-    ]
+]
 
 k_vals_file_name = (
     'k_vals_nu_{}_nv_{}_nf_{}_nq_{}_binning_v2d1{}.txt'.format(
@@ -369,7 +336,7 @@ k_vals_file_name = (
 )
 k_vals = calc_mean_binned_k_vals(
     mod_k_masked, k_cube_voxels_in_bin,
-    save_k_vals=True, k_vals_file=k_vals_file_name
+    save_k_vals=False, k_vals_file=k_vals_file_name
 )
 
 do_cylindrical_binning = False
