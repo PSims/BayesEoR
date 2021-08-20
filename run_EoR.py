@@ -308,11 +308,14 @@ redshift = cosmo.f2z((freqs_MHz.mean() * units.MHz).to('Hz'))
 # The various box size parameters determine the side lengths of the
 # cosmological volume from which the power spectrum is estimated
 ps_box_size_ra_Mpc = (
-    cosmo.dL_dth(redshift) * np.deg2rad(p.fov_ra_deg))
+    cosmo.dL_dth(redshift) * np.deg2rad(p.fov_ra_deg)
+)
 ps_box_size_dec_Mpc = (
-    cosmo.dL_dth(redshift) * np.deg2rad(p.fov_dec_deg))
+    cosmo.dL_dth(redshift) * np.deg2rad(p.fov_dec_deg)
+)
 ps_box_size_para_Mpc = (
-    cosmo.dL_df(redshift) * (bandwidth_MHz * 1e6))
+    cosmo.dL_df(redshift) * (bandwidth_MHz * 1e6)
+)
 mod_k, k_x, k_y, k_z, x, y, z = generate_k_cube_in_physical_coordinates(
         nu, nv, neta, ps_box_size_ra_Mpc,
         ps_box_size_dec_Mpc, ps_box_size_para_Mpc
