@@ -24,6 +24,7 @@ import copy
 import os
 import sys
 import optparse
+import warnings
 
 from pathlib import Path
 from datetime import datetime
@@ -88,32 +89,61 @@ o.add_option(
 o.add_option(
     '--start_freq_MHz',
     type=float,
-    help=('Starting frequency in MHz from which 76 right-adjacent '
-          'frequency channels will be extracted. Defaults to the first '
-          'frequency channel in `filename`.')
+    help='Starting frequency in MHz from which 76 right-adjacent '
+         'frequency channels will be extracted. Defaults to the first '
+         'frequency channel in `filename`.'
 )
 o.add_option(
-    '--save_data',
+    '--nf',
+    type=int,
+    default=38,
+    help='Number of frequency channels to include in the data vector.  '
+         'Defaults to 38.'
+)
+o.add_option(
+    '--avg_adj_freqs',
     action='store_true',
-    dest='save',
-    default=True
+    help='If passed, include 2*nf frequency channels and average two '
+         'adjacent frequency channels together to form nf frequencies '
+         'in the data vector.'
 )
 o.add_option(
-    '--no_save_data',
-    action='store_false',
-    dest='save',
-    help="If passed, don't save data."
+    '--nt',
+    type=str,
+    default=30,
+    help='Number of integrations to include in the data vector.  '
+         'Defaults to 30.'
+)
+o.add_option(
+    '--start_int',
+    type=int,
+    default=0,
+    help='Integration number (zero indexed) from which the next consecutive '
+         '`nt` integrations will be taken from the UVData object.  Defaults '
+         'to zero.'
+)
+o.add_option(
+    '--unphased',
+    action='store_true',
+    help='If passed, do not phase data.  Otherwise, data is phased '
+           'to `phase_time_jd` or the central time step in the dataset.'
+)
+o.add_option(
+    '--phase_time_jd',
+    type=float,
+    default=None,
+    help='Time to which data will be phased.  Must be a valid Julian Date.'
+)
+o.add_option(
+    '--form_pI',
+    action='store_true',
+    help="If passed, form pI visibilities from the 'xx' and/or 'yy' pols."
 )
 o.add_option(
     '--ant_str',
     type=str,
     help='If passed, keep only baselines specified by ant_str '
          'according to UVData.select syntax.'
-)
-o.add_option(
-    '--flag_bad_bls',
-    action='store_true',
-    help='If passed, ignore baselines which are fully flagged.'
 )
 o.add_option(
     '--single_bls',
@@ -143,6 +173,12 @@ o.add_option(
          'baselines within a redundant group.'
 )
 o.add_option(
+    '--save_data',
+    action='store_true',
+    dest='save',
+    default=True
+)
+o.add_option(
     '--clobber',
     action='store_true',
     help='If passed, clobber existing data file(s).'
@@ -153,23 +189,6 @@ o.add_option(
     default=DEFAULT_SAVE_DIR,
     help='Filepath in which the data will be saved. '
          'Defaults to the BayesEoR/scripts directory.'
-)
-o.add_option(
-    '--no_phase',
-    action='store_true',
-    help='If passed, do not phase data.  Otherwise, data is phased '
-           'to `phase_time_jd` or the central time step in the dataset.'
-)
-o.add_option(
-    '--phase_time_jd',
-    type=float,
-    default=None,
-    help='Time to which data will be phased.  Must be a valid Julian Date.'
-)
-o.add_option(
-    '--form_pI',
-    action='store_true',
-    help="If passed, form pI visibilities from the 'xx' and/or 'yy' pols."
 )
 opts, args = o.parse_args(sys.argv[1:])
 
@@ -292,31 +311,31 @@ def data_processing(
     """
     outfile = filename.replace(
         '.uvh5',
-        '_start_freq_{:.2f}_Nbls_{}_'.format(
+        '-start-freq-{:.2f}-Nbls-{}-'.format(
             opts.start_freq_MHz, uvd_select.Nbls
         )
-        + 'wavg_phased_mK_sr.npy'
+        + 'wavg-phased-mK-sr.npy'
     )
-    if opts.no_phase:
+    if opts.unphased:
         outfile = outfile.replace('phased', 'unphased')
     elif opts.phase_time_jd is not None:
         outfile = outfile.replace(
             '.npy',
-            '_phase-time-{}.npy'.format(opts.phase_time_jd)
+            '-phase-time-{}.npy'.format(opts.phase_time_jd)
         )
 
     if uvd_select.Nbls == 1:
         antnums = uvd_select.baseline_to_antnums(uvd_select.baseline_array[0])
         outfile = outfile.replace(
-            'Nbls_{}_'.format(uvd_select.Nbls),
-            'Nbls_{}_ants_{}_{}_'.format(
+            'Nbls-{}-'.format(uvd_select.Nbls),
+            'Nbls-{}-ants-{}-{}-'.format(
                 uvd_select.Nbls, antnums[0], antnums[1]
             )
         )
     elif opts.bl_type:
         outfile = outfile.replace(
-            'Nbls_{}_'.format(uvd_select.Nbls),
-            'Nbls_{}_{}_'.format(uvd_select.Nbls, opts.bl_type)
+            'Nbls-{}-'.format(uvd_select.Nbls),
+            'Nbls-{}-{}-'.format(uvd_select.Nbls, opts.bl_type)
         )
     # What about the case where I only keep certain baselines within a
     # redundant baseline type? Do I need some sort of unique identifier
@@ -338,7 +357,7 @@ def data_processing(
     phasor_array = np.ones(uvd_comp_phasor.data_array.shape) + 0j
     uvd_comp_phasor.data_array = phasor_array
 
-    if not opts.no_phase:
+    if not opts.unphased:
         if opts.phase_time_jd is not None:
             print('Phasing data to JD {}'.format(opts.phase_time_jd))
             time_to_phase = opts.phase_time_jd
@@ -355,44 +374,59 @@ def data_processing(
 
     # Average Over Redundant Baselines
     data_array_shape = uvd_comp.data_array.shape
+    data_array_shape_avg = (data_array_shape[0], data_array_shape[2])
+    if opts.avg_adj_freqs:
+        # Reduce frequency axis by a factor of two
+        data_array_shape_avg[1] = data_array_shape_avg[1]//2
     data_array_phased_avg = np.zeros(
-        (data_array_shape[0], data_array_shape[2]),
+        data_array_shape_avg,
         dtype='complex128'
     )
-    data_array_phasor_avg = np.zeros_like(data_array_phased_avg)
+    noise_array_phased_avg = np.zeros_like(data_array_phased_avg)
+    phasor_array_phased_avg = np.zeros_like(data_array_phased_avg)
 
     baseline_groups, vec_bin_centers, _ = uvd_select.get_redundancies()
 
     for i_bl, bl_group in enumerate(baseline_groups):
-        bl_group_data_container = []
-        bl_group_nsamples_container = []
+        blgp_data_container = []
+        blgp_nsamples_container = []
 
         for bl in bl_group:
             data = uvd.get_data(bl)
-            bl_group_data_container.append(data)
             nsamples = uvd.get_nsamples(bl)
-            bl_group_nsamples_container.append(nsamples)
+            if opts.avg_adj_freqs:
+                data = (data[:, ::2] + data[:, 1::2]) / 2
+                nsamples = (nsamples[:, ::2] + nsamples[:, 1::2]) / 2
+            blgp_data_container.append(data)
+            blgp_nsamples_container.append(nsamples)
 
-        bl_group_data_container = np.array(bl_group_data_container)
-        bl_group_nsamples_container = np.array(bl_group_nsamples_container)
-
+        blgp_data_container = np.array(blgp_data_container)
+        blgp_nsamples_container = np.array(blgp_nsamples_container)
         # Only need to pull phasor info from one baseline per redudant group
         data_phasor = uvd_comp_phasor.get_data(bl_group[0])
 
         # Estimate noise for each baseline group
-        # avg_data, stddev_data = weighted_avg_and_std(
-        #     bl_group_data_container, bl_group_nsamples_container)
+        avg_data, _ = weighted_avg_and_std(
+            blgp_data_container, blgp_nsamples_container
+        )
+        blgp_eo_diff = (
+            blgp_data_container[:, ::2] - blgp_data_container[:, 1::2]
+        )
+        if blgp_eo_diff.shape[0] > 1:
+            blgp_eo_noise = np.std(blgp_eo_diff, axis=0)
+        else:
+            blgp_eo_noise = np.sqrt(np.abs(blgp_eo_diff)**2).squeeze()
+        blgp_noise_estimate = np.zeros_like(avg_data)
+        blgp_noise_estimate[::2] = blgp_eo_noise
+        blgp_noise_estimate[1::2] = blgp_eo_noise
 
-        # For now, this assumes a perfectly redundant instrument model
-        # where every baseline has numerically identical data
-        avg_data = bl_group_data_container[0]
-
-        arr_inds = [i_bl * uvd.Ntimes, (i_bl + 1) * uvd.Ntimes]
+        arr_inds = slice(i_bl * uvd.Ntimes, (i_bl + 1) * uvd.Ntimes)
         # data_array_phased_avg[:ntimes] contains the data for a
         # single redundant baseline group across all frequencies
         # and times with shape (ntimes, nfreqs)
-        data_array_phased_avg[arr_inds[0]:arr_inds[1]] = avg_data
-        data_array_phasor_avg[arr_inds[0]:arr_inds[1]] = data_phasor
+        data_array_phased_avg[arr_inds] = avg_data
+        noise_array_phased_avg[arr_inds] = blgp_noise_estimate
+        phasor_array_phased_avg[arr_inds] = data_phasor
 
     # Convert data & noise arrays to K sr from Jy
     frequencies = uvd.freq_array[0]
@@ -408,51 +442,59 @@ def data_processing(
         (data_array_phased_avg.shape[0]*2, data_array_phased_avg.shape[1]),
         dtype='complex128'
     )
+    noise_array_reordered = np.zeros_like(data_array_reordered)
     phasor_array_reordered = np.zeros_like(data_array_reordered)
 
     for i_t in range(uvd_comp.Ntimes):
         # Get data for every baseline at the i_t-th time index
         data = data_array_phased_avg[i_t::uvd_comp.Ntimes]  # (nbls, nfreqs)
-        phasor = data_array_phasor_avg[i_t::uvd_comp.Ntimes]
+        noise = noise_array_phased_avg[i_t::uvd_comp.Ntimes]
+        phasor = phasor_array_phased_avg[i_t::uvd_comp.Ntimes]
 
-        inds = [i_t*2*uvd_comp.Nbls, (i_t + 1)*2*uvd_comp.Nbls]
-        # data_array_reordered[inds[0]:inds[1]] contains the
+        inds = slice(i_t*2*uvd_comp.Nbls, (i_t + 1)*2*uvd_comp.Nbls)
+        # data_array_reordered[inds] contains the
         # data for 2*nbls baselines across all frequencies at the
         # i_t-th time index with shape (2*nbls, nfreqs)
-        data_array_reordered[inds[0]:inds[1]] = np.vstack(
-                (data, data.conjugate())
-        )
-        phasor_array_reordered[inds[0]:inds[1]] = np.vstack(
-                (phasor, phasor.conjugate())
-        )
+        data_array_reordered[inds] = np.vstack((data, data.conjugate()))
+        noise_array_reordered[inds] = np.vstack((noise, noise.conjugate()))
+        phasor_array_reordered[inds] = np.vstack((phasor, phasor.conjugate()))
 
     data_array_flattened = np.zeros(data_array_reordered.size,
                                     dtype='complex128')
-    phasor_array_flattened = np.zeros(phasor_array_reordered.size,
-                                      dtype='complex128')
+    noise_array_flattened = np.zeros_like(data_array_flattened)
+    phasor_array_flattened = np.zeros_like(data_array_flattened)
 
     for i_t in range(uvd_comp.Ntimes):
         # Get data for every baseline at the i_t-th time index
-        inds = [i_t*2*uvd_comp.Nbls, (i_t+1)*2*uvd_comp.Nbls]
+        inds = slice(i_t*2*uvd_comp.Nbls, (i_t+1)*2*uvd_comp.Nbls)
         # Store data for all baselines at the zeroth frequency first,
         # then data for all baselines at the first frequency, etc.
-        flat_inds = [i_t*2*uvd_comp.Nbls*uvd_comp.Nfreqs,
-                     (i_t + 1)*2*uvd_comp.Nbls*uvd_comp.Nfreqs]
+        flat_inds = slice(
+            i_t*2*uvd_comp.Nbls*uvd_comp.Nfreqs,
+            (i_t + 1)*2*uvd_comp.Nbls*uvd_comp.Nfreqs
+        )
         # Flattening data_array_reordered[inds[0]:inds[1]] in
         # Fortran ordering flattens along columns, i.e. along the
         # baseline axis which returns a data vector in which
         # every nbls entries contain the visibility data for all
         # baselines at each frequency
-        data_array_flattened[flat_inds[0]:flat_inds[1]] = (
-            data_array_reordered[inds[0]:inds[1]].flatten(order='F')
+        data_array_flattened[flat_inds] = (
+            data_array_reordered[inds].flatten(order='F')
         )
-        phasor_array_flattened[flat_inds[0]:flat_inds[1]] = (
-            phasor_array_reordered[inds[0]:inds[1]].flatten(order='F')
+        noise_array_flattened = (
+            noise_array_reordered[inds].flatten(order='F')
+        )
+        phasor_array_flattened[flat_inds] = (
+            phasor_array_reordered[inds].flatten(order='F')
         )
 
     print(
         'data_array_flattened.std() =',
-        data_array_flattened.std(),
+        data_array_flattened.std()
+    )
+    print(
+        'noise_array_flattened.std() =',
+        noise_array_flattened.std(),
         end='\n\n'
     )
 
@@ -460,11 +502,18 @@ def data_processing(
         if opts.clobber:
             print('Clobbering files, if they exist.')
 
-        if not os.path.exists(os.path.join(save_dir, outfile)) or opts.clobber:
-            print('Writing data to {}...'.format(
-                os.path.join(save_dir, outfile))
-            )
-            np.save(os.path.join(save_dir, outfile), data_array_flattened)
+        datapath = os.path.join(save_dir, outfile)
+        if not os.path.exists(datapath) or opts.clobber:
+            print('Writing data to {}...'.format(datapath))
+            np.save(datapath, data_array_flattened)
+
+        if opts.all_bl_noise:
+            noise_file = outfile.replace('.npy', '-eo-noise-all-bls.npy')
+        else:
+            noise_file = outfile.replace('.npy', '-eo-noise.npy')
+        noisepath = os.path.join(save_dir, noise_file)
+        if not os.path.exists(noisepath) or opts.clobber:
+            np.save(noisepath, noise_array_flattened)
 
     # Instrument Model
     # Generate a uvw and redundancy model to be used as the
@@ -570,26 +619,88 @@ data_path = Path(opts.data_path)
 filename = opts.filename
 
 uvd = UVData()
-print('\nReading data from', data_path / filename)
-if opts.bl_cutoff_m is not None:
-    print('\tPre-read select on baseline length')
-    print(
-        '\tSelecting only baselines <= {} meters'.format(opts.bl_cutoff_m)
-    )
-    uvd.read(data_path / filename, read_data=False)
-    bl_lengths = np.sqrt(np.sum(uvd.uvw_array[:, :2]**2, axis=1))
-    blt_inds = np.where(bl_lengths <= opts.bl_cutoff_m)[0]
-else:
-    blt_inds = None
-
-print('Reading in data_array', end='\n\n')
-uvd.read(data_path / filename, blt_inds=blt_inds)
-
-if not opts.start_freq_MHz:
-    opts.start_freq_MHz = uvd.freq_array[0, 0] / 1e6
+print('\nReading data from', data_path / filename, end='\n\n')
+uvd.read(data_path / filename, read_data=False)
 
 print('Removing autocorrelations')
 uvd.select(ant_str='cross')
+
+if opts.bl_cutoff_m is not None:
+    print(
+        '\tSelecting only baselines <= {} meters'.format(opts.bl_cutoff_m)
+    )
+    bl_lengths = np.sqrt(np.sum(uvd.uvw_array[:, :2]**2, axis=1))
+    blt_inds = np.where(bl_lengths <= opts.bl_cutoff_m)[0]
+    uvd.select(blt_inds=blt_inds)
+
+frequencies = uvd.freq_array[0]
+nf = opts.nf
+if opts.avg_adj_freqs:
+    nf *= 2
+if not opts.start_freq_MHz:
+    opts.start_freq_MHz = uvd.freq_array[0, 0] / 1e6
+print(
+    'Selecting {} frequency channels >= {:.2f} MHz'.format(
+        nf, opts.start_freq_MHz
+    )
+)
+start_freq_ind = np.argmin(np.abs(frequencies - opts.start_freq_MHz*1e6))
+if start_freq_ind + nf > uvd.Nfreqs:
+    warnings.warn(
+        'WARNING: the combination of start_freq_MHz and nf will result in '
+        'fewer than nf frequencies being kept in the data vector.'
+    )
+frequencies = frequencies[start_freq_ind:start_freq_ind+nf]
+# uvd.select(frequencies=frequencies)
+
+if np.sum(uvd.flag_array) > 0:
+    # Remove any fully flagged baselines
+    antpairs = uvd.get_antpairs()
+    good_antpairs = []
+    for antpair in antpairs:
+        flags = uvd.get_flags(antpair)  # + ('xx',) ?
+        if np.sum(flags) < flags.size:
+            good_antpairs.append(antpair)
+    print('Removing fully flagged baselines')
+    print('Baselines before flagging selection:', uvd.Nbls)
+    uvd.select(bls=good_antpairs)
+    print('Baselines after flagging selection: ', uvd.Nbls)
+
+times = np.unique(uvd.time_array)
+nt = opts.nt
+min_t_ind = opts.start_int
+print(
+    'Selecting {} times starting from integration number {}'.format(
+        nt, min_t_ind
+    )
+)
+if (min_t_ind + nt) > uvd.Ntimes:
+    warnings.warn(
+        'WARNING: start_int + nt > uvd.Ntimes.  This will result in '
+        'fewer than nt integrations being kept in the data vector.'
+    )
+if uvd.Ntimes > nt:
+    times = times[min_t_ind:min_t_ind+nt]
+if opts.phase_time_jd:
+    valid_phase_time = np.logical_and(
+        opts.phase_time_jd >= times.min(),
+        opts.phase_time_jd <= times.max()
+    )
+    if not valid_phase_time:
+        warnings.warn(
+            'WARNING: Supplied phase_time_jd argument lies outside the '
+            'desired JD range {:.6f} -= {:.6f}'.format(
+                times.min(), times.max()
+            )
+        )
+
+print('Reading in data_array', end='\n\n')
+uvd.read(
+    data_path / filename,
+    frequencies=frequencies,
+    times=times,
+    bls=good_antpairs
+    )
 
 print('Conjugating baselines to u > 0 convention')
 uvd.conjugate_bls(convention='u>0', uvw_tol=1.0)
@@ -603,11 +714,15 @@ if opts.form_pI:
         xx_ind = np.where(uvd.polarization_array == -5)[0][0]
         yy_ind = np.where(uvd.polarization_array == -6)[0][0]
         uvd.data_array[..., xx_ind] += uvd.data_array[..., yy_ind]
+        # hera_pspec (used to form pI in H1C_IDR2 pipeline) uses the
+        # pI = (XX + YY)/2 convention
+        uvd.data_array *= 0.5
+        pol_num = -5
     elif -5 in uvd.polarization_array:
-        uvd.data_array *= 2
+        pol_num = -5
     elif -6 in uvd.polarization_array:
-        uvd.data_array *= 2
-    uvd.select(polarizations=-5)
+        pol_num = -6
+    uvd.select(polarizations=pol_num)
 
 
 if opts.bl_type:
