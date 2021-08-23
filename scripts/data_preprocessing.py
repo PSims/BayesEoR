@@ -540,10 +540,10 @@ def data_processing(
             os.mkdir(inst_model_dir)
 
         uvw_file = 'uvw_model.npy'
-        np.save(uvw_file, uvw_model_unphased)
+        np.save(Path(inst_model_dir) / uvw_file, uvw_model_unphased)
 
         red_file = 'redundancy_model.npy'
-        np.save(red_file, redundancy_model)
+        np.save(Path(inst_model_dir) / red_file, redundancy_model)
 
         phasor_filename = 'phasor_vector.npy'
         np.save(Path(inst_model_dir) / phasor_filename, phasor_array_flattened)
