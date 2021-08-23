@@ -339,7 +339,7 @@ k_vals_file_name = (
 )
 k_vals = calc_mean_binned_k_vals(
     mod_k_masked, k_cube_voxels_in_bin,
-    save_k_vals=False, k_vals_file=k_vals_file_name
+    save_k_vals=True, k_vals_file=k_vals_file_name
 )
 
 do_cylindrical_binning = False
@@ -377,8 +377,8 @@ if p.include_instrumental_effects:
         print('\nUsing data at {}'.format(p.data_path))
         s_EoR = np.load(p.data_path)
 
+    EoR_noise_seed = p.noise_seed
     if 'noise_data_path' not in p.__dict__.keys():
-        EoR_noise_seed = p.noise_seed
         print('EoR_noise_seed =', EoR_noise_seed)
         # Assumes the instrument model contains duplicates of the
         # unphased uvw coordinates in each time entry of the
@@ -391,6 +391,12 @@ if p.include_instrumental_effects:
                 random_seed=EoR_noise_seed)
     else:
         d = s_EoR.copy()
+        _, _, bl_conjugate_pairs_map =\
+            generate_data_and_noise_vector_instrumental(
+                1.0*sigma, s_EoR, nf, p.nt,
+                uvw_array_m[0],
+                bl_red_array[0],
+                random_seed=EoR_noise_seed)
 
 effective_noise_std = effective_noise.std()
 print('\ns_EoR.std = {:.4e}'.format(s_EoR.std()))
@@ -432,7 +438,7 @@ x = [100.e0]*nDims
 ###
 # PolyChord setup
 ###
-log_priors_min_max = [[-2., 6.] for _ in range(nDims)]
+log_priors_min_max = [[4., 12.] for _ in range(nDims)]
 if p.use_LWM_Gaussian_prior:
     # Set minimum LW model priors using LW power spectrum in fit to
     # white noise (i.e the prior min should incorporate knowledge of

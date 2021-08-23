@@ -25,7 +25,7 @@ file_root = None
 # k-cube params
 nf = 38
 neta = 38
-nu = 9
+nu = 15
 nv = None
 nq = 0
 # Subharmonic grid (SHG) params
@@ -40,13 +40,13 @@ fov_dec_deg = None
 nside = 256
 
 # Simulated signals in analysis
-use_EoR_cube = True
+use_EoR_cube = False
 # EoR sim params
 eor_sim_path = ''
 
 # Frequency params
-nu_min_MHz = 158.304048743
-channel_width_MHz = 0.237618986858
+nu_min_MHz = 120.01953125
+channel_width_MHz = 0.0976562
 
 # Spectral model params
 beta = [2.63, 2.82]
@@ -71,20 +71,18 @@ inverse_LW_power = 1.e-16
 
 if include_instrumental_effects:
     # Obs params
-    nt = 34
-    integration_time_seconds = 11
-    integration_time_minutes = integration_time_seconds/60
-    integration_time_minutes_str = '{}'.format(
-        integration_time_minutes).replace('.', 'd')
+    nt = 30
+    integration_time_seconds = 21.47659325394137
     instrument_model_directory = (
         '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/'
-        'Hex-37-14.6m-model-{}-{}sec-time-'
-        'steps_bl_less_than_40m/'.format(nt, integration_time_seconds)
+        'IDR2.2-{}-{:.1f}sec-time-steps-bl-cutoff-40m/'.format(
+            nt, integration_time_seconds
+        )
     )
     telescope_latlonalt = (-30.72152777777791,
                            21.428305555555557,
                            1073.0000000093132)
-    central_jd = 2458098.5521759833
+    central_jd = 2458116.2485816483
 
     # Primary beam params
     beam_type = 'gaussian'
