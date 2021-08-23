@@ -471,7 +471,7 @@ def data_processing(
         data_array_flattened[flat_inds] = (
             data_array_reordered[inds].flatten(order='F')
         )
-        noise_array_flattened = (
+        noise_array_flattened[flat_inds] = (
             noise_array_reordered[inds].flatten(order='F')
         )
         phasor_array_flattened[flat_inds] = (
@@ -479,12 +479,10 @@ def data_processing(
         )
 
     print(
-        'data_array_flattened.std() =',
-        data_array_flattened.std()
+        'data_array_flattened.std() =', data_array_flattened.std()
     )
     print(
-        'noise_array_flattened.std() =',
-        noise_array_flattened.std(),
+        'noise_array_flattened.std() =', noise_array_flattened.std(),
         end='\n\n'
     )
 
