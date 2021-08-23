@@ -71,15 +71,16 @@ inverse_LW_power = 1.e-16
 
 if include_instrumental_effects:
     # Obs params
-    nt = 17
+    nt = 34
     integration_time_seconds = 11
     integration_time_minutes = integration_time_seconds/60
     integration_time_minutes_str = '{}'.format(
         integration_time_minutes).replace('.', 'd')
     instrument_model_directory = (
         '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/'
-        'Hex_61-10m_healvis_model_for_{}_{}_sec_time_'
-        'steps_bl_less_than_41m/'.format(nt, integration_time_seconds))
+        'Hex-37-14.6m-model-{}-{}sec-time-'
+        'steps_bl_less_than_40m/'.format(nt, integration_time_seconds)
+    )
     telescope_latlonalt = (-30.72152777777791,
                            21.428305555555557,
                            1073.0000000093132)
