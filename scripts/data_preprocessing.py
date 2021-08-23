@@ -29,7 +29,7 @@ import warnings
 from pathlib import Path
 from datetime import datetime
 from pyuvdata import UVData
-from astropy.time import Time
+from astropy.time import Time, TimeDelta
 from astropy import units
 from astropy.units import Quantity
 import matplotlib.pyplot as plt
@@ -54,9 +54,22 @@ o.add_option(
     help='Filename in opts.data_path to use for preprocessing.'
 )
 o.add_option(
-    '--calfits_file',
+    '--save_data',
+    action='store_true',
+    dest='save',
+    default=True
+)
+o.add_option(
+    '--clobber',
+    action='store_true',
+    help='If passed, clobber existing data file(s).'
+)
+o.add_option(
+    '--save_dir',
     type=str,
-    help='Filename in opts.data_path to use for calibration.'
+    default=DEFAULT_SAVE_DIR,
+    help='Filepath in which the data will be saved. '
+         'Defaults to the BayesEoR/scripts directory.'
 )
 o.add_option(
     '--save_model',
@@ -76,15 +89,37 @@ o.add_option(
          'with a uniform model (all ones).'
 )
 o.add_option(
-    '--plot_intermediate',
+    '--plot_inst_model',
     action='store_true',
     help='If passed, produce plots showing baseline reordering and '
          'the redundancy model in the uv-plane.'
 )
 o.add_option(
-    '--plot_data',
+    '--ant_str',
+    type=str,
+    help='If passed, keep only baselines specified by ant_str '
+         'according to UVData.select syntax.'
+)
+o.add_option(
+    '--single_bls',
     action='store_true',
-    help='If passed, plot data for all baselines kept in model.'
+    help='If passed, create data files for each baseline.  '
+         'If passed with --ant_str, only make data files '
+         'for the baselines contained in --ant_str.'
+)
+o.add_option(
+    '--bl_type',
+    type=str,
+    help='Baseline type string for selecting from data.  '
+         'Given as a {baseline_length}_{orientation}.  '
+         'For example, to keep 14.6 meter EW baselines --bl_type=14d6_EW.'
+)
+o.add_option(
+    '--bl_cutoff_m',
+    type=float,
+    default=29.3,
+    help='Baseline cutoff length in meters.  Any baselines in the raw dataset'
+         ' with |b| > <bl_cutoff_m> will be excluded from the written data.'
 )
 o.add_option(
     '--start_freq_MHz',
@@ -109,7 +144,7 @@ o.add_option(
 )
 o.add_option(
     '--nt',
-    type=str,
+    type=int,
     default=30,
     help='Number of integrations to include in the data vector.  '
          'Defaults to 30.'
@@ -140,55 +175,10 @@ o.add_option(
     help="If passed, form pI visibilities from the 'xx' and/or 'yy' pols."
 )
 o.add_option(
-    '--ant_str',
-    type=str,
-    help='If passed, keep only baselines specified by ant_str '
-         'according to UVData.select syntax.'
-)
-o.add_option(
-    '--single_bls',
-    action='store_true',
-    help='If passed, create data files for each baseline.  '
-         'If passed with --ant_str, only make data files '
-         'for the baselines contained in --ant_str.'
-)
-o.add_option(
-    '--bl_type',
-    type=str,
-    help='Baseline type string for selecting from data.  '
-         'Given as a {baseline_length}_{orientation}.  '
-         'For example, to keep 14.6 meter EW baselines --bl_type=14d6_EW.'
-)
-o.add_option(
-    '--bl_cutoff_m',
-    type=float,
-    default=29.3,
-    help='Baseline cutoff length in meters.  Any baselines in the raw dataset'
-         ' with |b| > <bl_cutoff_m> will be excluded from the written data.'
-)
-o.add_option(
     '--all_bl_noise',
     action='store_true',
     help='If passed, generate noise estimate from all '
          'baselines within a redundant group.'
-)
-o.add_option(
-    '--save_data',
-    action='store_true',
-    dest='save',
-    default=True
-)
-o.add_option(
-    '--clobber',
-    action='store_true',
-    help='If passed, clobber existing data file(s).'
-)
-o.add_option(
-    '--save_dir',
-    type=str,
-    default=DEFAULT_SAVE_DIR,
-    help='Filepath in which the data will be saved. '
-         'Defaults to the BayesEoR/scripts directory.'
 )
 opts, args = o.parse_args(sys.argv[1:])
 
@@ -543,7 +533,7 @@ def data_processing(
         for i_t in range(redundancy_model.shape[0]):
             redundancy_model[i_t] = redundancy_vec[:, np.newaxis]
 
-    if opts.plot_intermediate:
+    if opts.plot_inst_model:
         fig = plt.figure(figsize=(16, 8))
         grid = ImageGrid(
             fig,
@@ -562,7 +552,7 @@ def data_processing(
 
         ax = axs[0]
         ax.set_title(
-            'Unphased UVW Model from Mirrored Data',
+            'UVW Model',
             fontsize=16,
         )
         ax.scatter(
@@ -595,7 +585,6 @@ def data_processing(
         ax.set_ylim(axlim)
 
         fig.tight_layout()
-        plt.show()
 
     if opts.save_model:
         print('\nSaving model to {}...'.format(inst_model_dir))
@@ -627,11 +616,14 @@ uvd.select(ant_str='cross')
 
 if opts.bl_cutoff_m is not None:
     print(
-        '\tSelecting only baselines <= {} meters'.format(opts.bl_cutoff_m)
+        'Selecting only baselines <= {} meters'.format(opts.bl_cutoff_m)
     )
     bl_lengths = np.sqrt(np.sum(uvd.uvw_array[:, :2]**2, axis=1))
     blt_inds = np.where(bl_lengths <= opts.bl_cutoff_m)[0]
+    print('\tBaselines before length select:', uvd.Nbls)
     uvd.select(blt_inds=blt_inds)
+    print('\tBaselines after length select: ', uvd.Nbls)
+    bls_to_read = uvd.get_antpairs()
 
 frequencies = uvd.freq_array[0]
 nf = opts.nf
@@ -651,20 +643,12 @@ if start_freq_ind + nf > uvd.Nfreqs:
         'fewer than nf frequencies being kept in the data vector.'
     )
 frequencies = frequencies[start_freq_ind:start_freq_ind+nf]
+print('\tMinimum frequency in data =', (frequencies[0]*units.Hz).to('MHz'))
+df = Quantity(np.mean(np.diff(frequencies)), unit='Hz')
+if opts.avg_adj_freqs:
+    df *= 2
+print('\tFrequency channel width in data =', df.to('MHz'))
 # uvd.select(frequencies=frequencies)
-
-if np.sum(uvd.flag_array) > 0:
-    # Remove any fully flagged baselines
-    antpairs = uvd.get_antpairs()
-    good_antpairs = []
-    for antpair in antpairs:
-        flags = uvd.get_flags(antpair)  # + ('xx',) ?
-        if np.sum(flags) < flags.size:
-            good_antpairs.append(antpair)
-    print('Removing fully flagged baselines')
-    print('Baselines before flagging selection:', uvd.Nbls)
-    uvd.select(bls=good_antpairs)
-    print('Baselines after flagging selection: ', uvd.Nbls)
 
 times = np.unique(uvd.time_array)
 nt = opts.nt
@@ -681,6 +665,9 @@ if (min_t_ind + nt) > uvd.Ntimes:
     )
 if uvd.Ntimes > nt:
     times = times[min_t_ind:min_t_ind+nt]
+dt = TimeDelta(np.mean(np.diff(times)), format='jd')
+print('\tIntegration time in data =', dt.sec, 's')
+print('\tCentral JD in data =', times[times.size//2])
 if opts.phase_time_jd:
     valid_phase_time = np.logical_and(
         opts.phase_time_jd >= times.min(),
@@ -699,8 +686,21 @@ uvd.read(
     data_path / filename,
     frequencies=frequencies,
     times=times,
-    bls=good_antpairs
+    bls=bls_to_read
     )
+
+if np.sum(uvd.flag_array) > 0:
+    # Remove any fully flagged baselines
+    antpairs = uvd.get_antpairs()
+    good_antpairs = []
+    for antpair in antpairs:
+        flags = uvd.get_flags(antpair)  # + ('xx',) ?
+        if np.sum(flags) < flags.size:
+            good_antpairs.append(antpair)
+    print('Removing fully flagged baselines')
+    print('\tBaselines before flagging selection:', uvd.Nbls)
+    uvd.select(bls=good_antpairs)
+    print('\tBaselines after flagging selection: ', uvd.Nbls)
 
 print('Conjugating baselines to u > 0 convention')
 uvd.conjugate_bls(convention='u>0', uvw_tol=1.0)
