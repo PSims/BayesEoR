@@ -533,6 +533,21 @@ def data_processing(
         for i_t in range(redundancy_model.shape[0]):
             redundancy_model[i_t] = redundancy_vec[:, np.newaxis]
 
+    if opts.save_model:
+        print('\nSaving model to {}...'.format(inst_model_dir))
+
+        if not os.path.exists(inst_model_dir):
+            os.mkdir(inst_model_dir)
+
+        uvw_file = 'uvw_model.npy'
+        np.save(uvw_file, uvw_model_unphased)
+
+        red_file = 'redundancy_model.npy'
+        np.save(red_file, redundancy_model)
+
+        phasor_filename = 'phasor_vector.npy'
+        np.save(Path(inst_model_dir) / phasor_filename, phasor_array_flattened)
+
     if opts.plot_inst_model:
         fig = plt.figure(figsize=(16, 8))
         grid = ImageGrid(
@@ -585,21 +600,6 @@ def data_processing(
         ax.set_ylim(axlim)
 
         fig.tight_layout()
-
-    if opts.save_model:
-        print('\nSaving model to {}...'.format(inst_model_dir))
-
-        if not os.path.exists(inst_model_dir):
-            os.mkdir(inst_model_dir)
-
-        uvw_file = 'uvw_model.npy'
-        np.save(uvw_file, uvw_model_unphased)
-
-        red_file = 'redundancy_model.npy'
-        np.save(red_file, redundancy_model)
-
-        phasor_filename = 'phasor_vector.npy'
-        np.save(Path(inst_model_dir) / phasor_filename, phasor_array_flattened)
 
 
 data_path = Path(opts.data_path)
