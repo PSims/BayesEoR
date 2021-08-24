@@ -83,6 +83,12 @@ o.add_option(
     help='Path to the BayesEoR/Instrument_Model directory.'
 )
 o.add_option(
+    '--telescope_name',
+    type=str,
+    default=None,
+    help='Telescope name to use for the instrument model.'
+)
+o.add_option(
     '--uniform_red_model',
     action='store_true',
     help='If passed, replace the redundancy model'
@@ -112,12 +118,19 @@ o.add_option(
     type=str,
     help='Baseline type string for selecting from data.  '
          'Given as a {baseline_length}_{orientation}.  '
-         'For example, to keep 14.6 meter EW baselines --bl_type=14d6_EW.'
+         'For example, to keep 14.6 meter EW baselines --bl_type=14d6_EW.  '
+         'Must be passed with --bl_dict_path.'
+)
+o.add_option(
+    '--bl_dict_path',
+    type=str,
+    help='Path to a numpy readable dictionary containing a set of keys '
+         'of antenna pair tuples, i.e. (1, 2), each with a value of '
+         '{baseline_length}_{orientation}, i.e. \'14.6_EW\'.'
 )
 o.add_option(
     '--bl_cutoff_m',
     type=float,
-    default=29.3,
     help='Baseline cutoff length in meters.  Any baselines in the raw dataset'
          ' with |b| > <bl_cutoff_m> will be excluded from the written data.'
 )
@@ -301,11 +314,16 @@ def data_processing(
     """
     outfile = filename.replace(
         '.uvh5',
-        '-start-freq-{:.2f}-Nbls-{}-'.format(
-            opts.start_freq_MHz, uvd_select.Nbls
+        '-start-freq-{:.2f}-nf-{}-nbls-{}'.format(
+            opts.start_freq_MHz, opts.nf, uvd_select.Nbls*2
         )
-        + 'wavg-phased-mK-sr.npy'
     )
+    if opts.avg_adj_freqs:
+        outfile = outfile.replace(
+            '-nf-{}'.format(opts.nf),
+            '-nf-{}-adj-freq-avg'.format(opts.nf)
+        )
+    outfile += '-phased.npy'
     if opts.unphased:
         outfile = outfile.replace('phased', 'unphased')
     elif opts.phase_time_jd is not None:
@@ -317,15 +335,15 @@ def data_processing(
     if uvd_select.Nbls == 1:
         antnums = uvd_select.baseline_to_antnums(uvd_select.baseline_array[0])
         outfile = outfile.replace(
-            'Nbls-{}-'.format(uvd_select.Nbls),
-            'Nbls-{}-ants-{}-{}-'.format(
+            'nbls-{}-'.format(uvd_select.Nbls),
+            'bl-{}-{}-'.format(
                 uvd_select.Nbls, antnums[0], antnums[1]
             )
         )
     elif opts.bl_type:
         outfile = outfile.replace(
-            'Nbls-{}-'.format(uvd_select.Nbls),
-            'Nbls-{}-{}-'.format(uvd_select.Nbls, opts.bl_type)
+            'nbls-{}-'.format(uvd_select.Nbls),
+            'nbls-{}-{}-'.format(uvd_select.Nbls, opts.bl_type)
         )
     # What about the case where I only keep certain baselines within a
     # redundant baseline type? Do I need some sort of unique identifier
@@ -364,7 +382,7 @@ def data_processing(
 
     # Average Over Redundant Baselines
     data_array_shape = uvd_comp.data_array.shape
-    data_array_shape_avg = (data_array_shape[0], data_array_shape[2])
+    data_array_shape_avg = [data_array_shape[0], data_array_shape[2]]
     if opts.avg_adj_freqs:
         # Reduce frequency axis by a factor of two
         data_array_shape_avg[1] = data_array_shape_avg[1]//2
@@ -394,6 +412,8 @@ def data_processing(
         blgp_nsamples_container = np.array(blgp_nsamples_container)
         # Only need to pull phasor info from one baseline per redudant group
         data_phasor = uvd_comp_phasor.get_data(bl_group[0])
+        if opts.avg_adj_freqs:
+            data_phasor = (data_phasor[:, ::2] + data_phasor[:, 1::2]) / 2
 
         # Estimate noise for each baseline group
         avg_data, _ = weighted_avg_and_std(
@@ -420,6 +440,10 @@ def data_processing(
 
     # Convert data & noise arrays to K sr from Jy
     frequencies = uvd.freq_array[0]
+    nf = frequencies.size
+    if opts.avg_adj_freqs:
+        frequencies = (frequencies[::2] + frequencies[1::2]) / 2
+        nf = frequencies.size
     data_array_phased_avg = jy_to_ksr(
         data_array_phased_avg, frequencies
     )
@@ -460,8 +484,8 @@ def data_processing(
         # Store data for all baselines at the zeroth frequency first,
         # then data for all baselines at the first frequency, etc.
         flat_inds = slice(
-            i_t*2*uvd_comp.Nbls*uvd_comp.Nfreqs,
-            (i_t + 1)*2*uvd_comp.Nbls*uvd_comp.Nfreqs
+            i_t*2*uvd_comp.Nbls*nf,
+            (i_t + 1)*2*uvd_comp.Nbls*nf
         )
         # Flattening data_array_reordered[inds[0]:inds[1]] in
         # Fortran ordering flattens along columns, i.e. along the
@@ -488,20 +512,25 @@ def data_processing(
 
     if opts.save:
         if opts.clobber:
-            print('Clobbering files, if they exist.')
+            print('Clobbering file, if it exists.')
 
+        data_dict = {
+            'data': data_array_flattened,
+            'noise': noise_array_flattened,
+            'opts': vars(opts)
+        }
         datapath = os.path.join(save_dir, outfile)
         if not os.path.exists(datapath) or opts.clobber:
             print('Writing data to {}...'.format(datapath))
-            np.save(datapath, data_array_flattened)
+            np.save(datapath, data_dict)
 
-        if opts.all_bl_noise:
-            noise_file = outfile.replace('.npy', '-eo-noise-all-bls.npy')
-        else:
-            noise_file = outfile.replace('.npy', '-eo-noise.npy')
-        noisepath = os.path.join(save_dir, noise_file)
-        if not os.path.exists(noisepath) or opts.clobber:
-            np.save(noisepath, noise_array_flattened)
+        # if opts.all_bl_noise:
+        #     noise_file = outfile.replace('.npy', '-eo-noise-all-bls.npy')
+        # else:
+        #     noise_file = outfile.replace('.npy', '-eo-noise.npy')
+        # noisepath = os.path.join(save_dir, noise_file)
+        # if not os.path.exists(noisepath) or opts.clobber:
+        #     np.save(noisepath, noise_array_flattened)
 
     # Instrument Model
     # Generate a uvw and redundancy model to be used as the
@@ -610,7 +639,7 @@ uvd.read(data_path / filename, read_data=False)
 print('Removing autocorrelations')
 uvd.select(ant_str='cross')
 
-if opts.bl_cutoff_m is not None:
+if opts.bl_cutoff_m:
     print(
         'Selecting only baselines <= {} meters'.format(opts.bl_cutoff_m)
     )
@@ -621,6 +650,7 @@ if opts.bl_cutoff_m is not None:
     print('\tBaselines after length select: ', uvd.Nbls)
     bls_to_read = uvd.get_antpairs()
 
+# Frequency selection
 frequencies = uvd.freq_array[0]
 nf = opts.nf
 if opts.avg_adj_freqs:
@@ -644,8 +674,8 @@ df = Quantity(np.mean(np.diff(frequencies)), unit='Hz')
 if opts.avg_adj_freqs:
     df *= 2
 print('\tFrequency channel width in data =', df.to('MHz'))
-# uvd.select(frequencies=frequencies)
 
+# Time selection
 times = np.unique(uvd.time_array)
 nt = opts.nt
 min_t_ind = opts.start_int
@@ -720,22 +750,6 @@ if opts.form_pI:
         pol_num = -6
     uvd.select(polarizations=pol_num)
 
-
-if opts.bl_type:
-    # Only keep a specific baseline type (unique to HERA data)
-    # Need to change this since this references a very specific
-    # file path unique to one machine
-    bl_info_dic = np.load(
-            '/users/jburba/data/shared/jburba/bayeseor_files/'
-            'idr2d2/bl_info_dic_Nbls_143.npy',
-            allow_pickle=True
-        ).item()
-    bl_to_keep = []
-    for key in bl_info_dic.keys():
-        if bl_info_dic[key] == opts.bl_type:
-            bl_to_keep.append(key)
-    opts.ant_str = ','.join(bl_to_keep)
-
 if opts.all_bl_noise:
     print(
         'Keeping copy of data with all baselines for noise calculation.',
@@ -745,13 +759,38 @@ if opts.all_bl_noise:
 else:
     uvd_all_bls = None
 
+if opts.bl_type:
+    # Only keep a specific baseline type, i.e. length and orientation
+    bl_info_dict = np.load(opts.bl_dict_path, allow_pickle=True).item()
+    bls_to_keep = []
+    for key in bl_info_dict.keys():
+        if bl_info_dict[key] == opts.bl_type:
+            if isinstance(key, tuple):
+                key = '{}_{}'.format(*key)
+            bls_to_keep.append(key)
+    opts.ant_str = ','.join(bls_to_keep)
+
 if opts.ant_str:
-    # Preprocess each baseline in ant_strf individually
+    # Preprocess each baseline in ant_str individually
     print(
         'Keeping only specified baselines in ant_str =', opts.ant_str
     )
     uvd.select(ant_str=opts.ant_str)
     print('Nbls after ant_str select:', uvd.Nbls, end='\n\n')
+
+# Instrument model directory setup
+inst_model_dir = str(Path(opts.inst_model_dir) / opts.telescope_name)
+inst_model_dir += '-{}-{:.1f}sec-time-steps'.format(nt, dt.sec)
+inst_model_dir += '-start-freq-{:.2f}-nf-{}'.format(
+    opts.start_freq_MHz, opts.nf
+)
+if opts.avg_adj_freqs:
+    inst_model_dir += '-adj-freq-avg'
+if not opts.single_bls:
+    inst_model_dir += '-nbls-{}'.format(uvd.Nbls*2)
+if opts.bl_cutoff_m and not (opts.single_bls or opts.bl_type):
+    inst_model_dir += '-bl-cutoff-{}m'.format(opts.bl_cutoff_m)
+inst_model_dir += '/'
 
 if opts.single_bls:
     print('-'*60)
@@ -769,23 +808,19 @@ if opts.single_bls:
         print('Baseline {}:\n'.format(bl) + '-'*32)
 
         if opts.save_model:
-            inst_model_dir = opts.inst_model_dir
-            inst_model_dir = inst_model_dir.replace(
-                'steps/',
-                'steps_single_bl_{}_{}/'.format(bl[0], bl[1])
-                )
-
-            if not os.path.exists(inst_model_dir):
-                os.mkdir(inst_model_dir)
+            inst_model_dir_bl = (
+                inst_model_dir[:-1]
+                + '-bl-{}-{}/'.format(bl[0], bl[1])
+            )
         else:
-            inst_model_dir = None
+            inst_model_dir_bl = None
 
         data_processing(
             uvd_select,
             opts,
             filename,
             save_dir=opts.save_dir,
-            inst_model_dir=inst_model_dir,
+            inst_model_dir=inst_model_dir_bl,
             uvd_all_bls=uvd_all_bls)
         print('')
 
@@ -794,18 +829,13 @@ if opts.single_bls:
 else:
     # Keeping all baselines in one data vector / instrument model
     if opts.bl_type:
-        opts.inst_model_dir = opts.inst_model_dir.replace(
-            'steps/',
-            'steps_{}_bls/'.format(opts.bl_type)
-            )
-        if not os.path.exists(opts.inst_model_dir):
-            os.mkdir(opts.inst_model_dir)
+        inst_model_dir = inst_model_dir[:-1] + '-{}/'.format(opts.bl_type)
 
     data_processing(
         uvd,
         opts,
         filename,
-        inst_model_dir=opts.inst_model_dir,
+        inst_model_dir=inst_model_dir,
         uvd_all_bls=uvd_all_bls,
         save_dir=opts.save_dir
     )
