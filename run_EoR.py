@@ -76,21 +76,47 @@ else:
 # Improve numerical precision when performing evidence comparison.
 sub_ML_monopole_term_model = False
 
+# Check for data path
+if 'data_path' in p.__dict__.keys():
+    use_EoR_cube = False
+    data = np.load(p.data_path, allow_pickle=True)
+    if data.dtype.kind == 'O':
+        # data and noise vector saved as a dictionary
+        dict_format = True
+        data = data.item()
+        if 'noise' in data.keys():
+            gen_noise = False
+        else:
+            gen_noise = True
+    else:
+        # data and noise vector saved as separate arrays
+        dict_format = False
+        if 'noise_data_path' in p.__dict__.keys():
+            gen_noise = False
+        else:
+            gen_noise = True
+else:
+    use_EoR_cube = True
+
 # Data noise
-if 'noise_data_path' not in p.__dict__.keys():
+if gen_noise:
     effective_noise = None
     sigma = p.sigma
 else:
-    effective_noise = np.load(p.noise_data_path)
+    if dict_format:
+        effective_noise = data['noise']
+    else:
+        effective_noise = np.load(p.noise_data_path)
     sigma = effective_noise.std()
 
 if p.include_instrumental_effects:
     # uvw_array_m must have shape (nt, nbls, 3) and stores the (u, v, w)
     # coordinates sampled by the instrument.
     # bl_red_array must have shape (nt, nbls, 1) and stores the number of
-    # redundant baselines per time and per baseline.
+    # redundant baselines (if data are redundantly averaged) per time and per
+    # baseline.
     # phasor_vec must have shape (ndata,) and stores a phasor per time,
-    # frequency, and baseline that phases the visibilities to the central
+    # frequency, and baseline that phases unphased visibilities to the central
     # time step in the observation.
     uvw_array_m, bl_red_array, phasor_vec = load_inst_model(
         p.instrument_model_directory
@@ -114,7 +140,7 @@ if p.include_instrumental_effects:
     # before scaling individual baselines by their respective
     # redundancies
     avg_bl_red = np.mean(bl_red_array)
-    if 'noise_data_path' not in p.__dict__.keys():
+    if gen_noise:
         sigma = sigma * avg_bl_red**0.5
     else:
         sigma = sigma*1.
@@ -124,12 +150,6 @@ if p.include_instrumental_effects:
 
 else:
     sigma = sigma*1.
-
-# Check for HERA data path
-if 'data_path' in p.__dict__.keys():
-    use_EoR_cube = False
-else:
-    use_EoR_cube = True
 
 # Auxiliary and derived params
 Show = False
@@ -375,10 +395,13 @@ if p.include_instrumental_effects:
         del Finv
     else:
         print('\nUsing data at {}'.format(p.data_path))
-        s_EoR = np.load(p.data_path)
+        if dict_format:
+            s_EoR = data['data']
+        else:
+            s_EoR = data
 
     EoR_noise_seed = p.noise_seed
-    if 'noise_data_path' not in p.__dict__.keys():
+    if gen_noise:
         print('EoR_noise_seed =', EoR_noise_seed)
         # Assumes the instrument model contains duplicates of the
         # unphased uvw coordinates in each time entry of the
