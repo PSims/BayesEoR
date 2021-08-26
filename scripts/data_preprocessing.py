@@ -25,6 +25,7 @@ import os
 import sys
 import optparse
 import warnings
+import subprocess
 
 from pathlib import Path
 from datetime import datetime
@@ -186,6 +187,13 @@ o.add_option(
     '--form_pI',
     action='store_true',
     help="If passed, form pI visibilities from the 'xx' and/or 'yy' pols."
+)
+o.add_option(
+    '--pI_norm',
+    type=float,
+    default=1.,
+    help='Normalization N used in the formation of pI = N * (XX + YY).'
+         'Defaults to 1.0.'
 )
 o.add_option(
     '--all_bl_noise',
@@ -514,10 +522,26 @@ def data_processing(
         if opts.clobber:
             print('Clobbering file, if it exists.')
 
+        version_info = {}
+        version_info['git_origin'] = subprocess.check_output(
+            ['git', 'config', '--get', 'remote.origin.url'],
+            stderr=subprocess.STDOUT)
+        version_info['git_hash'] = subprocess.check_output(
+            ['git', 'rev-parse', 'HEAD'],
+            stderr=subprocess.STDOUT)
+        version_info['git_description'] = subprocess.check_output(
+            ['git', 'describe', '--dirty', '--tag', '--always'])
+        version_info['git_branch'] = subprocess.check_output(
+            ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+            stderr=subprocess.STDOUT)
+        for key in version_info.keys():
+            version_info[key] = version_info[key].decode('utf8').strip('\n')
+
         data_dict = {
             'data': data_array_flattened,
             'noise': noise_array_flattened,
-            'opts': vars(opts)
+            'opts': vars(opts),
+            'version': version_info
         }
         datapath = os.path.join(save_dir, outfile)
         if not os.path.exists(datapath) or opts.clobber:
@@ -740,9 +764,7 @@ if opts.form_pI:
         xx_ind = np.where(uvd.polarization_array == -5)[0][0]
         yy_ind = np.where(uvd.polarization_array == -6)[0][0]
         uvd.data_array[..., xx_ind] += uvd.data_array[..., yy_ind]
-        # hera_pspec (used to form pI in H1C_IDR2 pipeline) uses the
-        # pI = (XX + YY)/2 convention
-        uvd.data_array *= 0.5
+        uvd.data_array *= opts.pI_norm
         pol_num = -5
     elif -5 in uvd.polarization_array:
         pol_num = -5
