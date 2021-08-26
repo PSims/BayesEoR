@@ -25,7 +25,7 @@ file_root = None
 # k-cube params
 nf = 38
 neta = 38
-nu = 15
+nu = 9
 nv = None
 nq = 0
 # Subharmonic grid (SHG) params
@@ -46,7 +46,7 @@ eor_sim_path = ''
 
 # Frequency params
 nu_min_MHz = 120.01953125
-channel_width_MHz = 0.0976562
+channel_width_MHz = 0.1953125
 
 # Spectral model params
 beta = [2.63, 2.82]
@@ -73,11 +73,17 @@ if include_instrumental_effects:
     # Obs params
     nt = 30
     integration_time_seconds = 21.47659325394137
+    # instrument_model_directory = (
+    #     '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/'
+    #     'IDR2.2-{}-{:.1f}sec-time-steps-start-freq-120.00-nf-38-adj-freq-avg'
+    #     '-nbls-18-bl-cutoff-40.0m/'.format(
+    #         nt, integration_time_seconds
+    #     )
+    # )
     instrument_model_directory = (
         '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/'
-        'IDR2.2-{}-{:.1f}sec-time-steps-bl-cutoff-40m/'.format(
-            nt, integration_time_seconds
-        )
+        'IDR2d2_baselines_shorter_than_29d3_for_'
+        '30_0d357916666667_min_time_steps/'
     )
     telescope_latlonalt = (-30.72152777777791,
                            21.428305555555557,
