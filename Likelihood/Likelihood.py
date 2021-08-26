@@ -151,6 +151,9 @@ class PowerSpectrumPosteriorProbability(object):
         Number of k-bins, counting up from the lowest k_bin, that will use a
         prior which is uniform in the amplitude.  The remaining k-bins will use
         log-uniform priors.  Defaults to 0.
+    uniform_priors : bool
+        If `True`, all k-bins use a prior uniform in the amplitude.  Otherwise,
+        all k-bins use a log-uniform prior.
     use_shg : bool
         If `True`, use the SubHarmonic Grid (SHG) in the model uv-plane.
     fit_for_shg_amps : bool
@@ -182,7 +185,8 @@ class PowerSpectrumPosteriorProbability(object):
             Print=False, debug=False, Print_debug=False,
             intrinsic_noise_fitting=False, return_Sigma=False,
             fit_for_spectral_model_parameters=False,
-            n_uniform_prior_k_bins=0, use_shg=False, fit_for_shg_amps=False,
+            n_uniform_prior_k_bins=0, uniform_priors=False,
+            use_shg=False, fit_for_shg_amps=False,
             nuv_sh=None, nu_sh=None, nv_sh=None, nq_sh=None
             ):
         self.block_T_Ninv_T = block_T_Ninv_T
@@ -205,6 +209,7 @@ class PowerSpectrumPosteriorProbability(object):
             fit_for_spectral_model_parameters
         self.k_vals = k_vals
         self.n_uniform_prior_k_bins = n_uniform_prior_k_bins
+        self.uniform_priors = uniform_priors
         self.ps_box_size_ra_Mpc = ps_box_size_ra_Mpc
         self.ps_box_size_dec_Mpc = ps_box_size_dec_Mpc
         self.ps_box_size_para_Mpc = ps_box_size_para_Mpc
@@ -788,12 +793,17 @@ class PowerSpectrumPosteriorProbability(object):
 
             start = time.time()
             MargLogL = -0.5*logSigmaDet - 0.5*logPhiDet + 0.5*dbarSigmaIdbar
-            if self.n_uniform_prior_k_bins > 0:
+            if np.abs(self.n_uniform_prior_k_bins) > 0:
                 # Specific bins use a uniform prior
-                MargLogL += np.sum(
-                    np.log(x[:self.n_uniform_prior_k_bins])
+                if self.n_uniform_prior_k_bins > 0:
+                    MargLogL += np.sum(
+                        np.log(x[:self.n_uniform_prior_k_bins])
                     )
-            elif self.n_uniform_prior_k_bins == -1:
+                else:
+                    MargLogL += np.sum(
+                        np.log(x[self.n_uniform_prior_k_bins:])
+                    )
+            elif self.uniform_priors:
                 # All bins use a uniform prior
                 MargLogL += np.sum(np.log(x))
             if self.intrinsic_noise_fitting:

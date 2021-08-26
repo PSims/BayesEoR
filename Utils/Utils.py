@@ -181,8 +181,8 @@ def generate_output_file_base(file_root, version_number='1'):
 
 def load_inst_model(
         inst_model_dir,
-        uvw_file='uvw_multi_time_step_array_meters',
-        red_file='uvw_redundancy_multi_time_step_array',
+        uvw_file='uvw_model.npy',
+        red_file='redundancy_model.npy',
         phasor_file='phasor_vector.npy'):
     """
     Load the instrument model consisting of
@@ -216,10 +216,8 @@ def load_inst_model(
         Array of phasor values.
 
     """
-    with open(os.path.join(inst_model_dir, uvw_file), 'rb') as f:
-        uvw_array_m = pickle.load(f)
-    with open(os.path.join(inst_model_dir, red_file), 'rb') as f:
-        bl_red_array = pickle.load(f)
+    uvw_array_m = np.load(os.path.join(inst_model_dir, uvw_file))
+    bl_red_array = np.load(os.path.join(inst_model_dir, red_file))
     phasor_vec = np.load(os.path.join(inst_model_dir, phasor_file))
 
     return uvw_array_m, bl_red_array, phasor_vec

@@ -121,9 +121,16 @@ def BayesEoRParser():
     parser.add_argument(
         '--n_uniform_prior_k_bins',
         type=int,
-        help="Number of k-bins, counting up from the lowest k-bin, that will "
-             "use a prior which is uniform in the amplitude.  The remaining "
-             "k-bins will use log-uniform priors."
+        help="Number of k-bins, counting up(down) from the lowest(highest) "
+             "k-bin if positive(negative), that will use a prior which is "
+             "uniform in the amplitude.  The remaining k-bins will use "
+             "log-uniform priors."
+    )
+    parser.add_argument(
+        '--uniform_priors',
+        action='store_true',
+        default=False,
+        help="If passed, all k-bins use uniform priors."
     )
     parser.add_argument(
         '--file_root',

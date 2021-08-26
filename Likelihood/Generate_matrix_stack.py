@@ -430,7 +430,7 @@ class BuildMatrices(BuildMatrixTree):
                 telescope_latlonalt=p.telescope_latlonalt,
                 central_jd=p.central_jd,
                 nt=p.nt,
-                int_time=p.integration_time_minutes * 60,
+                int_time=p.integration_time_seconds,
                 beam_type=self.beam_type,
                 peak_amp=self.beam_peak_amplitude,
                 fwhm_deg=self.fwhm_deg,

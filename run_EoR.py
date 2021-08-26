@@ -76,21 +76,47 @@ else:
 # Improve numerical precision when performing evidence comparison.
 sub_ML_monopole_term_model = False
 
+# Check for data path
+if 'data_path' in p.__dict__.keys():
+    use_EoR_cube = False
+    data = np.load(p.data_path, allow_pickle=True)
+    if data.dtype.kind == 'O':
+        # data and noise vector saved as a dictionary
+        dict_format = True
+        data = data.item()
+        if 'noise' in data.keys():
+            gen_noise = False
+        else:
+            gen_noise = True
+    else:
+        # data and noise vector saved as separate arrays
+        dict_format = False
+        if 'noise_data_path' in p.__dict__.keys():
+            gen_noise = False
+        else:
+            gen_noise = True
+else:
+    use_EoR_cube = True
+
 # Data noise
-if 'noise_data_path' not in p.__dict__.keys():
+if gen_noise:
     effective_noise = None
     sigma = p.sigma
 else:
-    effective_noise = np.load(p.noise_data_path)
+    if dict_format:
+        effective_noise = data['noise']
+    else:
+        effective_noise = np.load(p.noise_data_path)
     sigma = effective_noise.std()
 
 if p.include_instrumental_effects:
     # uvw_array_m must have shape (nt, nbls, 3) and stores the (u, v, w)
     # coordinates sampled by the instrument.
     # bl_red_array must have shape (nt, nbls, 1) and stores the number of
-    # redundant baselines per time and per baseline.
+    # redundant baselines (if data are redundantly averaged) per time and per
+    # baseline.
     # phasor_vec must have shape (ndata,) and stores a phasor per time,
-    # frequency, and baseline that phases the visibilities to the central
+    # frequency, and baseline that phases unphased visibilities to the central
     # time step in the observation.
     uvw_array_m, bl_red_array, phasor_vec = load_inst_model(
         p.instrument_model_directory
@@ -114,7 +140,7 @@ if p.include_instrumental_effects:
     # before scaling individual baselines by their respective
     # redundancies
     avg_bl_red = np.mean(bl_red_array)
-    if 'noise_data_path' not in p.__dict__.keys():
+    if gen_noise:
         sigma = sigma * avg_bl_red**0.5
     else:
         sigma = sigma*1.
@@ -124,12 +150,6 @@ if p.include_instrumental_effects:
 
 else:
     sigma = sigma*1.
-
-# Check for HERA data path
-if 'data_path' in p.__dict__.keys():
-    use_EoR_cube = False
-else:
-    use_EoR_cube = True
 
 # Auxiliary and derived params
 Show = False
@@ -339,7 +359,7 @@ k_vals_file_name = (
 )
 k_vals = calc_mean_binned_k_vals(
     mod_k_masked, k_cube_voxels_in_bin,
-    save_k_vals=False, k_vals_file=k_vals_file_name
+    save_k_vals=True, k_vals_file=k_vals_file_name
 )
 
 do_cylindrical_binning = False
@@ -375,10 +395,13 @@ if p.include_instrumental_effects:
         del Finv
     else:
         print('\nUsing data at {}'.format(p.data_path))
-        s_EoR = np.load(p.data_path)
+        if dict_format:
+            s_EoR = data['data']
+        else:
+            s_EoR = data
 
-    if 'noise_data_path' not in p.__dict__.keys():
-        EoR_noise_seed = p.noise_seed
+    EoR_noise_seed = p.noise_seed
+    if gen_noise:
         print('EoR_noise_seed =', EoR_noise_seed)
         # Assumes the instrument model contains duplicates of the
         # unphased uvw coordinates in each time entry of the
@@ -391,6 +414,12 @@ if p.include_instrumental_effects:
                 random_seed=EoR_noise_seed)
     else:
         d = s_EoR.copy()
+        _, _, bl_conjugate_pairs_map =\
+            generate_data_and_noise_vector_instrumental(
+                1.0*sigma, s_EoR, nf, p.nt,
+                uvw_array_m[0],
+                bl_red_array[0],
+                random_seed=EoR_noise_seed)
 
 effective_noise_std = effective_noise.std()
 print('\ns_EoR.std = {:.4e}'.format(s_EoR.std()))
@@ -432,7 +461,7 @@ x = [100.e0]*nDims
 ###
 # PolyChord setup
 ###
-log_priors_min_max = [[-2., 6.] for _ in range(nDims)]
+log_priors_min_max = [[-5, 16.] for _ in range(nDims)]
 if p.use_LWM_Gaussian_prior:
     # Set minimum LW model priors using LW power spectrum in fit to
     # white noise (i.e the prior min should incorporate knowledge of
@@ -479,7 +508,7 @@ if p.file_root is None:
         file_root += '{:.2E}-'.format(p.beta)
     elif npl == 2:
         file_root += '{:.2F}_{:.2F}-'.format(p.beta[0], p.beta[1])
-    if log_priors and p.n_uniform_prior_k_bins == 0:
+    if log_priors and (p.n_uniform_prior_k_bins == 0 or not p.uniform_priors):
         file_root += 'lp-'
     if dimensionless_PS:
         file_root += 'dPS-'
@@ -508,6 +537,8 @@ PSPP_block_diag_Polychord = PowerSpectrumPosteriorProbability(
     ps_box_size_dec_Mpc, ps_box_size_para_Mpc, block_T_Ninv_T=block_T_Ninv_T,
     log_priors=log_priors, dimensionless_PS=dimensionless_PS, Print=True,
     intrinsic_noise_fitting=p.use_intrinsic_noise_fitting,
+    n_uniform_prior_k_bins=p.n_uniform_prior_k_bins,
+    uniform_priors=p.uniform_priors,
     use_shg=p.use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
     nuv_sh=nuv_sh, nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh
 )
