@@ -461,7 +461,7 @@ x = [100.e0]*nDims
 ###
 # PolyChord setup
 ###
-log_priors_min_max = [[-5, 16.] for _ in range(nDims)]
+log_priors_min_max = [[-2., 6.] for _ in range(nDims)]
 if p.use_LWM_Gaussian_prior:
     # Set minimum LW model priors using LW power spectrum in fit to
     # white noise (i.e the prior min should incorporate knowledge of

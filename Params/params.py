@@ -45,8 +45,8 @@ use_EoR_cube = False
 eor_sim_path = ''
 
 # Frequency params
-nu_min_MHz = 120.01953125
-channel_width_MHz = 0.1953125
+nu_min_MHz = 158.304048743
+channel_width_MHz = 0.237618986858
 
 # Spectral model params
 beta = [2.63, 2.82]
@@ -71,19 +71,15 @@ inverse_LW_power = 1.e-16
 
 if include_instrumental_effects:
     # Obs params
-    nt = 30
-    integration_time_seconds = 21.47659325394137
-    # instrument_model_directory = (
-    #     '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/'
-    #     'IDR2.2-{}-{:.1f}sec-time-steps-start-freq-120.00-nf-38-adj-freq-avg'
-    #     '-nbls-18-bl-cutoff-40.0m/'.format(
-    #         nt, integration_time_seconds
-    #     )
-    # )
+    nt = 34
+    integration_time_seconds = 11
+    integration_time_minutes = integration_time_seconds/60
+    integration_time_minutes_str = '{}'.format(
+        integration_time_minutes).replace('.', 'd')
     instrument_model_directory = (
         '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/'
-        'IDR2d2_baselines_shorter_than_29d3_for_'
-        '30_0d357916666667_min_time_steps/'
+        'Hex-37-14.6m-model-{}-{}sec-time-'
+        'steps_bl_less_than_40m/'.format(nt, integration_time_seconds)
     )
     telescope_latlonalt = (-30.72152777777791,
                            21.428305555555557,
