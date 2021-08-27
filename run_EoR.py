@@ -84,7 +84,10 @@ if 'data_path' in p.__dict__.keys():
         # data and noise vector saved as a dictionary
         dict_format = True
         data = data.item()
-        if 'noise' in data.keys():
+        if (
+            'noise' in data.keys()
+            and 'sigma' not in p.__dict__.keys()
+        ):
             gen_noise = False
         else:
             gen_noise = True
