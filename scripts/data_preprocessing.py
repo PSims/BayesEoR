@@ -283,6 +283,7 @@ def data_processing(
         uvd_select,
         opts,
         filename,
+        min_freq_MHz,
         save_dir=DEFAULT_SAVE_DIR,
         inst_model_dir=None,
         uvd_all_bls=None
@@ -321,7 +322,7 @@ def data_processing(
     outfile = filename.replace(
         '.uvh5',
         '-start-freq-{:.2f}-nf-{}-nbls-{}'.format(
-            opts.start_freq_MHz, opts.nf, uvd_select.Nbls*2
+            min_freq_MHz, opts.nf, uvd_select.Nbls*2
         )
     )
     if opts.avg_adj_freqs:
@@ -695,6 +696,7 @@ if start_freq_ind + nf > uvd.Nfreqs:
         'fewer than nf frequencies being kept in the data vector.'
     )
 frequencies = frequencies[start_freq_ind:start_freq_ind+nf]
+min_freq_MHz = frequencies[0] / 1e6
 print('\tMinimum frequency in data =', (frequencies[0]*units.Hz).to('MHz'))
 df = Quantity(np.mean(np.diff(frequencies)), unit='Hz')
 if opts.avg_adj_freqs:
@@ -808,7 +810,7 @@ if opts.ant_str:
 inst_model_dir = str(Path(opts.inst_model_dir) / opts.telescope_name)
 inst_model_dir += '-{}-{:.1f}sec-time-steps'.format(nt, dt.sec)
 inst_model_dir += '-start-freq-{:.2f}-nf-{}'.format(
-    opts.start_freq_MHz, opts.nf
+    min_freq_MHz, opts.nf
 )
 if opts.avg_adj_freqs:
     inst_model_dir += '-adj-freq-avg'
@@ -845,6 +847,7 @@ if opts.single_bls:
             uvd_select,
             opts,
             filename,
+            min_freq_MHz,
             save_dir=opts.save_dir,
             inst_model_dir=inst_model_dir_bl,
             uvd_all_bls=uvd_all_bls)
@@ -861,6 +864,7 @@ else:
         uvd,
         opts,
         filename,
+        min_freq_MHz,
         inst_model_dir=inst_model_dir,
         uvd_all_bls=uvd_all_bls,
         save_dir=opts.save_dir
