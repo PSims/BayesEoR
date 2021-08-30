@@ -145,9 +145,8 @@ o.add_option(
 o.add_option(
     '--nf',
     type=int,
-    default=38,
     help='Number of frequency channels to include in the data vector.  '
-         'Defaults to 38.'
+         'Defaults to keeping all frequencies in the data file.'
 )
 o.add_option(
     '--avg_adj_freqs',
@@ -159,9 +158,8 @@ o.add_option(
 o.add_option(
     '--nt',
     type=int,
-    default=30,
     help='Number of integrations to include in the data vector.  '
-         'Defaults to 30.'
+         'Defaults to keeping all integrations in the data file.'
 )
 o.add_option(
     '--start_int',
@@ -676,6 +674,10 @@ if opts.bl_cutoff_m:
 
 # Frequency selection
 frequencies = uvd.freq_array[0]
+if not opts.nf:
+    opts.nf = frequencies.size
+    if opts.avg_adj_freqs:
+        opts.nf = opts.nf//2
 nf = opts.nf
 if opts.avg_adj_freqs:
     nf *= 2
@@ -701,6 +703,8 @@ print('\tFrequency channel width in data =', df.to('MHz'))
 
 # Time selection
 times = np.unique(uvd.time_array)
+if not opts.nt:
+    opts.nt = times.size
 nt = opts.nt
 min_t_ind = opts.start_int
 print(
