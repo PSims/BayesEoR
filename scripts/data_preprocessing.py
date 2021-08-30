@@ -519,7 +519,7 @@ def data_processing(
 
     if opts.save:
         if opts.clobber:
-            print('Clobbering file, if it exists.')
+            print('Clobbering file if it exists')
 
         version_info = {}
         version_info['git_origin'] = subprocess.check_output(
@@ -584,19 +584,33 @@ def data_processing(
             redundancy_model[i_t] = redundancy_vec[:, np.newaxis]
 
     if opts.save_model:
-        print('\nSaving model to {}...'.format(inst_model_dir))
+        print('\nInstrument model: {}'.format(inst_model_dir.split('/')[-2]))
+        if opts.clobber:
+            print('Clobbering files if they exist')
 
         if not os.path.exists(inst_model_dir):
             os.mkdir(inst_model_dir)
 
         uvw_file = 'uvw_model.npy'
-        np.save(Path(inst_model_dir) / uvw_file, uvw_model_unphased)
+        uvw_filepath = Path(inst_model_dir) / uvw_file
+        if not uvw_filepath.exists() or opts.clobber:
+            np.save(uvw_filepath, uvw_model_unphased)
+        else:
+            print('\tuvw model exists, skipping...')
 
         red_file = 'redundancy_model.npy'
-        np.save(Path(inst_model_dir) / red_file, redundancy_model)
+        red_filepath = Path(inst_model_dir) / red_file
+        if not red_filepath.exists() or opts.clobber:
+            np.save(red_filepath, redundancy_model)
+        else:
+            print('\tredundancy model exists, skipping...')
 
-        phasor_filename = 'phasor_vector.npy'
-        np.save(Path(inst_model_dir) / phasor_filename, phasor_array_flattened)
+        phasor_file = 'phasor_vector.npy'
+        phasor_filepath = Path(inst_model_dir) / phasor_file
+        if not phasor_filepath.exists() or opts.clobber:
+            np.save(phasor_filepath, phasor_array_flattened)
+        else:
+            print('\tphasor vector exists, skipping...')
 
     if opts.plot_inst_model:
         fig = plt.figure(figsize=(16, 8))
