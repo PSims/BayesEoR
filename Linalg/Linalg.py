@@ -29,8 +29,8 @@ def Produce_Coordinate_Arrays_ZM(nu, nv, exclude_mean=True):
 
     """
     us, vs = np.meshgrid(np.arange(nu) - nu//2, np.arange(nv) - nv//2)
-    us_vec = us.flatten().reshape(1, nu*nv)
-    vs_vec = vs.flatten().reshape(1, nu*nv)
+    us_vec = us.reshape(1, nu*nv)
+    vs_vec = vs.reshape(1, nu*nv)
 
     if exclude_mean:
         us_vec = np.delete(us_vec, (nu*nv)//2, axis=1)
@@ -39,8 +39,7 @@ def Produce_Coordinate_Arrays_ZM(nu, nv, exclude_mean=True):
     return us_vec, vs_vec
 
 
-def Produce_Coordinate_Arrays_ZM_SH(
-        nu, nv, exclude_mean=True, spacing='linear'):
+def Produce_Coordinate_Arrays_ZM_SH(nu, nv):
     """
     Creates vectorized arrays of 2D subharmonic grid (SHG) coordinates for the
     model uv-plane.
@@ -51,21 +50,13 @@ def Produce_Coordinate_Arrays_ZM_SH(
         Number of pixels on a side for the u-axis in the SH model uv-plane.
     nv : int
         Number of pixels on a side for the v-axis in the SH model uv-plane.
-    exclude_mean : bool
-        If True, remove the (u, v) = (0, 0) pixel from the SH model
-        uv-plane coordinate arrays. Defaults to True.
-    spacing : str
-        Needs development. Can be 'linear' or 'log' spacing of the SHG pixels.
 
     """
-    # Assuming uniform spacing for now
     us, vs = np.meshgrid(np.arange(nu) - nu//2, np.arange(nv) - nv//2)
-    us_vec = us.flatten().reshape(1, nu*nv)
-    vs_vec = vs.flatten().reshape(1, nu*nv)
-
-    if exclude_mean:
-        us_vec = np.delete(us_vec, (nu*nv)//2, axis=1)
-        vs_vec = np.delete(vs_vec, (nu*nv)//2, axis=1)
+    us_vec = us.reshape(1, nu*nv)
+    us_vec = np.delete(us_vec, (nu*nv)//2, axis=1)
+    vs_vec = vs.reshape(1, nu*nv)
+    vs_vec = np.delete(vs_vec, (nu*nv)//2, axis=1)
 
     return us_vec, vs_vec
 
@@ -186,7 +177,7 @@ def IDFT_Array_IDFT_2D_ZM(
 
 
 def IDFT_Array_IDFT_2D_ZM_SH(
-        nu_sh, nv_sh, sampled_lm_coords_radians, exclude_mean=True):
+        nu_sh, nv_sh, sampled_lm_coords_radians, spacing='linear'):
     """
     Generates a non-uniform (might want to update the function name)
     inverse DFT matrix that goes from subharmonic grid (SHG) model (u, v) to
@@ -206,6 +197,11 @@ def IDFT_Array_IDFT_2D_ZM_SH(
         model in units of radians.
     exclude_mean : boolean
         If True, exclude the (u, v) = (0, 0) pixel from the SHG.
+    spacing : {'linear', 'log'}
+        Controls the spacing of the SHG modes.  If linear, the spacing between
+        SHG modes is the coarse grid spacing `delta_u_irad` divided by the
+        number of SHG modes `nu_sh`.  If log, the SHG modes are determined via
+        `np.logspace`.
 
     Returns
     -------
@@ -213,10 +209,6 @@ def IDFT_Array_IDFT_2D_ZM_SH(
         Non-uniform, complex 2D DFT matrix.
 
     """
-    u_vec, v_vec =\
-        Produce_Coordinate_Arrays_ZM_SH(
-            nu_sh, nv_sh, exclude_mean=exclude_mean)
-
     # Replace x and y coordinate arrays with sampled_lm_coords_radians
     x_vec = sampled_lm_coords_radians[:, 0].reshape(-1, 1)
     y_vec = sampled_lm_coords_radians[:, 1].reshape(-1, 1)
@@ -227,10 +219,33 @@ def IDFT_Array_IDFT_2D_ZM_SH(
     # linear spacing and will need to be reworked if using a log spacing.
     # This also needs to be updated to account for a FoV which differs
     # along the l and m axes.
-    du_sh = p.delta_u_irad / nu_sh
-    dv_sh = p.delta_v_irad / nv_sh
-    u_vec = u_vec.astype('float') * du_sh
-    v_vec = v_vec.astype('float') * dv_sh
+    if spacing == 'linear':
+        u_vec, v_vec = Produce_Coordinate_Arrays_ZM_SH(nu_sh, nv_sh)
+        du_sh = p.delta_u_irad / nu_sh
+        dv_sh = p.delta_v_irad / nv_sh
+        u_vec = u_vec.astype('float') * du_sh
+        v_vec = v_vec.astype('float') * dv_sh
+    else:
+        max_u_sh = p.delta_u_irad
+        max_v_sh = p.delta_v_irad
+        min_u_sh = 1 / 2  # horizon to horizon period in l-units
+        min_v_sh = 1 / 2  # horizon to horizon period in m-units
+        u_sh = np.logspace(
+            np.log10(min_u_sh), np.log10(max_u_sh),
+            nu_sh//2, endpoint=False
+        )
+        u_sh = np.concatenate((-u_sh[::-1], np.zeros(1), u_sh))
+        v_sh = np.logspace(
+            np.log10(min_v_sh), np.log10(max_v_sh),
+            nv_sh//2, endpoint=False
+        )
+        v_sh = np.concatenate((-v_sh[::-1], np.zeros(1), v_sh))
+
+        u_sh, v_sh = np.meshgrid(u_sh, v_sh)
+        u_vec = u_sh.reshape(1, -1)
+        u_vec = np.delete(u_vec, u_vec.size//2, axis=1)
+        v_vec = v_sh.reshape(1, -1)
+        v_vec = np.delete(v_vec, v_vec.size//2, axis=1)
 
     # Sign change for consistency, Finv chosen to
     # have + to match healvis
