@@ -3,9 +3,10 @@ import numpy as np
 import scipy
 from pdb import set_trace as brk
 import h5py
+from mpi4py import MPI
 
 import BayesEoR.Params.params as p
-from BayesEoR.Utils import Cosmology
+from BayesEoR.Utils import Cosmology, mpiprint
 
 
 """
@@ -13,6 +14,8 @@ Potentially useful links:
 http://www.mrao.cam.ac.uk/~kjbg1/lectures/lect1_1.pdf
 """
 
+
+rank = MPI.COMM_WORLD.Get_rank()
 
 try:
     import pycuda.autoinit
@@ -30,10 +33,12 @@ try:
         gpu_arch = 'p100'
     elif 'v100' in device.name().lower():
         gpu_arch = 'v100'
-    print('Found GPU with {} architecture'.format(gpu_arch))
-    print('Loading shared library from {}'.format(
+    mpiprint('Found GPU with {} architecture'.format(gpu_arch), rank=rank)
+    mpiprint('Loading shared library from {}'.format(
         GPU_wrap_dir + 'wrapmzpotrf_{}.so'.format(gpu_arch)
-    ))
+        ),
+        rank=rank
+    )
     wrapmzpotrf = ctypes.CDLL(
         GPU_wrap_dir + 'wrapmzpotrf_{}.so'.format(gpu_arch)
         )
@@ -45,12 +50,12 @@ try:
         ctypeslib.ndpointer(np.complex128, ndim=1, flags='C'),
         ctypes.c_int,
         ctypeslib.ndpointer(np.int, ndim=1, flags='C')]
-    print('Computing on {} GPUs'.format(gpu_arch))
+    mpiprint('Computing on {} GPUs'.format(gpu_arch), rank=rank)
 
 except Exception as e:
-    print('Exception loading GPU encountered...')
-    print(e)
-    print('Computing on CPU instead...')
+    mpiprint('Exception loading GPU encountered...', rank=rank)
+    mpiprint(repr(e), rank=rank)
+    mpiprint('Computing on CPU instead...', rank=rank)
     p.useGPU = False
 
 
@@ -169,6 +174,8 @@ class PowerSpectrumPosteriorProbability(object):
         uv-plane.
     nq_sh : int
         Number of LSSM quadratic modes for each pixel in the subharmonic grid.
+    rank : int
+        MPI rank.
 
     """
     def __init__(
@@ -187,15 +194,17 @@ class PowerSpectrumPosteriorProbability(object):
             fit_for_spectral_model_parameters=False,
             n_uniform_prior_k_bins=0, uniform_priors=False,
             use_shg=False, fit_for_shg_amps=False,
-            nuv_sh=None, nu_sh=None, nv_sh=None, nq_sh=None
+            nuv_sh=None, nu_sh=None, nv_sh=None, nq_sh=None,
+            rank=0
             ):
+        self.rank = rank
         self.block_T_Ninv_T = block_T_Ninv_T
         self.log_priors = log_priors
         if self.log_priors:
-            print('Using log-priors')
+            mpiprint('Using log-priors', rank=self.rank)
         self.dimensionless_PS = dimensionless_PS
         if self.dimensionless_PS:
-            print('Calculating dimensionless_PS')
+            mpiprint('Calculating dimensionless_PS', rank=self.rank)
         self.inverse_LW_power = inverse_LW_power
         self.inverse_LW_power_zeroth_LW_term = inverse_LW_power_zeroth_LW_term
         self.inverse_LW_power_first_LW_term = inverse_LW_power_first_LW_term
@@ -469,12 +478,13 @@ class PowerSpectrumPosteriorProbability(object):
         PowerI = self.calc_PowerI(x)
         PhiI = PowerI
         if self.Print:
-            print('\tPhiI time: {}'.format(time.time()-start))
+            mpiprint('\tPhiI time: {}'.format(time.time()-start),
+                     rank=self.rank)
 
         do_block_diagonal_inversion = len(np.shape(block_T_Ninv_T)) > 1
         if do_block_diagonal_inversion:
             if self.Print:
-                print('Using block-diagonal inversion')
+                mpiprint('Using block-diagonal inversion', rank=self.rank)
             start = time.time()
             if self.intrinsic_noise_fitting:
                 # This is only valid if the data is uniformly weighted
@@ -484,15 +494,15 @@ class PowerSpectrumPosteriorProbability(object):
                 Sigma_block_diagonals = self.calc_Sigma_block_diagonals(
                     T_Ninv_T, PhiI)
             if self.Print:
-                print('Time taken: {}'.format(time.time()-start))
-            if self.Print:
-                print('nuv', self.nuv)
+                mpiprint('Time taken: {}'.format(time.time()-start),
+                         rank=self.rank)
 
             start = time.time()
             dbar_blocks = np.split(dbar, self.nuv)
             if p.useGPU:
                 if self.Print:
-                    print('Computing block diagonal inversion on GPU')
+                    mpiprint('Computing block diagonal inversion on GPU',
+                             rank=self.rank)
                 SigmaI_dbar_blocks_and_logdet_Sigma = np.array(
                     [self.calc_SigmaI_dbar(
                         Sigma_block_diagonals[i_block],
@@ -517,12 +527,14 @@ class PowerSpectrumPosteriorProbability(object):
                      for i_block in range(self.nuv)]
                     )
             if self.Print:
-                print('Time taken: {}'.format(time.time()-start))
+                mpiprint('Time taken: {}'.format(time.time()-start),
+                         rank=self.rank)
 
             SigmaI_dbar = SigmaI_dbar_blocks.flatten()
             dbarSigmaIdbar = np.dot(dbar.conjugate().T, SigmaI_dbar)
             if self.Print:
-                print('Time taken: {}'.format(time.time()-start))
+                mpiprint('Time taken: {}'.format(time.time()-start),
+                         rank=self.rank)
 
             if p.useGPU:
                 logSigmaDet = np.sum(logdet_Sigma_blocks)
@@ -532,11 +544,12 @@ class PowerSpectrumPosteriorProbability(object):
                      for Sigma_block in Sigma_block_diagonals]
                     )
                 if self.Print:
-                    print('Time taken: {}'.format(time.time()-start))
+                    mpiprint('Time taken: {}'.format(time.time()-start),
+                             rank=self.rank)
 
         else:
             if self.count % self.print_rate == 0:
-                print('Not using block-diagonal inversion')
+                mpiprint('Not using block-diagonal inversion', rank=self.rank)
             start = time.time()
             # Note: the following two lines can probably be speeded up
             # by adding T_Ninv_T and np.diag(PhiI). (Should test this!)
@@ -548,14 +561,16 @@ class PowerSpectrumPosteriorProbability(object):
 
             Sigma[self.Sigma_Diag_Indices] += PhiI
             if self.Print:
-                print('\tSigma build time: {}'.format(time.time()-start))
+                mpiprint('\tSigma build time: {}'.format(time.time()-start),
+                         rank=self.rank)
             if self.return_Sigma:
                 return Sigma
 
             start = time.time()
             if p.useGPU:
                 if self.Print:
-                    print('Computing matrix inversion on GPU')
+                    mpiprint('Computing matrix inversion on GPU',
+                             rank=self.rank)
                 SigmaI_dbar_and_logdet_Sigma = self.calc_SigmaI_dbar(
                     Sigma, dbar, x_for_error_checking=x)
                 SigmaI_dbar = SigmaI_dbar_and_logdet_Sigma[0]
@@ -564,12 +579,18 @@ class PowerSpectrumPosteriorProbability(object):
                 SigmaI_dbar = self.calc_SigmaI_dbar(
                     Sigma, dbar, x_for_error_checking=x)
             if self.Print:
-                print('\tcalc_SigmaI_dbar time: {}'.format(time.time()-start))
+                mpiprint(
+                    '\tcalc_SigmaI_dbar time: {}'.format(time.time()-start),
+                    rank=self.rank
+                )
 
             start = time.time()
             dbarSigmaIdbar = np.dot(dbar.conjugate().T, SigmaI_dbar)
             if self.Print:
-                print('\tdbarSigmaIdbar time: {}'.format(time.time()-start))
+                mpiprint(
+                    '\tdbarSigmaIdbar time: {}'.format(time.time()-start),
+                    rank=self.rank
+                )
 
             start = time.time()
             if p.useGPU:
@@ -577,8 +598,10 @@ class PowerSpectrumPosteriorProbability(object):
             else:
                 logSigmaDet = np.linalg.slogdet(Sigma)[1]
             if self.Print:
-                print('\tlogSigmaDet time: {}'.format(time.time()-start))
-            # logSigmaDet = 2.*np.sum(np.log(np.diag(Sigmacho)))
+                mpiprint(
+                    '\tlogSigmaDet time: {}'.format(time.time()-start),
+                    rank=self.rank
+                )
 
         return SigmaI_dbar, dbarSigmaIdbar, PhiI, logSigmaDet
 
@@ -635,8 +658,12 @@ class PowerSpectrumPosteriorProbability(object):
             wrapmzpotrf.cpu_interface(
                 len(Sigma), nrhs, Sigma, dbar_copy, 0, self.GPU_error_flag)
             if self.Print:
-                print('\t\tCholesky decomposition time: {}'.format(
-                    time.time() - start))
+                mpiprint(
+                    '\t\tCholesky decomposition time: {}'.format(
+                        time.time() - start
+                    ),
+                    rank=self.rank
+                )
             # Note: After wrapmzpotrf, Sigma is actually
             # SigmaCho (i.e. L with Sigma = LL^T)
             logdet_Magma_Sigma = np.sum(np.log(np.diag(abs(Sigma)))) * 2
@@ -645,16 +672,21 @@ class PowerSpectrumPosteriorProbability(object):
             SigmaI_dbar = scipy.linalg.cho_solve(
                 (Sigma.conjugate().T, True), dbar_copy_copy)
             if self.Print:
-                print('\t\tscipy cho_solve time: {}'.format(
-                    time.time() - start))
+                mpiprint(
+                    '\t\tscipy cho_solve time: {}'.format(
+                        time.time() - start
+                    ),
+                    rank=self.rank
+                )
             if self.GPU_error_flag[0] != 0:
                 # If the inversion doesn't work, zero-weight the
                 # sample (may want to stop computing if this occurs?)
                 logdet_Magma_Sigma = +np.inf
-                print('GPU inversion error. Setting sample posterior '
-                      'probability to zero.')
-                print('Param values: ', x_for_error_checking)
-                print('GPU_error_flag = {}'.format(self.GPU_error_flag))
+                print(self.rank, ':', 'GPU inversion error. Setting sample '
+                      'posterior probability to zero.')
+                print(self.rank, ':', 'Param values: ', x_for_error_checking)
+                print(self.rank, ':',
+                      'GPU_error_flag = {}'.format(self.GPU_error_flag))
 
             return SigmaI_dbar, logdet_Magma_Sigma
 
@@ -692,10 +724,11 @@ class PowerSpectrumPosteriorProbability(object):
             pl_params = x[:2]
             x = x[2:]
             if self.Print:
-                print('pl_params', pl_params)
+                mpiprint('pl_params', pl_params, rank=self.rank)
             if self.Print:
-                print('p.pl_grid_spacing, p.pl_max',
-                      p.pl_grid_spacing, p.pl_max)
+                mpiprint('p.pl_grid_spacing, p.pl_max',
+                         p.pl_grid_spacing, p.pl_max,
+                         rank=self.rank)
             b1 = pl_params[0]
             b2 = (b1
                   + p.pl_grid_spacing
@@ -705,7 +738,7 @@ class PowerSpectrumPosteriorProbability(object):
             b1, b2 = (p.pl_grid_spacing
                       * np.round(np.array([b1, b2]) / p.pl_grid_spacing, 0))
             if self.Print:
-                print('b1, b2', b1, b2)
+                mpiprint('b1, b2', b1, b2, rank=self.rank)
 
             # Load matrices associated with sampled beta params
             T_Ninv_T_dataset_name =\
@@ -715,7 +748,8 @@ class PowerSpectrumPosteriorProbability(object):
                     + T_Ninv_T_dataset_name
                     + '.h5')
             if self.count % self.print_rate == 0:
-                print('Replacing T_Ninv_T with:', T_Ninv_T_file_path)
+                mpiprint('Replacing T_Ninv_T with:', T_Ninv_T_file_path,
+                         rank=self.rank)
             start = time.time()
             with h5py.File(T_Ninv_T_file_path, 'r') as hf:
                 T_Ninv_T = hf[T_Ninv_T_dataset_name][:]
@@ -723,7 +757,8 @@ class PowerSpectrumPosteriorProbability(object):
                 # This is only valid if the data is uniformly weighted
                 # T_Ninv_T = T_Ninv_T/(alpha_prime**2.0)
                 if self.count % self.print_rate == 0:
-                    print('Time taken: {}'.format(time.time() - start))
+                    mpiprint('Time taken: {}'.format(time.time() - start),
+                             rank=self.rank)
 
             dbar_dataset_name =\
                 'dbar_b1_{}_b2_{}'.format(b1, b2).replace('.', 'd')
@@ -732,7 +767,8 @@ class PowerSpectrumPosteriorProbability(object):
                     + dbar_dataset_name
                     + '.h5')
             if self.count % self.print_rate == 0:
-                print('Replacing dbar with:', dbar_file_path)
+                mpiprint('Replacing dbar with:', dbar_file_path,
+                         rank=self.rank)
             start = time.time()
             with h5py.File(dbar_file_path, 'r') as hf:
                 dbar = hf[dbar_dataset_name][:]
@@ -740,9 +776,10 @@ class PowerSpectrumPosteriorProbability(object):
                 # This is only valid if the data is uniformly weighted
                 # dbar = dbar/(alpha_prime**2.0)
                 # if self.count % self.print_rate == 0:
-                #     print('alpha_prime = ', alpha_prime)
+                #     mpiprint('alpha_prime = ', alpha_prime, rank=self.rank)
                 if self.count % self.print_rate == 0:
-                    print('Time taken: {}'.format(time.time() - start))
+                    mpiprint('Time taken: {}'.format(time.time() - start),
+                             rank=self.rank)
             self.Print = Print
 
         if self.intrinsic_noise_fitting:
@@ -756,7 +793,6 @@ class PowerSpectrumPosteriorProbability(object):
             dbar = dbar / (self.alpha_prime**2.0)
 
         if self.log_priors:
-            # print('Using log-priors')
             x = 10.**np.array(x)
 
         # brk()
@@ -766,20 +802,24 @@ class PowerSpectrumPosteriorProbability(object):
         try:
             if do_block_diagonal_inversion:
                 if self.Print:
-                    print('Using block-diagonal inversion')
+                    mpiprint('Using block-diagonal inversion', rank=self.rank)
                 SigmaI_dbar, dbarSigmaIdbar, PhiI, logSigmaDet =\
                     self.calc_SigmaI_dbar_wrapper(
                         x, T_Ninv_T, dbar, block_T_Ninv_T=block_T_Ninv_T)
             else:
                 if self.Print:
-                    print('Not using block-diagonal inversion')
+                    mpiprint('Not using block-diagonal inversion',
+                             rank=self.rank)
                 start = time.time()
                 SigmaI_dbar, dbarSigmaIdbar, PhiI, logSigmaDet =\
                     self.calc_SigmaI_dbar_wrapper(x, T_Ninv_T, dbar)
                 if self.Print:
-                    print('calc_SigmaI_dbar_wrapper time: {}'.format(
-                        time.time() - start
-                    ))
+                    mpiprint(
+                        'calc_SigmaI_dbar_wrapper time: {}'.format(
+                            time.time() - start
+                        ),
+                        rank=self.rank
+                    )
 
             # Only possible because Phi is diagonal (otherwise would
             # need to calc np.linalg.slogdet(Phi)). -1 factor is to get
@@ -789,7 +829,8 @@ class PowerSpectrumPosteriorProbability(object):
             start = time.time()
             logPhiDet = -1 * np.sum(np.log(PhiI)).real
             if self.Print:
-                print('logPhiDet time: {}'.format(time.time() - start))
+                mpiprint('logPhiDet time: {}'.format(time.time() - start),
+                         rank=self.rank)
 
             start = time.time()
             MargLogL = -0.5*logSigmaDet - 0.5*logPhiDet + 0.5*dbarSigmaIdbar
@@ -810,39 +851,54 @@ class PowerSpectrumPosteriorProbability(object):
                 MargLogL = MargLogL - 0.5*d_Ninv_d - 0.5*log_det_N
             MargLogL = MargLogL.real
             if self.Print:
-                print('MargLogL time: {}'.format(time.time() - start))
+                mpiprint('MargLogL time: {}'.format(time.time() - start),
+                         rank=self.rank)
             if self.Print_debug:
                 MargLogL_equation_string = \
                     'MargLogL = -0.5*logSigmaDet '\
                     '-0.5*logPhiDet + 0.5*dbarSigmaIdbar'
                 if self.intrinsic_noise_fitting:
-                    print('Using intrinsic noise fitting')
+                    print(self.rank, ':', 'Using intrinsic noise fitting')
                     MargLogL_equation_string +=\
                         ' - 0.5*d_Ninv_d -0.5*log_det_N'
-                    print('logSigmaDet, logPhiDet, dbarSigmaIdbar, '
-                          'd_Ninv_d, log_det_N',
-                          logSigmaDet, logPhiDet, dbarSigmaIdbar,
-                          d_Ninv_d, log_det_N)
+                    print(
+                        self.rank, ':',
+                        'logSigmaDet, logPhiDet, dbarSigmaIdbar, '
+                        'd_Ninv_d, log_det_N',
+                        logSigmaDet, logPhiDet, dbarSigmaIdbar,
+                        d_Ninv_d, log_det_N
+                    )
                 else:
-                    print('logSigmaDet, logPhiDet, dbarSigmaIdbar',
-                          logSigmaDet, logPhiDet, dbarSigmaIdbar)
-                print(MargLogL_equation_string, MargLogL)
-                print('MargLogL.real', MargLogL.real)
+                    print(
+                        self.rank, ':',
+                        'logSigmaDet, logPhiDet, dbarSigmaIdbar',
+                        logSigmaDet, logPhiDet, dbarSigmaIdbar
+                    )
+                print(self.rank, ':', MargLogL_equation_string, MargLogL)
+                print(self.rank, ':', 'MargLogL.real', MargLogL.real)
 
             # brk()
 
             if self.nu > 10:
                 self.print_rate = 100
             if self.count % self.print_rate == 0:
-                print('count', self.count)
-                print('Time since class instantiation: {}'.format(
-                    time.time() - self.instantiation_time))
-                print('Time for this likelihood call: {}'.format(
-                    time.time() - start_call))
+                mpiprint('count', self.count, rank=self.rank)
+                print(
+                    self.rank, ':',
+                    'Time since class instantiation: {}'.format(
+                        time.time() - self.instantiation_time
+                    )
+                )
+                print(
+                    self.rank, ':',
+                    'Time for this likelihood call: {}'.format(
+                        time.time() - start_call
+                    )
+                )
             return MargLogL.squeeze()*1.0, phi
         except Exception as e:
             # This won't catch a warning if, for example, PhiI contains
             # any zeros in np.sum(np.log(PhiI))
-            print('Exception encountered...')
-            print(e)
+            print(self.rank, ':', 'Exception encountered...')
+            print(self.rank, ':', repr(e))
             return -np.inf, -1

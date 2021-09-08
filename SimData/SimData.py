@@ -3,6 +3,7 @@ from numpy import *
 from subprocess import os
 
 import BayesEoR.Params.params as p
+from BayesEoR.Utils import mpiprint
 
 
 def generate_k_cube_in_physical_coordinates(
@@ -66,7 +67,7 @@ def generate_k_cube_in_physical_coordinates(
 
 def generate_data_and_noise_vector_instrumental(
         sigma, s, nf, nt, uvw_array_meters, bl_redundancy_array,
-        random_seed=''):
+        random_seed='', rank=0):
     """
     Creates a noise vector (n), with Hermitian structure based upon the
     uv sampling in the instrument model, and adds this noise to the input,
@@ -89,6 +90,8 @@ def generate_data_and_noise_vector_instrumental(
         Number of baselines per redundant baseline group.
     random_seed : int
         Used to seed `np.random` when generating the noise vector.
+    rank : int
+        MPI rank.
 
     Returns
     -------
@@ -109,8 +112,11 @@ def generate_data_and_noise_vector_instrumental(
     nbls = len(uvw_array_meters)
     ndata = nbls * nt * nf
     if random_seed:
-        print('Using the following random_seed for dataset noise:',
-              random_seed)
+        mpiprint(
+            'Using the following random_seed for dataset noise:',
+            random_seed,
+            rank=rank
+        )
         np.random.seed(random_seed)
     real_noise = np.random.normal(0, sigma/2.**0.5, ndata)
 
@@ -343,7 +349,7 @@ def generate_k_cube_model_spherical_binning(
 
 def calc_mean_binned_k_vals(
         mod_k_masked, k_cube_voxels_in_bin, save_k_vals=False,
-        k_vals_file='k_vals.txt', k_vals_dir='k_vals'
+        k_vals_file='k_vals.txt', k_vals_dir='k_vals', rank=0
         ):
     """
     Calculates the mean of all |k| that fall within a k-bin.
@@ -363,6 +369,8 @@ def calc_mean_binned_k_vals(
         Filename for saved k values.  Defaults to 'k_vals.txt'.
     k_vals_dir : str
         Directory in which to save k values.  Defaults to './k_vals/'.
+    rank : int
+        MPI rank.
 
     Returns
     -------
@@ -373,21 +381,22 @@ def calc_mean_binned_k_vals(
     k_vals = []
     kbin_edges = []
     nsamples = []
-    print('\n---Calculating k-vals---')
+    mpiprint('\n---Calculating k-vals---', rank=rank)
     for i_bin in range(len(k_cube_voxels_in_bin)):
         mean_mod_k = mod_k_masked[k_cube_voxels_in_bin[i_bin]].mean()
         min_k = mod_k_masked[k_cube_voxels_in_bin[i_bin]].min()
         kbin_edges.append(min_k)
         nsamples.append(len(k_cube_voxels_in_bin[i_bin][0]))
         k_vals.append(mean_mod_k)
-        print(i_bin, mean_mod_k)
+        mpiprint(i_bin, mean_mod_k, rank=rank)
     max_k = mod_k_masked[k_cube_voxels_in_bin[i_bin]].max()
     kbin_edges.append(max_k)
 
     if save_k_vals:
         if not os.path.exists(k_vals_dir):
-            print('Directory not found: \n\n' + k_vals_dir + "\n")
-            print('Creating required directory structure..')
+            mpiprint('Directory not found: \n\n' + k_vals_dir + "\n",
+                     rank=rank)
+            mpiprint('Creating required directory structure..', rank=rank)
             os.makedirs(k_vals_dir)
 
         np.savetxt(k_vals_dir + '/' + k_vals_file, k_vals)

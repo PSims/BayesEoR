@@ -1,6 +1,6 @@
 import argparse
 import BayesEoR.Params.params as p
-# from .params import *
+from BayesEoR.Utils.Utils import mpiprint
 
 
 def BayesEoRParser():
@@ -177,12 +177,17 @@ def BayesEoRParser():
     return args
 
 
-def update_params_with_command_line_arguments():
+def update_params_with_command_line_arguments(rank=0):
     """
     Updates variable values stored in `BayesEoR.Params.params` using command
     line arguments.  Command line arguments will overwrite any existing value
     of a variable stored in `p` where `p` is a module imported with
     `import BayesEoR.Params.params as p`.
+
+    Parameters
+    ----------
+    rank : int
+        MPI rank.  Only prints messages if rank == 0.
 
     """
     args = BayesEoRParser()
@@ -210,22 +215,32 @@ def update_params_with_command_line_arguments():
                         # chosen from the command line if it is included
                         p.beta = float(args.beta)
                         p.npl = 1
-                    print('Overwriting params p.{} = {} with command line '
-                          'argument {} = {}'.format(key,
-                                                    p.__dict__[key],
-                                                    key,
-                                                    args.__dict__[key]))
+                    mpiprint(
+                        'Overwriting params p.{} = {} with command line '
+                        'argument {} = {}'.format(
+                            key, p.__dict__[key], key, args.__dict__[key]
+                        ),
+                        rank=rank
+                    )
                 else:
-                    print('No value for beta(s) given, using defaults.')
+                    mpiprint(
+                        'No value for beta(s) given, using defaults.',
+                        rank=rank
+                    )
             else:
                 if key in params_keys:
-                    print('Overwriting params p.{} = {} with command line '
-                          'argument {} = {}'.format(key,
-                                                    p.__dict__[key],
-                                                    key,
-                                                    args.__dict__[key]))
+                    mpiprint(
+                        'Overwriting params p.{} = {} with command line '
+                        'argument {} = {}'.format(
+                            key, p.__dict__[key], key, args.__dict__[key]
+                        ),
+                        rank=rank
+                    )
                 else:
-                    print('Setting params p.{} = {}'.format(
-                        key, args.__dict__[key])
+                    mpiprint(
+                        'Setting params p.{} = {}'.format(
+                            key, args.__dict__[key]
+                        ),
+                        rank=rank
                     )
                 p.__dict__[key] = args.__dict__[key]

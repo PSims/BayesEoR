@@ -22,8 +22,8 @@ if run_full_analysis:
     mpi_comm = MPI.COMM_WORLD
     mpi_rank = mpi_comm.Get_rank()
     mpi_size = mpi_comm.Get_size()
+    mpiprint('mpi_size: {}\n'.format(mpi_size), rank=mpi_rank)
     print('\nmpi_rank: {}'.format(mpi_rank))
-    print('mpi_size: {}\n'.format(mpi_size))
     use_MultiNest = True  # Set to false for large parameter spaces
     if use_MultiNest:
         from pymultinest.solve import solve
@@ -35,11 +35,15 @@ else:
 # --------------------------------------------
 # Set analysis parameters
 # --------------------------------------------
-update_params_with_command_line_arguments()
+update_params_with_command_line_arguments(rank=mpi_rank)
 if p.beam_center is not None:
     p.beam_center = ast.literal_eval(p.beam_center)
-    print('Beam center = {} (type {})'.format(p.beam_center,
-                                              type(p.beam_center)))
+    mpiprint(
+        'Beam center = {} (type {})'.format(
+            p.beam_center, type(p.beam_center)
+        ),
+        rank=mpi_rank
+    )
 npl = p.npl
 nq = p.nq
 if nq > npl:
@@ -241,9 +245,12 @@ if p.include_instrumental_effects:
                 )
             )
         else:
-            print('\nIf using a Gaussian beam, must specify either a FWHM in'
-                  ' deg or an antenna diameter in meters.\nExiting...',
-                  end='\n\n')
+            mpiprint(
+                '\nIf using a Gaussian beam, must specify either a FWHM in'
+                ' deg or an antenna diameter in meters.\nExiting...',
+                end='\n\n',
+                rank=mpi_rank
+            )
             sys.exit()
     elif p.beam_type == 'airy':
         beam_info_str += '{}_beam_antenna-diameter-{}m'.format(
@@ -281,7 +288,8 @@ elif npl == 2:
         '_b1_{:.2E}_b2_{:.2E}_sigma'.format(p.beta[0], p.beta[1])
     )
 
-print('\nArray save directory: {}'.format(array_save_directory))
+mpiprint('\nArray save directory: {}'.format(array_save_directory),
+         rank=mpi_rank)
 
 if p.include_instrumental_effects:
     BM = BuildMatrices(
@@ -309,7 +317,7 @@ else:
     )
 
 if p.overwrite_matrices:
-    print('Overwriting matrix stack')
+    mpiprint('Overwriting matrix stack', rank=mpi_rank)
     clobber_matrices = True
     force_clobber = True
 else:
@@ -362,7 +370,8 @@ k_vals_file_name = (
 )
 k_vals = calc_mean_binned_k_vals(
     mod_k_masked, k_cube_voxels_in_bin,
-    save_k_vals=True, k_vals_file=k_vals_file_name
+    save_k_vals=True, k_vals_file=k_vals_file_name,
+    rank=mpi_rank
 )
 
 do_cylindrical_binning = False
@@ -393,11 +402,11 @@ if p.include_instrumental_effects:
         s_EoR, white_noise_sky = generate_mock_eor_signal_instrumental(
             Finv, nf, p.fov_ra_deg, p.fov_dec_deg, p.nside,
             p.telescope_latlonalt, p.central_jd, p.nt,
-            p.integration_time_seconds
+            p.integration_time_seconds, rank=mpi_rank
         )
         del Finv
     else:
-        print('\nUsing data at {}'.format(p.data_path))
+        mpiprint('\nUsing data at {}'.format(p.data_path), rank=mpi_rank)
         if dict_format:
             s_EoR = data['data']
         else:
@@ -405,7 +414,7 @@ if p.include_instrumental_effects:
 
     EoR_noise_seed = p.noise_seed
     if gen_noise:
-        print('EoR_noise_seed =', EoR_noise_seed)
+        mpiprint('EoR_noise_seed =', EoR_noise_seed, rank=mpi_rank)
         # Assumes the instrument model contains duplicates of the
         # unphased uvw coordinates in each time entry of the
         # instrument model
@@ -414,7 +423,9 @@ if p.include_instrumental_effects:
                 1.0*sigma, s_EoR, nf, p.nt,
                 uvw_array_m[0],
                 bl_red_array[0],
-                random_seed=EoR_noise_seed)
+                random_seed=EoR_noise_seed,
+                rank=mpi_rank
+            )
     else:
         d = s_EoR.copy()
         _, _, bl_conjugate_pairs_map =\
@@ -422,22 +433,35 @@ if p.include_instrumental_effects:
                 1.0*sigma, s_EoR, nf, p.nt,
                 uvw_array_m[0],
                 bl_red_array[0],
-                random_seed=EoR_noise_seed)
+                random_seed=EoR_noise_seed,
+                rank=mpi_rank
+            )
 
 effective_noise_std = effective_noise.std()
-print('\ns_EoR.std = {:.4e}'.format(s_EoR.std()))
-print('signal is Hermitian: {}'.format(
-    vector_is_hermitian(
-        s_EoR, bl_conjugate_pairs_map, p.nt, nf, uvw_array_m.shape[1])
-))
-print('signal + noise is Hermitian: {}'.format(
-    vector_is_hermitian(
-        d, bl_conjugate_pairs_map, p.nt, nf, uvw_array_m.shape[1])
-))
-print('effective_noise.std = {:.4e}'.format(effective_noise_std))
-print('dA = {:.4e}'.format(p.sky_model_pixel_area_sr))
-print('effective SNR = {:.4e}'.format(s_EoR.std() / effective_noise_std),
-      end='\n\n')
+mpiprint('\ns_EoR.std = {:.4e}'.format(s_EoR.std()), rank=mpi_rank)
+mpiprint(
+    'signal is Hermitian: {}'.format(
+        vector_is_hermitian(
+            s_EoR, bl_conjugate_pairs_map, p.nt, nf, uvw_array_m.shape[1]
+        )
+    ),
+    rank=mpi_rank
+)
+mpiprint(
+    'signal + noise is Hermitian: {}'.format(
+        vector_is_hermitian(
+            d, bl_conjugate_pairs_map, p.nt, nf, uvw_array_m.shape[1])
+    ),
+    rank=mpi_rank
+)
+mpiprint('effective_noise.std = {:.4e}'.format(effective_noise_std),
+         rank=mpi_rank)
+mpiprint('dA = {:.4e}'.format(p.sky_model_pixel_area_sr), rank=mpi_rank)
+mpiprint(
+    'effective SNR = {:.4e}'.format(s_EoR.std() / effective_noise_std),
+    end='\n\n',
+    rank=mpi_rank
+)
 
 
 # --------------------------------------------
@@ -488,7 +512,7 @@ else:
         log_priors_min_max[0] = [1.0, 2.0]  # Linear alpha_prime range
 
 
-print('\nlog_priors_min_max = {}'.format(log_priors_min_max))
+mpiprint('\nlog_priors_min_max = {}'.format(log_priors_min_max), rank=mpi_rank)
 prior_c = PriorC(log_priors_min_max)
 nDerived = 0
 
@@ -531,7 +555,7 @@ if p.file_root is None:
     file_root = generate_output_file_base(file_root, version_number='1')
 else:
     file_root = p.file_root
-print('\nOutput file_root:', file_root)
+mpiprint('\nOutput file_root:', file_root, rank=mpi_rank)
 
 PSPP_block_diag_Polychord = PowerSpectrumPosteriorProbability(
     T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin,
@@ -543,15 +567,19 @@ PSPP_block_diag_Polychord = PowerSpectrumPosteriorProbability(
     n_uniform_prior_k_bins=p.n_uniform_prior_k_bins,
     uniform_priors=p.uniform_priors,
     use_shg=p.use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
-    nuv_sh=nuv_sh, nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh
+    nuv_sh=nuv_sh, nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh,
+    rank=mpi_rank
 )
 if p.include_instrumental_effects and not zero_the_LW_modes:
     # Include minimal prior over LW modes required for numerical stability
     PSPP_block_diag_Polychord.inverse_LW_power = p.inverse_LW_power
 if zero_the_LW_modes:
     PSPP_block_diag_Polychord.inverse_LW_power = 1.e20
-    print('Setting PSPP_block_diag_Polychord.inverse_LW_power to:',
-          PSPP_block_diag_Polychord.inverse_LW_power)
+    mpiprint(
+        'Setting PSPP_block_diag_Polychord.inverse_LW_power to:',
+        PSPP_block_diag_Polychord.inverse_LW_power,
+        rank=mpi_rank
+    )
 
 if p.useGPU:
     start = time.time()
@@ -560,9 +588,15 @@ if p.useGPU:
     for _ in range(Nit):
         L = PSPP_block_diag_Polychord.posterior_probability([1.e0]*nDims)[0]
         if not np.isfinite(L):
-            print('WARNING: Infinite value returned in posterior calculation!')
-    print('Average evaluation time: {}'.format((time.time()-start)/float(Nit)),
-          end='\n\n')
+            mpiprint(
+                'WARNING: Infinite value returned in posterior calculation!',
+                rank=mpi_rank
+            )
+    mpiprint(
+        'Average evaluation time: {}'.format((time.time()-start)/float(Nit)),
+        end='\n\n',
+        rank=mpi_rank
+    )
 
 
 def likelihood(
@@ -579,12 +613,14 @@ def MultiNest_likelihood(
 
 run_single_node_analysis = False
 if mpi_size > 1:
-    print('mpi_size greater than 1, running multi-node analysis', end='\n\n')
-else:
-    print('mpi_size = {}, analysis will only be run if '
-          'run_single_node_analysis is set to True'.format(mpi_size))
-    print('run_single_node_analysis = {}'.format(run_single_node_analysis),
-          end='\n\n')
+    mpiprint(
+        'mpi_size greater than 1, running multi-node analysis',
+        end='\n\n',
+        rank=mpi_rank
+    )
+elif mpi_size == 1 and not run_single_node_analysis:
+    print('mpi_size = 1, analysis will only be run if '
+          'run_single_node_analysis is set to True')
 
 if run_single_node_analysis or mpi_size > 1:
     if MPI.COMM_WORLD.Get_rank() == 0:
@@ -613,6 +649,6 @@ if run_single_node_analysis or mpi_size > 1:
             precision_criterion=precision_criterion,
             nlive=nlive)
 
-    print('Sampling complete!')
+    mpiprint('Sampling complete!', rank=mpi_rank)
 else:
-    print('Skipping sampling, exiting...')
+    mpiprint('Skipping sampling, exiting...', rank=mpi_rank)

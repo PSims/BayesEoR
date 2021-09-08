@@ -310,3 +310,22 @@ def vector_is_hermitian(data, conj_map, nt, nf, nbls):
                     hermitian[start_ind+bl_ind] = 1
                     hermitian[start_ind+conj_bl_ind] = 1
     return np.all(hermitian)
+
+
+def mpiprint(*message, rank=0, end='\n'):
+    """
+    Wrapper of print function.  Only prints a message if rank == 0 when
+    using multiple MPI processes.
+
+    Parameters
+    ----------
+    message : str or sequence of str
+        Message to print.
+    rank : int
+        MPI rank.
+    end : str
+        String argument suffix for `message`.
+
+    """
+    if rank == 0:
+        print(' '.join(map(str, message)), end=end)
