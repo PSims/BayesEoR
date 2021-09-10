@@ -5,6 +5,7 @@ import time
 import h5py
 from scipy.linalg import block_diag
 from scipy import sparse
+from scipy.signal import windows
 from pathlib import Path
 
 import BayesEoR.Params.params as p
@@ -399,6 +400,10 @@ class BuildMatrices(BuildMatrixTree):
     npl_sh : int, optional
         Number of power law coefficients used in the large spectral scale model
         for each pixel in the subharmonic grid.
+    taper_func : str, optional
+        Tapering function to apply to the frequency axis of the model
+        visibilities.  Can be any valid argument to
+        `scipy.signal.windows.get_window`.
 
     """
     def __init__(self, array_save_directory, nu, nv,
@@ -452,6 +457,8 @@ class BuildMatrices(BuildMatrixTree):
         self.nv_sh = kwargs.pop('nv_sh', 0)
         self.nq_sh = kwargs.pop('nq_sh', 0)
         self.npl_sh = kwargs.pop('npl_sh', 0)
+        # Taper function
+        self.taper_func = kwargs.pop('taper_func', None)
 
         # Fz normalization
         self.delta_eta_iHz = kwargs.pop('delta_eta_iHz')
@@ -529,6 +536,17 @@ class BuildMatrices(BuildMatrixTree):
             self.matrix_construction_methods_dictionary.update({
                 'idft_array_1d_sh': self.build_idft_array_1d_sh,
                 'idft_array_sh': self.build_idft_array_sh
+            })
+
+        if self.taper_func is not None:
+            self.matrix_prerequisites_dictionary.update({
+                'Finv': (
+                    ['taper_matrix']
+                    + self.matrix_prerequisites_dictionary['Finv']
+                )
+            })
+            self.matrix_construction_methods_dictionary.update({
+                'taper_matrix': self.build_taper_matrix
             })
 
     def load_prerequisites(self, matrix_name):
@@ -750,6 +768,37 @@ class BuildMatrices(BuildMatrixTree):
         return diagonal_matrix
 
     # Finv functions
+    def build_taper_matrix(self):
+        """
+        Construct a tapering matrix which is multiplied elementwise into the
+        visibility vector from Finv.
+
+        Notes
+        -----
+        * Used to construct `Finv`.
+        * taper_matrix has shape (ndata, ndata).
+        * This function assumes that `use_nvis_nchan_nt_ordering = True`.
+
+        """
+        matrix_name = 'taper_matrix'
+        start = time.time()
+        print('Performing matrix algebra')
+        taper = windows.get_window(self.taper_func, self.nf)
+        nt, nbls = self.uvw_array_m.shape[:2]
+        taper = np.repeat(taper[None, :], nbls, axis=0).flatten(order='F')
+        taper = np.tile(taper, nt)
+        if p.use_sparse_matrices:
+            taper_matrix = sparse.diags(taper)
+        else:
+            taper_matrix = np.diag(taper)
+        print('Time taken: {}'.format(time.time() - start))
+        # Save matrix to HDF5 or sparse matrix to npz
+        self.output_data(
+            taper_matrix,
+            self.array_save_directory,
+            matrix_name,
+            matrix_name)
+
     def build_phasor_matrix(self):
         """
         Construct a phasor matrix which is multiplied elementwise into the

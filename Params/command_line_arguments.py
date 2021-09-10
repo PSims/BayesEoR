@@ -172,6 +172,14 @@ def BayesEoRParser():
         action='store_true',
         help="If passed, fit for the amplitudes of the SHG pixels."
     )
+    parser.add_argument(
+        '--taper_func',
+        type=str,
+        default=None,
+        help="Tapering function to apply to the frequency axis of the model "
+             "visibilities.  Can be any valid argument to "
+             "`scipy.signal.windows.get_window`."
+    )
 
     args = parser.parse_args()
     return args

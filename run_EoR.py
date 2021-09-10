@@ -204,6 +204,11 @@ if p.beam_center is not None:
 if p.unphased:
     array_save_directory = array_save_directory[:-1] + '_unphased/'
 
+if p.taper_func is not None:
+    array_save_directory = (
+        array_save_directory[:-1] + '_{}/'.format(p.taper_func)
+    )
+
 # Subharmonic grid (SHG) modifiers
 if p.use_shg:
     shg_str = '_SHG'
@@ -308,7 +313,8 @@ if p.include_instrumental_effects:
         delta_eta_iHz=p.delta_eta_iHz,
         use_shg=p.use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
         nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh, npl_sh=npl_sh,
-        effective_noise=effective_noise
+        effective_noise=effective_noise,
+        taper_func=p.taper_func
     )
 else:
     BM = BuildMatrices(
@@ -437,6 +443,16 @@ if p.include_instrumental_effects:
                 rank=mpi_rank
             )
 
+    if p.taper_func is not None:
+        taper_matrix = BM.read_data(
+            array_save_directory + 'taper_matrix', 'taper_matrix'
+        )
+        if p.use_sparse_matrices:
+            d = taper_matrix * d
+        else:
+            d = np.dot(taper_matrix, d)
+        del taper_matrix
+
 effective_noise_std = effective_noise.std()
 mpiprint('\ns_EoR.std = {:.4e}'.format(s_EoR.std()), rank=mpi_rank)
 mpiprint(
@@ -489,6 +505,8 @@ x = [100.e0]*nDims
 # PolyChord setup
 ###
 log_priors_min_max = [[-2., 6.] for _ in range(nDims)]
+log_priors_min_max[0] = [-2., 15.]
+log_priors_min_max[1] = [-2., 8.]
 if p.use_LWM_Gaussian_prior:
     # Set minimum LW model priors using LW power spectrum in fit to
     # white noise (i.e the prior min should incorporate knowledge of
