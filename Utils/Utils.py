@@ -223,7 +223,7 @@ def load_inst_model(
     return uvw_array_m, bl_red_array, phasor_vec
 
 
-def write_log_file(array_save_directory, file_root):
+def write_log_file(array_save_directory, file_root, priors):
     """
     Write a log file containing current git hash, array save
     directory, multinest output file root, and parameters from
@@ -236,6 +236,8 @@ def write_log_file(array_save_directory, file_root):
         Directory where arrays used in the analysis are saved.
     file_root : str
         Filename for sampler output files.
+    priors : array-like
+        Array-like containing prior ranges for each k-bin.
 
     """
     # Make log file directory if it doesn't exist
@@ -277,6 +279,7 @@ def write_log_file(array_save_directory, file_root):
             if (not key.startswith('_')
                     and not isinstance(p.__dict__[key], ModuleType)):
                 f.write('{} = {}\n'.format(key, p.__dict__[key]))
+        f.write('priors = {}\n'.format(priors))
     print('Log file written successfully to {}'.format(log_file))
 
 

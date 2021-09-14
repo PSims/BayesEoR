@@ -645,7 +645,7 @@ elif mpi_size == 1 and not run_single_node_analysis:
 
 if run_single_node_analysis or mpi_size > 1:
     if MPI.COMM_WORLD.Get_rank() == 0:
-        write_log_file(array_save_directory, file_root)
+        write_log_file(array_save_directory, file_root, log_priors_min_max)
 
     if use_MultiNest:
         MN_nlive = nDims*25
