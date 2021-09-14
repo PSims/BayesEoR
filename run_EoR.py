@@ -77,6 +77,9 @@ if p.use_shg:
 else:
     nuv_sh = None
 
+if 'taper_func' not in p.__dict__.keys():
+    p.taper_func = None
+
 # Improve numerical precision when performing evidence comparison.
 sub_ML_monopole_term_model = False
 
