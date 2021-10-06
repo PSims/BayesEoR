@@ -99,9 +99,6 @@ class PowerSpectrumPosteriorProbability(object):
     masked_power_spectral_modes : np.ndarray
         Boolean array used to mask additional (u, v, eta) amplitudes from
         being included in the posterior calculations.
-    modk_vis_ordered_list : list
-        List of sublists containing the |k| values for each |k| that falls
-        within a given k-bin.
     Ninv : np.ndarray
         Covariance matrix of the data (signal + noise) vector of visibilities.
     d_Ninv_d : np.ndarray
@@ -181,7 +178,7 @@ class PowerSpectrumPosteriorProbability(object):
     def __init__(
             self, T_Ninv_T, dbar, Sigma_Diag_Indices, Npar,
             k_cube_voxels_in_bin, nuv, nu, nv, neta, nf, nq,
-            masked_power_spectral_modes, modk_vis_ordered_list,
+            masked_power_spectral_modes,
             Ninv, d_Ninv_d, k_vals, ps_box_size_ra_Mpc,
             ps_box_size_dec_Mpc, ps_box_size_para_Mpc,
             block_T_Ninv_T=[], log_priors=False, dimensionless_PS=False,
@@ -244,7 +241,6 @@ class PowerSpectrumPosteriorProbability(object):
         self.nf = nf
         self.nq = nq
         self.masked_power_spectral_modes = masked_power_spectral_modes
-        self.modk_vis_ordered_list = modk_vis_ordered_list
         self.Ninv = Ninv
         self.d_Ninv_d = d_Ninv_d
         self.print_rate = 1000
@@ -381,6 +377,12 @@ class PowerSpectrumPosteriorProbability(object):
                     self.inverse_LW_power_first_LW_term
                 PowerI[:cg_end][q2_index::self.neta+self.nq] =\
                     self.inverse_LW_power_second_LW_term
+
+        if p.fit_for_monopole:
+            inds = slice(
+                self.nuv//2 * self.neta, (self.nuv//2 + 1) * self.neta
+            )
+            PowerI[inds] = self.inverse_LW_power
 
         if self.use_shg:
             # This should not be a permanent fix

@@ -360,36 +360,30 @@ mod_k, k_x, k_y, k_z, x, y, z = generate_k_cube_in_physical_coordinates(
         nu, nv, neta, ps_box_size_ra_Mpc,
         ps_box_size_dec_Mpc, ps_box_size_para_Mpc
 )
-k_x_masked, k_y_masked, k_z_masked, mod_k_masked = mask_k_cubes(
-    k_x, k_y, k_z, mod_k, neta, nq
-)
+k_mask_vo, mod_k_vo = mask_k_cubes(k_x, k_y, k_z, mod_k, neta, nq, nuv)
 k_cube_voxels_in_bin, modkbins_containing_voxels = \
     generate_k_cube_model_spherical_binning(
-        mod_k_masked, k_z_masked, ps_box_size_para_Mpc
+        k_mask_vo, mod_k_vo, ps_box_size_para_Mpc
     )
-modk_vis_ordered_list = [
-    mod_k_masked[k_cube_voxels_in_bin[i_bin]]
-    for i_bin in range(len(k_cube_voxels_in_bin))
-]
-
 k_vals_file_name = (
-    'k_vals_nu_{}_nv_{}_nf_{}_nq_{}_binning_v2d1{}.txt'.format(
+    'k_vals_nu_{}_nv_{}_nf_{}_nq_{}_binning_v3{}.txt'.format(
         nu, nv, nf, nq, fov_str
     )
 )
 k_vals = calc_mean_binned_k_vals(
-    mod_k_masked, k_cube_voxels_in_bin,
+    mod_k_vo, k_cube_voxels_in_bin,
     save_k_vals=True, k_vals_file=k_vals_file_name,
     rank=mpi_rank
 )
 
-do_cylindrical_binning = False
-if do_cylindrical_binning:
-    n_k_perp_bins = 2
-    k_cube_voxels_in_bin, modkbins_containing_voxels, k_perp_bins =\
-        generate_k_cube_model_cylindrical_binning(
-            mod_k_masked, k_z_masked, k_y_masked, k_x_masked,
-            n_k_perp_bins, ps_box_size_para_Mpc)
+# do_cylindrical_binning = False
+# if do_cylindrical_binning:
+#     # This needs to be updated to use the new k-cube masking function(s)
+#     n_k_perp_bins = 2
+#     k_cube_voxels_in_bin, modkbins_containing_voxels, k_perp_bins =\
+#         generate_k_cube_model_cylindrical_binning(
+#             mod_k_masked, k_z_masked, k_y_masked, k_x_masked,
+#             n_k_perp_bins, ps_box_size_para_Mpc)
 
 
 # --------------------------------------------
@@ -508,8 +502,8 @@ x = [100.e0]*nDims
 # PolyChord setup
 ###
 log_priors_min_max = [[-2., 6.] for _ in range(nDims)]
-log_priors_min_max[0] = [-2., 15.]
-log_priors_min_max[1] = [-2., 8.]
+# log_priors_min_max[0] = [-2., 15.]
+# log_priors_min_max[1] = [-2., 8.]
 if p.use_LWM_Gaussian_prior:
     # Set minimum LW model priors using LW power spectrum in fit to
     # white noise (i.e the prior min should incorporate knowledge of
@@ -581,7 +575,7 @@ mpiprint('\nOutput file_root:', file_root, rank=mpi_rank)
 PSPP_block_diag_Polychord = PowerSpectrumPosteriorProbability(
     T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin,
     nuv, nu, nv, neta, nf, nq, masked_power_spectral_modes,
-    modk_vis_ordered_list, Ninv, d_Ninv_d, k_vals, ps_box_size_ra_Mpc,
+    Ninv, d_Ninv_d, k_vals, ps_box_size_ra_Mpc,
     ps_box_size_dec_Mpc, ps_box_size_para_Mpc, block_T_Ninv_T=block_T_Ninv_T,
     log_priors=log_priors, dimensionless_PS=dimensionless_PS, Print=True,
     intrinsic_noise_fitting=p.use_intrinsic_noise_fitting,

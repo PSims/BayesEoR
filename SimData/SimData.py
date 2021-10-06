@@ -165,7 +165,7 @@ def generate_data_and_noise_vector_instrumental(
     return d, complex_noise_hermitian.flatten(), bl_conjugate_pairs_map
 
 
-def mask_k_cubes(k_x, k_y, k_z, mod_k, neta, nq):
+def mask_k_cubes(k_x, k_y, k_z, mod_k, neta, nq, nuv):
     """
     Creates a mask and masks Fourier and Large Spectral Scale Model (LSSM)
     modes that are unused for estimating the power spectrum.
@@ -185,17 +185,18 @@ def mask_k_cubes(k_x, k_y, k_z, mod_k, neta, nq):
         Number of Line of Sight (LoS, frequency axis) Fourier modes.
     nq : int
         Number of quadratic modes in the Larse Spectral Scale Model (LSSM).
+    nuv : int
+        Number of model uv-plane points per frequency channel.  Computed as
+        `nuv = nu*nv - 1*np.logical_not(p.fit_for_monopole)`.
 
     Returns
     -------
-    k_x_masked : np.ndarray of floats
-        `k_x` with only modes used for power spectrum estimation.
-    k_y_masked : np.ndarray of floats
-        `k_y` with only modes used for power spectrum estimation.
-    k_z_masked : np.ndarray of floats
-        `k_z` with only modes used for power spectrum estimation.
-    mod_k_masked : np.ndarray of floats
-        `mod_k` with only modes used for power spectrum estimation.
+    k_mask_vo : np.ndarray of bool
+        Vis-ordered array which is True for all mod_k array indices used for
+        power spectrum estimation and False otherwise.
+    mod_k_vo : np.ndarray
+        Vis-ordered `mod_k`.  If `nq` > 0, `mod_k_vo` also contains
+        `np.inf` values at all indices associated with the LSSM.
 
     """
     # Do not include high spatial frequency structure in the power
@@ -212,32 +213,31 @@ def mask_k_cubes(k_x, k_y, k_z, mod_k, neta, nq):
         high_k_z_selector = np.logical_or(
             k_z == nyquist_k_z_mode, k_z == sub_nyquist_k_z_mode
         )
-    high_k_z_mask = np.logical_not(
-        high_k_z_selector)
+    high_k_z_mask = np.logical_not(high_k_z_selector)
 
     if p.include_instrumental_effects:
         high_k_z_mask = high_k_z_mask == high_k_z_mask
         high_k_z_selector = high_k_z_selector != high_k_z_selector
 
     k_perp = (k_x**2. + k_y**2)**0.5
-    if p.fit_for_monopole:
-        zm_mask = k_perp >= 0.0  # Don't exclude the mean from the fit
-    else:
-        zm_mask = k_perp > 0.0  # Exclude (u, v) = (0, 0)
-
-    zm_mask_vo = zm_mask.T.flatten()
-    high_k_z_mask_vo = np.logical_not(high_k_z_selector.T.flatten())
+    kperp_mask = k_perp > 0  # Exclude (u, v) = (0, 0)
+    kpara_mask = np.abs(k_z) > 0  # Exclude eta = 0
 
     if nq > 0:
-        masked_modes = np.logical_and(high_k_z_mask_vo, zm_mask_vo)
+        k_mask = np.logical_and.reduce((high_k_z_mask, kperp_mask, kpara_mask))
     else:
-        masked_modes = zm_mask_vo
+        k_mask = np.logical_and(kperp_mask, kpara_mask)
 
-    # Power spectrum will be fit using only unmasked Fourier modes
-    k_x_masked = k_x.T.flatten()[masked_modes]
-    k_y_masked = k_y.T.flatten()[masked_modes]
-    k_z_masked = k_z.T.flatten()[masked_modes]
-    mod_k_masked = mod_k.T.flatten()[masked_modes]
+    # Flattened arrays move first along k_z, then k_x, and lastly k_y
+    k_mask_vo = np.moveaxis(k_mask, 0, -1).flatten()
+    mod_k_vo = np.moveaxis(mod_k, 0, -1).flatten()
+
+    if not p.fit_for_monopole:
+        # Remove the (u, v) = (0, 0) pixel from the mask and mod_k arrays
+        k_mask_vo = k_mask_vo.reshape(-1, neta)
+        mod_k_vo = mod_k_vo.reshape(-1, neta)
+        k_mask_vo = np.delete(k_mask_vo, nuv//2, axis=0).flatten()
+        mod_k_vo = np.delete(mod_k_vo, nuv//2, axis=0).flatten()
 
     if nq > 0:
         # Mask the Large Spectral Scale Model (LSSM) modes.  These
@@ -245,44 +245,35 @@ def mask_k_cubes(k_x, k_y, k_z, mod_k, neta, nq):
         # component and should not be used to esimate the EoR power spectrum.
 
         # In the reshaped arrays below:
-        # Moving along the zeroth axis moves first along k_y, then k_x.
-        # Moving along the first axis moves along k_z.
-        k_x_masked = k_x_masked.reshape(-1, neta)
-        k_y_masked = k_y_masked.reshape(-1, neta)
-        k_z_masked = k_z_masked.reshape(-1, neta)
-        mod_k_masked = mod_k_masked.reshape(-1, neta)
+        # Moving along the zeroth axis moves first along k_x, then k_y
+        # Moving along the first axis moves along k_z
+        k_mask_vo = k_mask_vo.reshape(-1, neta)
+        mod_k_vo = mod_k_vo.reshape(-1, neta)
 
-        # Append infinities to mask the Large Spectral Scale Model (LSSM)
-        # model modes from conributing to the power spectrum estimation
-        WQ_inf_array = np.zeros((k_x_masked.shape[0], nq)) + np.inf
-        k_x_masked = np.hstack((k_x_masked, WQ_inf_array))
-        k_y_masked = np.hstack((k_y_masked, WQ_inf_array))
-        k_z_masked = np.hstack((k_z_masked, WQ_inf_array))
-        mod_k_masked = np.hstack((mod_k_masked, WQ_inf_array))
+        # Append a Large Spectral Scale Model (LSSM) mask to prevent
+        # LSSM modes from conributing to the power spectrum
+        # Flattened arrays move first along k_z, then k_x, and lastly k_y
+        lssm_mask = np.zeros((k_mask_vo.shape[0], nq)).astype(bool)
+        k_mask_vo = np.hstack((k_mask_vo, lssm_mask)).flatten()
+        lssm_infs = np.zeros((mod_k_vo.shape[0], nq)) + np.inf
+        mod_k_vo = np.hstack((mod_k_vo, lssm_infs)).flatten()
 
-        # Flattened arrays move first along k_z, then k_y, and lastly k_x.
-        k_x_masked = k_x_masked.flatten()
-        k_y_masked = k_y_masked.flatten()
-        k_z_masked = k_z_masked.flatten()
-        mod_k_masked = mod_k_masked.flatten()
-
-    return k_x_masked, k_y_masked, k_z_masked, mod_k_masked
+    return k_mask_vo, mod_k_vo
 
 
 def generate_k_cube_model_spherical_binning(
-        mod_k_masked, k_z_masked, ps_box_size_para_Mpc):
+        k_mask_vo, mod_k_vo, ps_box_size_para_Mpc):
     """
     Generates a set of spherical k-space bins from which the 1D power spectrum
     is calculated.
 
     Parameters
     ----------
-    mod_k_masked : np.ndarray of floats
-        Array of |k| = sqrt(k_x**2 + k_y**2 + k_z**2) containing only modes
-        used to estimate the power spectrum.
-    k_z_masked : np.ndarray of floats
-        Array of Line of Sight (LoS, frequency axis) Fourier modes containing
-        only modes used to estimate the power spectrum.
+    k_mask_vo : np.ndarray of bool
+        Vis-ordered array which is True for all `mod_k_vo` array indices used
+        for power spectrum estimation and False otherwise.
+    mod_k_vo : np.ndarray
+        Vis-ordered array of |k| = sqrt(k_x**2 + k_y**2 + k_z**2).
     ps_box_size_para_Mpc : float
         LoS extent of the cosmological volume in Mpc from which the power
         spectrum is estimated.
@@ -320,12 +311,12 @@ def generate_k_cube_model_spherical_binning(
         # explicitly with the quadratic modes, then k_z==0 should be
         # added to the quadratic selector mask
         n_elements = np.sum(
-            np.logical_and.reduce(
-                (mod_k_masked > modkbins[i_bin, 0],
-                 mod_k_masked <= modkbins[i_bin, 1],
-                 k_z_masked != 0)
-                )
-            )
+            np.logical_and.reduce((
+                mod_k_vo > modkbins[i_bin, 0],
+                mod_k_vo <= modkbins[i_bin, 1],
+                k_mask_vo
+            ))
+        )
         if n_elements > 0:
             n_bins += 1
             total_elements += n_elements
@@ -335,12 +326,12 @@ def generate_k_cube_model_spherical_binning(
     count = 0
     for i_bin in range(len(modkbins_containing_voxels)):
         relevant_voxels = np.where(
-            np.logical_and.reduce(
-                (mod_k_masked > modkbins_containing_voxels[i_bin][0][0],
-                 mod_k_masked <= modkbins_containing_voxels[i_bin][0][1],
-                 k_z_masked != 0)
-                )
-            )
+            np.logical_and.reduce((
+                mod_k_vo > modkbins_containing_voxels[i_bin][0][0],
+                mod_k_vo <= modkbins_containing_voxels[i_bin][0][1],
+                k_mask_vo
+            ))
+        )
         count += len(relevant_voxels[0])
         k_cube_voxels_in_bin.append(relevant_voxels)
 
@@ -348,7 +339,7 @@ def generate_k_cube_model_spherical_binning(
 
 
 def calc_mean_binned_k_vals(
-        mod_k_masked, k_cube_voxels_in_bin, save_k_vals=False,
+        mod_k_vo, k_cube_voxels_in_bin, save_k_vals=False,
         k_vals_file='k_vals.txt', k_vals_dir='k_vals', rank=0
         ):
     """
@@ -356,9 +347,8 @@ def calc_mean_binned_k_vals(
 
     Parameters
     ----------
-    mod_k_masked : np.ndarray of floats
-        Array of |k| = sqrt(k_x**2 + k_y**2 + k_z**2) containing only modes
-        used to estimate the power spectrum.
+    mod_k_vo : np.ndarray
+        Vis-ordered array of |k| = sqrt(k_x**2 + k_y**2 + k_z**2).
     k_cube_voxels_in_bin : list
         List containing sublists for each k-bin.  Each sublist contains the
         flattened 3D k-space cube index of all |k| that fall within a given
@@ -383,13 +373,13 @@ def calc_mean_binned_k_vals(
     nsamples = []
     mpiprint('\n---Calculating k-vals---', rank=rank)
     for i_bin in range(len(k_cube_voxels_in_bin)):
-        mean_mod_k = mod_k_masked[k_cube_voxels_in_bin[i_bin]].mean()
-        min_k = mod_k_masked[k_cube_voxels_in_bin[i_bin]].min()
+        mean_mod_k = mod_k_vo[k_cube_voxels_in_bin[i_bin]].mean()
+        min_k = mod_k_vo[k_cube_voxels_in_bin[i_bin]].min()
         kbin_edges.append(min_k)
         nsamples.append(len(k_cube_voxels_in_bin[i_bin][0]))
         k_vals.append(mean_mod_k)
         mpiprint(i_bin, mean_mod_k, rank=rank)
-    max_k = mod_k_masked[k_cube_voxels_in_bin[i_bin]].max()
+    max_k = mod_k_vo[k_cube_voxels_in_bin[i_bin]].max()
     kbin_edges.append(max_k)
 
     if save_k_vals:
