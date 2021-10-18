@@ -25,7 +25,7 @@ file_root = None
 # k-cube params
 nf = 38
 neta = 38
-nu = 9
+nu = 15
 nv = None
 nq = 0
 # Subharmonic grid (SHG) params
@@ -72,19 +72,27 @@ inverse_LW_power = 1.e-16
 if include_instrumental_effects:
     # Obs params
     nt = 34
-    integration_time_seconds = 11
+    integration_time_seconds = 11.
     integration_time_minutes = integration_time_seconds/60
     integration_time_minutes_str = '{}'.format(
         integration_time_minutes).replace('.', 'd')
     instrument_model_directory = (
         '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/'
-        'Hex-37-14.6m-model-{}-{}sec-time-'
-        'steps_bl_less_than_40m/'.format(nt, integration_time_seconds)
+        'Hex-37-14.6m-model-{}-{:.0f}sec-time-steps_bl_less_than_40m/'.format(
+            nt, integration_time_seconds
+        )
     )
+    # instrument_model_directory = (
+    #     '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/'
+    #     'Hex-37-14.6m-vmax-13m-{}-{:.1f}sec-time-steps-start-freq-{:.2f}'
+    #     '-nf-{}-nbls-30-bl-cutoff-40.0m/'.format(
+    #         nt, integration_time_seconds, nu_min_MHz, nf
+    #     )
+    # )
     telescope_latlonalt = (-30.72152777777791,
                            21.428305555555557,
                            1073.0000000093132)
-    central_jd = 2458116.2485816483
+    central_jd = 2458098.3065661727
 
     # Primary beam params
     beam_type = 'gaussian'
