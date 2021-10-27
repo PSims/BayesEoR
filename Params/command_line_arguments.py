@@ -180,6 +180,13 @@ def BayesEoRParser():
              "visibilities.  Can be any valid argument to "
              "`scipy.signal.windows.get_window`."
     )
+    parser.add_argument(
+        '--rectilinear',
+        action='store_true',
+        default=False,
+        help='If passed, use a rectilinear grid for the image domain.  '
+             'Defaults to using a HEALPix grid.'
+    )
 
     args = parser.parse_args()
     return args

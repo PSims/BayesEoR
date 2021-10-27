@@ -57,6 +57,12 @@ class Healpix(HEALPix):
         maximum of the beam in degrees.
     diam : float, optional
         Antenna (aperture) diameter in meters.  Used if ``beam_type='airy'``.
+    rectilinear : boolean, optional
+        If `False`, use a HEALPix grid.  Otherwise, use a rectilinear grid.
+    nra : int, optional
+        Number of pixels on a side for the RA axis in the rectilinear grid.
+    ndec : int
+        Number of pixels on a side for the DEC axis in the rectilinear grid.
 
     """
     def __init__(
@@ -71,18 +77,36 @@ class Healpix(HEALPix):
             beam_type=None,
             peak_amp=1.0,
             fwhm_deg=None,
-            diam=None
+            diam=None,
+            rectilinear=False,
+            nra=None,
+            ndec=None
             ):
-        # Use HEALPix as parent class to get
-        # useful astropy_healpix functions
-        super().__init__(nside, frame=ICRS())
+        self.rectilinear = rectilinear
+        if self.rectilinear:
+            assert nra is not None and ndec is not None, \
+                "If using a rectilinear grid, must also pass 'nra' and 'ndec'."
+            self.nra = nra
+            self.ndec = ndec
+
+        if not self.rectilinear:
+            # Use HEALPix as parent class to get
+            # useful astropy_healpix functions
+            super().__init__(nside, frame=ICRS())
 
         self.fov_ra_deg = fov_ra_deg
         if fov_dec_deg is None:
             self.fov_dec_deg = fov_ra_deg
         else:
             self.fov_dec_deg = fov_dec_deg
-        self.pixel_area_sr = self.pixel_area.value
+        if self.rectilinear:
+            self.pixel_area_sr = (
+                self.fov_ra_deg / self.nra
+                * self.fov_dec_deg / self.ndec
+                * (np.pi / 180)**2
+            )
+        else:
+            self.pixel_area_sr = self.pixel_area.value
         self.lat, self.lon, self.alt = telescope_latlonalt
         # Set telescope location
         telescope_xyz = uvutils.XYZ_from_LatLonAlt(
@@ -155,9 +179,9 @@ class Healpix(HEALPix):
         self.ra = None  # Right ascension values of HEALPix pixels
         self.dec = None  # Declination values of HEALPix pixels
         # Set self.pix and self.npix_fov
-        self.set_pixel_filter()
+        self.set_pixel_filter(rectilinear=self.rectilinear)
 
-    def set_pixel_filter(self, inverse=False):
+    def set_pixel_filter(self, rectilinear=False, inverse=False):
         """
         Filter pixels that lie outside of a rectangular region
         centered on `self.field_center`.  This rectangular region is
@@ -165,10 +189,10 @@ class Healpix(HEALPix):
 
         This function updates the following attributes in-place:
         pix : array of ints
-            Array of HEALPix pixel indices lying within the rectangular
+            Array of pixel indices lying within the rectangular
             region with shape (npix_fov,).
         npix_fov : int
-            Number of HEALPix pixels lying within the rectangular region
+            Number of pixels lying within the rectangular region
         ra : array of floats
             Array of right ascension values for each pixel in `self.pix`.
         dec : array of floats
@@ -176,41 +200,66 @@ class Healpix(HEALPix):
 
         Parameters
         ----------
+        rectilinear : boolean
+            If `False`, use a HEALPix grid.  Otherwise, use a rectilinear grid.
         inverse : boolean
             If `False`, return the pixels within the rectangular region.
             If `True`, return the pixels outside the rectangular region.
+            Only applies if `rectilinear` = `False`.
 
         """
-        lons, lats = hp.pix2ang(
-            self.nside,
-            np.arange(self.npix),
-            lonlat=True
+        if rectilinear:
+            lons = np.linspace(
+                self.field_center[0] - self.fov_ra_deg/2,
+                self.field_center[0] + self.fov_ra_deg/2,
+                self.nra
             )
-        thetas = (90 - lats) * np.pi / 180
-        if self.field_center[0] - self.fov_ra_deg/2 < 0:
-            lons[lons > 180] -= 360  # lons in (-180, 180]
-        lons_inds = np.logical_and(
-            (lons - self.field_center[0])*np.sin(thetas) >= -self.fov_ra_deg/2,
-            (lons - self.field_center[0])*np.sin(thetas) <= self.fov_ra_deg/2,
+            lats = np.linspace(
+                self.field_center[1] - self.fov_dec_deg/2,
+                self.field_center[1] + self.fov_dec_deg/2,
+                self.ndec
             )
-        lats_inds = np.logical_and(
-            lats >= self.field_center[1] - self.fov_dec_deg / 2,
-            lats <= self.field_center[1] + self.fov_dec_deg / 2
-            )
-        if inverse:
-            pix = np.where(np.logical_not(lons_inds * lats_inds))[0]
+            lons_mg, lats_mg = np.meshgrid(lons, lats)
+            self.npix_fov = self.nra * self.ndec
+            self.pix = np.arange(self.npix_fov)
+            self.ra = lons_mg.flatten()
+            self.dec = lats_mg.flatten()
         else:
-            pix = np.where(lons_inds * lats_inds)[0]
-        self.pix = pix
-        self.npix_fov = pix.size
-        lons[lons < 0] += 360  # RA in [0, 360)
-        self.ra = lons[pix]
-        self.dec = lats[pix]
+            lons, lats = hp.pix2ang(
+                self.nside,
+                np.arange(self.npix),
+                lonlat=True
+                )
+            thetas = (90 - lats) * np.pi / 180
+            if self.field_center[0] - self.fov_ra_deg/2 < 0:
+                lons[lons > 180] -= 360  # lons in (-180, 180]
+            lons_inds = np.logical_and(
+                ((lons - self.field_center[0])*np.sin(thetas)
+                 >= -self.fov_ra_deg/2),
+                ((lons - self.field_center[0])*np.sin(thetas)
+                 <= self.fov_ra_deg/2),
+                )
+            lats_inds = np.logical_and(
+                lats >= self.field_center[1] - self.fov_dec_deg / 2,
+                lats <= self.field_center[1] + self.fov_dec_deg / 2
+                )
+            if inverse:
+                pix = np.where(np.logical_not(lons_inds * lats_inds))[0]
+            else:
+                pix = np.where(lons_inds * lats_inds)[0]
+            self.pix = pix
+            self.npix_fov = pix.size
+            lons[lons < 0] += 360  # RA in [0, 360)
+            self.ra = lons[pix]
+            self.dec = lats[pix]
 
-    def calc_lmn_from_radec(self, time, return_azza=False, radec_offset=None):
+    def calc_lmn_from_radec(
+            self, time, rectilinear=False,
+            return_azza=False, radec_offset=None
+            ):
         """
         Return arrays of (l, m, n) coordinates in radians of all
-        HEALPix pixels within the region set by `self.pix`. The pixels
+        pixels within the region set by `self.pix`. The pixels
         used in this calculation are set by `self.set_pixel_filter()`.
 
         Adapted from `pyradiosky.skymodel.update_positions`.
@@ -229,22 +278,37 @@ class Healpix(HEALPix):
         Returns
         -------
         l : np.ndarray of floats
-            Array containing the EW direction cosine of each HEALPix pixel.
+            Array containing the EW direction cosine of each pixel.
         m : np.ndarray of floats
-            Array containing the NS direction cosine of each HEALPix pixel.
+            Array containing the NS direction cosine of each pixel.
         n : np.ndarray of floats
-            Array containing the radial direction cosine of each HEALPix pixel.
+            Array containing the radial direction cosine of each pixel.
 
         """
         if not isinstance(time, Time):
             time = Time(time, format='jd')
 
-        skycoord = SkyCoord(self.ra*u.deg, self.dec*u.deg, frame='icrs')
-        altaz = skycoord.transform_to(
-            AltAz(obstime=time, location=self.telescope_location)
-            )
-        az = altaz.az.rad
-        za = np.pi/2 - altaz.alt.rad
+        if rectilinear:
+            zen = AltAz(alt=Angle('90d'),
+                        az=Angle('0d'),
+                        obstime=time,
+                        location=self.telescope_location)
+            zen_radec = zen.transform_to(ICRS())
+            ra0 = zen_radec.ra.deg
+            dec0 = zen_radec.dec.deg
+            az = np.arctan2(
+                np.deg2rad(ra0 - self.ra),
+                np.deg2rad(dec0 - self.dec)
+            )  # matches astropy azimuthal convention
+            az += np.pi
+            za = np.deg2rad(np.sqrt((self.ra - ra0)**2 + (self.dec - dec0)**2))
+        else:
+            skycoord = SkyCoord(self.ra*u.deg, self.dec*u.deg, frame='icrs')
+            altaz = skycoord.transform_to(
+                AltAz(obstime=time, location=self.telescope_location)
+                )
+            az = altaz.az.rad
+            za = np.pi/2 - altaz.alt.rad
 
         # Convert from (az, za) to (l, m, n)
         ls = np.sin(za) * np.sin(az)

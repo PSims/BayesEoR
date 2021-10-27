@@ -64,7 +64,14 @@ if p.fov_dec_deg is None:
 p.delta_u_irad = 1.0 / np.deg2rad(p.fov_ra_deg)
 p.delta_v_irad = 1.0 / np.deg2rad(p.fov_dec_deg)
 p.delta_eta_iHz = 1.0 / (p.nf*p.channel_width_MHz*1e6)
-p.sky_model_pixel_area_sr = 4 * np.pi / (12 * p.nside**2)
+if p.rectilinear:
+    p.sky_model_pixel_area_sr = (
+        p.fov_ra_deg / p.nu
+        * p.fov_dec_deg / p.nv
+        * (np.pi / 180)**2
+    )
+else:
+    p.sky_model_pixel_area_sr = 4 * np.pi / (12 * p.nside**2)
 
 nu_sh = p.nu_sh
 if p.nv_sh is None:
@@ -176,12 +183,14 @@ array_save_directory = (
 )
 
 if p.fit_for_monopole:
+    array_save_directory = array_save_directory[:-1] + '_fit_for_monopole/'
+
+if p.rectilinear:
+    array_save_directory = array_save_directory[:-1] + '_rectilinear/'
+else:
     array_save_directory = (
-            array_save_directory[:-1]
-            + '_fit_for_monopole/'
+        array_save_directory[:-1] + '_nside{}/'.format(p.nside)
     )
-# nside modifier
-array_save_directory = array_save_directory[:-1] + '_nside{}/'.format(p.nside)
 
 # FoV modifier
 if p.fov_ra_deg != p.fov_dec_deg:
@@ -317,7 +326,8 @@ if p.include_instrumental_effects:
         use_shg=p.use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
         nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh, npl_sh=npl_sh,
         effective_noise=effective_noise,
-        taper_func=p.taper_func
+        taper_func=p.taper_func,
+        rectilinear=p.rectilinear
     )
 else:
     BM = BuildMatrices(
@@ -402,6 +412,7 @@ masked_power_spectral_modes = masked_power_spectral_modes.astype('bool')
 if p.include_instrumental_effects:
     if use_EoR_cube:
         Finv = BM.read_data_s2d(array_save_directory + 'Finv', 'Finv')
+        # TODO: Needs to be modified if using a rectilinear grid
         s_EoR, white_noise_sky = generate_mock_eor_signal_instrumental(
             Finv, nf, p.fov_ra_deg, p.fov_dec_deg, p.nside,
             p.telescope_latlonalt, p.central_jd, p.nt,

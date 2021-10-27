@@ -404,6 +404,9 @@ class BuildMatrices(BuildMatrixTree):
         Tapering function to apply to the frequency axis of the model
         visibilities.  Can be any valid argument to
         `scipy.signal.windows.get_window`.
+    rectilinear : bool, optional
+        If `False`, use a HEALPix grid for the sky model.  Otherwise, use a
+        rectilinear grid.
 
     """
     def __init__(self, array_save_directory, nu, nv,
@@ -426,6 +429,7 @@ class BuildMatrices(BuildMatrixTree):
             self.fwhm_deg = kwargs.pop('fwhm_deg')
             self.antenna_diameter = kwargs.pop('antenna_diameter', None)
             self.effective_noise = kwargs.pop('effective_noise', None)
+            self.rectilinear = kwargs.pop('rectilinear', False)
 
             # Set up Healpix instance
             self.hp = Healpix(
@@ -439,8 +443,11 @@ class BuildMatrices(BuildMatrixTree):
                 beam_type=self.beam_type,
                 peak_amp=self.beam_peak_amplitude,
                 fwhm_deg=self.fwhm_deg,
-                diam=self.antenna_diameter
-                )
+                diam=self.antenna_diameter,
+                rectilinear=self.rectilinear,
+                nra=nu,
+                ndec=nv
+            )
 
         # Set necessary / useful parameter values
         self.nu = nu
@@ -869,6 +876,7 @@ class BuildMatrices(BuildMatrixTree):
             # Get (l, m, n) coordinates from Healpix object
             ls_rad, ms_rad, ns_rad = self.hp.calc_lmn_from_radec(
                 self.hp.jds[p.nt // 2],
+                rectilinear=self.rectilinear,
                 radec_offset=self.beam_center
                 )
             sampled_lmn_coords_radians = np.vstack((ls_rad, ms_rad, ns_rad)).T
@@ -894,6 +902,7 @@ class BuildMatrices(BuildMatrixTree):
                         np.vstack(
                             self.hp.calc_lmn_from_radec(
                                 self.hp.jds[time_i],
+                                rectilinear=self.rectilinear,
                                 radec_offset=self.beam_center
                                 )  # gets (l(t), m(t), n(t))
                             ).T,
@@ -942,6 +951,7 @@ class BuildMatrices(BuildMatrixTree):
                     self.hp.get_beam_vals(
                         *self.hp.calc_lmn_from_radec(
                             self.hp.jds[p.nt//2],
+                            rectilinear=self.rectilinear,
                             radec_offset=self.beam_center,
                             return_azza=True,
                             )[3:],  # Only need az, za
@@ -959,6 +969,7 @@ class BuildMatrices(BuildMatrixTree):
                         self.hp.get_beam_vals(
                             *self.hp.calc_lmn_from_radec(
                                 self.hp.jds[time_i],
+                                rectilinear=self.rectilinear,
                                 radec_offset=self.beam_center,
                                 return_azza=True
                                 )[3:],  # Only need az, za
@@ -1029,7 +1040,7 @@ class BuildMatrices(BuildMatrixTree):
         print('Performing matrix algebra')
         # Get (l, m) coordinates from Healpix object
         ls_rad, ms_rad, _ = self.hp.calc_lmn_from_radec(
-            self.hp.jds[p.nt//2]
+            self.hp.jds[p.nt//2], rectilinear=self.rectilinear
             )
         sampled_lm_coords_radians = np.vstack((ls_rad, ms_rad)).T
         idft_array = IDFT_Array_IDFT_2D_ZM(
@@ -1091,7 +1102,7 @@ class BuildMatrices(BuildMatrixTree):
         print('Performing matrix algebra')
         # Get (l, m) coordinates from Healpix object
         ls_rad, ms_rad, _ = self.hp.calc_lmn_from_radec(
-            self.hp.jds[p.nt//2]
+            self.hp.jds[p.nt//2], rectilinear=self.rectilinear
             )
         sampled_lm_coords_radians = np.vstack((ls_rad, ms_rad)).T
 
