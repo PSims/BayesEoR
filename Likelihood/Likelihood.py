@@ -380,7 +380,8 @@ class PowerSpectrumPosteriorProbability(object):
 
         if p.fit_for_monopole:
             inds = slice(
-                self.nuv//2 * self.neta, (self.nuv//2 + 1) * self.neta
+                self.nuv//2 * (self.neta + self.nq),
+                (self.nuv//2 + 1) * (self.neta + self.nq)
             )
             PowerI[inds] = self.inverse_LW_power
 
