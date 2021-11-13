@@ -1173,6 +1173,11 @@ class BuildMatrices(BuildMatrixTree):
             channel_width_MHz=p.channel_width_MHz,
             beta=p.beta)
         idft_array_1d_sh_block *= self.Fz_normalization
+        # eta=0 mode normalized to neta * deta
+        idft_array_1d_sh_block[:, self.neta//2] *= self.neta
+        if self.nq_sh > 0:
+            # LSSM basis vector(s) normalized to neta * deta
+            idft_array_1d_sh_block[:, self.neta:] *= self.neta
         nuv_sh = self.nu_sh*self.nv_sh - 1
         idft_array_1d_sh = self.sd_block_diag(
             [idft_array_1d_sh_block for i in range(nuv_sh)]
@@ -1202,6 +1207,8 @@ class BuildMatrices(BuildMatrixTree):
         print('Performing matrix algebra')
         idft_array_1D = IDFT_Array_IDFT_1D(self.nf, self.neta)
         idft_array_1D *= self.Fz_normalization
+        # eta=0 mode normalized to neta * delta_eta_iHz
+        idft_array_1D[:, self.neta//2] *= self.neta
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
         self.output_data(idft_array_1D,
@@ -1268,6 +1275,9 @@ class BuildMatrices(BuildMatrixTree):
             channel_width_MHz=p.channel_width_MHz,
             beta=p.beta)
         idft_array_1D_WQ *= self.Fz_normalization
+        # eta=0 and LSSM basis vector(s) normalized to neta * deta
+        idft_array_1D_WQ[:, self.neta//2] *= self.neta
+        idft_array_1D_WQ[:, self.neta:] *= self.neta
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
         self.output_data(idft_array_1D_WQ,
@@ -1292,11 +1302,11 @@ class BuildMatrices(BuildMatrixTree):
         print('Performing matrix algebra')
         if p.fit_for_monopole:
             multi_vis_idft_array_1D_WQ = self.sd_block_diag(
-                [pmd['idft_array_1D_WQ'].T for i in range(self.nu*self.nv)]
+                [pmd['idft_array_1D_WQ'] for i in range(self.nu*self.nv)]
                 )
         else:
             multi_vis_idft_array_1D_WQ = self.sd_block_diag(
-                [pmd['idft_array_1D_WQ'].T for i in range(self.nu*self.nv - 1)]
+                [pmd['idft_array_1D_WQ'] for i in range(self.nu*self.nv - 1)]
                 )
         if self.use_shg:
             # Use subarhomic grid

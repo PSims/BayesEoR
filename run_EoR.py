@@ -175,7 +175,7 @@ chan_selection = ''
 # --------------------------------------------
 # Construct matrices
 # --------------------------------------------
-current_file_version = 'Likelihood_v2d8_3D_ZM'
+current_file_version = 'Likelihood_v2d10_3D_ZM'
 array_save_directory = (
     'array_storage/batch_1/'
     + '{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(

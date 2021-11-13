@@ -472,7 +472,6 @@ def IDFT_Array_IDFT_1D_WQ(
     # Sign change for consistency, Finv chosen
     # to have + sign to match healvis
     ExponentArray = np.exp(-2.0*np.pi*1j*(i_eta*i_f / nf))
-    ExponentArray /= nf
 
     quadratic_array = quadratic_array_linear_plus_quad_modes_only_v2(
         nf, nq, npl=npl, nu_min_MHz=nu_min_MHz,
@@ -481,7 +480,7 @@ def IDFT_Array_IDFT_1D_WQ(
     Exponent_plus_quadratic_array = np.hstack(
         (ExponentArray, quadratic_array.T)
         )
-    return Exponent_plus_quadratic_array.T
+    return Exponent_plus_quadratic_array / nf
 
 
 def idft_array_idft_1d_sh(
@@ -536,7 +535,6 @@ def idft_array_idft_1d_sh(
     # Sign change for consistency, Finv chosen
     # to have + sign to match healvis
     idft_array_sh = np.exp(-2.0*np.pi*1j*(i_eta*i_f / nf))
-    idft_array_sh /= nf
 
     if nq_sh > 0:
         # Construct large spectral scale model (LSSM) for the SHG modes
@@ -545,7 +543,7 @@ def idft_array_idft_1d_sh(
             channel_width_MHz=channel_width_MHz, beta=beta)
         idft_array_sh = np.hstack([idft_array_sh, lssm_sh.T])
 
-    return idft_array_sh
+    return idft_array_sh / nf
 
 
 # Gridding matrix functions
