@@ -199,7 +199,16 @@ o.add_option(
     help='If passed, generate noise estimate from all '
          'baselines within a redundant group.'
 )
+o.add_option(
+    '--temp_unit',
+    type=str,
+    default='mK',
+    help="Temperature unit of visibilities.  Can be either 'K' or 'mK'."
+)
 opts, args = o.parse_args(sys.argv[1:])
+
+assert opts.temp_unit in ['mK', 'K'], \
+    "Invalid argument for `temp_unit`.  Must be either 'mK' or 'K'."
 
 
 def elementwise_avg(*args):
@@ -330,6 +339,7 @@ def data_processing(
             '-nf-{}'.format(opts.nf),
             '-nf-{}-adj-freq-avg'.format(opts.nf)
         )
+    outfile += '-{}sr'.format(opts.temp_unit)
     outfile += '-phased.npy'
     if opts.unphased:
         outfile = outfile.replace('phased', 'unphased')
@@ -454,7 +464,8 @@ def data_processing(
     data_array_phased_avg = jy_to_ksr(
         data_array_phased_avg, frequencies
     )
-    data_array_phased_avg *= 1.0e3  # K sr to mK sr
+    if opts.temp_unit == 'mK':
+        data_array_phased_avg *= 1.0e3  # K sr to mK sr
 
     # Reorder and Flatten Data
     # Double the bl axis size to account for each redundant
