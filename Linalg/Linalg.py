@@ -173,7 +173,7 @@ def IDFT_Array_IDFT_2D_ZM(
             nu*U_oversampling_Factor
             * nv*V_oversampling_Factor
         )
-    return ExponentArray.T
+    return ExponentArray
 
 
 def IDFT_Array_IDFT_2D_ZM_SH(
@@ -250,6 +250,7 @@ def IDFT_Array_IDFT_2D_ZM_SH(
     # Sign change for consistency, Finv chosen to
     # have + to match healvis
     ExponentArray = np.exp(-2.0*np.pi*1j*(x_vec*u_vec + y_vec*v_vec))
+    ExponentArray /= nu_sh * nv_sh
 
     return ExponentArray
 
@@ -462,8 +463,8 @@ def IDFT_Array_IDFT_1D_WQ(
 
     Returns
     -------
-    ExponentArray : np.ndarray of complex floats
-        1D DFT matrix with shape (nf, neta + nq).
+    Exponent_plus_quadratic_array : np.ndarray of complex floats
+        1D DFT matrix + LSSM with shape (nf, neta + nq).
 
     """
     i_f = (np.arange(nf) - nf//2).reshape(-1, 1)
@@ -472,7 +473,7 @@ def IDFT_Array_IDFT_1D_WQ(
     # Sign change for consistency, Finv chosen
     # to have + sign to match healvis
     ExponentArray = np.exp(-2.0*np.pi*1j*(i_eta*i_f / nf))
-    ExponentArray /= nf
+    ExponentArray /= neta
 
     quadratic_array = quadratic_array_linear_plus_quad_modes_only_v2(
         nf, nq, npl=npl, nu_min_MHz=nu_min_MHz,
@@ -481,7 +482,7 @@ def IDFT_Array_IDFT_1D_WQ(
     Exponent_plus_quadratic_array = np.hstack(
         (ExponentArray, quadratic_array.T)
         )
-    return Exponent_plus_quadratic_array.T
+    return Exponent_plus_quadratic_array
 
 
 def idft_array_idft_1d_sh(
@@ -536,7 +537,7 @@ def idft_array_idft_1d_sh(
     # Sign change for consistency, Finv chosen
     # to have + sign to match healvis
     idft_array_sh = np.exp(-2.0*np.pi*1j*(i_eta*i_f / nf))
-    idft_array_sh /= nf
+    idft_array_sh /= neta
 
     if nq_sh > 0:
         # Construct large spectral scale model (LSSM) for the SHG modes
