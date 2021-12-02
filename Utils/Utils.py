@@ -199,10 +199,10 @@ def load_inst_model(
         Path to the instrument model directory
     uvw_file : str
         File containing instrumentally sampled (u, v, w) coords.  Defaults to
-        'uvw_multi_time_step_array_meters'.
+        'uvw_model.npy'.
     red_file : str
         File containing baseline redundancy info.  Defaults to
-        'uvw_redundancy_multi_time_step_array'.
+        'redundancy_model.npy'.
     phasor_file : str
         File containing the phasor vector.  Defaults to 'phasor_vector.npy'.
 
@@ -216,9 +216,18 @@ def load_inst_model(
         Array of phasor values.
 
     """
-    uvw_array_m = np.load(os.path.join(inst_model_dir, uvw_file))
-    bl_red_array = np.load(os.path.join(inst_model_dir, red_file))
-    phasor_vec = np.load(os.path.join(inst_model_dir, phasor_file))
+    if os.path.exists(os.path.join(inst_model_dir, 'instrument_model.npy')):
+        data_dict = np.load(
+            os.path.join(inst_model_dir, 'instrument_model.npy'),
+            allow_pickle=True
+        ).item()
+        uvw_array_m = data_dict['uvw_model']
+        bl_red_array = data_dict['redundancy_model']
+        phasor_vec = data_dict['phasor_vector']
+    else:
+        uvw_array_m = np.load(os.path.join(inst_model_dir, uvw_file))
+        bl_red_array = np.load(os.path.join(inst_model_dir, red_file))
+        phasor_vec = np.load(os.path.join(inst_model_dir, phasor_file))
 
     return uvw_array_m, bl_red_array, phasor_vec
 

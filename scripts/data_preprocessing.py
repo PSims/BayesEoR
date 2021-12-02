@@ -464,8 +464,12 @@ def data_processing(
     data_array_phased_avg = jy_to_ksr(
         data_array_phased_avg, frequencies
     )
+    noise_array_phased_avg = jy_to_ksr(
+        noise_array_phased_avg, frequencies
+    )
     if opts.temp_unit == 'mK':
         data_array_phased_avg *= 1.0e3  # K sr to mK sr
+        noise_array_phased_avg *= 1.0e3
 
     # Reorder and Flatten Data
     # Double the bl axis size to account for each redundant
@@ -528,10 +532,7 @@ def data_processing(
         end='\n\n'
     )
 
-    if opts.save:
-        if opts.clobber:
-            print('Clobbering file if it exists')
-
+    if opts.save or opts.save_model:
         version_info = {}
         version_info['git_origin'] = subprocess.check_output(
             ['git', 'config', '--get', 'remote.origin.url'],
@@ -546,6 +547,10 @@ def data_processing(
             stderr=subprocess.STDOUT)
         for key in version_info.keys():
             version_info[key] = version_info[key].decode('utf8').strip('\n')
+
+    if opts.save:
+        if opts.clobber:
+            print('Clobbering file if it exists')
 
         data_dict = {
             'data': data_array_flattened,
@@ -602,26 +607,18 @@ def data_processing(
         if not os.path.exists(inst_model_dir):
             os.mkdir(inst_model_dir)
 
-        uvw_file = 'uvw_model.npy'
-        uvw_filepath = Path(inst_model_dir) / uvw_file
-        if not uvw_filepath.exists() or opts.clobber:
-            np.save(uvw_filepath, uvw_model_unphased)
-        else:
-            print('\tuvw model exists, skipping...')
-
-        red_file = 'redundancy_model.npy'
-        red_filepath = Path(inst_model_dir) / red_file
-        if not red_filepath.exists() or opts.clobber:
-            np.save(red_filepath, redundancy_model)
-        else:
-            print('\tredundancy model exists, skipping...')
-
-        phasor_file = 'phasor_vector.npy'
-        phasor_filepath = Path(inst_model_dir) / phasor_file
-        if not phasor_filepath.exists() or opts.clobber:
-            np.save(phasor_filepath, phasor_array_flattened)
-        else:
-            print('\tphasor vector exists, skipping...')
+        data_dict = {
+            'uvw_model': uvw_model_unphased,
+            'redundancy_model': redundancy_model,
+            'phasor_vector': phasor_array_flattened,
+            'opts': vars(opts),
+            'version': version_info
+        }
+        outfile = 'instrument_model.npy'
+        datapath = os.path.join(inst_model_dir, outfile)
+        if not os.path.exists(datapath) or opts.clobber:
+            print('Writing instrument model to {}...'.format(datapath))
+            np.save(datapath, data_dict)
 
     if opts.plot_inst_model:
         fig = plt.figure(figsize=(16, 8))
