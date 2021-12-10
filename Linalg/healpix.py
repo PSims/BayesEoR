@@ -296,12 +296,17 @@ class Healpix(HEALPix):
             zen_radec = zen.transform_to(ICRS())
             ra0 = zen_radec.ra.deg
             dec0 = zen_radec.dec.deg
-            az = np.arctan2(
-                np.deg2rad(ra0 - self.ra),
-                np.deg2rad(dec0 - self.dec)
-            )  # matches astropy azimuthal convention
-            az += np.pi
-            za = np.deg2rad(np.sqrt((self.ra - ra0)**2 + (self.dec - dec0)**2))
+
+            # Convert from (RA, DEC) to (l, m)
+            dl = np.deg2rad(self.fov_ra_deg) / self.nra
+            dm = np.deg2rad(self.fov_dec_deg) / self.ndec
+            ls = (self.ra - ra0) / np.diff(self.ra).max() * dl
+            ms = (self.dec - dec0) / np.diff(self.dec).max() * dm
+            ns = np.zeros_like(ls)
+            # Get (az, za) from (l, m)
+            az = np.arctan2(ls, ms)  # astropy convention says az=0 is North
+            az[az<0] += 2*np.pi  # rescale to [0, 2pi)
+            za = np.sqrt(ls**2 + ms**2)
         else:
             skycoord = SkyCoord(self.ra*u.deg, self.dec*u.deg, frame='icrs')
             altaz = skycoord.transform_to(
@@ -310,10 +315,10 @@ class Healpix(HEALPix):
             az = altaz.az.rad
             za = np.pi/2 - altaz.alt.rad
 
-        # Convert from (az, za) to (l, m, n)
-        ls = np.sin(za) * np.sin(az)
-        ms = np.sin(za) * np.cos(az)
-        ns = np.cos(za)
+            # Convert from (az, za) to (l, m, n)
+            ls = np.sin(za) * np.sin(az)
+            ms = np.sin(za) * np.cos(az)
+            ns = np.cos(za)
 
         if return_azza:
             return ls, ms, ns, az, za
