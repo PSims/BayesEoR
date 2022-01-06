@@ -202,6 +202,33 @@ o.add_option(
 opts, args = o.parse_args(sys.argv[1:])
 
 
+def add_mtime_to_filename(path, filename_in, join_char='-'):
+    """
+    Appends the mtime to a filename before the file suffix.
+
+    Parameters
+    ----------
+    path : str
+        Path to filename.
+    filename_in : str
+        Name of file.
+
+    Returns
+    -------
+    filename_out : str
+        Modified filename containing the mtime of the file.
+
+    """
+    fp = Path(path) / filename_in
+    suffix = fp.suffix
+    mtime = datetime.fromtimestamp(os.path.getmtime(fp))
+    mtime = mtime.isoformat()
+    filename_out = filename_in.replace(suffix, '{}{}{}'.format(
+        join_char, mtime, suffix
+    ))
+    return filename_out
+
+
 def elementwise_avg(*args):
     """
     Returns the elementwise average of a set of np.ndarrays.
@@ -541,11 +568,22 @@ def data_processing(
             'data': data_array_flattened,
             'noise': noise_array_flattened,
             'opts': vars(opts),
-            'version': version_info
+            'version': version_info,
+            'ctime': datetime.now().isoformat()
         }
         datapath = os.path.join(save_dir, outfile)
+        print('Writing data to\n{}'.format(datapath))
         if not os.path.exists(datapath) or opts.clobber:
-            print('Writing data to {}...'.format(datapath))
+            np.save(datapath, data_dict)
+        else:
+            old_outfile = add_mtime_to_filename(save_dir, outfile)
+            print('Existing file found.  Moving to\n{}'.format(
+                os.path.join(save_dir, old_outfile)
+            ))
+            os.rename(
+                os.path.join(save_dir, outfile),
+                os.path.join(save_dir, old_outfile)
+            )
             np.save(datapath, data_dict)
 
         # if opts.all_bl_noise:
@@ -597,12 +635,25 @@ def data_processing(
             'redundancy_model': redundancy_model,
             'phasor_vector': phasor_array_flattened,
             'opts': vars(opts),
-            'version': version_info
+            'version': version_info,
+            'ctime': datetime.now().isoformat()
         }
         outfile = 'instrument_model.npy'
         datapath = os.path.join(inst_model_dir, outfile)
+        print('Writing instrument model to\n{}'.format(datapath))
         if not os.path.exists(datapath) or opts.clobber:
-            print('Writing instrument model to {}...'.format(datapath))
+            np.save(datapath, data_dict)
+        else:
+            old_outfile = add_mtime_to_filename(
+                inst_model_dir, outfile, join_char='_'
+            )
+            print('Existing model found.  Moving to\n{}'.format(
+                os.path.join(inst_model_dir, old_outfile)
+            ))
+            os.rename(
+                os.path.join(inst_model_dir, outfile),
+                os.path.join(inst_model_dir, old_outfile)
+            )
             np.save(datapath, data_dict)
 
     if opts.plot_inst_model:
