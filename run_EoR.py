@@ -168,7 +168,7 @@ chan_selection = ''
 # --------------------------------------------
 # Construct matrices
 # --------------------------------------------
-current_file_version = 'Likelihood_v2d8_3D_ZM'
+current_file_version = 'Likelihood_v2d10_3D_ZM'
 array_save_directory = (
     'array_storage/batch_1/'
     + '{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(
@@ -498,12 +498,10 @@ x = [100.e0]*nDims
 # --------------------------------------------
 # Sample from the posterior
 # --------------------------------------------
-###
-# PolyChord setup
-###
-log_priors_min_max = [[-2., 6.] for _ in range(nDims)]
-# log_priors_min_max[0] = [-2., 15.]
-# log_priors_min_max[1] = [-2., 8.]
+log_priors_min_max = [
+    [-2.0, 2.0], [-1.2, 2.8], [-0.7, 3.3], [-0.3, 3.7], [0.1, 4.1],
+    [0.5, 4.5], [1.0, 5.0], [1.4, 5.4], [1.7, 5.7]
+]
 if p.use_LWM_Gaussian_prior:
     # Set minimum LW model priors using LW power spectrum in fit to
     # white noise (i.e the prior min should incorporate knowledge of

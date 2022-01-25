@@ -481,7 +481,7 @@ def IDFT_Array_IDFT_1D_WQ(
     Exponent_plus_quadratic_array = np.hstack(
         (ExponentArray, quadratic_array.T)
         )
-    return Exponent_plus_quadratic_array.T
+    return Exponent_plus_quadratic_array
 
 
 def idft_array_idft_1d_sh(
