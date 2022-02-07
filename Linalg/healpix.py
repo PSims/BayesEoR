@@ -13,6 +13,7 @@ from astropy.time import Time
 import astropy.units as u
 from astropy.constants import c
 from scipy.special import j1
+from pyuvdata import UVBeam
 from pyuvdata import utils as uvutils
 
 c_ms = c.to('m/s').value
@@ -48,8 +49,9 @@ class Healpix(HEALPix):
         Number of time integrations. Defaults to 1.
     int_time : float, optional
         Integration time in seconds. Required if ``nt>1``.
-    beam_type : {'uniform', 'gaussian', 'airy'}, optional
-        Beam type to use.  Defaults to uniform.
+    beam_type : str, optional
+        Can be either a path to a pyuvdata.UVBeam compatible
+        file or one of {'uniform', 'gaussian', 'airy'}.  Defaults to 'uniform'.
     peak_amp : float, optional
         Peak amplitude of the beam.  Defaults to 1.0.
     fwhm_deg : float, optional
@@ -130,12 +132,40 @@ class Healpix(HEALPix):
 
         # Beam params
         if beam_type is not None:
-            beam_type = beam_type.lower()
-            assert beam_type in ['uniform', 'gaussian', 'airy'], \
-                "Only uniform, Gaussian, and Airy beams are supported."
-            self.beam_type = beam_type
+            if not '.' in str(beam_type):
+                beam_type = beam_type.lower()
+                assert beam_type in ['uniform', 'gaussian', 'airy'], \
+                    "Only uniform, Gaussian, and Airy beams are supported."
+                self.beam_type = beam_type
+                self.uvb = None
+            else:
+                # assume beam_type is a path to a UVBeam compatible file
+                uvb = UVBeam()
+                uvb.read_beamfits(beam_type)
+                assert uvb.pixel_coordinate_system == 'healpix', (
+                    "UVBeam.pixel_coordinate_system must be 'healpix', "
+                    "not {}".format(uvb.pixel_coordinate_system)
+                )
+                assert uvb.nside == self.nside, (
+                    f"UVBeam.nside ({uvb.nside}) and self.nside ({self.nside})"
+                    " do not match."
+                )
+                assert uvb.beam_type == 'power', (
+                    "UVBeam.beam_type must be 'power', not '{}'.".format(
+                        uvb.beam_type
+                    )
+                )
+                assert 1 in uvb.polarization_array, (
+                    "UVBeam object must contain pI polarization."
+                )
+                uvb.select(polarizations=[1])
+                uvb.freq_interp_kind = 'quadratic'
+                uvb.interpolation_function = 'healpix_simple'
+                self.beam_type = 'uvbeam'
+                self.uvb = uvb
         else:
             self.beam_type = 'uniform'
+            self.uvb = None
         self.peak_amp = peak_amp
 
         if beam_type == 'gaussian':
@@ -295,6 +325,12 @@ class Healpix(HEALPix):
             else:
                 diam_eff = self._fwhm_to_diam(self.fwhm_deg, freq)
                 beam_vals = self._airy_disk(za, diam_eff, freq)
+        
+        elif self.beam_type == 'uvbeam':
+            beam_vals, _ = self.uvb.interp(
+                az_array=az, za_array=za, freq_array=np.array([freq])
+            )
+            beam_vals = beam_vals[0, 0, 0, 0].real
 
         return beam_vals
 
