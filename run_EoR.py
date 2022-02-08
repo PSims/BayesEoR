@@ -12,6 +12,7 @@ import time
 import ast
 import numpy as np
 from astropy import units
+from pathlib import Path
 
 # If False, skip mpi and other imports that can cause crashes in ipython
 # When running an analysis this should be True
@@ -229,42 +230,45 @@ if p.use_shg:
 
 if p.include_instrumental_effects:
     beam_info_str = ''
-    p.beam_type = p.beam_type.lower()
-    if p.beam_type == 'uniform':
-        beam_info_str += '{}_beam_peak_amplitude_{}'.format(
-            p.beam_type,
-            str(p.beam_peak_amplitude).replace('.', 'd')
-        )
-    elif p.beam_type == 'gaussian':
-        beam_info_str += (
-            '{}_beam_peak_amplitude_{}'.format(
+    if not '.' in p.beam_type:
+        p.beam_type = p.beam_type.lower()
+        if p.beam_type == 'uniform':
+            beam_info_str += '{}_beam_peak_amplitude_{}'.format(
                 p.beam_type,
-                str(p.beam_peak_amplitude).replace('.', 'd'))
-        )
-        if p.fwhm_deg is not None:
-            beam_info_str += (
-                '_beam_width_{}_deg'.format(str(p.fwhm_deg).replace('.', 'd'))
+                str(p.beam_peak_amplitude).replace('.', 'd')
             )
-        elif p.antenna_diameter is not None:
+        elif p.beam_type == 'gaussian':
             beam_info_str += (
-                '_antenna-diameter-{}m'.format(
-                    str(np.round(p.antenna_diameter, decimals=2)).replace(
-                        '.', 'd')
+                '{}_beam_peak_amplitude_{}'.format(
+                    p.beam_type,
+                    str(p.beam_peak_amplitude).replace('.', 'd'))
+            )
+            if p.fwhm_deg is not None:
+                beam_info_str += (
+                    '_beam_width_{}_deg'.format(str(p.fwhm_deg).replace('.', 'd'))
                 )
+            elif p.antenna_diameter is not None:
+                beam_info_str += (
+                    '_antenna-diameter-{}m'.format(
+                        str(np.round(p.antenna_diameter, decimals=2)).replace(
+                            '.', 'd')
+                    )
+                )
+            else:
+                mpiprint(
+                    '\nIf using a Gaussian beam, must specify either a FWHM in'
+                    ' deg or an antenna diameter in meters.\nExiting...',
+                    end='\n\n',
+                    rank=mpi_rank
+                )
+                sys.exit()
+        elif p.beam_type == 'airy':
+            beam_info_str += '{}_beam_antenna-diameter-{}m'.format(
+                p.beam_type,
+                str(np.round(p.antenna_diameter, decimals=2)).replace('.', 'd')
             )
-        else:
-            mpiprint(
-                '\nIf using a Gaussian beam, must specify either a FWHM in'
-                ' deg or an antenna diameter in meters.\nExiting...',
-                end='\n\n',
-                rank=mpi_rank
-            )
-            sys.exit()
-    elif p.beam_type == 'airy':
-        beam_info_str += '{}_beam_antenna-diameter-{}m'.format(
-            p.beam_type,
-            str(np.round(p.antenna_diameter, decimals=2)).replace('.', 'd')
-        )
+    else:
+        beam_info_str = Path(p.beam_type).stem
 
     instrument_model_directory_plus_beam_info = (
             p.instrument_model_directory[:-1]
