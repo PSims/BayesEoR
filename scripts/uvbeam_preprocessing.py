@@ -1,5 +1,5 @@
 """
-    Create a pStokes power HEALPix UVBeam object interpolated in frequency.
+    Create a power HEALPix UVBeam object interpolated in frequency.
 """
 
 import BayesEoR
@@ -10,7 +10,7 @@ import subprocess
 
 from pathlib import Path
 from datetime import datetime
-from pyuvdata import UVBeam
+from pyuvdata import UVBeam, utils
 from astropy import units
 from astropy.units import Quantity
 
@@ -45,6 +45,7 @@ parser.add_argument(
 parser.add_argument(
     '--nside',
     type=int,
+    default=None,
     help='HEALPix resolution for spatial interpolation.'
 )
 parser.add_argument(
@@ -61,6 +62,13 @@ parser.add_argument(
     default='quadratic',
     help='1D Frequency interpolation kind.  See `scipy.interpolate.interp1d` '
          'for all possible options.  Defaults to \'quadratic\'.'
+)
+parser.add_argument(
+    '--norm',
+    type=str,
+    default='peak',
+    help='Beam normalization to use.  Can be either \'peak\' or \'physical\'.'
+         '  Defaults to \'peak\'.'
 )
 args = parser.parse_args()
 
@@ -107,27 +115,30 @@ freqs = freqs.to('Hz')
 print(f'Reading in data from {data_path}')
 uvb = UVBeam()
 uvb.read_beamfits(data_path)
-if not uvb.beam_type == 'efield':
-    assert 1 in uvb.polarization_array, (
-        "If operating on a 'power' beam, must be a pStokes power beam and "
-        "include the pI polarization in `UVBeam.polarization_array`."
-    )
-else:
-    print('Converting from E-field to pStokes power beam...')
-    uvb.efield_to_pstokes()
+if uvb.beam_type == 'efield':
+    print('Converting from E-field to power beam...')
+    uvb.efield_to_power()
 uvb.interpolation_function = args.interp_func
 uvb.freq_interp_kind = args.freq_interp_kind
 print('Interpolating...')
-uvb_hpx = uvb.interp(
+uvb_interp = uvb.interp(
     freq_array=freqs.to('Hz').value, healpix_nside=args.nside, new_object=True
 )
+if args.norm == 'peak':
+    print('Peak normalizing...')
+    uvb_interp.peak_normalize()
 
 outfile = filename.lower().strip('.fits')
 outfile = outfile.replace('_', '-')
-outfile = outfile.replace('efield', 'pstokes-power')
-outfile += '-nside-{}-{:.2f}-{:.2f}MHz-nf-{}.fits'.format(
-    uvb_hpx.nside, *uvb_hpx.freq_array[0, [0, -1]]/1e6, uvb_hpx.freq_array.size
+outfile = outfile.replace('efield', 'power')
+if args.norm == 'peak':
+    outfile += '-peak-norm'
+if not args.nside is None:
+    outfile += f'-nside-{uvb_interp.nside}'
+outfile += '-{:.2f}-{:.2f}MHz-nf-{}'.format(
+    *uvb_interp.freq_array[0, [0, -1]]/1e6, uvb_interp.freq_array.size
 )
+outfile += '.fits'
 
 # Append Git information to history
 version_info = {}
@@ -169,4 +180,4 @@ if save_path.exists():
         os.path.join(data_dir, outfile),
         os.path.join(data_dir, old_outfile)
     )
-uvb_hpx.write_beamfits(save_path)
+uvb_interp.write_beamfits(save_path)
