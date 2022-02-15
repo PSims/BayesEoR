@@ -29,7 +29,7 @@ import subprocess
 
 from pathlib import Path
 from datetime import datetime
-from pyuvdata import UVData
+from pyuvdata import UVData, utils
 from astropy.time import Time, TimeDelta
 from astropy import units
 from astropy.units import Quantity
@@ -192,6 +192,13 @@ o.add_option(
     default=1.,
     help='Normalization N used in the formation of pI = N * (XX + YY).'
          'Defaults to 1.0.'
+)
+o.add_option(
+    '--pol',
+    type=str,
+    default='xx',
+    help='Polarization string to keep in the data vector.  Not used if forming'
+         'pI visibilities.  Defaults to \'xx\'.'
 )
 o.add_option(
     '--all_bl_noise',
@@ -357,6 +364,10 @@ def data_processing(
             '-nf-{}'.format(opts.nf),
             '-nf-{}-adj-freq-avg'.format(opts.nf)
         )
+    if opts.form_pI:
+        outfile += '-pol-pI'
+    else:
+        outfile += f'-pol-{opts.pol}'
     outfile += '-phased.npy'
     if opts.unphased:
         outfile = outfile.replace('phased', 'unphased')
@@ -820,8 +831,6 @@ print('Conjugating baselines to u > 0 convention')
 uvd.conjugate_bls(convention='u>0', uvw_tol=1.0)
 
 if opts.form_pI:
-    # This should work for now, but need to be more careful
-    # about this in the future if/when polarization becomes important
     print('Forming pI visibilities')
     if np.all([pol in uvd.polarization_array for pol in [-5, -6]]):
         # Form pI as xx + yy
@@ -834,6 +843,12 @@ if opts.form_pI:
         pol_num = -5
     elif -6 in uvd.polarization_array:
         pol_num = -6
+    uvd.select(polarizations=pol_num)
+else:
+    pol_num = utils.polstr2num(opts.pol)
+    assert pol_num in uvd.polarization_array, (
+        f"Polarization {opts.pol} not present in polarization_array."
+    )
     uvd.select(polarizations=pol_num)
 
 if opts.all_bl_noise:
