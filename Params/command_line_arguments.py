@@ -74,6 +74,11 @@ def BayesEoRParser():
         help="Antenna diameter in meters used for Airy beam calculations."
     )
     parser.add_argument(
+        '--cosfreq',
+        type=float,
+        help='Cosine frequency if using a \'gausscosine\' beam.'
+    )
+    parser.add_argument(
         '--overwrite_matrices',
         action='store_true',
         default=False,

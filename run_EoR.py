@@ -237,7 +237,7 @@ if p.include_instrumental_effects:
                 p.beam_type,
                 str(p.beam_peak_amplitude).replace('.', 'd')
             )
-        elif p.beam_type == 'gaussian':
+        elif p.beam_type in ['gaussian', 'gausscosine']:
             beam_info_str += (
                 '{}_beam_peak_amplitude_{}'.format(
                     p.beam_type,
@@ -262,6 +262,8 @@ if p.include_instrumental_effects:
                     rank=mpi_rank
                 )
                 sys.exit()
+            if p.beam_type == 'gausscosine':
+                beam_info_str += '-cosfreq-{:.2f}wls'.format(p.cosfreq)
         elif p.beam_type == 'airy':
             beam_info_str += '{}_beam_antenna-diameter-{}m'.format(
                 p.beam_type,
@@ -316,6 +318,7 @@ if p.include_instrumental_effects:
         beam_center=p.beam_center,
         fwhm_deg=p.fwhm_deg,
         antenna_diameter=p.antenna_diameter,
+        cosfreq=p.cosfreq,
         delta_u_irad=p.delta_u_irad, delta_v_irad=p.delta_v_irad,
         delta_eta_iHz=p.delta_eta_iHz,
         use_shg=p.use_shg, fit_for_shg_amps=p.fit_for_shg_amps,

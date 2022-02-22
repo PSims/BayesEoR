@@ -425,6 +425,7 @@ class BuildMatrices(BuildMatrixTree):
             self.beam_center = kwargs.pop('beam_center', None)
             self.fwhm_deg = kwargs.pop('fwhm_deg')
             self.antenna_diameter = kwargs.pop('antenna_diameter', None)
+            self.cosfreq = kwargs.pop('cosfreq', None)
             self.effective_noise = kwargs.pop('effective_noise', None)
 
             # Set up Healpix instance
@@ -439,7 +440,8 @@ class BuildMatrices(BuildMatrixTree):
                 beam_type=self.beam_type,
                 peak_amp=self.beam_peak_amplitude,
                 fwhm_deg=self.fwhm_deg,
-                diam=self.antenna_diameter
+                diam=self.antenna_diameter,
+                cosfreq=self.cosfreq
                 )
 
         # Set necessary / useful parameter values

@@ -73,7 +73,8 @@ class Healpix(HEALPix):
             beam_type=None,
             peak_amp=1.0,
             fwhm_deg=None,
-            diam=None
+            diam=None,
+            cosfreq=None
             ):
         # Use HEALPix as parent class to get
         # useful astropy_healpix functions
@@ -134,7 +135,8 @@ class Healpix(HEALPix):
         if beam_type is not None:
             if not '.' in str(beam_type):
                 beam_type = beam_type.lower()
-                assert beam_type in ['uniform', 'gaussian', 'airy'], \
+                allowed_types = ['uniform', 'gaussian', 'airy', 'gausscosine']
+                assert beam_type in allowed_types, \
                     "Only uniform, Gaussian, and Airy beams are supported."
                 self.beam_type = beam_type
                 self.uvb = None
@@ -142,25 +144,31 @@ class Healpix(HEALPix):
                 # assume beam_type is a path to a UVBeam compatible file
                 uvb = UVBeam()
                 uvb.read_beamfits(beam_type)
-                assert uvb.pixel_coordinate_system == 'healpix', (
-                    "UVBeam.pixel_coordinate_system must be 'healpix', "
-                    "not {}".format(uvb.pixel_coordinate_system)
-                )
-                assert uvb.nside == self.nside, (
-                    f"UVBeam.nside ({uvb.nside}) and self.nside ({self.nside})"
-                    " do not match."
-                )
+                # assert uvb.pixel_coordinate_system == 'healpix', (
+                #     "UVBeam.pixel_coordinate_system must be 'healpix', "
+                #     "not {}".format(uvb.pixel_coordinate_system)
+                # )
+                # assert uvb.nside == self.nside, (
+                #     f"UVBeam.nside ({uvb.nside}) and self.nside ({self.nside})"
+                #     " do not match."
+                # )
                 assert uvb.beam_type == 'power', (
                     "UVBeam.beam_type must be 'power', not '{}'.".format(
                         uvb.beam_type
                     )
                 )
-                assert 1 in uvb.polarization_array, (
-                    "UVBeam object must contain pI polarization."
-                )
-                uvb.select(polarizations=[1])
+                if 1 in uvb.polarization_array:
+                    uvb.select(polarizations=[1])
+                elif -5 in uvb.polarization_array:
+                    # this works for now, but if we're analyzing different
+                    # polarizations in the future, we need to add a param
+                    # specifying polarization (in params.py and as a CLA)
+                    uvb.select(polarizations=[-5])
                 uvb.freq_interp_kind = 'quadratic'
-                uvb.interpolation_function = 'healpix_simple'
+                if uvb.pixel_coordinate_system == 'healpix':
+                    uvb.interpolation_function = 'healpix_simple'
+                else:
+                    uvb.interpolation_function = 'az_za_simple'
                 self.beam_type = 'uvbeam'
                 self.uvb = uvb
         else:
@@ -178,6 +186,7 @@ class Healpix(HEALPix):
                 "'fwhm_deg' or 'diam'."
         self.fwhm_deg = fwhm_deg
         self.diam = diam
+        self.cosfreq = cosfreq
 
         # Pixel params
         self.pix = None  # HEALPix pixel numbers within the FoV
@@ -310,14 +319,20 @@ class Healpix(HEALPix):
         if self.beam_type == 'uniform':
             beam_vals = np.ones(self.npix_fov)
 
-        elif self.beam_type == 'gaussian':
+        # elif self.beam_type == 'gaussian':
+        elif self.beam_type in ['gaussian', 'gausscosine']:
             if self.fwhm_deg is not None:
                 stddev_rad = np.deg2rad(
                     self._fwhm_to_stddev(self.fwhm_deg)
                     )
             else:
                 stddev_rad = self._diam_to_stddev(self.diam, freq)
-            beam_vals = self._gaussian_za(za, stddev_rad, self.peak_amp)
+            if self.beam_type == 'gaussian':
+                beam_vals = self._gaussian_za(za, stddev_rad, self.peak_amp)
+            else:
+                beam_vals = self._gausscosine(
+                    za, stddev_rad, self.peak_amp, self.cosfreq
+                )
 
         elif self.beam_type == 'airy':
             if self.diam is not None:
@@ -328,7 +343,8 @@ class Healpix(HEALPix):
         
         elif self.beam_type == 'uvbeam':
             beam_vals, _ = self.uvb.interp(
-                az_array=az, za_array=za, freq_array=np.array([freq])
+                az_array=az, za_array=za, freq_array=np.array([freq]),
+                reuse_spline=False
             )
             beam_vals = beam_vals[0, 0, 0, 0].real
 
@@ -355,6 +371,32 @@ class Healpix(HEALPix):
 
         """
         beam_vals = amp * np.exp(-za ** 2 / (2 * sigma ** 2))
+        return beam_vals
+    
+    def _gausscosine(self, za, sigma, amp, cosfreq):
+        """
+        Calculates an azimuthally symmetric Gaussian * cosine^2 beam from an
+        array of zenith angles.
+
+        Parameters
+        ----------
+        za : np.ndarray
+            Zenith angle of each pixel in radians.
+        sigma : float
+            Standard deviation in radians.
+        amp : float
+            Peak amplitude at ``za=0``.
+        cosfreq : float
+            Cosine squared frequency in inverse radians.
+
+        Returns
+        -------
+        beam_vals : np.ndarray
+            Array of Gaussian beam amplitudes for each zenith angle in `za`.
+
+        """
+        beam_vals = amp * np.exp(-za ** 2 / (2 * sigma ** 2))
+        beam_vals *= np.cos(2 * np.pi * za * cosfreq/2)**2
         return beam_vals
 
     def _fwhm_to_stddev(self, fwhm):

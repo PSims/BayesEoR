@@ -99,6 +99,7 @@ if include_instrumental_effects:
     beam_peak_amplitude = 1.0
     fwhm_deg = None  # degrees
     antenna_diameter = None
+    cosfreq = None
     # Set the primary beam pointing center in (RA, DEC)
     # If None, will use the pointing center at zenith according to
     # telescope_latlonalt and central_jd. Otherwise, must be a tuple of
