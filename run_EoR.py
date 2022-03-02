@@ -250,7 +250,7 @@ if p.include_instrumental_effects:
             elif p.antenna_diameter is not None:
                 beam_info_str += (
                     '_antenna-diameter-{}m'.format(
-                        str(np.round(p.antenna_diameter, decimals=2)).replace(
+                        str(p.antenna_diameter).replace(
                             '.', 'd')
                     )
                 )
@@ -267,7 +267,7 @@ if p.include_instrumental_effects:
         elif p.beam_type == 'airy':
             beam_info_str += '{}_beam_antenna-diameter-{}m'.format(
                 p.beam_type,
-                str(np.round(p.antenna_diameter, decimals=2)).replace('.', 'd')
+                str(p.antenna_diameter).replace('.', 'd')
             )
     else:
         beam_info_str = Path(p.beam_type).stem
