@@ -38,6 +38,7 @@ class BuildMatrixTree(object):
     """
     Class containing system level functions used to create the matrices
     used in BayesEoR.
+
     """
     def __init__(self, array_save_directory, **kwargs):
         self.array_save_directory = array_save_directory
@@ -63,7 +64,7 @@ class BuildMatrixTree(object):
 
         if p.include_instrumental_effects:
             self.matrix_prerequisites_dictionary['Finv'] =\
-                ['phasor_matrix', 'multi_chan_nudft', 'multi_chan_P']
+                ['multi_chan_nudft', 'multi_chan_P']
         else:
             self.matrix_prerequisites_dictionary['Finv'] =\
                 ['multi_chan_dft_array_noZMchan']
@@ -94,6 +95,7 @@ class BuildMatrixTree(object):
         matrix_available : int
             If matrix exists, 1 or 2 if matrix is an hdf5 or npz file,
             respectively.
+
         """
         hdf5_matrix_available = os.path.exists(
             self.array_save_directory+matrix_name+'.h5')
@@ -337,7 +339,8 @@ class BuildMatrices(BuildMatrixTree):
     phasor_vec : :class:`numpy.ndarray`
         Array with shape (ndata,) that contains the phasor term used to phase
         visibilities after performing the nuDFT from HEALPix (l, m, f) to
-        instrumentally sampled, unphased (u, v, f).
+        instrumentally sampled, unphased (u, v, f).  Defaults to None, i.e.
+        modelling unphased visibilities.
     fov_ra_deg : float
         Field of view in degrees of the RA axis of the sky model.
     fov_dec_deg : float
@@ -419,7 +422,7 @@ class BuildMatrices(BuildMatrixTree):
             self.uvw_array_m = kwargs.pop('uvw_array_m')
             self.bl_red_array = kwargs.pop('bl_red_array')
             self.bl_red_array_vec = kwargs.pop('bl_red_array_vec')
-            self.phasor_vec = kwargs.pop('phasor_vec')
+            self.phasor_vec = kwargs.pop('phasor_vec', None)
             self.beam_type = kwargs.pop('beam_type')
             self.beam_peak_amplitude = kwargs.pop('beam_peak_amplitude')
             self.beam_center = kwargs.pop('beam_center', None)
@@ -518,22 +521,31 @@ class BuildMatrices(BuildMatrixTree):
                 self.build_multi_chan_nudft,
             'multi_chan_P':
                 self.build_multi_chan_P,
-            'phasor_matrix':
-                self.build_phasor_matrix
             }
+        
+        if self.phasor_vec is not None:
+            self.matrix_prerequisites_dictionary.update({
+                'Finv': (
+                    ['phasor_matrix'] 
+                    + self.matrix_prerequisites_dictionary['Finv']
+                )
+            })
+            self.matrix_construction_methods_dictionary.update({
+                'phasor_matrix': self.build_phasor_matrix
+            })
 
         if self.use_shg:
             # Add SHG matrices to matrix calculations
             self.matrix_prerequisites_dictionary.update({
                 'multi_vis_idft_array_1D': [
                     'idft_array_1D', 'idft_array_1d_sh'
-                    ],
+                ],
                 'multi_vis_idft_array_1D_WQ': [
                     'idft_array_1D_WQ', 'idft_array_1d_sh'
-                    ],
+                ],
                 'Fprime': [
                     'multi_chan_idft_array_noZMchan', 'idft_array_sh'
-                    ]
+                ]
             })
             self.matrix_construction_methods_dictionary.update({
                 'idft_array_1d_sh': self.build_idft_array_1d_sh,
@@ -565,6 +577,7 @@ class BuildMatrices(BuildMatrixTree):
         -------
         prerequisite_matrices_dictionary : dict
             Dictionary containing any and all loaded matrix prerequisites.
+
         """
         prerequisite_matrices_dictionary = {}
         print('About to check and load any prerequisites for', matrix_name)
@@ -629,6 +642,7 @@ class BuildMatrices(BuildMatrixTree):
         * dot(sparse, dense) = dense
         * dot(dense, sparse) = dense
         * dot(sparse, sparse) = sparse
+
         """
         matrix_a_is_sparse = sparse.issparse(matrix_a)
         matrix_b_is_sparse = sparse.issparse(matrix_b)
@@ -653,6 +667,7 @@ class BuildMatrices(BuildMatrixTree):
         -------
         matrix_a_dense : :class:`numpy.matrix`
             Dense representation of `matrix_a`.
+
         """
         matrix_a_is_sparse = sparse.issparse(matrix_a)
         if matrix_a_is_sparse:
@@ -674,6 +689,7 @@ class BuildMatrices(BuildMatrixTree):
         -------
         matrix_a_dense_np_array : :class:`numpy.ndarray`
             Dense representation of `matrix_a`.
+
         """
         matrix_a_dense = self.convert_sparse_to_dense_matrix(matrix_a)
         matrix_a_dense_np_array = np.array(matrix_a_dense)

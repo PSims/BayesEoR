@@ -188,15 +188,19 @@ def load_inst_model(
     Load the instrument model consisting of
     - a (u, v, w) array with shape (nt, nbls, 3)
     - baseline redundancy array with shape (nt, nbls, 1)
-    - a phasor vector with shape (ndata,)
+    - a phasor vector with shape (ndata,) (if modelling phased visibilities)
 
     The phasor vector takes an unphased set of visibilities and phases them
     to the central time step in the observation.
 
+    This function first looks for an 'instrument_model.npy' pickled dictionary
+    in `inst_model_dir`.  If not found, it will then load the individual numpy
+    arrays specified by `uvw_file`, `red_file`, and `phasor_file`.
+
     Parameters
     ----------
     inst_model_dir : str
-        Path to the instrument model directory
+        Path to the instrument model directory.
     uvw_file : str
         File containing instrumentally sampled (u, v, w) coords.  Defaults to
         'uvw_model.npy'.
@@ -223,8 +227,12 @@ def load_inst_model(
         ).item()
         uvw_array_m = data_dict['uvw_model']
         bl_red_array = data_dict['redundancy_model']
-        phasor_vec = data_dict['phasor_vector']
+        if 'phasor_vector' in data_dict:
+            phasor_vec = data_dict['phasor_vector']
+        else:
+            phasor_vec = None
     else:
+        # Support for old instrument model formats
         uvw_array_m = np.load(os.path.join(inst_model_dir, uvw_file))
         bl_red_array = np.load(os.path.join(inst_model_dir, red_file))
         phasor_vec = np.load(os.path.join(inst_model_dir, phasor_file))

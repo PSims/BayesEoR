@@ -23,7 +23,7 @@ import pickle
 import copy
 import os
 import sys
-import optparse
+import argparse
 import warnings
 import subprocess
 
@@ -43,78 +43,72 @@ DEFAULT_SAVE_DIR = str(
 )
 
 
-o = optparse.OptionParser()
-o.add_option(
+parser = argparse.ArgumentParser()
+parser.add_argument(
     '--data_path',
     type=str,
     help='Path to the pyuvdata compatible data file for preprocessing.'
 )
-o.add_option(
+parser.add_argument(
     '--filename',
     type=str,
     help='Filename in opts.data_path to use for preprocessing.'
 )
-o.add_option(
-    '--save_data',
-    action='store_true',
-    dest='save',
-    default=True
-)
-o.add_option(
+parser.add_argument(
     '--clobber',
     action='store_true',
     help='If passed, clobber existing data file(s).'
 )
-o.add_option(
+parser.add_argument(
     '--save_dir',
     type=str,
     default=DEFAULT_SAVE_DIR,
     help='Filepath in which the data will be saved. '
          'Defaults to the BayesEoR/scripts directory.'
 )
-o.add_option(
+parser.add_argument(
     '--save_model',
     action='store_true',
     help='If passed, save the generated uvw and redundancy models.'
 )
-o.add_option(
+parser.add_argument(
     '--inst_model_dir',
     type=str,
     default=None,
     help='Path to the BayesEoR/Instrument_Model directory.'
 )
-o.add_option(
+parser.add_argument(
     '--telescope_name',
     type=str,
     default=None,
     help='Telescope name to use for the instrument model.'
 )
-o.add_option(
+parser.add_argument(
     '--uniform_red_model',
     action='store_true',
     help='If passed, replace the redundancy model'
          'with a uniform model (all ones).'
 )
-o.add_option(
+parser.add_argument(
     '--plot_inst_model',
     action='store_true',
     help='If passed, produce plots showing baseline reordering and '
          'the redundancy model in the uv-plane.'
 )
-o.add_option(
+parser.add_argument(
     '--ant_str',
     type=str,
     help='If passed, keep only baselines specified by ant_str '
          'according to UVData.select syntax.'
 )
-o.add_option(
+parser.add_argument(
     '--single_bls',
     action='store_true',
     help='If passed, create data files for each baseline.  '
          'If passed with --ant_str, only make data files '
          'for the baselines contained in --ant_str.'
 )
-o.add_option(
+parser.add_argument(
     '--bl_type',
     type=str,
     help='Baseline type string for selecting from data.  '
@@ -122,46 +116,46 @@ o.add_option(
          'For example, to keep 14.6 meter EW baselines --bl_type=14d6_EW.  '
          'Must be passed with --bl_dict_path.'
 )
-o.add_option(
+parser.add_argument(
     '--bl_dict_path',
     type=str,
     help='Path to a numpy readable dictionary containing a set of keys '
          'of antenna pair tuples, i.e. (1, 2), each with a value of '
          '{baseline_length}_{orientation}, i.e. \'14.6_EW\'.'
 )
-o.add_option(
+parser.add_argument(
     '--bl_cutoff_m',
     type=float,
     help='Baseline cutoff length in meters.  Any baselines in the raw dataset'
          ' with |b| > <bl_cutoff_m> will be excluded from the written data.'
 )
-o.add_option(
+parser.add_argument(
     '--start_freq_MHz',
     type=float,
     help='Starting frequency in MHz from which 76 right-adjacent '
          'frequency channels will be extracted. Defaults to the first '
          'frequency channel in `filename`.'
 )
-o.add_option(
+parser.add_argument(
     '--nf',
     type=int,
     help='Number of frequency channels to include in the data vector.  '
          'Defaults to keeping all frequencies in the data file.'
 )
-o.add_option(
+parser.add_argument(
     '--avg_adj_freqs',
     action='store_true',
     help='If passed, include 2*nf frequency channels and average two '
          'adjacent frequency channels together to form nf frequencies '
          'in the data vector.'
 )
-o.add_option(
+parser.add_argument(
     '--nt',
     type=int,
     help='Number of integrations to include in the data vector.  '
          'Defaults to keeping all integrations in the data file.'
 )
-o.add_option(
+parser.add_argument(
     '--start_int',
     type=int,
     default=0,
@@ -169,44 +163,44 @@ o.add_option(
          '`nt` integrations will be taken from the UVData object.  Defaults '
          'to zero.'
 )
-o.add_option(
-    '--unphased',
+parser.add_argument(
+    '--phase',
     action='store_true',
-    help='If passed, do not phase data.  Otherwise, data is phased '
-           'to `phase_time_jd` or the central time step in the dataset.'
+    help='If passed, phase data.  If `phase_time_jd` is not specified, data '
+         'will be phased to the central time step in the dataset.'
 )
-o.add_option(
+parser.add_argument(
     '--phase_time_jd',
     type=float,
     default=None,
     help='Time to which data will be phased.  Must be a valid Julian Date.'
 )
-o.add_option(
+parser.add_argument(
     '--form_pI',
     action='store_true',
     help="If passed, form pI visibilities from the 'xx' and/or 'yy' pols."
 )
-o.add_option(
+parser.add_argument(
     '--pI_norm',
     type=float,
     default=1.,
     help='Normalization N used in the formation of pI = N * (XX + YY).'
          'Defaults to 1.0.'
 )
-o.add_option(
+parser.add_argument(
     '--pol',
     type=str,
     default='xx',
     help='Polarization string to keep in the data vector.  Not used if forming'
          'pI visibilities.  Defaults to \'xx\'.'
 )
-o.add_option(
+parser.add_argument(
     '--all_bl_noise',
     action='store_true',
     help='If passed, generate noise estimate from all '
          'baselines within a redundant group.'
 )
-opts, args = o.parse_args(sys.argv[1:])
+opts = parser.parse_args()
 
 
 def add_mtime_to_filename(path, filename_in, join_char='-'):
@@ -290,7 +284,7 @@ def weighted_avg_and_std(values, weights):
     return average, np.sqrt(variance)
 
 
-def jy_to_ksr(data, freqs):
+def jy_to_ksr(data, freqs, mK=False):
     """
     Convert visibilities from units of Janskys to Kelvin steradians.
 
@@ -301,13 +295,21 @@ def jy_to_ksr(data, freqs):
     freqs : 1d np.ndarray
         Array of frequencies for data contained in data_array
         in units of Hertz.
+    mK : bool
+        If True, multiply by 1000 to convert from K sr to mK sr.
+        Otherwise, return data in K sr.
+
     """
     # Tile frequencies to match shape of data=(nblts, nfreqs)
     if not isinstance(freqs, Quantity):
         freqs = Quantity(freqs, units.Hz)
 
     equiv = units.brightness_temperature(freqs, beam_area=1*units.sr)
-    conv_factor = (1*units.Jy).to(units.K, equivalencies=equiv)
+    if mK:
+        temp_unit = units.mK
+    else:
+        temp_unit = units.K
+    conv_factor = (1*units.Jy).to(temp_unit, equivalencies=equiv)
     conv_factor *= units.sr / units.Jy
 
     return data * conv_factor[np.newaxis, :].value
@@ -328,7 +330,7 @@ def data_processing(
         - data_array_flattened : visibility data vector
         - phasor_array_flattened : vector of phasor values used to phase a set
           of unphased visibilities to the central time step
-        - uvw_model_unphased : array of (u, v, w) coordinates per baseline
+        - uvw_model : array of (u, v, w) coordinates per baseline
           and time
         - redundancy_model : array of redundancy values per baseline and time,
           i.e. the number of baselines that were averaged together into a
@@ -361,21 +363,16 @@ def data_processing(
     )
     if opts.avg_adj_freqs:
         outfile = outfile.replace(
-            '-nf-{}'.format(opts.nf),
-            '-nf-{}-adj-freq-avg'.format(opts.nf)
+            '-nf-{}'.format(opts.nf), '-nf-{}-adj-freq-avg'.format(opts.nf)
         )
     if opts.form_pI:
         outfile += '-pol-pI'
     else:
         outfile += f'-pol-{opts.pol}'
-    outfile += '-phased.npy'
-    if opts.unphased:
-        outfile = outfile.replace('phased', 'unphased')
+    if opts.phase:
+            outfile += '-phased'
     elif opts.phase_time_jd is not None:
-        outfile = outfile.replace(
-            '.npy',
-            '-phase-time-{}.npy'.format(opts.phase_time_jd)
-        )
+        outfile += '-phase-time-{}'.format(opts.phase_time_jd)
 
     if uvd_select.Nbls == 1:
         antnums = uvd_select.baseline_to_antnums(uvd_select.baseline_array[0])
@@ -390,27 +387,18 @@ def data_processing(
             'nbls-{}-'.format(uvd_select.Nbls),
             'nbls-{}-{}-'.format(uvd_select.Nbls, opts.bl_type)
         )
+    outfile += '.npy'
     # What about the case where I only keep certain baselines within a
     # redundant baseline type? Do I need some sort of unique identifier
     # for chosen baselines when I choose two separate sets of Nbls?
 
-    # Check if data already exists in save_dir and return or clobber it
-    if (
-            os.path.exists(os.path.join(save_dir, outfile))
-            and not opts.clobber and not opts.save_model
-    ):
-        print('Data already exists at {}'.format(
-            os.path.join(save_dir, outfile))
-        )
-        return
-
     uvd = copy.deepcopy(uvd_select)  # copy of uvd_select for phasing
     uvd_comp = uvd_select.compress_by_redundancy(inplace=False)
-    uvd_comp_phasor = copy.deepcopy(uvd_comp)  # used for the phasor vector
-    phasor_array = np.ones(uvd_comp_phasor.data_array.shape) + 0j
-    uvd_comp_phasor.data_array = phasor_array
 
-    if not opts.unphased:
+    if opts.phase:
+        uvd_comp_phasor = copy.deepcopy(uvd_comp)  # used for the phasor vector
+        phasor_array = np.ones(uvd_comp_phasor.data_array.shape) + 0j
+        uvd_comp_phasor.data_array = phasor_array
         if opts.phase_time_jd is not None:
             print('Phasing data to JD {}'.format(opts.phase_time_jd))
             time_to_phase = opts.phase_time_jd
@@ -431,12 +419,10 @@ def data_processing(
     if opts.avg_adj_freqs:
         # Reduce frequency axis by a factor of two
         data_array_shape_avg[1] = data_array_shape_avg[1]//2
-    data_array_phased_avg = np.zeros(
-        data_array_shape_avg,
-        dtype='complex128'
-    )
-    noise_array_phased_avg = np.zeros_like(data_array_phased_avg)
-    phasor_array_phased_avg = np.zeros_like(data_array_phased_avg)
+    data_array_avg = np.zeros(data_array_shape_avg, dtype='complex128')
+    noise_array_avg = np.zeros_like(data_array_avg)
+    if opts.phase:
+        phasor_array_avg = np.zeros_like(data_array_avg)
 
     baseline_groups, vec_bin_centers, _ = uvd_select.get_redundancies()
 
@@ -455,10 +441,13 @@ def data_processing(
 
         blgp_data_container = np.array(blgp_data_container)
         blgp_nsamples_container = np.array(blgp_nsamples_container)
-        # Only need to pull phasor info from one baseline per redudant group
-        data_phasor = uvd_comp_phasor.get_data(bl_group[0])
-        if opts.avg_adj_freqs:
-            data_phasor = (data_phasor[:, ::2] + data_phasor[:, 1::2]) / 2
+        if opts.phase:
+            # Only need phasor info from one baseline per redudant group
+            data_phasor = uvd_comp_phasor.get_data(bl_group[0])
+            if opts.avg_adj_freqs:
+                # I don't think this is the right thing to do
+                # Needs to be corrected in the future if phasing data
+                data_phasor = (data_phasor[:, ::2] + data_phasor[:, 1::2]) / 2
 
         # Estimate noise for each baseline group
         avg_data, _ = weighted_avg_and_std(
@@ -476,39 +465,39 @@ def data_processing(
         blgp_noise_estimate[1::2] = blgp_eo_noise
 
         arr_inds = slice(i_bl * uvd.Ntimes, (i_bl + 1) * uvd.Ntimes)
-        # data_array_phased_avg[:ntimes] contains the data for a
+        # data_array_avg[:ntimes] contains the data for a
         # single redundant baseline group across all frequencies
         # and times with shape (ntimes, nfreqs)
-        data_array_phased_avg[arr_inds] = avg_data
-        noise_array_phased_avg[arr_inds] = blgp_noise_estimate
-        phasor_array_phased_avg[arr_inds] = data_phasor
+        data_array_avg[arr_inds] = avg_data
+        noise_array_avg[arr_inds] = blgp_noise_estimate
+        if opts.phase:
+            phasor_array_avg[arr_inds] = data_phasor
 
-    # Convert data & noise arrays to K sr from Jy
+    # Convert data & noise arrays to mK sr from Jy
     frequencies = uvd.freq_array[0]
     nf = frequencies.size
     if opts.avg_adj_freqs:
         frequencies = (frequencies[::2] + frequencies[1::2]) / 2
         nf = frequencies.size
-    data_array_phased_avg = jy_to_ksr(
-        data_array_phased_avg, frequencies
-    )
-    data_array_phased_avg *= 1.0e3  # K sr to mK sr
+    data_array_avg = jy_to_ksr(data_array_avg, frequencies, mK=True)
 
     # Reorder and Flatten Data
     # Double the bl axis size to account for each redundant
     # baseline group and its conjugate
     data_array_reordered = np.zeros(
-        (data_array_phased_avg.shape[0]*2, data_array_phased_avg.shape[1]),
+        (data_array_avg.shape[0]*2, data_array_avg.shape[1]),
         dtype='complex128'
     )
     noise_array_reordered = np.zeros_like(data_array_reordered)
-    phasor_array_reordered = np.zeros_like(data_array_reordered)
+    if opts.phase:
+        phasor_array_reordered = np.zeros_like(data_array_reordered)
 
     for i_t in range(uvd_comp.Ntimes):
         # Get data for every baseline at the i_t-th time index
-        data = data_array_phased_avg[i_t::uvd_comp.Ntimes]  # (nbls, nfreqs)
-        noise = noise_array_phased_avg[i_t::uvd_comp.Ntimes]
-        phasor = phasor_array_phased_avg[i_t::uvd_comp.Ntimes]
+        data = data_array_avg[i_t::uvd_comp.Ntimes]  # (nbls, nfreqs)
+        noise = noise_array_avg[i_t::uvd_comp.Ntimes]
+        if opts.phase:
+            phasor = phasor_array_avg[i_t::uvd_comp.Ntimes]
 
         inds = slice(i_t*2*uvd_comp.Nbls, (i_t + 1)*2*uvd_comp.Nbls)
         # data_array_reordered[inds] contains the
@@ -516,12 +505,16 @@ def data_processing(
         # i_t-th time index with shape (2*nbls, nfreqs)
         data_array_reordered[inds] = np.vstack((data, data.conjugate()))
         noise_array_reordered[inds] = np.vstack((noise, noise.conjugate()))
-        phasor_array_reordered[inds] = np.vstack((phasor, phasor.conjugate()))
+        if opts.phase:
+            phasor_array_reordered[inds] = np.vstack(
+                (phasor, phasor.conjugate())
+            )
 
     data_array_flattened = np.zeros(data_array_reordered.size,
                                     dtype='complex128')
     noise_array_flattened = np.zeros_like(data_array_flattened)
-    phasor_array_flattened = np.zeros_like(data_array_flattened)
+    if opts.phase:
+        phasor_array_flattened = np.zeros_like(data_array_flattened)
 
     for i_t in range(uvd_comp.Ntimes):
         # Get data for every baseline at the i_t-th time index
@@ -529,8 +522,7 @@ def data_processing(
         # Store data for all baselines at the zeroth frequency first,
         # then data for all baselines at the first frequency, etc.
         flat_inds = slice(
-            i_t*2*uvd_comp.Nbls*nf,
-            (i_t + 1)*2*uvd_comp.Nbls*nf
+            i_t*2*uvd_comp.Nbls*nf, (i_t + 1)*2*uvd_comp.Nbls*nf
         )
         # Flattening data_array_reordered[inds[0]:inds[1]] in
         # Fortran ordering flattens along columns, i.e. along the
@@ -543,92 +535,84 @@ def data_processing(
         noise_array_flattened[flat_inds] = (
             noise_array_reordered[inds].flatten(order='F')
         )
-        phasor_array_flattened[flat_inds] = (
-            phasor_array_reordered[inds].flatten(order='F')
-        )
-
-    print(
-        'data_array_flattened.std() =', data_array_flattened.std()
-    )
-    print(
-        'noise_array_flattened.std() =', noise_array_flattened.std(),
-        end='\n\n'
-    )
-
-    if opts.save or opts.save_model:
-        version_info = {}
-        version_info['git_origin'] = subprocess.check_output(
-            ['git', 'config', '--get', 'remote.origin.url'],
-            stderr=subprocess.STDOUT)
-        version_info['git_hash'] = subprocess.check_output(
-            ['git', 'rev-parse', 'HEAD'],
-            stderr=subprocess.STDOUT)
-        version_info['git_description'] = subprocess.check_output(
-            ['git', 'describe', '--dirty', '--tag', '--always'])
-        version_info['git_branch'] = subprocess.check_output(
-            ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
-            stderr=subprocess.STDOUT)
-        for key in version_info.keys():
-            version_info[key] = version_info[key].decode('utf8').strip('\n')
-
-    if opts.save:
-        if opts.clobber:
-            print('Clobbering file if it exists')
-
-        data_dict = {
-            'data': data_array_flattened,
-            'noise': noise_array_flattened,
-            'opts': vars(opts),
-            'version': version_info,
-            'ctime': datetime.now().isoformat()
-        }
-        datapath = os.path.join(save_dir, outfile)
-        print('Writing data to\n{}'.format(datapath))
-        if not os.path.exists(datapath) or opts.clobber:
-            np.save(datapath, data_dict)
-        else:
-            old_outfile = add_mtime_to_filename(save_dir, outfile)
-            print('Existing file found.  Moving to\n{}'.format(
-                os.path.join(save_dir, old_outfile)
-            ))
-            os.rename(
-                os.path.join(save_dir, outfile),
-                os.path.join(save_dir, old_outfile)
+        if opts.phase:
+            phasor_array_flattened[flat_inds] = (
+                phasor_array_reordered[inds].flatten(order='F')
             )
-            np.save(datapath, data_dict)
 
-        # if opts.all_bl_noise:
-        #     noise_file = outfile.replace('.npy', '-eo-noise-all-bls.npy')
-        # else:
-        #     noise_file = outfile.replace('.npy', '-eo-noise.npy')
-        # noisepath = os.path.join(save_dir, noise_file)
-        # if not os.path.exists(noisepath) or opts.clobber:
-        #     np.save(noisepath, noise_array_flattened)
+    print('data_array_flattened.std() =', data_array_flattened.std())
+    print('noise_array_flattened.std() =', noise_array_flattened.std(),
+          end='\n\n')
+
+    # Save data vector with git and command line history
+    version_info = {}
+    version_info['git_origin'] = subprocess.check_output(
+        ['git', 'config', '--get', 'remote.origin.url'],
+        stderr=subprocess.STDOUT)
+    version_info['git_hash'] = subprocess.check_output(
+        ['git', 'rev-parse', 'HEAD'],
+        stderr=subprocess.STDOUT)
+    version_info['git_description'] = subprocess.check_output(
+        ['git', 'describe', '--dirty', '--tag', '--always'])
+    version_info['git_branch'] = subprocess.check_output(
+        ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+        stderr=subprocess.STDOUT)
+    for key in version_info.keys():
+        version_info[key] = version_info[key].decode('utf8').strip('\n')
+
+    if opts.clobber:
+        print('Clobbering file if it exists')
+
+    data_dict = {
+        'data': data_array_flattened,
+        'noise': noise_array_flattened,
+        'opts': vars(opts),
+        'version': version_info,
+        'ctime': datetime.now().isoformat()
+    }
+    datapath = os.path.join(save_dir, outfile)
+    print('Writing data to\n{}'.format(datapath))
+    if not os.path.exists(datapath) or opts.clobber:
+        np.save(datapath, data_dict)
+    else:
+        old_outfile = add_mtime_to_filename(save_dir, outfile)
+        print('Existing file found.  Moving to\n{}'.format(
+            os.path.join(save_dir, old_outfile)
+        ))
+        os.rename(
+            os.path.join(save_dir, outfile),
+            os.path.join(save_dir, old_outfile)
+        )
+        np.save(datapath, data_dict)
+
+    # if opts.all_bl_noise:
+    #     noise_file = outfile.replace('.npy', '-eo-noise-all-bls.npy')
+    # else:
+    #     noise_file = outfile.replace('.npy', '-eo-noise.npy')
+    # noisepath = os.path.join(save_dir, noise_file)
+    # if not os.path.exists(noisepath) or opts.clobber:
+    #     np.save(noisepath, noise_array_flattened)
 
     # Instrument Model
     # Generate a uvw and redundancy model to be used as the
     # BayesEoR instrument model
-    uvw_model_unphased = np.zeros((uvd.Ntimes, 2*uvd_comp.Nbls, 3))
-
     # UVW coordinates must match the baseline ordering used in the flattened
     # data array which comes from UVData.get_baseline_redundancies
     uvws_stacked = np.vstack((vec_bin_centers, -vec_bin_centers))
-    uvw_model_unphased = np.repeat(
+    uvw_model = np.repeat(
         uvws_stacked[np.newaxis, :, :], uvd.Ntimes, axis=0
     )
 
     if opts.uniform_red_model:
-        redundancy_model = np.ones((uvw_model_unphased.shape[0],
-                                    uvw_model_unphased.shape[1],
-                                    1))
-        redundancy_vec = np.ones(uvw_model_unphased.shape[1])
+        redundancy_model = np.ones((uvw_model.shape[0], uvw_model.shape[1], 1))
+        redundancy_vec = np.ones(uvw_model.shape[1])
     else:
-        redundancy_model = np.zeros((uvw_model_unphased.shape[0],
-                                     uvw_model_unphased.shape[1],
-                                     1))
+        redundancy_model = np.zeros(
+            (uvw_model.shape[0], uvw_model.shape[1], 1)
+        )
         blgp_redundancies = np.array(
             [len(bl_group) for bl_group in baseline_groups]
-            )
+        )
         redundancy_vec = np.hstack((blgp_redundancies, blgp_redundancies))
         for i_t in range(redundancy_model.shape[0]):
             redundancy_model[i_t] = redundancy_vec[:, np.newaxis]
@@ -642,13 +626,14 @@ def data_processing(
             os.mkdir(inst_model_dir)
 
         data_dict = {
-            'uvw_model': uvw_model_unphased,
+            'uvw_model': uvw_model,
             'redundancy_model': redundancy_model,
-            'phasor_vector': phasor_array_flattened,
             'opts': vars(opts),
             'version': version_info,
             'ctime': datetime.now().isoformat()
         }
+        if opts.phase:
+            data_dict['phasor_vector'] = phasor_array_flattened
         outfile = 'instrument_model.npy'
         datapath = os.path.join(inst_model_dir, outfile)
         print('Writing instrument model to\n{}'.format(datapath))
@@ -674,9 +659,9 @@ def data_processing(
             111,
             (1, 2),
             axes_pad=1.0,
+            share_all=True,
             cbar_mode='single',
-            cbar_pad=0.1,
-            share_all=True
+            cbar_pad=0.1
         )
         axs = grid.axes_all
         for ax in axs:
@@ -685,17 +670,14 @@ def data_processing(
             ax.set_aspect('equal')
 
         ax = axs[0]
-        ax.set_title(
-            'UVW Model',
-            fontsize=16,
-        )
+        ax.set_title('UVW Model', fontsize=16)
         ax.scatter(
-            uvw_model_unphased[0, :, 0],
-            uvw_model_unphased[0, :, 1],
+            uvw_model[0, :, 0],
+            uvw_model[0, :, 1],
             color='k',
             marker='o'
         )
-        for i_uv, uvw_vec in enumerate(uvw_model_unphased[0]):
+        for i_uv, uvw_vec in enumerate(uvw_model[0]):
             ax.annotate(str(i_uv), (uvw_vec[0], uvw_vec[1]))
         u_max = np.abs(ax.get_xlim()[1])
         v_max = np.abs(ax.get_ylim()[1])
@@ -707,18 +689,19 @@ def data_processing(
         ax = axs[1]
         ax.set_title('Redundancy Model', fontsize=16)
         sc = ax.scatter(
-            uvw_model_unphased[uvw_model_unphased.shape[0]//2, :, 0],
-            uvw_model_unphased[uvw_model_unphased.shape[0]//2, :, 1],
+            uvw_model[uvw_model.shape[0]//2, :, 0],
+            uvw_model[uvw_model.shape[0]//2, :, 1],
             c=redundancy_vec,
             cmap=plt.cm.viridis
         )
-        for i, uvw in enumerate(uvw_model_unphased[0]):
+        for i, uvw in enumerate(uvw_model[0]):
             ax.annotate(str(i), (uvw[0], uvw[1]))
         fig.colorbar(sc, ax=ax, cax=ax.cax, label='Redundancy')
         ax.set_xlim(axlim)
         ax.set_ylim(axlim)
 
         fig.tight_layout()
+        plt.show()
 
 
 data_path = Path(opts.data_path)

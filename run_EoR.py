@@ -126,12 +126,14 @@ if p.include_instrumental_effects:
     # bl_red_array must have shape (nt, nbls, 1) and stores the number of
     # redundant baselines (if data are redundantly averaged) per time and per
     # baseline.
-    # phasor_vec must have shape (ndata,) and stores a phasor per time,
-    # frequency, and baseline that phases unphased visibilities to the central
-    # time step in the observation.
+    # If modelling phased visibilities, phasor_vec must have shape (ndata,)
+    # and stores a phasor per time, frequency, and baseline that phases
+    # unphased visibilities.
     uvw_array_m, bl_red_array, phasor_vec = load_inst_model(
         p.instrument_model_directory
     )
+    if phasor_vec is not None and not p.phased:
+        phasor_vec = None
     uvw_array_m_vec = np.reshape(uvw_array_m, (-1, 3))
 
     # n_vis sets the number of visibilities per channel,
@@ -155,10 +157,6 @@ if p.include_instrumental_effects:
         sigma = sigma * avg_bl_red**0.5
     else:
         sigma = sigma*1.
-
-    if p.unphased:
-        phasor_vec = np.ones_like(phasor_vec)
-
 else:
     sigma = sigma*1.
 
@@ -205,8 +203,8 @@ if p.beam_center is not None:
     )
     array_save_directory = array_save_directory[:-1] + beam_center_str + '/'
 
-if p.unphased:
-    array_save_directory = array_save_directory[:-1] + '_unphased/'
+if p.phased:
+    array_save_directory = array_save_directory[:-1] + '_phased/'
 
 if p.taper_func is not None:
     array_save_directory = (

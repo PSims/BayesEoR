@@ -113,9 +113,9 @@ def BayesEoRParser():
              "--beam_center=\"(RA_offset,DEC_offset)\" with no spaces."
     )
     parser.add_argument(
-        '--unphased',
+        '--phased',
         action='store_true',
-        help="If passed, the data are treated as unphased."
+        help="If passed, the data are treated as phased."
     )
     parser.add_argument(
         '--fit_for_monopole',
