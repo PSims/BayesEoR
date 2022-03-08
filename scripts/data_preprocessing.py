@@ -865,11 +865,12 @@ if opts.ant_str:
 # Instrument model directory setup
 inst_model_dir = str(Path(opts.inst_model_dir) / opts.telescope_name)
 inst_model_dir += '-{}-{:.1f}sec-time-steps'.format(nt, dt.sec)
-inst_model_dir += '-start-freq-{:.2f}-nf-{}'.format(
-    min_freq_MHz, opts.nf
-)
-if opts.avg_adj_freqs:
-    inst_model_dir += '-adj-freq-avg'
+if opts.phase:
+    inst_model_dir += '-start-freq-{:.2f}-nf-{}'.format(
+        min_freq_MHz, opts.nf
+    )
+    if opts.avg_adj_freqs:
+        inst_model_dir += '-adj-freq-avg'
 if not opts.single_bls:
     inst_model_dir += '-nbls-{}'.format(uvd.Nbls*2)
 if opts.bl_cutoff_m and not (opts.single_bls or opts.bl_type):
