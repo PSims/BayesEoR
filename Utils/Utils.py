@@ -1,13 +1,12 @@
 import numpy as np
 import subprocess
 from subprocess import os
-from scipy import integrate
-import pickle
 from types import ModuleType
 from astropy import units
 from astropy.units import Quantity
 from astropy.constants import c
 from astropy.cosmology import Planck18
+from pathlib import Path
 
 import BayesEoR.Params.params as p
 
@@ -240,6 +239,47 @@ def load_inst_model(
     return uvw_array_m, bl_red_array, phasor_vec
 
 
+def get_git_version_info(directory=None):
+    """
+    Get git version info from repository in `directory`.
+
+    Parameters
+    ----------
+    directory : str
+        Path to GitHub repository.  If None, uses one directory up from
+        __file__.
+
+    Returns
+    -------
+    version_info : dict
+        Dictionary containing git hash information.
+
+    """
+    cwd = os.getcwd()
+    if directory is None:
+        directory = Path(__file__).parent
+    os.chdir(directory)
+
+    version_info = {}
+    version_info['git_origin'] = subprocess.check_output(
+        ['git', 'config', '--get', 'remote.origin.url'],
+        stderr=subprocess.STDOUT)
+    version_info['git_hash'] = subprocess.check_output(
+        ['git', 'rev-parse', 'HEAD'],
+        stderr=subprocess.STDOUT)
+    version_info['git_description'] = subprocess.check_output(
+        ['git', 'describe', '--dirty', '--tag', '--always'])
+    version_info['git_branch'] = subprocess.check_output(
+        ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+        stderr=subprocess.STDOUT)
+    for key in version_info.keys():
+        version_info[key] = version_info[key].decode('utf8').strip('\n')
+    
+    os.chdir(cwd)
+
+    return version_info
+
+
 def write_log_file(array_save_directory, file_root, priors):
     """
     Write a log file containing current git hash, array save
@@ -264,20 +304,7 @@ def write_log_file(array_save_directory, file_root, priors):
         os.mkdir(log_dir)
 
     # Get git version and hash info
-    version_info = {}
-    version_info['git_origin'] = subprocess.check_output(
-        ['git', 'config', '--get', 'remote.origin.url'],
-        stderr=subprocess.STDOUT)
-    version_info['git_hash'] = subprocess.check_output(
-        ['git', 'rev-parse', 'HEAD'],
-        stderr=subprocess.STDOUT)
-    version_info['git_description'] = subprocess.check_output(
-        ['git', 'describe', '--dirty', '--tag', '--always'])
-    version_info['git_branch'] = subprocess.check_output(
-        ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
-        stderr=subprocess.STDOUT)
-    for key in version_info.keys():
-        version_info[key] = version_info[key].decode('utf8').strip('\n')
+    version_info = get_git_version_info()
 
     log_file = log_dir + file_root + '.log'
     dashed_line = '-'*44

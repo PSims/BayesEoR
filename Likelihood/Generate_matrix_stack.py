@@ -16,6 +16,7 @@ from BayesEoR.Linalg import\
     nuDFT_Array_DFT_2D_v2d0,\
     idft_array_idft_1d_sh, IDFT_Array_IDFT_2D_ZM_SH
 from BayesEoR.Linalg.healpix import Healpix
+from BayesEoR.Utils import get_git_version_info
 
 
 """
@@ -1805,6 +1806,17 @@ class BuildMatrices(BuildMatrixTree):
         else:
             print('Prior matrix tree archived but not deleted.'
                   ' \nPath to archive:', path_to_old_matrix_stack)
+    
+    def write_git_version_info(self):
+        """
+        Write git version info to disk.
+
+        """
+        version_info = get_git_version_info()
+        fp = Path(self.array_save_directory) / 'git-info.txt'
+        with open(fp, 'w') as f:
+            for key in version_info.keys():
+                f.write('{}: {}\n'.format(key, version_info[key]))
 
     def build_minimum_sufficient_matrix_stack(
             self,
@@ -1847,4 +1859,8 @@ class BuildMatrices(BuildMatrixTree):
                 confirm_deletion = 'y'
             self.delete_old_matrix_stack(dst, confirm_deletion)
 
+        git_file = Path(self.array_save_directory) / 'git-info.txt'
+        if not git_file.exists():
+            print('Writing git information to disk')
+            self.write_git_version_info()
         print('Matrix stack complete')
