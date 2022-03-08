@@ -18,13 +18,12 @@ from pathlib import Path
 # When running an analysis this should be True
 run_full_analysis = True
 if run_full_analysis:
-    import mpi4py
     from mpi4py import MPI
     mpi_comm = MPI.COMM_WORLD
     mpi_rank = mpi_comm.Get_rank()
     mpi_size = mpi_comm.Get_size()
-    mpiprint('mpi_size: {}\n'.format(mpi_size), rank=mpi_rank)
-    print('\nmpi_rank: {}'.format(mpi_rank))
+    mpiprint('\nmpi_size: {}'.format(mpi_size), rank=mpi_rank)
+    print('mpi_rank: {}'.format(mpi_rank), end='\n\n')
     use_MultiNest = True  # Set to false for large parameter spaces
     if use_MultiNest:
         from pymultinest.solve import solve
@@ -78,14 +77,14 @@ if p.use_shg:
 else:
     nuv_sh = None
 
-if 'taper_func' not in p.__dict__.keys():
+if 'taper_func' not in p.__dict__:
     p.taper_func = None
 
 # Improve numerical precision when performing evidence comparison.
 sub_ML_monopole_term_model = False
 
 # Check for data path
-if 'data_path' in p.__dict__.keys():
+if 'data_path' in p.__dict__:
     use_EoR_cube = False
     data = np.load(p.data_path, allow_pickle=True)
     if data.dtype.kind == 'O':
@@ -94,7 +93,7 @@ if 'data_path' in p.__dict__.keys():
         data = data.item()
         if (
             'noise' in data.keys()
-            and 'sigma' not in p.__dict__.keys()
+            and 'sigma' not in p.__dict__
         ):
             gen_noise = False
         else:
@@ -102,7 +101,7 @@ if 'data_path' in p.__dict__.keys():
     else:
         # data and noise vector saved as separate arrays
         dict_format = False
-        if 'noise_data_path' in p.__dict__.keys():
+        if 'noise_data_path' in p.__dict__:
             gen_noise = False
         else:
             gen_noise = True
@@ -167,91 +166,80 @@ chan_selection = ''
 # --------------------------------------------
 # Construct matrices
 # --------------------------------------------
-current_file_version = 'Likelihood_v2d10_3D_ZM'
+current_file_version = 'likelihood-v2.10'
 array_save_directory = (
-    'array_storage/batch_1/'
-    + '{}_nu_{}_nv_{}_neta_{}_nq_{}_npl_{}_sigma_{:.1E}/'.format(
-        current_file_version, nu, nv, neta, nq, npl, sigma).replace('.', 'd')
-)
-
-if p.fit_for_monopole:
-    array_save_directory = (
-            array_save_directory[:-1]
-            + '_fit_for_monopole/'
+    'beor-sim-paper/'
+    + '{}-nu-{}-nv-{}-neta-{}-nq-{}-sigma-{:.2E}'.format(
+        current_file_version, nu, nv, neta, nq, sigma
     )
-# nside modifier
-array_save_directory = array_save_directory[:-1] + '_nside{}/'.format(p.nside)
+)
+if nq > 0:
+    if npl == 1:
+        array_save_directory = array_save_directory.replace(
+            '-sigma',
+            '-beta-{:.2E}-sigma'.format(p.beta)
+        )
+    elif npl == 2:
+        array_save_directory = array_save_directory.replace(
+            '-sigma',
+            '-b1-{:.2E}-b2-{:.2E}-sigma'.format(*p.beta)
+        )
+if p.fit_for_monopole:
+    array_save_directory += '-ffm'
+array_save_directory += f'-nside-{p.nside}'
 
-# FoV modifier
 if p.fov_ra_deg != p.fov_dec_deg:
-    fov_str = '_fov_deg_ra_{:.1f}_dec_{:.1f}'.format(
-        p.fov_ra_deg, p.fov_dec_deg)
+    fov_str = f'-fov-deg-ra-{p.fov_ra_deg:.1f}-dec-{p.fov_dec_deg:.1f}'
 else:
-    fov_str = '_fov_deg_{:.1f}'.format(p.fov_ra_deg)
-array_save_directory = array_save_directory[:-1] + fov_str + '/'
+    fov_str = f'-fov-deg-{p.fov_ra_deg:.1f}'
+array_save_directory += fov_str
 
-# Append a beam center classifier
 if p.beam_center is not None:
     beam_center_signs = [
         '+' if p.beam_center[i] >= 0 else '' for i in range(2)
     ]
-    beam_center_str = '_beam_center_RA0{}{:.2f}_DEC0{}{:.2f}'.format(
+    beam_center_str = '-beam-center-RA0{}{:.2f}-DEC0{}{:.2f}'.format(
             beam_center_signs[0],
             p.beam_center[0],
             beam_center_signs[1],
             p.beam_center[1]
     )
-    array_save_directory = array_save_directory[:-1] + beam_center_str + '/'
+    array_save_directory += beam_center_str
 
 if p.phased:
-    array_save_directory = array_save_directory[:-1] + '_phased/'
+    array_save_directory += '-phased'
 
 if p.taper_func is not None:
-    array_save_directory = (
-        array_save_directory[:-1] + '_{}/'.format(p.taper_func)
-    )
+    array_save_directory += f'-{p.taper_func}'
 
-# Subharmonic grid (SHG) modifiers
 if p.use_shg:
-    shg_str = '_SHG'
+    shg_str = '_shg'
     if nu_sh > 0:
-        shg_str += '_nu_sh_{}'.format(nu_sh)
+        shg_str += f'-nush-{nu_sh}'
     if nv_sh > 0:
-        shg_str += '_nv_sh_{}'.format(nv_sh)
+        shg_str += f'-nvsh-{nv_sh}'
     if nq_sh > 0:
-        shg_str += '_nq_sh_{}'.format(nq_sh)
+        shg_str += f'-nqsh-{nq_sh}'
     if npl_sh > 0:
-        shg_str += '_npl_sh_{}'.format(npl_sh)
+        shg_str += f'-nplsh-{npl_sh}'
     if p.fit_for_shg_amps:
-        shg_str += '_ffsa'
-    array_save_directory = array_save_directory[:-1] + shg_str + '/'
+        shg_str += '-ffsa'
+    array_save_directory += shg_str
 
 if p.include_instrumental_effects:
     beam_info_str = ''
     if not '.' in p.beam_type:
         p.beam_type = p.beam_type.lower()
-        if p.beam_type == 'uniform':
-            beam_info_str += '{}_beam_peak_amplitude_{}'.format(
-                p.beam_type,
-                str(p.beam_peak_amplitude).replace('.', 'd')
-            )
-        elif p.beam_type in ['gaussian', 'gausscosine']:
-            beam_info_str += (
-                '{}_beam_peak_amplitude_{}'.format(
-                    p.beam_type,
-                    str(p.beam_peak_amplitude).replace('.', 'd'))
-            )
+        beam_info_str = f'{p.beam_type}-beam'
+        if (not p.beam_peak_amplitude == 1
+            and p.beam_type in ['uniform', 'gaussian', 'gausscosine']):
+            beam_info_str += f'-peak-amp-{p.beam_peak_amplitude}'
+        
+        if p.beam_type in ['gaussian', 'gausscosine']:
             if p.fwhm_deg is not None:
-                beam_info_str += (
-                    '_beam_width_{}_deg'.format(str(p.fwhm_deg).replace('.', 'd'))
-                )
+                beam_info_str += f'-fwhm-{p.fwhm_deg}deg'
             elif p.antenna_diameter is not None:
-                beam_info_str += (
-                    '_antenna-diameter-{}m'.format(
-                        str(p.antenna_diameter).replace(
-                            '.', 'd')
-                    )
-                )
+                beam_info_str += f'-antenna-diameter-{p.antenna_diameter}m'
             else:
                 mpiprint(
                     '\nIf using a Gaussian beam, must specify either a FWHM in'
@@ -261,47 +249,33 @@ if p.include_instrumental_effects:
                 )
                 sys.exit()
             if p.beam_type == 'gausscosine':
-                beam_info_str += '-cosfreq-{:.2f}wls'.format(p.cosfreq)
+                beam_info_str += f'-cosfreq-{p.cosfreq:.2f}wls'
         elif p.beam_type == 'airy':
-            beam_info_str += '{}_beam_antenna-diameter-{}m'.format(
-                p.beam_type,
-                str(p.antenna_diameter).replace('.', 'd')
-            )
+            beam_info_str += f'-antenna-diameter-{p.antenna_diameter}m'
     else:
         beam_info_str = Path(p.beam_type).stem
 
-    instrument_model_directory_plus_beam_info = (
-            p.instrument_model_directory[:-1]
-            + '_{}/'.format(beam_info_str)
+    instrument_info = '-'.join(
+        (Path(p.instrument_model_directory).name, beam_info_str)
     )
-    instrument_info =\
-        instrument_model_directory_plus_beam_info.split('/')[-2]
     if p.model_drift_scan_primary_beam:
-        instrument_info = instrument_info+'_dspb'
-    if 'noise_data_path' in p.__dict__.keys():
-        instrument_info += '_noise_vec'
-    array_save_directory = (
-            array_save_directory[:-1]
-            + '_instrumental/'
-            + instrument_info
-            + '/'
+        instrument_info += '-dspb'
+    if 'noise_data_path' in p.__dict__:
+        instrument_info += '-noise-vec'
+
+    array_save_directory = os.path.join(
+        array_save_directory, instrument_info
     )
 else:
     n_vis = 0
 
-if npl == 1:
-    array_save_directory = array_save_directory.replace(
-        '_sigma',
-        '_beta_{:.2E}_sigma'.format(p.beta)
-    )
-elif npl == 2:
-    array_save_directory = array_save_directory.replace(
-        '_sigma',
-        '_b1_{:.2E}_b2_{:.2E}_sigma'.format(p.beta[0], p.beta[1])
-    )
-
+array_save_directory = Path('array_storage') / array_save_directory
+array_save_directory = str(array_save_directory)
+if not array_save_directory.endswith('/'):
+    array_save_directory += '/'
 mpiprint('\nArray save directory: {}'.format(array_save_directory),
          rank=mpi_rank)
+
 
 if p.include_instrumental_effects:
     BM = BuildMatrices(
