@@ -37,7 +37,7 @@ npl_sh = 0
 # Sky model params
 fov_ra_deg = 12.9080728652
 fov_dec_deg = None
-nside = 256
+nside = 128
 
 # Simulated signals in analysis
 use_EoR_cube = False
@@ -77,18 +77,11 @@ if include_instrumental_effects:
     integration_time_minutes_str = '{}'.format(
         integration_time_minutes).replace('.', 'd')
     instrument_model_directory = (
-        '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/'
-        'Hex-37-14.6m-model-{}-{:.0f}sec-time-steps_bl_less_than_40m/'.format(
+        '/users/jburba/data/shared/jburba/pyuvsims/beor_sim_paper/inst_models/'
+        'Hex-37-14.6m-{}-{:.1f}sec-time-steps-nbls-30-bl-cutoff-40.0m'.format(
             nt, integration_time_seconds
         )
     )
-    # instrument_model_directory = (
-    #     '/users/jburba/data/jburba/bayes/BayesEoR/Instrument_Model/'
-    #     'Hex-37-14.6m-vmax-13m-{}-{:.1f}sec-time-steps-start-freq-{:.2f}'
-    #     '-nf-{}-nbls-30-bl-cutoff-40.0m/'.format(
-    #         nt, integration_time_seconds, nu_min_MHz, nf
-    #     )
-    # )
     telescope_latlonalt = (-30.72152777777791,
                            21.428305555555557,
                            1073.0000000093132)
