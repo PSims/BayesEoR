@@ -1016,8 +1016,9 @@ class BuildMatrices(BuildMatrixTree):
             Finv = self.dot_product(
                 pmd['multi_chan_nudft'],
                 pmd['multi_chan_P']
-                )
-            Finv = self.dot_product(pmd['phasor_matrix'], Finv)
+            )
+            if self.phasor_vec is not None:
+                Finv = self.dot_product(pmd['phasor_matrix'], Finv)
         else:
             Finv = pmd['multi_chan_dft_array_noZMchan']
         print('Time taken: {}'.format(time.time() - start))
