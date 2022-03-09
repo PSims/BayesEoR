@@ -345,10 +345,9 @@ k_cube_voxels_in_bin, modkbins_containing_voxels = \
         k_mask_vo, mod_k_vo, ps_box_size_para_Mpc
     )
 k_vals_file_name = (
-    'k_vals_nu_{}_nv_{}_nf_{}_nq_{}_binning_v3{}.txt'.format(
-        nu, nv, nf, nq, fov_str
-    )
+    f'nu-{nu}-nv-{nv}-nf-{nf}{fov_str}-v3.txt'
 )
+mpiprint(f'\nk_vals file: {k_vals_file_name}', rank=mpi_rank)
 k_vals = calc_mean_binned_k_vals(
     mod_k_vo, k_cube_voxels_in_bin,
     save_k_vals=True, k_vals_file=k_vals_file_name,

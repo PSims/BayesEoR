@@ -1,6 +1,7 @@
 import numpy as np
 from numpy import *
 from subprocess import os
+from pathlib import Path
 
 import BayesEoR.Params.params as p
 from BayesEoR.Utils import mpiprint
@@ -382,19 +383,18 @@ def calc_mean_binned_k_vals(
     max_k = mod_k_vo[k_cube_voxels_in_bin[i_bin]].max()
     kbin_edges.append(max_k)
 
-    if save_k_vals:
-        if not os.path.exists(k_vals_dir):
+    k_vals_dir = Path(k_vals_dir)
+    if save_k_vals and not (k_vals_dir / k_vals_file).exists():
+        if not k_vals_dir.exists():
             mpiprint('Directory not found: \n\n' + k_vals_dir + "\n",
                      rank=rank)
             mpiprint('Creating required directory structure..', rank=rank)
-            os.makedirs(k_vals_dir)
+            os.makedirs(k_vals_dir.absolute())
 
-        np.savetxt(k_vals_dir + '/' + k_vals_file, k_vals)
-        np.savetxt(k_vals_dir + '/'
-                   + k_vals_file.replace('.txt', '_bins.txt'),
+        np.savetxt(k_vals_dir / k_vals_file, k_vals)
+        np.savetxt(k_vals_dir / k_vals_file.replace('.txt', '_bins.txt'),
                    kbin_edges)
-        np.savetxt(k_vals_dir + '/'
-                   + k_vals_file.replace('.txt', '_nsamples.txt'),
+        np.savetxt(k_vals_dir / k_vals_file.replace('.txt', '_nsamples.txt'),
                    nsamples)
 
     return np.array(k_vals)
