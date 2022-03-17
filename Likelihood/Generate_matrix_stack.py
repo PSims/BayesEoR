@@ -1056,7 +1056,6 @@ class BuildMatrices(BuildMatrixTree):
             self.nu, self.nv,
             sampled_lm_coords_radians,
             exclude_mean=(not p.fit_for_monopole))
-        idft_array *= self.Fprime_normalization
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
         self.output_data(idft_array,
@@ -1118,7 +1117,7 @@ class BuildMatrices(BuildMatrixTree):
         idft_array_sh_block = IDFT_Array_IDFT_2D_ZM_SH(
             self.nu_sh, self.nv_sh,
             sampled_lm_coords_radians)
-        idft_array_sh_block *= self.Fprime_normalization / (self.nu*self.nv)
+        idft_array_sh_block *= 1 / (self.nu*self.nv)
         idft_array_sh = self.sd_block_diag(
             [idft_array_sh_block for i in range(self.nf)]
         )
@@ -1181,8 +1180,7 @@ class BuildMatrices(BuildMatrixTree):
             nu_min_MHz=p.nu_min_MHz,
             channel_width_MHz=p.channel_width_MHz,
             beta=p.beta)
-        idft_array_1d_sh_block *= self.Fz_normalization
-        # eta=0 mode normalized to neta * deta
+        # eta=0 mode normalized to 1 to match LSSM
         if self.fit_for_shg_amps:
             idft_array_1d_sh_block[:, self.neta//2] *= self.neta
         else:
@@ -1215,8 +1213,7 @@ class BuildMatrices(BuildMatrixTree):
         start = time.time()
         print('Performing matrix algebra')
         idft_array_1D = IDFT_Array_IDFT_1D(self.nf, self.neta)
-        idft_array_1D *= self.Fz_normalization
-        # eta=0 mode normalized to neta * deta
+        # eta=0 mode normalized to 1 to match LSSM
         idft_array_1D[:, self.neta//2] *= self.neta
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
@@ -1283,8 +1280,7 @@ class BuildMatrices(BuildMatrixTree):
             nu_min_MHz=p.nu_min_MHz,
             channel_width_MHz=p.channel_width_MHz,
             beta=p.beta)
-        idft_array_1D_WQ *= self.Fz_normalization
-        # eta=0 mode normalized to neta * deta
+        # eta=0 mode normalized to 1 to match LSSM
         idft_array_1D_WQ[:, self.neta//2] *= self.neta
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz

@@ -308,7 +308,7 @@ class PowerSpectrumPosteriorProbability(object):
     def calc_physical_dimensionless_power_spectral_normalisation(self, i_bin):
         """
         This normalization will calculate PowerI, an estimate for one over
-        the variance of a in units of 1 / (mK**2 sr**2 Hz**2).
+        the variance of a in units of 1 / mK**2.
 
         Parameters
         ----------
@@ -326,17 +326,12 @@ class PowerSpectrumPosteriorProbability(object):
             * self.ps_box_size_dec_Mpc
             * self.ps_box_size_para_Mpc
         )
+        npix = self.nu * self.nv * self.neta
 
         # Normalization calculated relative to mean
         # of vector k within the i_bin-th k-bin
-        dmps_norm = self.k_vals[i_bin]**3./(2*np.pi**2) / volume
-
-        # Redshift dependent quantities
-        nu_array_MHz = p.nu_min_MHz + np.arange(p.nf)*p.channel_width_MHz
-        cosmo = Cosmology()
-        z = cosmo.f2z(nu_array_MHz.mean()*1e6)
-        inst_to_cosmo_vol = cosmo.inst_to_cosmo_vol(z)
-        dmps_norm *= inst_to_cosmo_vol**2
+        dmps_norm = volume / npix**2
+        dmps_norm *= self.k_vals[i_bin]**3./(2*np.pi**2)
 
         return dmps_norm
 

@@ -166,7 +166,7 @@ chan_selection = ''
 # --------------------------------------------
 # Construct matrices
 # --------------------------------------------
-current_file_version = 'likelihood-v2.10'
+current_file_version = 'likelihood-v2.11'
 array_save_directory = (
     'beor-sim-paper/'
     + '{}-nu-{}-nv-{}-neta-{}-nq-{}-sigma-{:.2E}'.format(
