@@ -7,6 +7,7 @@ from astropy.units import Quantity
 from astropy.constants import c
 from astropy.cosmology import Planck18
 from pathlib import Path
+from copy import deepcopy
 
 import BayesEoR.Params.params as p
 
@@ -376,3 +377,38 @@ def mpiprint(*message, rank=0, end='\n'):
     """
     if rank == 0:
         print(' '.join(map(str, message)), end=end)
+
+
+def write_map_dict(dir, pspp, bm, n, clobber=False, fn='map-dict.npy'):
+    """
+    Writes a python dictionary with minimum sufficient info for maximum a
+    posteriori (MAP) calculations.  Memory intensive attributes are popped
+    before writing to disk since they can be easily loaded later.
+
+    Parameters
+    ----------
+    dir : str
+        Directory in which to save the dictionary.
+    pspp : PowerSpectrumPosteriorProbability
+        Class containing posterior calculation variables and functions.
+    bm : BuildMatrices
+        Class containing matrix creation and retrieval functions.
+    n : array-like
+        Noise vector.
+    clobber : bool
+        If True, overwrite existing dictionary on disk.
+    fn : str
+        Filename for dictionary.
+    
+    """
+    pspp_copy = deepcopy(pspp)
+    del pspp.T_Ninv_T, pspp.dbar, pspp.Ninv
+    map_dict = {
+        'pspp': pspp_copy,
+        'bm': bm,
+        'n': n
+    }
+    fp = Path(dir) / fn
+    if not fp.exists() or clobber:
+        print(f'\nWriting MAP dict to {fp}\n')
+        np.save(fp, map_dict)

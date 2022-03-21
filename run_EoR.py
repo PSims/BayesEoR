@@ -556,7 +556,7 @@ PSPP_block_diag_Polychord = PowerSpectrumPosteriorProbability(
     log_priors=log_priors, dimensionless_PS=dimensionless_PS, Print=True,
     intrinsic_noise_fitting=p.use_intrinsic_noise_fitting,
     n_uniform_prior_k_bins=p.n_uniform_prior_k_bins,
-    uniform_priors=p.uniform_priors,
+    uniform_priors=p.uniform_priors, fit_for_monopole=p.fit_for_monopole,
     use_shg=p.use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
     nuv_sh=nuv_sh, nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh,
     rank=mpi_rank
@@ -587,6 +587,12 @@ if p.useGPU:
         'Average evaluation time: {}'.format((time.time()-start)/float(Nit)),
         end='\n\n',
         rank=mpi_rank
+    )
+
+if mpi_rank == 0:
+    write_map_dict(
+        array_save_directory, PSPP_block_diag_Polychord, BM,
+        effective_noise, clobber=p.overwrite_matrices
     )
 
 
