@@ -1,4 +1,5 @@
 import numpy as np
+import pickle
 import subprocess
 from subprocess import os
 from types import ModuleType
@@ -401,14 +402,15 @@ def write_map_dict(dir, pspp, bm, n, clobber=False, fn='map-dict.npy'):
         Filename for dictionary.
     
     """
-    pspp_copy = deepcopy(pspp)
-    del pspp.T_Ninv_T, pspp.dbar, pspp.Ninv
-    map_dict = {
-        'pspp': pspp_copy,
-        'bm': bm,
-        'n': n
-    }
     fp = Path(dir) / fn
     if not fp.exists() or clobber:
+        pspp_copy = deepcopy(pspp)
+        del pspp.T_Ninv_T, pspp.dbar, pspp.Ninv
+        map_dict = {
+            'pspp': pspp_copy,
+            'bm': bm,
+            'n': n
+        }
         print(f'\nWriting MAP dict to {fp}\n')
-        np.save(fp, map_dict)
+        with open(fp, 'wb') as f:
+            pickle.dump(map_dict, f, protocol=4)
