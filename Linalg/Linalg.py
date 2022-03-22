@@ -472,7 +472,7 @@ def IDFT_Array_IDFT_1D_WQ(
     # Sign change for consistency, Finv chosen
     # to have + sign to match healvis
     ExponentArray = np.exp(-2.0*np.pi*1j*(i_eta*i_f / nf))
-    ExponentArray /= neta
+    # ExponentArray /= neta
 
     quadratic_array = quadratic_array_linear_plus_quad_modes_only_v2(
         nf, nq, npl=npl, nu_min_MHz=nu_min_MHz,
@@ -481,6 +481,7 @@ def IDFT_Array_IDFT_1D_WQ(
     Exponent_plus_quadratic_array = np.hstack(
         (ExponentArray, quadratic_array.T)
         )
+    Exponent_plus_quadratic_array /= neta
     return Exponent_plus_quadratic_array
 
 
