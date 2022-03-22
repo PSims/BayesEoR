@@ -4,6 +4,8 @@ import scipy
 from pdb import set_trace as brk
 import h5py
 from mpi4py import MPI
+from pathlib import Path
+import warnings
 
 import BayesEoR.Params.params as p
 from BayesEoR.Utils import Cosmology, mpiprint
@@ -13,50 +15,6 @@ from BayesEoR.Utils import Cosmology, mpiprint
 Potentially useful links:
 http://www.mrao.cam.ac.uk/~kjbg1/lectures/lect1_1.pdf
 """
-
-
-rank = MPI.COMM_WORLD.Get_rank()
-
-try:
-    import pycuda.autoinit
-    import pycuda.driver as cuda
-    import ctypes
-    from numpy import ctypeslib
-
-    # Get path to installation of BayesEoR
-    base_dir = '/'.join(__file__.split('/')[:-2]) + '/'
-    # Load MAGMA GPU Wrapper Functions
-    GPU_wrap_dir = base_dir+'Likelihood/GPU_wrapper/'
-
-    device = cuda.Device(0)
-    if 'p100' in device.name().lower():
-        gpu_arch = 'p100'
-    elif 'v100' in device.name().lower():
-        gpu_arch = 'v100'
-    mpiprint('Found GPU with {} architecture'.format(gpu_arch), rank=rank)
-    mpiprint('Loading shared library from {}'.format(
-        GPU_wrap_dir + 'wrapmzpotrf_{}.so'.format(gpu_arch)
-        ),
-        rank=rank
-    )
-    wrapmzpotrf = ctypes.CDLL(
-        GPU_wrap_dir + 'wrapmzpotrf_{}.so'.format(gpu_arch)
-        )
-    nrhs = 1
-    wrapmzpotrf.cpu_interface.argtypes = [
-        ctypes.c_int,
-        ctypes.c_int,
-        ctypeslib.ndpointer(np.complex128, ndim=2, flags='C'),
-        ctypeslib.ndpointer(np.complex128, ndim=1, flags='C'),
-        ctypes.c_int,
-        ctypeslib.ndpointer(np.int, ndim=1, flags='C')]
-    mpiprint('Computing on {} GPUs'.format(gpu_arch), rank=rank)
-
-except Exception as e:
-    mpiprint('Exception loading GPU encountered...', rank=rank)
-    mpiprint(repr(e), rank=rank)
-    mpiprint('Computing on CPU instead...', rank=rank)
-    p.useGPU = False
 
 
 # --------------------------------------------
@@ -175,6 +133,10 @@ class PowerSpectrumPosteriorProbability(object):
         Number of LSSM quadratic modes for each pixel in the subharmonic grid.
     rank : int
         MPI rank.
+    use_gpu : bool
+        If True, try and use GPUs for Cholesky decomposition.  Otherwise, use
+        CPUs (inadvisable due to inaccuracy of CPU matrix inversion).  
+        Defaults to True.
 
     """
     def __init__(
@@ -194,9 +156,10 @@ class PowerSpectrumPosteriorProbability(object):
             n_uniform_prior_k_bins=0, uniform_priors=False,
             fit_for_monopole=False, use_shg=False, fit_for_shg_amps=False,
             nuv_sh=None, nu_sh=None, nv_sh=None, nq_sh=None,
-            rank=0
+            rank=0, use_gpu=True
             ):
         self.rank = rank
+        self.use_gpu = use_gpu
         self.block_T_Ninv_T = block_T_Ninv_T
         self.log_priors = log_priors
         if self.log_priors:
@@ -256,6 +219,69 @@ class PowerSpectrumPosteriorProbability(object):
             '_instrumental/HERA_331_baselines_shorter_than_29d3_for_30'\
             '_0d5_min_time_steps_Gaussian_beam_peak_amplitude_1d0_beam_'\
             'width_9d0_deg_at_150d0_MHz/'
+        
+        self.initialize_gpu()
+    
+    def initialize_gpu(self, print_msg=True):
+        """
+        Attempt to initialize GPU via pycuda.
+
+        If initialization fails, falls back and uses CPU methods.
+        WARNING: This is inadvisable because the CPU linear algebra functions
+        can be inaccurate!
+
+        """
+        try:
+            import pycuda.autoinit
+            import pycuda.driver as cuda
+            import ctypes
+            from numpy import ctypeslib
+
+            # Get path to installation of BayesEoR
+            base_dir = '/'.join(__file__.split('/')[:-2]) + '/'
+            # Load MAGMA GPU Wrapper Functions
+            GPU_wrap_dir = Path(base_dir+'Likelihood/GPU_wrapper/')
+
+            device = cuda.Device(0)
+            if 'p100' in device.name().lower():
+                gpu_arch = 'p100'
+            elif 'v100' in device.name().lower():
+                gpu_arch = 'v100'
+            wrapper_path = GPU_wrap_dir / f'wrapmzpotrf_{gpu_arch}.so'
+            if print_msg:
+                mpiprint(
+                    f'\nFound GPU with {gpu_arch} architecture', rank=self.rank
+                )
+                mpiprint(
+                    f'Loading shared library from {wrapper_path}',
+                    rank=self.rank
+                )
+            wrapmzpotrf = ctypes.CDLL(wrapper_path)
+            self.nrhs = 1
+            wrapmzpotrf.cpu_interface.argtypes = [
+                ctypes.c_int,
+                ctypes.c_int,
+                ctypeslib.ndpointer(np.complex128, ndim=2, flags='C'),
+                ctypeslib.ndpointer(np.complex128, ndim=1, flags='C'),
+                ctypes.c_int,
+                ctypeslib.ndpointer(np.int, ndim=1, flags='C')]
+            self.wrapmzpotrf = wrapmzpotrf
+            if print_msg:
+                mpiprint(
+                    'Computing on {} GPUs'.format(gpu_arch), rank=self.rank,
+                    end='\n\n'
+                )
+
+        except Exception as e:
+            if print_msg:
+                mpiprint(
+                    '\nException loading GPU encountered...', rank=self.rank
+                )
+                mpiprint(repr(e), rank=self.rank)
+                mpiprint(
+                    'Computing on CPU instead...', rank=self.rank, end='\n\n'
+                )
+            self.use_gpu = False
 
     def add_power_to_diagonals(self, T_Ninv_T_block, PhiI_block):
         """
@@ -505,7 +531,7 @@ class PowerSpectrumPosteriorProbability(object):
 
             start = time.time()
             dbar_blocks = np.split(dbar, self.nuv)
-            if p.useGPU:
+            if self.use_gpu:
                 if self.Print:
                     mpiprint('Computing block diagonal inversion on GPU',
                              rank=self.rank)
@@ -542,7 +568,7 @@ class PowerSpectrumPosteriorProbability(object):
                 mpiprint('Time taken: {}'.format(time.time()-start),
                          rank=self.rank)
 
-            if p.useGPU:
+            if self.use_gpu:
                 logSigmaDet = np.sum(logdet_Sigma_blocks)
             else:
                 logSigmaDet = np.sum(
@@ -573,7 +599,7 @@ class PowerSpectrumPosteriorProbability(object):
                 return Sigma
 
             start = time.time()
-            if p.useGPU:
+            if self.use_gpu:
                 if self.Print:
                     mpiprint('Computing matrix inversion on GPU',
                              rank=self.rank)
@@ -599,7 +625,7 @@ class PowerSpectrumPosteriorProbability(object):
                 )
 
             start = time.time()
-            if p.useGPU:
+            if self.use_gpu:
                 logSigmaDet = logdet_Sigma
             else:
                 logSigmaDet = np.linalg.slogdet(Sigma)[1]
@@ -614,7 +640,7 @@ class PowerSpectrumPosteriorProbability(object):
     def calc_SigmaI_dbar(self, Sigma, dbar, x_for_error_checking=[]):
         """
         Solves the linear system `Sigma * a = dbar` by calculating the Cholesky
-        decomposition (if ``p.useGPU = True``) of the matrix'
+        decomposition (if ``self.use_gpu = True``) of the matrix'
         `Sigma = T_Ninv_T + PhiI`.  If not using GPUs to perform the matrix
         inversion, `scipy.linalg.inv` will be used.  This is not desired as the
         CPU based `scipy.linalg.inv` function does not always return the "true"
@@ -639,10 +665,10 @@ class PowerSpectrumPosteriorProbability(object):
             vector via `m = T * SigmaI_dbar`.
         logdet_Magma_Sigma : np.ndarray
             Natural logarith of the determinant of `Sigma`.  Only returned if
-            ``p.useGPU = True``.
+            ``self.use_gpu = True``.
 
         """
-        if not p.useGPU:
+        if not self.use_gpu:
             # Sigmacho = scipy.linalg.cholesky(
             #         Sigma, lower=True
             #     ).astype(np.complex256)
@@ -661,8 +687,9 @@ class PowerSpectrumPosteriorProbability(object):
             if self.Print:
                 start = time.time()
             # Replace 0 with 1 to pring debug in the following command
-            wrapmzpotrf.cpu_interface(
-                len(Sigma), nrhs, Sigma, dbar_copy, 0, self.GPU_error_flag)
+            self.wrapmzpotrf.cpu_interface(
+                len(Sigma), self.nrhs, Sigma, dbar_copy, 0, self.GPU_error_flag
+            )
             if self.Print:
                 mpiprint(
                     '\t\tCholesky decomposition time: {}'.format(

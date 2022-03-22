@@ -548,7 +548,7 @@ else:
     file_root = p.file_root
 mpiprint('\nOutput file_root:', file_root, rank=mpi_rank)
 
-PSPP_block_diag_Polychord = PowerSpectrumPosteriorProbability(
+pspp = PowerSpectrumPosteriorProbability(
     T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin,
     nuv, nu, nv, neta, nf, nq, masked_power_spectral_modes,
     Ninv, d_Ninv_d, k_vals, ps_box_size_ra_Mpc,
@@ -559,25 +559,25 @@ PSPP_block_diag_Polychord = PowerSpectrumPosteriorProbability(
     uniform_priors=p.uniform_priors, fit_for_monopole=p.fit_for_monopole,
     use_shg=p.use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
     nuv_sh=nuv_sh, nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh,
-    rank=mpi_rank
+    rank=mpi_rank, use_gpu=p.useGPU
 )
 if p.include_instrumental_effects and not zero_the_LW_modes:
     # Include minimal prior over LW modes required for numerical stability
-    PSPP_block_diag_Polychord.inverse_LW_power = p.inverse_LW_power
+    pspp.inverse_LW_power = p.inverse_LW_power
 if zero_the_LW_modes:
-    PSPP_block_diag_Polychord.inverse_LW_power = 1.e20
+    pspp.inverse_LW_power = 1.e20
     mpiprint(
-        'Setting PSPP_block_diag_Polychord.inverse_LW_power to:',
-        PSPP_block_diag_Polychord.inverse_LW_power,
+        'Setting pspp.inverse_LW_power to:',
+        pspp.inverse_LW_power,
         rank=mpi_rank
     )
 
-if p.useGPU:
+if pspp.use_gpu:
     start = time.time()
-    PSPP_block_diag_Polychord.Print = False
+    pspp.Print = False
     Nit = 10
     for _ in range(Nit):
-        L = PSPP_block_diag_Polychord.posterior_probability([1.e0]*nDims)[0]
+        L = pspp.posterior_probability([1.e0]*nDims)[0]
         if not np.isfinite(L):
             mpiprint(
                 'WARNING: Infinite value returned in posterior calculation!',
@@ -589,22 +589,24 @@ if p.useGPU:
         rank=mpi_rank
     )
 
-if mpi_rank == 0:
+if mpi_rank == 0 and not pspp.use_gpu:
+    # if use_gpu, pspp will contain a ctypes object with pointers which
+    # cannot be pickled
     write_map_dict(
-        array_save_directory, PSPP_block_diag_Polychord, BM,
+        array_save_directory, pspp, BM,
         effective_noise, clobber=p.overwrite_matrices
     )
 
 
 def likelihood(
         theta,
-        calc_likelihood=PSPP_block_diag_Polychord.posterior_probability):
+        calc_likelihood=pspp.posterior_probability):
     return calc_likelihood(theta)
 
 
 def MultiNest_likelihood(
         theta,
-        calc_likelihood=PSPP_block_diag_Polychord.posterior_probability):
+        calc_likelihood=pspp.posterior_probability):
     return calc_likelihood(theta)[0]
 
 
@@ -637,7 +639,7 @@ if run_single_node_analysis or mpi_size > 1:
         # Run PolyChord
         PolyChord.mpi_notification()
         PolyChord.run_nested_sampling(
-            PSPP_block_diag_Polychord.posterior_probability,
+            pspp.posterior_probability,
             nDims,
             nDerived,
             file_root=file_root,
