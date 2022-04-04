@@ -109,11 +109,6 @@ if include_instrumental_effects:
         use_nvis_nt_nchan_ordering = True
         use_nvis_nchan_nt_ordering = False
 
-# Sets the number of k-bins which use a prior which is uniform
-# in the amplitude.  Indexed from the zeroth k-bin.
-# Setting to -1 will use uniform priors on all k-bins.
-n_uniform_prior_k_bins = 0
-
 # Intrinsic noise fitting params
 use_intrinsic_noise_fitting = False
 

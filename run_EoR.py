@@ -548,7 +548,14 @@ else:
     file_root = p.file_root
 mpiprint('\nOutput file_root:', file_root, rank=mpi_rank)
 
-uprior_inds = parse_uprior_inds(p.upriors, nDims)
+if p.uprior_bins != '':
+    uprior_inds = parse_uprior_inds(p.uprior_bins, nDims)
+    mpiprint(
+        f'\nUniform prior k-bin indices: {np.where(uprior_inds)[0]}',
+        rank=mpi_rank
+    )
+else:
+    uprior_inds = None
 pspp = PowerSpectrumPosteriorProbability(
     T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin,
     nuv, nu, nv, neta, nf, nq, masked_power_spectral_modes,

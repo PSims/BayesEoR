@@ -124,12 +124,14 @@ def BayesEoRParser():
              "model uv-plane."
     )
     parser.add_argument(
-        '--upriors',
+        '--uprior_bins',
         type=str,
+        default='',
         help="Array indices of k-bins using a uniform prior.  Follows python "
              "slicing syntax.  Can pass a range via '1:4' (non-inclusive high "
              "end), a list of indices via '1,4,6' (no spaces between commas), "
-             " a single index '3' or '-3', or 'all'."
+             " a single index '3' or '-3', or 'all'.  Defaults to an empty "
+             "string (all k-bins use log-uniform priors)."
     )
     parser.add_argument(
         '--file_root',
