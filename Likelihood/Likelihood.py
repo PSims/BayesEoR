@@ -107,13 +107,9 @@ class PowerSpectrumPosteriorProbability(object):
     fit_for_spectral_model_parameters : boolean
         If `True`, fit for the LSSM parameter values instead of using the
         values in `p.beta`.  Defaults to `False`.
-    n_uniform_prior_k_bins : int
-        Number of k-bins, counting up from the lowest k_bin, that will use a
-        prior which is uniform in the amplitude.  The remaining k-bins will use
-        log-uniform priors.  Defaults to 0.
-    uniform_priors : bool
-        If `True`, all k-bins use a prior uniform in the amplitude.  Otherwise,
-        all k-bins use a log-uniform prior.
+    uprior_inds : array
+        Boolean array with shape `len(k_vals)`.  If True (False), k-bin uses a
+        uniform (log-uniform) prior.
     fit_for_monopole : bool
         If True, fit for (u, v) = (0, 0).  Defaults to False.
     use_shg : bool
@@ -153,8 +149,8 @@ class PowerSpectrumPosteriorProbability(object):
             Print=False, debug=False, Print_debug=False,
             intrinsic_noise_fitting=False, return_Sigma=False,
             fit_for_spectral_model_parameters=False,
-            n_uniform_prior_k_bins=0, uniform_priors=False,
-            fit_for_monopole=False, use_shg=False, fit_for_shg_amps=False,
+            uprior_inds=None, fit_for_monopole=False,
+            use_shg=False, fit_for_shg_amps=False,
             nuv_sh=None, nu_sh=None, nv_sh=None, nq_sh=None,
             rank=0, use_gpu=True
             ):
@@ -179,8 +175,7 @@ class PowerSpectrumPosteriorProbability(object):
         self.fit_for_spectral_model_parameters =\
             fit_for_spectral_model_parameters
         self.k_vals = k_vals
-        self.n_uniform_prior_k_bins = n_uniform_prior_k_bins
-        self.uniform_priors = uniform_priors
+        self.uprior_inds = uprior_inds
         self.fit_for_monopole = fit_for_monopole
         self.ps_box_size_ra_Mpc = ps_box_size_ra_Mpc
         self.ps_box_size_dec_Mpc = ps_box_size_dec_Mpc
@@ -867,19 +862,8 @@ class PowerSpectrumPosteriorProbability(object):
 
             start = time.time()
             MargLogL = -0.5*logSigmaDet - 0.5*logPhiDet + 0.5*dbarSigmaIdbar
-            if np.abs(self.n_uniform_prior_k_bins) > 0:
-                # Specific bins use a uniform prior
-                if self.n_uniform_prior_k_bins > 0:
-                    MargLogL += np.sum(
-                        np.log(x[:self.n_uniform_prior_k_bins])
-                    )
-                else:
-                    MargLogL += np.sum(
-                        np.log(x[self.n_uniform_prior_k_bins:])
-                    )
-            elif self.uniform_priors:
-                # All bins use a uniform prior
-                MargLogL += np.sum(np.log(x))
+            if self.uprior_inds is not None:
+                MargLogL += np.sum(np.log(x[self.uprior_inds]))
             if self.intrinsic_noise_fitting:
                 MargLogL = MargLogL - 0.5*d_Ninv_d - 0.5*log_det_N
             MargLogL = MargLogL.real

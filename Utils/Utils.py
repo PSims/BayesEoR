@@ -414,3 +414,44 @@ def write_map_dict(dir, pspp, bm, n, clobber=False, fn='map-dict.npy'):
         print(f'\nWriting MAP dict to {fp}\n')
         with open(fp, 'wb') as f:
             pickle.dump(map_dict, f, protocol=4)
+
+
+def parse_uprior_inds(upriors_str, nkbins):
+    """
+    Parse a string containing array indexes.
+
+    `upriors_str` must follow standard array slicing syntax and include no
+    spaces.  Examples of valid strings:
+    * '1:4': equivalent to `slice(1, 4)`
+    * '1,3,4': equivalent to indexing with `[1, 3, 4]`
+    * '3' or '-3'
+    * 'all'
+
+    Parameters
+    ----------
+    upriors_str : str
+        String containing array indexes (follows array slicing syntax).
+    nkbins : int
+        Number of k-bins.
+
+    Returns
+    -------
+    uprior_inds : array
+        Boolean array that is True for any k-bins using a uniform prior.
+        False entries use a log-uniform prior.
+
+    """
+    if upriors_str.lower() == 'all':
+        uprior_inds = np.ones(nkbins, dtype=bool)
+    else:
+        uprior_inds = np.zeros(nkbins, dtype=bool)
+        if ':' in upriors_str:
+            bounds = list(map(int, upriors_str.split(':')))
+            uprior_inds[slice(*bounds)] = True
+        elif ',' in upriors_str:
+            up_inds = list(map(int, upriors_str.split(',')))
+            uprior_inds[up_inds] = True
+        else:
+            uprior_inds[int(upriors_str)] = True
+
+    return uprior_inds

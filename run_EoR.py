@@ -526,7 +526,7 @@ if p.file_root is None:
         file_root += '{:.2E}-'.format(p.beta)
     elif npl == 2:
         file_root += '{:.2F}_{:.2F}-'.format(p.beta[0], p.beta[1])
-    if log_priors and (p.n_uniform_prior_k_bins == 0 or not p.uniform_priors):
+    if log_priors:
         file_root += 'lp-'
     if dimensionless_PS:
         file_root += 'dPS-'
@@ -548,6 +548,7 @@ else:
     file_root = p.file_root
 mpiprint('\nOutput file_root:', file_root, rank=mpi_rank)
 
+uprior_inds = parse_uprior_inds(p.upriors, nDims)
 pspp = PowerSpectrumPosteriorProbability(
     T_Ninv_T, dbar, Sigma_Diag_Indices, Npar, k_cube_voxels_in_bin,
     nuv, nu, nv, neta, nf, nq, masked_power_spectral_modes,
@@ -555,8 +556,7 @@ pspp = PowerSpectrumPosteriorProbability(
     ps_box_size_dec_Mpc, ps_box_size_para_Mpc, block_T_Ninv_T=block_T_Ninv_T,
     log_priors=log_priors, dimensionless_PS=dimensionless_PS, Print=True,
     intrinsic_noise_fitting=p.use_intrinsic_noise_fitting,
-    n_uniform_prior_k_bins=p.n_uniform_prior_k_bins,
-    uniform_priors=p.uniform_priors, fit_for_monopole=p.fit_for_monopole,
+    uprior_inds=uprior_inds, fit_for_monopole=p.fit_for_monopole,
     use_shg=p.use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
     nuv_sh=nuv_sh, nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh,
     rank=mpi_rank, use_gpu=p.useGPU

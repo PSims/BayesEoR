@@ -15,7 +15,7 @@ from .Likelihood.Likelihood\
 from .Utils import\
     PriorC, generate_output_file_base, load_inst_model,\
     write_log_file, vector_is_hermitian, Cosmology, mpiprint,\
-    write_map_dict
+    write_map_dict, parse_uprior_inds
 
 from .GenerateForegroundCube import\
     generate_data_from_loaded_eor_cube,\
