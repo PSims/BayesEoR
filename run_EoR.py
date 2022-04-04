@@ -552,7 +552,8 @@ if p.uprior_bins != '':
     uprior_inds = parse_uprior_inds(p.uprior_bins, nDims)
     mpiprint(
         f'\nUniform prior k-bin indices: {np.where(uprior_inds)[0]}',
-        rank=mpi_rank
+        rank=mpi_rank,
+        end='\n\n'
     )
 else:
     uprior_inds = None
