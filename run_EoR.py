@@ -250,8 +250,10 @@ if p.include_instrumental_effects:
                 sys.exit()
             if p.beam_type == 'gausscosine':
                 beam_info_str += f'-cosfreq-{p.cosfreq:.2f}wls'
-        elif p.beam_type == 'airy':
+        elif p.beam_type in ['airy', 'taperairy']:
             beam_info_str += f'-antenna-diameter-{p.antenna_diameter}m'
+            if p.beam_type == 'taperairy':
+                beam_info_str += f'-fwhm-{p.fwhm_deg}deg'
     else:
         beam_info_str = Path(p.beam_type).stem
 

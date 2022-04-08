@@ -135,7 +135,9 @@ class Healpix(HEALPix):
         if beam_type is not None:
             if not '.' in str(beam_type):
                 beam_type = beam_type.lower()
-                allowed_types = ['uniform', 'gaussian', 'airy', 'gausscosine']
+                allowed_types = [
+                    'uniform', 'gaussian', 'airy', 'gausscosine', 'taperairy'
+                ]
                 assert beam_type in allowed_types, \
                     "Only uniform, Gaussian, and Airy beams are supported."
                 self.beam_type = beam_type
@@ -324,7 +326,7 @@ class Healpix(HEALPix):
             if self.fwhm_deg is not None:
                 stddev_rad = np.deg2rad(
                     self._fwhm_to_stddev(self.fwhm_deg)
-                    )
+                )
             else:
                 stddev_rad = self._diam_to_stddev(self.diam, freq)
             if self.beam_type == 'gaussian':
@@ -340,6 +342,13 @@ class Healpix(HEALPix):
             else:
                 diam_eff = self._fwhm_to_diam(self.fwhm_deg, freq)
                 beam_vals = self._airy_disk(za, diam_eff, freq)
+        
+        elif self.beam_type == 'taperairy':
+            stddev_rad = np.deg2rad(self._fwhm_to_stddev(self.fwhm_deg))
+            beam_vals = (
+                self._airy_disk(za, self.diam, freq)
+                * self._gaussian_za(za, stddev_rad, self.peak_amp)
+            )
         
         elif self.beam_type == 'uvbeam':
             beam_vals, _ = self.uvb.interp(
