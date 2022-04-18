@@ -247,6 +247,33 @@ class Healpix(HEALPix):
         lons[lons < 0] += 360  # RA in [0, 360)
         self.ra = lons[pix]
         self.dec = lats[pix]
+    
+    def get_extent_ra_dec(self, fov_fac=1.0):
+        """
+        Get the sampled extent of the sky in RA and DEC.
+
+        Parameters
+        ----------
+        fov_fac : float
+            Scaling factor for the sampled extent.
+
+        Returns
+        -------
+        range_ra : tuple
+            `fov_fac` scaled (min, max) sampled RA values.
+        range_dec : tuple
+            `fov_fac` scaled (min, max) sampled DEC values.
+
+        """
+        range_ra = [
+            self.field_center[0] - fov_fac*self.fov_ra_deg/2,
+            self.field_center[0] + fov_fac*self.fov_ra_deg/2
+        ]
+        range_dec = [
+            self.field_center[1] - fov_fac*self.fov_dec_deg/2,
+            self.field_center[1] + fov_fac*self.fov_dec_deg/2
+        ]
+        return range_ra, range_dec
 
     def calc_lmn_from_radec(self, time, return_azza=False, radec_offset=None):
         """

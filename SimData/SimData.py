@@ -1,69 +1,9 @@
 import numpy as np
-from numpy import *
 from subprocess import os
 from pathlib import Path
 
 import BayesEoR.Params.params as p
 from BayesEoR.Utils import mpiprint
-
-
-def generate_k_cube_in_physical_coordinates(
-        nu, nv, neta, ps_box_size_ra_Mpc,
-        ps_box_size_dec_Mpc, ps_box_size_para_Mpc):
-    """
-    Generates rectilinear k-space cubes in units of inverse Mpc.
-
-    Parameters
-    ----------
-    nu : int
-        Number of pixels on a side for the u-axis in the model uv-plane.
-    nv : int
-        Number of pixels on a side for the v-axis in the model uv-plane.
-    neta : int
-        Number of Line of Sight (LoS, frequency axis) Fourier modes.
-    ps_box_size_ra_Mpc : float
-        Right Ascension (RA) axis extent of the cosmological volume in Mpc from
-        which the power spectrum is estimated.
-    ps_box_size_dec_Mpc : float
-        Declination (DEC) axis extent of the cosmological volume in Mpc from
-        which the power spectrum is estimated.
-    ps_box_size_para_Mpc : float
-        LoS extent of the cosmological volume in Mpc from which the power
-        spectrum is estimated.
-
-    Returns
-    -------
-    mod_k_physical : np.ndarray of floats
-        Modulus of each 3D k-space voxel, i.e. sqrt(k_x**2 + k_y**2 + kz**2).
-    k_x : np.ndarray of floats
-        Array of RA axis Fourier modes in inverse Mpc.
-    k_y : np.ndarray of floats
-        Array of DEC axis Fourier modes in inverse Mpc.
-    k_z : np.ndarray of floats
-        Array of LoS axis Fourier modes in inverse Mpc.
-    x : np.ndarray of ints
-        Array of RA axis Fourier mode pixel coordinates.
-    y : np.ndarray of ints
-        Array of DEC axis Fourier mode pixel coordinates.
-    z : np.ndarray of ints
-        Array of LoS axis Fourier mode pixel coordinates.
-
-    """
-    # Generate k_cube pixel coordinates
-    z, y, x = np.mgrid[-(neta//2):(neta//2),
-                       -(nv//2):(nv//2)+1,
-                       -(nu//2):(nu//2)+1]
-
-    # Setup k-space arrays
-    deltakx = 2.*np.pi / ps_box_size_ra_Mpc
-    deltaky = 2.*np.pi / ps_box_size_dec_Mpc
-    deltakz = 2.*np.pi / ps_box_size_para_Mpc
-    k_z = z * deltakz
-    k_y = y * deltaky
-    k_x = x * deltakx
-    mod_k_physical = (k_z**2. + k_y**2. + k_x**2.)**0.5
-
-    return mod_k_physical, k_x, k_y, k_z, x, y, z
 
 
 def generate_data_and_noise_vector_instrumental(
@@ -166,115 +106,108 @@ def generate_data_and_noise_vector_instrumental(
     return d, complex_noise_hermitian.flatten(), bl_conjugate_pairs_map
 
 
-def mask_k_cubes(k_x, k_y, k_z, mod_k, neta, nq, nuv):
+def generate_k_cube_in_physical_coordinates(
+        nu, nv, neta, ps_box_size_ra_Mpc,
+        ps_box_size_dec_Mpc, ps_box_size_para_Mpc):
+    """
+    Generates rectilinear k-space cubes in units of inverse Mpc.
+
+    Parameters
+    ----------
+    nu : int
+        Number of pixels on a side for the u-axis in the model uv-plane.
+    nv : int
+        Number of pixels on a side for the v-axis in the model uv-plane.
+    neta : int
+        Number of Line of Sight (LoS, frequency axis) Fourier modes.
+    ps_box_size_ra_Mpc : float
+        Right Ascension (RA) axis extent of the cosmological volume in Mpc from
+        which the power spectrum is estimated.
+    ps_box_size_dec_Mpc : float
+        Declination (DEC) axis extent of the cosmological volume in Mpc from
+        which the power spectrum is estimated.
+    ps_box_size_para_Mpc : float
+        LoS extent of the cosmological volume in Mpc from which the power
+        spectrum is estimated.
+
+    Returns
+    -------
+    mod_k_physical : np.ndarray of floats
+        Modulus of each 3D k-space voxel, i.e. sqrt(k_x**2 + k_y**2 + kz**2).
+    k_x : np.ndarray of floats
+        Array of RA axis Fourier modes in inverse Mpc.
+    k_y : np.ndarray of floats
+        Array of DEC axis Fourier modes in inverse Mpc.
+    k_z : np.ndarray of floats
+        Array of LoS axis Fourier modes in inverse Mpc.
+    x : np.ndarray of ints
+        Array of RA axis Fourier mode pixel coordinates.
+    y : np.ndarray of ints
+        Array of DEC axis Fourier mode pixel coordinates.
+    z : np.ndarray of ints
+        Array of LoS axis Fourier mode pixel coordinates.
+
+    """
+    # Generate k_cube pixel coordinates
+    z, y, x = np.mgrid[-(neta//2):(neta//2),
+                       -(nv//2):(nv//2)+1,
+                       -(nu//2):(nu//2)+1]
+
+    # Setup k-space arrays
+    deltakx = 2.*np.pi / ps_box_size_ra_Mpc
+    deltaky = 2.*np.pi / ps_box_size_dec_Mpc
+    deltakz = 2.*np.pi / ps_box_size_para_Mpc
+    k_z = z * deltakz
+    k_y = y * deltaky
+    k_x = x * deltakx
+    mod_k_physical = (k_z**2. + k_y**2. + k_x**2.)**0.5
+
+    return mod_k_physical, k_x, k_y, k_z, x, y, z
+
+
+def mask_k_cube(mod_k):
     """
     Creates a mask and masks Fourier and Large Spectral Scale Model (LSSM)
     modes that are unused for estimating the power spectrum.
 
     Parameters
     ----------
-    k_x : np.ndarray of floats
-        Array of Right Ascension (RA) axis Fourier modes in inverse Mpc.
-    k_y : np.ndarray of floats
-        Array of Declination (DEC) axis Fourier modes in inverse Mpc.
-    k_z : np.ndarray of floats
-        Array of Line of Sight (LoS, frequency axis) axis Fourier modes in
-        inverse Mpc.
     mod_k : np.ndarray of floats
         Modulus of each 3D k-space voxel, i.e. sqrt(k_x**2 + k_y**2 + kz**2).
-    neta : int
-        Number of Line of Sight (LoS, frequency axis) Fourier modes.
-    nq : int
-        Number of quadratic modes in the Larse Spectral Scale Model (LSSM).
-    nuv : int
-        Number of model uv-plane points per frequency channel.  Computed as
-        `nuv = nu*nv - 1*np.logical_not(p.fit_for_monopole)`.
 
     Returns
     -------
-    k_mask_vo : np.ndarray of bool
-        Vis-ordered array which is True for all mod_k array indices used for
-        power spectrum estimation and False otherwise.
     mod_k_vo : np.ndarray
-        Vis-ordered `mod_k`.  If `nq` > 0, `mod_k_vo` also contains
-        `np.inf` values at all indices associated with the LSSM.
+        Vis-ordered `mod_k`.
 
     """
-    # Do not include high spatial frequency structure in the power
-    # spectral data since these terms aren't included in the data model
-    nyquist_k_z_mode = k_z[0, 0, 0]
-    sub_nyquist_k_z_mode = k_z[-1, 0, 0]
-    # NOTE: the k_z=0 term should not necessarily be masked out since it
-    # is still required as a quadratic component (and is not currently
-    # explicitly added in there) even if it is not used for calculating
-    # the power spectrum.
-    if nq == 1:
-        high_k_z_selector = k_z == nyquist_k_z_mode
-    else:
-        high_k_z_selector = np.logical_or(
-            k_z == nyquist_k_z_mode, k_z == sub_nyquist_k_z_mode
-        )
-    high_k_z_mask = np.logical_not(high_k_z_selector)
+    neta, nv, nu = mod_k.shape
 
-    if p.include_instrumental_effects:
-        high_k_z_mask = high_k_z_mask == high_k_z_mask
-        high_k_z_selector = high_k_z_selector != high_k_z_selector
+    # Remove the eta=0 mode from the EoR k-cube
+    mod_k = np.delete(mod_k, neta//2, axis=0)
 
-    k_perp = (k_x**2. + k_y**2)**0.5
-    kperp_mask = k_perp > 0  # Exclude (u, v) = (0, 0)
-    kpara_mask = np.abs(k_z) > 0  # Exclude eta = 0
+    # Flatten along k_x then k_y
+    mod_k = mod_k.reshape((neta - 1, nu*nv))
 
-    if nq > 0:
-        k_mask = np.logical_and.reduce((high_k_z_mask, kperp_mask, kpara_mask))
-    else:
-        k_mask = np.logical_and(kperp_mask, kpara_mask)
+    # Remove (u, v) = (0, 0)
+    mod_k = np.delete(mod_k, (nu*nv)//2, axis=1)
 
     # Flattened arrays move first along k_z, then k_x, and lastly k_y
-    k_mask_vo = np.moveaxis(k_mask, 0, -1).flatten()
-    mod_k_vo = np.moveaxis(mod_k, 0, -1).flatten()
+    mod_k_vo = mod_k.flatten(order='F')
 
-    if not p.fit_for_monopole:
-        # Remove the (u, v) = (0, 0) pixel from the mask and mod_k arrays
-        k_mask_vo = k_mask_vo.reshape(-1, neta)
-        mod_k_vo = mod_k_vo.reshape(-1, neta)
-        k_mask_vo = np.delete(k_mask_vo, nuv//2, axis=0).flatten()
-        mod_k_vo = np.delete(mod_k_vo, nuv//2, axis=0).flatten()
-
-    if nq > 0:
-        # Mask the Large Spectral Scale Model (LSSM) modes.  These
-        # modes are only intended to model the spectrum of a ForeGround (FG)
-        # component and should not be used to esimate the EoR power spectrum.
-
-        # In the reshaped arrays below:
-        # Moving along the zeroth axis moves first along k_x, then k_y
-        # Moving along the first axis moves along k_z
-        k_mask_vo = k_mask_vo.reshape(-1, neta)
-        mod_k_vo = mod_k_vo.reshape(-1, neta)
-
-        # Append a Large Spectral Scale Model (LSSM) mask to prevent
-        # LSSM modes from conributing to the power spectrum
-        # Flattened arrays move first along k_z, then k_x, and lastly k_y
-        lssm_mask = np.zeros((k_mask_vo.shape[0], nq)).astype(bool)
-        k_mask_vo = np.hstack((k_mask_vo, lssm_mask)).flatten()
-        lssm_infs = np.zeros((mod_k_vo.shape[0], nq)) + np.inf
-        mod_k_vo = np.hstack((mod_k_vo, lssm_infs)).flatten()
-
-    return k_mask_vo, mod_k_vo
+    return mod_k_vo
 
 
-def generate_k_cube_model_spherical_binning(
-        k_mask_vo, mod_k_vo, ps_box_size_para_Mpc):
+def generate_k_cube_model_spherical_binning(mod_k_vo, ps_box_size_para_Mpc):
     """
     Generates a set of spherical k-space bins from which the 1D power spectrum
     is calculated.
 
     Parameters
     ----------
-    k_mask_vo : np.ndarray of bool
-        Vis-ordered array which is True for all `mod_k_vo` array indices used
-        for power spectrum estimation and False otherwise.
     mod_k_vo : np.ndarray
-        Vis-ordered array of |k| = sqrt(k_x**2 + k_y**2 + k_z**2).
+        Vis-ordered array of |k| = sqrt(k_x**2 + k_y**2 + k_z**2).  Should only
+        contain the k values used in EoR power spectrum estimation.
     ps_box_size_para_Mpc : float
         LoS extent of the cosmological volume in Mpc from which the power
         spectrum is estimated.
@@ -314,8 +247,7 @@ def generate_k_cube_model_spherical_binning(
         n_elements = np.sum(
             np.logical_and.reduce((
                 mod_k_vo > modkbins[i_bin, 0],
-                mod_k_vo <= modkbins[i_bin, 1],
-                k_mask_vo
+                mod_k_vo <= modkbins[i_bin, 1]
             ))
         )
         if n_elements > 0:
@@ -329,8 +261,7 @@ def generate_k_cube_model_spherical_binning(
         relevant_voxels = np.where(
             np.logical_and.reduce((
                 mod_k_vo > modkbins_containing_voxels[i_bin][0][0],
-                mod_k_vo <= modkbins_containing_voxels[i_bin][0][1],
-                k_mask_vo
+                mod_k_vo <= modkbins_containing_voxels[i_bin][0][1]
             ))
         )
         count += len(relevant_voxels[0])
