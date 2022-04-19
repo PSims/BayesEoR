@@ -10,7 +10,7 @@ from pathlib import Path
 from astropy.constants import c
 
 from BayesEoR.Linalg import\
-    nudft_matrix_2d, idft_matrix_1d,\
+    nuidft_matrix_2d, idft_matrix_1d,\
     build_lssm_basis_vectors,\
     generate_gridding_matrix_vo2co,\
     nuDFT_Array_DFT_2D_v2d0,\
@@ -49,12 +49,7 @@ class BuildMatrixTree(object):
         self.use_sparse_matrices = use_sparse_matrices
 
         self.matrix_prerequisites_dictionary = {
-            'Finv': [
-                'multi_chan_nudft',
-                'multi_chan_beam',
-                'multi_chan_nudft_fg',
-                'multi_chan_beam_fg'
-            ],
+            'Finv': ['multi_chan_nudft', 'multi_chan_beam'],
             'Fprime': ['multi_chan_nuidft', 'multi_chan_nuidft_fg'],
             'multi_chan_nuidft': ['nuidft_array'],
             'multi_vis_idft_array_1d': ['idft_array_1d'],
@@ -496,24 +491,12 @@ class BuildMatrices(BuildMatrixTree):
             self.antenna_diameter = kwargs.pop('antenna_diameter', None)
             self.cosfreq = kwargs.pop('cosfreq', None)
             self.effective_noise = kwargs.pop('effective_noise', None)
-            # Set up Healpix instance
-            self.hpx_eor = Healpix(
-                fov_ra_deg=self.fov_ra_eor,
-                fov_dec_deg=self.fov_dec_eor,
-                nside=self.nside,
-                telescope_latlonalt=self.telescope_latlonalt,
-                central_jd=self.central_jd,
-                nt=self.nt,
-                int_time=self.dt,
-                beam_type=self.beam_type,
-                peak_amp=self.beam_peak_amplitude,
-                fwhm_deg=self.fwhm_deg,
-                diam=self.antenna_diameter,
-                cosfreq=self.cosfreq
-            )
-            self.hpx_fg = Healpix(
-                fov_ra_deg=self.fov_ra_fg,
-                fov_dec_deg=self.fov_dec_fg,
+
+            self.hpx = Healpix(
+                fov_ra_eor=self.fov_ra_eor,
+                fov_dec_eor=self.fov_dec_eor,
+                fov_ra_fg=self.fov_ra_fg,
+                fov_dec_fg=self.fov_dec_fg,
                 nside=self.nside,
                 telescope_latlonalt=self.telescope_latlonalt,
                 central_jd=self.central_jd,
@@ -563,7 +546,7 @@ class BuildMatrices(BuildMatrixTree):
         )
 
         # Finv normalization
-        self.Finv_normalisation = self.hpx_eor.pixel_area_sr
+        self.Finv_normalisation = self.hpx.pixel_area_sr
 
         self.matrix_construction_methods_dictionary = {
             'idft_array_1d':
@@ -592,10 +575,6 @@ class BuildMatrices(BuildMatrixTree):
                 self.build_multi_chan_nudft,
             'multi_chan_beam':
                 self.build_multi_chan_beam,
-            'multi_chan_nudft_fg':
-                self.build_multi_chan_nudft_fg,
-            'multi_chan_beam_fg':
-                self.build_multi_chan_beam_fg,
             'Finv':
                 self.build_Finv,
             'Fprime_Fz':
@@ -954,13 +933,13 @@ class BuildMatrices(BuildMatrixTree):
 
         Notes
         -----
-        * Used for the EoR model in `Finv`
+        * Used to construct `Finv`.
         * If ``use_nvis_nt_nchan_ordering = True``: model visibilities will be
           ordered (nvis*nt) per chan for all channels (old default).
         * If ``use_nvis_nchan_nt_ordering = True``: model visibilities will be
           ordered (nvis*nchan) per time step for all time steps.  This ordering
           is required when using a drift scan primary beam (current default).
-        * `multi_chan_nudft` has shape (ndata, npix * nf * nt)
+        * `multi_chan_nudft` has shape (ndata, npix * nf * nt).
 
         """
         matrix_name = 'multi_chan_nudft'
@@ -976,8 +955,11 @@ class BuildMatrices(BuildMatrixTree):
         if not self.drift_scan_pb:
             # Used if self.drift_scan_pb = False
             # Get (l, m, n) coordinates from Healpix object
-            ls_rad, ms_rad, ns_rad = self.hpx_eor.calc_lmn_from_radec(
-                self.hpx_eor.jds[self.nt//2], radec_offset=self.beam_center
+            ls_rad, ms_rad, ns_rad = self.hpx.calc_lmn_from_radec(
+                self.hpx.jds[self.nt//2],
+                self.hpx.ra_fg,
+                self.hpx.dec_fg,
+                radec_offset=self.beam_center
             )
             sampled_lmn_coords_radians = np.vstack((ls_rad, ms_rad, ns_rad)).T
 
@@ -996,8 +978,10 @@ class BuildMatrices(BuildMatrixTree):
                 self.sd_block_diag([
                     nuDFT_Array_DFT_2D_v2d0(
                         np.vstack(
-                            self.hpx_eor.calc_lmn_from_radec(
-                                self.hpx_eor.jds[time_i],
+                            self.hpx.calc_lmn_from_radec(
+                                self.hpx.jds[time_i],
+                                self.hpx.ra_fg,
+                                self.hpx.dec_fg,
                                 radec_offset=self.beam_center
                             )
                         ).T,
@@ -1031,8 +1015,8 @@ class BuildMatrices(BuildMatrixTree):
 
         Notes
         -----
-        * Used for the EoR model in `Finv`
-        * `multi_chan_beam` has shape (npix * nf * nt, nuv * nf)
+        * Used to construct `Finv`.
+        * `multi_chan_beam` has shape (npix * nf * nt, npix * nf).
 
         """
         matrix_name = 'multi_chan_beam'
@@ -1042,9 +1026,11 @@ class BuildMatrices(BuildMatrixTree):
         if not self.drift_scan_pb:
             multi_chan_beam = self.sd_block_diag([
                 np.diag(
-                    self.hpx_eor.get_beam_vals(
-                        *self.hpx_eor.calc_lmn_from_radec(
-                            self.hpx_eor.jds[self.nt//2],
+                    self.hpx.get_beam_vals(
+                        *self.hpx.calc_lmn_from_radec(
+                            self.hpx.jds[self.nt//2],
+                            self.hpx.ra_fg,
+                            self.hpx.dec_fg,
                             radec_offset=self.beam_center,
                             return_azza=True,
                             )[3:],  # Only need az, za
@@ -1059,9 +1045,11 @@ class BuildMatrices(BuildMatrixTree):
             multi_chan_beam = self.sd_vstack([
                 self.sd_block_diag([
                     self.sd_diags(
-                        self.hpx_eor.get_beam_vals(
-                            *self.hpx_eor.calc_lmn_from_radec(
-                                self.hpx_eor.jds[time_i],
+                        self.hpx.get_beam_vals(
+                            *self.hpx.calc_lmn_from_radec(
+                                self.hpx.jds[time_i],
+                                self.hpx.ra_fg,
+                                self.hpx.dec_fg,
                                 radec_offset=self.beam_center,
                                 return_azza=True
                                 )[3:],  # Only need az, za
@@ -1078,141 +1066,6 @@ class BuildMatrices(BuildMatrixTree):
                          matrix_name,
                          matrix_name)
 
-    def build_multi_chan_nudft_fg(self):
-        """
-        Build a multi-frequency NUDFT matrix for image to measurement space.
-
-        Each block in this block-diagonal matrix transforms a set of
-        time-dependent image-space (l(t), m(t), n(t)) HEALPix coordinates to
-        unphased, instrumentall sampled, frequency dependent
-        (u(f), v(f), w(f)).
-
-        Notes
-        -----
-        * Used for the FG model in `Finv`
-        * If ``use_nvis_nt_nchan_ordering = True``: model visibilities will be
-          ordered (nvis*nt) per chan for all channels (old default).
-        * If ``use_nvis_nchan_nt_ordering = True``: model visibilities will be
-          ordered (nvis*nchan) per time step for all time steps.  This ordering
-          is required when using a drift scan primary beam (current default).
-        * `multi_chan_nudft_fg` has shape (ndata, npix * nf * nt)
-
-        """
-        matrix_name = 'multi_chan_nudft_fg'
-        pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
-        sampled_uvw_coords_m = self.uvw_array_m.copy()
-        # Convert uv-coordinates from meters to wavelengths per frequency
-        sampled_uvw_coords_wavelengths = np.array([
-            sampled_uvw_coords_m / (c.to('m/s').value / freq)
-            for freq in self.freqs_hertz
-        ])
-        if not self.drift_scan_pb:
-            # Used if self.drift_scan_pb = False
-            # Get (l, m, n) coordinates from Healpix object
-            ls_rad, ms_rad, ns_rad = self.hpx_fg.calc_lmn_from_radec(
-                self.hpx_fg.jds[self.nt//2], radec_offset=self.beam_center
-            )
-            sampled_lmn_coords_radians = np.vstack((ls_rad, ms_rad, ns_rad)).T
-
-            multi_chan_nudft_fg = self.sd_block_diag([
-                nuDFT_Array_DFT_2D_v2d0(
-                    sampled_lmn_coords_radians,
-                    sampled_uvw_coords_wavelengths[
-                        freq_i, 0, :, :
-                    ].reshape(-1, 3))
-                for freq_i in range(self.nf)
-            ])
-        else:
-            # This will be used if a drift scan primary beam is included in
-            # the data model (i.e. self.drift_scan_pb=True)
-            multi_chan_nudft_fg = self.sd_block_diag([
-                self.sd_block_diag([
-                    nuDFT_Array_DFT_2D_v2d0(
-                        np.vstack(
-                            self.hpx_fg.calc_lmn_from_radec(
-                                self.hpx_fg.jds[time_i],
-                                radec_offset=self.beam_center
-                            )
-                        ).T,
-                        sampled_uvw_coords_wavelengths[
-                            freq_i, time_i, :, :
-                        ].reshape(-1, 3))
-                    for freq_i in range(self.nf)
-                ])
-                for time_i in range(self.nt)
-            ])
-
-        # Multiply by sky model pixel area to get the units of the
-        # model visibilities correct
-        multi_chan_nudft_fg *= self.Finv_normalisation
-
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(multi_chan_nudft_fg,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
-
-    def build_multi_chan_beam_fg(self):
-        """
-        Build a matrix contating image space beam amplitudes.
-
-        Each block-diagonal entry contains the beam amplitude at each HEALPix
-        sampled (l(t), m(t), n(t)) for a single time and frequency.  Each stack
-        contains `nf` block-diagonal entries containing the beam amplitudes at
-        all frequencies for a single time.
-
-        Notes
-        -----
-        * Used for the FG model in `Finv`
-        * `multi_chan_beam_fg` has shape (npix * nf * nt, nuv * nf)
-
-        """
-        matrix_name = 'multi_chan_beam_fg'
-        pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
-        if not self.drift_scan_pb:
-            multi_chan_beam_fg = self.sd_block_diag([
-                np.diag(
-                    self.hpx_fg.get_beam_vals(
-                        *self.hpx_fg.calc_lmn_from_radec(
-                            self.hpx_fg.jds[self.nt//2],
-                            radec_offset=self.beam_center,
-                            return_azza=True,
-                            )[3:],  # Only need az, za
-                        freq=freq
-                        )
-                    )
-                for freq in self.freqs_hertz])
-        else:
-            # Model the time dependence of the primary beam pointing
-            # for a drift scan (i.e. change in zenith angle with time
-            # due to Earth rotation).
-            multi_chan_beam_fg = self.sd_vstack([
-                self.sd_block_diag([
-                    self.sd_diags(
-                        self.hpx_fg.get_beam_vals(
-                            *self.hpx_fg.calc_lmn_from_radec(
-                                self.hpx_fg.jds[time_i],
-                                radec_offset=self.beam_center,
-                                return_azza=True
-                                )[3:],  # Only need az, za
-                            freq=freq
-                            )
-                        )
-                    for freq in self.freqs_hertz])
-                for time_i in range(self.nt)])
-
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(multi_chan_beam_fg,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
-
     def build_Finv(self):
         """
         Build a multi-frequency NUDFT matrix for image to measurement space.
@@ -1225,26 +1078,19 @@ class BuildMatrices(BuildMatrixTree):
           3. If modelling phased visibilities, applies a phasor vector from the
              instrument model to phase the visibilities to the central time
              step
-        Finv is built using horizontally stacked, block-diagonal matrices
-        with stacks for the EoR and FG models.  Each stack applies the
-        aforementioned effects to the corresponding image space model.
 
         Notes
         -----
-        * `Finv` has shape (ndata, (npix_eor + npix_fg) * nf).
+        * `Finv` has shape (ndata, npix * nf).
 
         """
         matrix_name = 'Finv'
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
         print('Performing matrix algebra')
-        Finv_eor = self.dot_product(
+        Finv = self.dot_product(
             pmd['multi_chan_nudft'], pmd['multi_chan_beam']
         )
-        Finv_fg = self.dot_product(
-            pmd['multi_chan_nudft_fg'], pmd['multi_chan_beam_fg']
-        )
-        Finv = self.sd_hstack([Finv_eor, Finv_fg])
         if self.phasor_vec is not None:
             Finv = self.dot_product(pmd['phasor_matrix'], Finv)
         print('Time taken: {}'.format(time.time() - start))
@@ -1269,6 +1115,11 @@ class BuildMatrices(BuildMatrixTree):
         -----
         * Used for the EoR model in `Fprime`.
         * `nuidft_array` has shape (npix, nuv).
+        * If the EoR and FG models have different FoV values, `nuidft_array` is
+          reshaped to match the dimensions of the FG model (FoV_FG >= FoV_EoR).
+          The HEALPix pixel ordering must be preserved in this reshaping so
+          that shared pixels between the EoR and FG models are summed together
+          in image-space.
 
         """
         matrix_name = 'nuidft_array'
@@ -1276,12 +1127,22 @@ class BuildMatrices(BuildMatrixTree):
         start = time.time()
         print('Performing matrix algebra')
         # Get (l, m) coordinates from Healpix object
-        ls_rad, ms_rad, _ = self.hpx_eor.calc_lmn_from_radec(
-            self.hpx_eor.jds[self.nt//2]
+        ls_rad, ms_rad, _ = self.hpx.calc_lmn_from_radec(
+            self.hpx.jds[self.nt//2],
+            self.hpx.ra_eor,
+            self.hpx.dec_eor
         )
-        nuidft_array = nudft_matrix_2d(
+        nuidft_array = nuidft_matrix_2d(
             self.nu, self.nv, self.du_eor, self.dv_eor, ls_rad, ms_rad
         )
+        if not self.hpx.fovs_match:
+            nuidft_array_fg_pix = np.zeros(
+                (self.hpx.npix_fov, nuidft_array.shape[1]), dtype=complex
+            )
+            nuidft_array_fg_pix[self.hpx.eor_to_fg_pix] = (
+                nuidft_array
+            )
+            nuidft_array = nuidft_array_fg_pix
         nuidft_array *= self.Fprime_normalization_eor
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
@@ -1338,10 +1199,12 @@ class BuildMatrices(BuildMatrixTree):
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
         print('Performing matrix algebra')
-        ls_rad, ms_rad, _ = self.hpx_fg.calc_lmn_from_radec(
-            self.hpx_fg.jds[self.nt//2]
+        ls_rad, ms_rad, _ = self.hpx.calc_lmn_from_radec(
+            self.hpx.jds[self.nt//2],
+            self.hpx.ra_fg,
+            self.hpx.dec_fg
         )
-        nuidft_array = nudft_matrix_2d(
+        nuidft_array = nuidft_matrix_2d(
             self.nu_fg, self.nv_fg, self.du_fg, self.dv_fg,
             ls_rad, ms_rad, exclude_mean=False
         )
@@ -1419,7 +1282,7 @@ class BuildMatrices(BuildMatrixTree):
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
         print('Performing matrix algebra')
-        Fprime = self.sd_block_diag([
+        Fprime = self.sd_hstack([
             pmd['multi_chan_nuidft'], pmd['multi_chan_nuidft_fg']
         ])
         if self.use_shg:
@@ -1705,7 +1568,11 @@ class BuildMatrices(BuildMatrixTree):
 
         Notes
         -----
-        * `Fprime_Fz` has shape (npix, nuv * (neta + nq)).
+        * `Fprime_Fz` has shape
+          (npix,
+           nuv_eor * (neta - 1)
+           + (nuv_fg - fit_for_monopole) * (1 + nq)
+           + fit_for_monopole * (neta + nq)).
 
         """
         matrix_name = 'Fprime_Fz'
@@ -1716,9 +1583,11 @@ class BuildMatrices(BuildMatrixTree):
             pmd['Fprime'] = pmd['Fprime'].toarray()
         Fprime_Fz = self.dot_product(pmd['Fprime'], pmd['Fz'])
         print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
+        # Save matrix to HDF5
+        # Read, write, and dot product times are all shorter for Fprime_Fz
+        # as a dense matrix
         self.output_data(
-            Fprime_Fz,
+            Fprime_Fz.toarray(),
             self.array_save_directory,
             matrix_name,
             matrix_name)

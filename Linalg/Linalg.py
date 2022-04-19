@@ -114,7 +114,7 @@ def nuDFT_Array_DFT_2D_v2d0(
 
 
 # Fprime functions
-def nudft_matrix_2d(nu, nv, du, dv, l_vec, m_vec, exclude_mean=True):
+def nuidft_matrix_2d(nu, nv, du, dv, l_vec, m_vec, exclude_mean=True):
     """
     Generates a non-uniform inverse DFT matrix for (u, v) --> HEALPix (l, m).
     
