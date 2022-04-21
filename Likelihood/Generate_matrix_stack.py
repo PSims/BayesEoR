@@ -533,7 +533,7 @@ class BuildMatrices(BuildMatrixTree):
 
         # Fz normalization
         self.deta = kwargs.pop('deta')
-        self.Fz_normalization = self.neta * self.deta
+        self.Fz_normalization = self.deta
 
         # Fprime normalization
         self.du_eor = kwargs.pop('du_eor')
@@ -1321,7 +1321,7 @@ class BuildMatrices(BuildMatrixTree):
             nu_min_MHz=self.f_min,
             channel_width_MHz=self.df,
             beta=self.beta)
-        idft_array_1d_sh_block *= self.Fz_normalization
+        idft_array_1d_sh_block *= self.Fz_normalization * self.neta
         nuv_sh = self.nu_sh*self.nv_sh - 1
         idft_array_1d_sh = self.sd_block_diag(
             [idft_array_1d_sh_block for i in range(nuv_sh)]
