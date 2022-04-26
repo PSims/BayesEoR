@@ -307,8 +307,6 @@ if not array_save_directory.endswith('/'):
 mpiprint('\nArray save directory: {}'.format(array_save_directory),
          rank=mpi_rank)
 
-sys.exit()
-
 BM = BuildMatrices(
     array_save_directory,
     p.include_instrumental_effects,
