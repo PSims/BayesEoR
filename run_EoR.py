@@ -213,9 +213,9 @@ else:
 if not fovs_match:
     fov_str += '-fg'
     if p.fov_ra_fg != p.fov_dec_fg:
-        fov_str = f'-ra-{p.fov_ra_fg:.1f}-dec-{p.fov_dec_fg:.1f}'
+        fov_str += f'-ra-{p.fov_ra_fg:.1f}-dec-{p.fov_dec_fg:.1f}'
     else:
-        fov_str = f'-{p.fov_ra_fg:.1f}'
+        fov_str += f'-{p.fov_ra_fg:.1f}'
 array_save_directory += fov_str
 
 nu_nv_match = (
@@ -227,9 +227,9 @@ if not nu_nv_match:
 array_save_directory += f'-nq-{nq}'
 if nq > 0:
     if npl == 1:
-        array_save_directory += '-beta-{:.2E}'.format(p.beta)
+        array_save_directory += '-beta-{:.2f}'.format(p.beta)
     elif npl == 2:
-        array_save_directory += '-b1-{:.2E}-b2-{:.2E}-sigma'.format(*p.beta)
+        array_save_directory += '-b1-{:.2f}-b2-{:.2f}-sigma'.format(*p.beta)
 if p.fit_for_monopole:
     array_save_directory += '-ffm'
 
@@ -306,6 +306,8 @@ if not array_save_directory.endswith('/'):
     array_save_directory += '/'
 mpiprint('\nArray save directory: {}'.format(array_save_directory),
          rank=mpi_rank)
+
+sys.exit()
 
 BM = BuildMatrices(
     array_save_directory,
@@ -569,7 +571,7 @@ if p.file_root is None:
     if chan_selection != '':
         file_root = chan_selection + file_root
     if npl == 1:
-        file_root += '{:.2E}-'.format(p.beta)
+        file_root += '{:.2f}-'.format(p.beta)
     elif npl == 2:
         file_root += '{:.2F}_{:.2F}-'.format(p.beta[0], p.beta[1])
     if log_priors:
