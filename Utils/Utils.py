@@ -11,6 +11,7 @@ from pathlib import Path
 from copy import deepcopy
 
 import BayesEoR.Params.params as p
+from BayesEoR.Linalg import Healpix
 
 
 class PriorC(object):
@@ -455,3 +456,75 @@ def parse_uprior_inds(upriors_str, nkbins):
             uprior_inds[int(upriors_str)] = True
 
     return uprior_inds
+
+
+class ArrayIndexing(object):
+    """
+    Class for convenient vector slicing in various data spaces.
+
+    """
+    def __init__(
+            self, nu_eor=15, nv_eor=15, nu_fg=15, nv_fg=15, nf=38,
+            neta=38, nq=0, nt=34, ffm=False, nside=128,
+            fov_ra_eor=12.9080728652, fov_dec_eor=None,
+            fov_ra_fg=12.9080728652, fov_dec_fg=None,
+            tele_latlonalt=(0, 0, 0), central_jd=2458098.3065661727
+            ):
+        hpx = Healpix(
+            fov_ra_deg=fov_ra_eor,
+            fov_dec_deg=fov_dec_eor,
+            nside=nside,
+            telescope_latlonalt=tele_latlonalt,
+            central_jd=central_jd
+        )
+        self.npix_eor = hpx.npix_fov
+
+        hpx = Healpix(
+            fov_ra_deg=fov_ra_fg,
+            fov_dec_deg=fov_dec_fg,
+            nside=nside,
+            telescope_latlonalt=tele_latlonalt,
+            central_jd=central_jd
+        )
+        self.npix_fg = hpx.npix_fov
+
+        # Joint params
+        self.nf = nf
+        self.neta = neta
+        self.ffm = ffm  # fit for monopole
+        self.nt = nt
+
+        # EoR model
+        self.nu_eor = nu_eor
+        self.nv_eor = nv_eor
+        self.nuv_eor = self.nu_eor * self.nv_eor - 1
+
+        # FG model
+        self.nu_fg = nu_fg
+        self.nv_fg = nv_fg
+        self.nuv_fg = self.nu_fg * self.nv_fg - (not self.ffm)
+        self.nq = nq
+
+        # uveta vector
+        self.neor_uveta = (self.nu_eor*self.nv_eor - 1) * (self.neta - 1)
+        self.neta0_uveta = self.nuv_fg
+        self.nlssm_uveta = self.nuv_fg * nq
+        self.nmp_uveta = self.fit_for_monopole * (self.neta + self.nq)
+        self.nfg_uveta = self.neta0_uveta + self.nlssm_uveta + self.nmp_uveta
+        self.nuveta = self.neor_uveta + self.nfg_uveta
+        # EoR model masks
+        self.uveta_eor_mask = np.zeros(self.nuveta, dtype=bool)
+        self.uveta_eor_mask[:self.neor_uveta] = True
+        # # FG model masks
+        self.uveta_fg_mask = np.zeros(self.nuveta, dtype=bool)
+        self.uveta_fg_mask[self.neor_uveta:] = True
+        self.uveta_eta0_mask = np.zeros(self.nuveta, dtype=bool)
+        inds = slice(self.neor_uveta, self.neor_uveta+self.neta0_uveta)
+        self.uveta_eta0_mask[inds] = True
+        self.uveta_lssm_mask = np.zeros(self.nuveta, dtype=bool)
+        inds = slice(
+            self.neor_uveta+self.neta0_uveta, self.nuveta-self.nmp_uveta
+        )
+        self.uveta_lssm_mask[inds] = True
+
+        # uvf vector

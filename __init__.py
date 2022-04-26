@@ -1,6 +1,6 @@
 from .SimData import\
     generate_k_cube_in_physical_coordinates,\
-    mask_k_cubes,\
+    mask_k_cube,\
     generate_k_cube_model_cylindrical_binning,\
     calc_mean_binned_k_vals,\
     generate_k_cube_model_spherical_binning,\

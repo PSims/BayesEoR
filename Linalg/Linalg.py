@@ -1,6 +1,7 @@
 from numpy import *  # don't know if this will be an issue
 import os  # can be removed after astropy_healpix fixes
 import numpy as np
+from scipy import sparse
 
 from BayesEoR.Linalg.healpix import Healpix
 import BayesEoR.Params.params as p
@@ -12,7 +13,7 @@ import BayesEoR.Params.params as p
 
 
 # FT array coordinate functions
-def Produce_Coordinate_Arrays_ZM(nu, nv, exclude_mean=True):
+def sampled_uv_vectors(nu, nv, exclude_mean=True):
     """
     Creates vectorized arrays of 2D grid coordinates for the rectilinear
     model uv-plane.
@@ -113,16 +114,11 @@ def nuDFT_Array_DFT_2D_v2d0(
 
 
 # Fprime functions
-def IDFT_Array_IDFT_2D_ZM(
-        nu, nv, sampled_lm_coords_radians, exclude_mean=True,
-        U_oversampling_Factor=1.0, V_oversampling_Factor=1.0):
+def nuidft_matrix_2d(nu, nv, du, dv, l_vec, m_vec, exclude_mean=True):
     """
-    Generates a non-uniform (might want to update the function name)
-    inverse DFT matrix that goes from rectilinear model (u, v) to
-    HEALPix (l, m) pixel centers.  Includes the (u, v) = (0, 0) pixel
-    if `fit_for_monopole = True`.
-
-    Used in the construction of `Fprime`.
+    Generates a non-uniform inverse DFT matrix for (u, v) --> HEALPix (l, m).
+    
+    Includes the (u, v) = (0, 0) pixel if `fit_for_monopole = True`.
 
     Parameters
     ----------
@@ -130,50 +126,44 @@ def IDFT_Array_IDFT_2D_ZM(
         Number of pixels on a side for the u-axis in the model uv-plane.
     nv : int
         Number of pixels on a side for the v-axis in the model uv-plane.
-    sampled_lm_coords_radians : np.ndarray of floats
-        Array with shape (npix, 2) containing the (l, m) coordinates
-        of the image space HEALPix model in units of radians.
+    du : float
+        Spacing between sampled modes along the u-axis of the model uv-plane.
+    dv : float
+        Spacing between sampled modes along the v-axis of the model uv-plane.
+    l_vec : array-like
+        Vector of sampled direction cosines (HEALPix pixel centers) along the
+        right ascension axis.
+    m_vec : array-like
+        Vector of sampled direction cosines (HEALPix pixel centers) along the
+        declination axis.
     exclude_mean : boolean
         If True, exclude the (u, v) = (0, 0) pixel.
-    U_oversampling_Factor : float
-        Factor by which the subharmonic grid is oversampled relative
-        to the coarse grid along the u-axis.
-    V_oversampling_Factor : float
-        Factor by which the subharmonic grid is oversampled relative
-        to the coarse grid.
 
     Returns
     -------
-    ExponentArray : np.ndarray of complex floats
+    nudft_array_2d : np.ndarray of complex floats
         Non-uniform 2D DFT matrix with shape (npix, nuv).
 
+    Notes
+    -----
+    * Used in the construction of `Fprime`
+
     """
-    i_u_AV, i_v_AV =\
-        Produce_Coordinate_Arrays_ZM(nu, nv, exclude_mean=exclude_mean)
+    u_vec, v_vec = sampled_uv_vectors(nu, nv, exclude_mean=exclude_mean)
 
-    # Replace x and y coordinate arrays with sampled_lm_coords_radians
-    i_x_AV = sampled_lm_coords_radians[:, 0].reshape(-1, 1)
-    i_y_AV = sampled_lm_coords_radians[:, 1].reshape(-1, 1)
-
-    if U_oversampling_Factor != 1.0:
-        i_x_AV, i_y_AV, i_u_AV, i_v_AV =\
-            Calc_Coords_Large_Im_to_High_Res_uv(
-                i_x_AV, i_y_AV, i_u_AV, i_v_AV,
-                U_oversampling_Factor, V_oversampling_Factor)
+    l_vec = l_vec.reshape(-1, 1)
+    m_vec = m_vec.reshape(-1, 1)
 
     # The uv coordinates need to be rescaled to units of
     # wavelengths by multiplying by the uv pixel width
-    i_u_AV = i_u_AV.astype('float') * p.delta_u_irad
-    i_v_AV = i_v_AV.astype('float') * p.delta_v_irad
+    u_vec = u_vec.astype('float') * du
+    v_vec = v_vec.astype('float') * dv
     # Sign change for consistency, Finv chosen to
     # have + to match healvis
-    ExponentArray = np.exp(-2.0*np.pi*1j*(i_x_AV*i_u_AV + i_v_AV*i_y_AV))
+    nudft_array_2d = np.exp(-2.0*np.pi*1j*(l_vec*u_vec + m_vec*v_vec))
+    nudft_array_2d /= nu * nv
 
-    ExponentArray /= (
-            nu*U_oversampling_Factor
-            * nv*V_oversampling_Factor
-        )
-    return ExponentArray.T
+    return nudft_array_2d
 
 
 def IDFT_Array_IDFT_2D_ZM_SH(
@@ -255,13 +245,14 @@ def IDFT_Array_IDFT_2D_ZM_SH(
 
 
 # Fz functions
-def quadratic_array_linear_plus_quad_modes_only_v2(
-        nf, nq=2, npl=0, nu_min_MHz=159.0,
-        channel_width_MHz=0.2, beta=2.63):
+def build_lssm_basis_vectors(
+        nf, nq=2, npl=0, f_min=159.0, df=0.2, beta=2.63):
     """
-    Construct the quadratic (long wavelength) arrays or replace the
-    quadratic arrays with polynomial coefficients given by `npl`'
-    and `beta`.
+    Construct the Large Spectral Scale Model (LSSM) basis vectors.
+
+    Uses polynomial (if `npl = 0`) and/or power law (if `npl > 0`) basis
+    vectors.  It must be the case that `len(beta) == npl` if `npl > 0`.
+    If `npl == nq`, all basis vectors will be power laws.
 
     Parameters
     ----------
@@ -271,185 +262,145 @@ def quadratic_array_linear_plus_quad_modes_only_v2(
         Number of quadratic modes in the Large Spectral Scale Model (LSSM).
     npl : int
         Number of polynomial modes in `beta`.
-    nu_min_MHz : float
+    f_min : float
         Minimum frequency channel in MHz.
-    channel_width_MHz : float
+    df : float
         Frequency channel width in MHz.
     beta : array-like of floats
         Polynomial powers when replacing the default quadratic
-        modes with terms of the form `(nu / nu_min)**-beta[i]`.
+        modes with terms of the form `(nu / f_min)**-beta[i]`.
 
     Returns
     -------
-    quadratic_array : np.ndarray of floats
-        Array containing the long wavelength modes, either quadratic
-        or polynomial if `npl > 0`, with shape (nq, nf).
+    basis_vectors : np.ndarray of floats
+        Array containing the LSSM basis vectors with shape (nq, nf).
 
     """
-    quadratic_array = np.zeros([nq, nf]) + 0j
-    nu_array_MHz = (
-            nu_min_MHz + np.arange(float(nf)) * channel_width_MHz)
+    basis_vectors = np.zeros([nq, nf]) + 0j
+    freq_array = f_min + np.arange(nf) * df
     if nq == 1:
         x = np.arange(nf) - nf/2.
-        quadratic_array[0] = x
+        basis_vectors[0] = x
         if npl == 1:
             m_pl = np.array(
-                [(nu_array_MHz[i_nu] / nu_min_MHz)**-beta
-                 for i_nu in range(len(nu_array_MHz))]
+                [(freq_array[i_f] / f_min)**-beta
+                 for i_f in range(len(freq_array))]
                 )
-            quadratic_array[0] = m_pl
+            basis_vectors[0] = m_pl
             print('\nLinear LW mode replaced with power-law model')
-            print('nu_min_MHz = ', nu_min_MHz)
-            print('channel_width_MHz = ', channel_width_MHz)
+            print('f_min = ', f_min)
+            print('df = ', df)
             print('beta = ', beta, '\n')
 
     if nq == 2:
         x = np.arange(nf) - nf/2.
-        quadratic_array[0] = x
-        quadratic_array[1] = x**2
+        basis_vectors[0] = x
+        basis_vectors[1] = x**2
         if npl == 1:
             m_pl = np.array(
-                [(nu_array_MHz[i_nu] / nu_min_MHz)**-beta
-                 for i_nu in range(len(nu_array_MHz))]
+                [(freq_array[i_f] / f_min)**-beta
+                 for i_f in range(len(freq_array))]
                 )
-            quadratic_array[1] = m_pl
+            basis_vectors[1] = m_pl
             print('\nQuadratic LW mode replaced with power-law model')
-            print('nu_min_MHz = ', nu_min_MHz)
-            print('channel_width_MHz = ', channel_width_MHz)
+            print('f_min = ', f_min)
+            print('df = ', df)
             print('beta = ', beta, '\n')
         if npl == 2:
             m_pl1 = np.array(
-                [(nu_array_MHz[i_nu] / nu_min_MHz)**-beta[0]
-                 for i_nu in range(len(nu_array_MHz))]
+                [(freq_array[i_f] / f_min)**-beta[0]
+                 for i_f in range(len(freq_array))]
                 )
-            quadratic_array[0] = m_pl1
+            basis_vectors[0] = m_pl1
             print('\nLinear LW mode replaced with power-law model')
             print('beta1 = ', beta[0], '\n')
             m_pl2 = np.array(
-                [(nu_array_MHz[i_nu] / nu_min_MHz)**-beta[1]
-                 for i_nu in range(len(nu_array_MHz))]
+                [(freq_array[i_f] / f_min)**-beta[1]
+                 for i_f in range(len(freq_array))]
                 )
-            quadratic_array[1] = m_pl2
+            basis_vectors[1] = m_pl2
             print('\nQuadratic LW mode replaced with power-law model')
-            print('nu_min_MHz = ', nu_min_MHz)
-            print('channel_width_MHz = ', channel_width_MHz)
+            print('f_min = ', f_min)
+            print('df = ', df)
             print('beta2 = ', beta[1], '\n')
 
     if nq == 3:
         x = np.arange(nf) - nf/2.
-        quadratic_array[0] = x
-        quadratic_array[1] = x**2
-        quadratic_array[1] = x**3
+        basis_vectors[0] = x
+        basis_vectors[1] = x**2
+        basis_vectors[1] = x**3
         if npl == 1:
             m_pl = np.array(
-                [(nu_array_MHz[i_nu] / nu_min_MHz)**-beta
-                 for i_nu in range(len(nu_array_MHz))]
+                [(freq_array[i_f] / f_min)**-beta
+                 for i_f in range(len(freq_array))]
                 )
-            quadratic_array[1] = m_pl
+            basis_vectors[1] = m_pl
             print('\nQuadratic LW mode replaced with power-law model')
-            print('nu_min_MHz = ', nu_min_MHz)
-            print('channel_width_MHz = ', channel_width_MHz)
+            print('f_min = ', f_min)
+            print('df = ', df)
             print('beta = ', beta, '\n')
 
         if npl == 2:
             m_pl1 = np.array(
-                [(nu_array_MHz[i_nu] / nu_min_MHz)**-beta[0]
-                 for i_nu in range(len(nu_array_MHz))]
+                [(freq_array[i_f] / f_min)**-beta[0]
+                 for i_f in range(len(freq_array))]
                 )
-            quadratic_array[0] = m_pl1
+            basis_vectors[0] = m_pl1
             print('\nLinear LW mode replaced with power-law model')
             print('beta1 = ', beta[0], '\n')
             m_pl2 = np.array(
-                [(nu_array_MHz[i_nu] / nu_min_MHz)**-beta[1]
-                 for i_nu in range(len(nu_array_MHz))]
+                [(freq_array[i_f] / f_min)**-beta[1]
+                 for i_f in range(len(freq_array))]
                 )
-            quadratic_array[1] = m_pl2
+            basis_vectors[1] = m_pl2
             print('\nQuadratic LW mode replaced with power-law model')
-            print('nu_min_MHz = ', nu_min_MHz)
-            print('channel_width_MHz = ', channel_width_MHz)
+            print('f_min = ', f_min)
+            print('df = ', df)
             print('beta2 = ', beta[1], '\n')
 
         if npl == 3:
             m_pl1 = np.array(
-                [(nu_array_MHz[i_nu] / nu_min_MHz)**-beta[0]
-                 for i_nu in range(len(nu_array_MHz))]
+                [(freq_array[i_f] / f_min)**-beta[0]
+                 for i_f in range(len(freq_array))]
                 )
-            quadratic_array[0] = m_pl1
+            basis_vectors[0] = m_pl1
             print('\nLinear LW mode replaced with power-law model')
             print('beta1 = ', beta[0], '\n')
             m_pl2 = np.array(
-                [(nu_array_MHz[i_nu] / nu_min_MHz)**-beta[1]
-                 for i_nu in range(len(nu_array_MHz))]
+                [(freq_array[i_f] / f_min)**-beta[1]
+                 for i_f in range(len(freq_array))]
                 )
             # Potential bug if passing len(beta) == 3
             # Should this call beta[2] instead of beta[1]?
-            quadratic_array[1] = m_pl2
+            basis_vectors[1] = m_pl2
             print('\nQuadratic LW mode replaced with power-law model')
             print('beta2 = ', beta[1], '\n')
             m_pl3 = np.array(
-                [(nu_array_MHz[i_nu] / nu_min_MHz)**-beta[1]
-                 for i_nu in range(len(nu_array_MHz))]
+                [(freq_array[i_f] / f_min)**-beta[1]
+                 for i_f in range(len(freq_array))]
                 )
-            quadratic_array[2] = m_pl3
+            basis_vectors[2] = m_pl3
             print('\nCubic LW mode replaced with power-law model')
-            print('nu_min_MHz = ', nu_min_MHz)
-            print('channel_width_MHz = ', channel_width_MHz)
+            print('f_min = ', f_min)
+            print('df = ', df)
             print('beta3 = ', beta[2], '\n')
 
     if nq == 4:
-        quadratic_array[0] = np.arange(nf)
-        quadratic_array[1] = np.arange(nf)**2.0
-        quadratic_array[2] = 1j*np.arange(nf)
-        quadratic_array[3] = 1j*np.arange(nf)**2
+        basis_vectors[0] = np.arange(nf)
+        basis_vectors[1] = np.arange(nf)**2.0
+        basis_vectors[2] = 1j*np.arange(nf)
+        basis_vectors[3] = 1j*np.arange(nf)**2
 
-    return quadratic_array
+    return basis_vectors.T
 
 
-def IDFT_Array_IDFT_1D(nf, neta):
+def idft_matrix_1d(
+        nf, neta, nq=0, npl=None, f_min=None, df=None,
+        beta=None, include_eta0=True):
     """
-    Generate a uniform 1D DFT matrix for the FT along the
-    LoS axis from eta -> frequency.  This matrix will be
-    consistent with np.fft.fft(*).conjugate() due to the
-    choice of sign convention.  The normalization was
-    initially chosen to compare with np.fft.fft.
+    Generate a 1D DFT matrix transforming eta -> frequency.
 
-    Used in the construction of `Fz` if `nq = 0`.
-
-    Parameters
-    ----------
-    nf : int
-        Number of frequency channels.
-    neta : int
-        Number of Line of Sight (LoS, frequency axis) Fourier modes.
-
-    Returns
-    -------
-    ExponentArray : np.ndarray of complex floats
-        Uniform 1D DFT matrix with shape (nf, neta).
-
-    """
-    i_f = (np.arange(nf)-nf//2).reshape(-1, 1)
-    i_eta = (np.arange(neta)-neta//2).reshape(1, -1)
-
-    # Sign change for consistency, Finv chosen
-    # to have + sign to match healvis
-    ExponentArray = np.exp(-2.0*np.pi*1j*(i_eta*i_f / nf))
-
-    return ExponentArray / float(nf)
-
-
-def IDFT_Array_IDFT_1D_WQ(
-        nf, neta, nq, npl=0, nu_min_MHz=159.0,
-        channel_width_MHz=0.2, beta=2.63):
-    """
-    Generate a 1D DFT matrix for the FT along the
-    LoS axis from eta -> frequency.  Analagous to
-    IDFT_Array_IDFT_1D with the exception that this
-    function includes the quadratic mode terms used
-    for modeling power on spectral scales larger
-    than the bandwidth.
-
-    Used in the construction of `Fz` if `nq > 0`.
+    Used in the construction of `Fz`.
 
     Parameters
     ----------
@@ -458,39 +409,49 @@ def IDFT_Array_IDFT_1D_WQ(
     neta : int
         Number of Line of Sight (LoS, frequency axis) Fourier modes.
     nq : int
-        Number of quadratic modes in the Large Spectral Scale Model (LSSM).
+        Number of quadratic Large Spectral Scale Model (LSSM) basis vectors.
+    npl : int
+        Number of power law LSSM basis vectors.  Overrides nq, i.e. replaces
+        npl <= nq quadratic basis vectors with power law basis vectors.
+    f_min : float
+        Minimum frequency in megahertz.
+    df : float
+        Frequency channel width in megahertz.
+    beta : float or array-like
+        Spectral index(indices) for the `npl` power law LSSM basis vectors.
+    include_eta0 : bool
+        If True, include eta=0 in the DFT, otherwise exclude it.  Defaults
+        to True.
 
     Returns
     -------
-    ExponentArray : np.ndarray of complex floats
-        1D DFT matrix with shape (nf, neta + nq).
+    idft_array : np.ndarray of complex floats
+        1D DFT matrix with shape `(nf, neta - (not include_eta0))`.
 
     """
-    i_f = (np.arange(nf) - nf//2).reshape(-1, 1)
-    i_eta = (np.arange(neta) - neta//2).reshape(1, -1)
+    i_f = (np.arange(nf)-nf//2).reshape(-1, 1)
+    i_eta = (np.arange(neta)-neta//2)
+    if not include_eta0:
+        i_eta = i_eta[i_eta != 0.0].reshape(1, -1)
 
     # Sign change for consistency, Finv chosen
     # to have + sign to match healvis
-    ExponentArray = np.exp(-2.0*np.pi*1j*(i_eta*i_f / nf))
-    ExponentArray /= nf
+    idft_array = np.exp(-2.0*np.pi*1j*(i_eta*i_f / nf))
 
-    quadratic_array = quadratic_array_linear_plus_quad_modes_only_v2(
-        nf, nq, npl=npl, nu_min_MHz=nu_min_MHz,
-        channel_width_MHz=channel_width_MHz, beta=beta)
-
-    Exponent_plus_quadratic_array = np.hstack(
-        (ExponentArray, quadratic_array.T)
+    if nq > 0:
+        lssm_basis_vectors = build_lssm_basis_vectors(
+            nf, nq=nq, npl=npl, f_min=f_min, df=df, beta=beta
         )
-    return Exponent_plus_quadratic_array
+        idft_array = np.hstack(
+            (idft_array, lssm_basis_vectors)
+        )
+
+    return idft_array
 
 
 def idft_array_idft_1d_sh(
-        nf, neta, nq_sh, npl_sh,
-        fit_for_shg_amps=False,
-        nu_min_MHz=None,
-        channel_width_MHz=None,
-        beta=None
-        ):
+        nf, neta, nq_sh, npl_sh, fit_for_shg_amps=False,
+        f_min=None, df=None, beta=None):
     """
     Generate a 1D DFT matrix for the FT along the
     LoS axis from eta -> frequency.  Analagous to
@@ -514,9 +475,9 @@ def idft_array_idft_1d_sh(
     fit_for_shg_amps : boolean
         If true, include pixels in DFT matrix.  Otherwise,
         only model large spectral scale structure.
-    nu_min_MHz : float, optional
+    f_min : float, optional
         Minimum frequency channel bin center in MHz. Required if `nq_sh` > 0.
-    channel_width_MHz : float, optional
+    df : float, optional
         Frequency channel width in MHz. Required if `nq_sh` > 0.
     beta : list or tuple of floats, optional
         Power law spectral indices. Required if `nq_sh` > 0.
@@ -540,17 +501,17 @@ def idft_array_idft_1d_sh(
 
     if nq_sh > 0:
         # Construct large spectral scale model (LSSM) for the SHG modes
-        lssm_sh = quadratic_array_linear_plus_quad_modes_only_v2(
-            nf, nq_sh, npl=npl_sh, nu_min_MHz=nu_min_MHz,
-            channel_width_MHz=channel_width_MHz, beta=beta)
+        lssm_sh = build_lssm_basis_vectors(
+            nf, nq=nq_sh, npl=npl_sh, f_min=f_min, df=df, beta=beta
+        )
         idft_array_sh = np.hstack([idft_array_sh, lssm_sh.T])
 
     return idft_array_sh
 
 
 # Gridding matrix functions
-def generate_gridding_matrix_vis_ordered_to_chan_ordered(
-        nu, nv, nf, exclude_mean=True):
+def generate_gridding_matrix_vo2co(
+        nu, nv, nf, exclude_mean=True, use_sparse=True):
     """
     Generates a matrix which transforms a visibility ordered vector to a
     channel ordered vector.
@@ -566,10 +527,12 @@ def generate_gridding_matrix_vis_ordered_to_chan_ordered(
     exclude_mean : bool
         If True, excludes the (u, v) = (0, 0) pixel from the model
         uv-plane coordinate arrays. Defaults to True.
+    use_sparse : bool
+        If True, use scipy.sparse matrices.  Otherwise, use numpy.ndarray.
 
     Returns
     -------
-    gridding_matrix_vis_ordered_to_chan_ordered : np.ndarray
+    gridding_matrix : np.ndarray
         Array containing the mapping from visibility ordering to channel
         ordering.
 
@@ -578,29 +541,17 @@ def generate_gridding_matrix_vis_ordered_to_chan_ordered(
     vis_grab_order = np.arange(nuv)
     vals_per_chan = vis_grab_order.size
 
-    gridding_matrix_vis_ordered_to_chan_ordered = np.zeros(
-        [vals_per_chan*nf, vals_per_chan*nf]
-        )
+    matrix_dims = (vals_per_chan*nf, vals_per_chan*nf)
+    if use_sparse:
+        gridding_matrix = sparse.lil_matrix(matrix_dims)
+    else:
+        gridding_matrix = np.zeros(matrix_dims)
     for i in range(nf):
         for j, vis_grab_val in enumerate(vis_grab_order):
             row_number = (i*vals_per_chan) + j
             # Pixel to grab from vis-ordered vector
             # and place as next chan-ordered value
             grid_pix = i + vis_grab_val*nf
-            gridding_matrix_vis_ordered_to_chan_ordered[
-                    row_number, grid_pix
-                ] = 1
+            gridding_matrix[row_number, grid_pix] = 1
 
-    return gridding_matrix_vis_ordered_to_chan_ordered
-
-
-def Calc_Coords_Large_Im_to_High_Res_uv(
-        i_x_AV, i_y_AV, i_u_AV, i_v_AV,
-        U_oversampling_Factor=1.0, V_oversampling_Factor=1.0):
-
-    # Keeps uv-plane size constant and oversampled
-    # rather than DFTing to a larger uv-plane
-    i_v_AV = i_v_AV / V_oversampling_Factor
-    i_u_AV = i_u_AV / U_oversampling_Factor
-
-    return i_x_AV, i_y_AV, i_u_AV, i_v_AV
+    return gridding_matrix

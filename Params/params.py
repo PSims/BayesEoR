@@ -22,33 +22,41 @@ file_root = None
 
 
 """ Model Params """
-# k-cube params
+# Model uv-plane params
+# EoR model
 nf = 38
 neta = 38
 nu = 15
 nv = None
 nq = 0
-# Subharmonic grid (SHG) params
+fov_ra_eor = 12.9080728652
+fov_dec_eor = None
+# FG model
+nu_fg = None
+nv_fg = None
+fov_ra_fg = None
+fov_dec_fg = None
+# Subharmonic grid (SHG)
 nu_sh = 0
 nv_sh = None
 nq_sh = 0
 npl_sh = 0
 
-# Sky model params
-fov_ra_deg = 12.9080728652
-fov_dec_deg = None
+# Sky model
 nside = 128
+fov_ra_deg = np.max(fov_ra_eor, fov_ra_fg)
+fov_dec_deg = np.max(fov_dec_eor, fov_dec_fg)
 
 # Simulated signals in analysis
 use_EoR_cube = False
-# EoR sim params
+# EoR sim
 eor_sim_path = ''
 
 # Frequency params
 nu_min_MHz = 158.304048743
 channel_width_MHz = 0.237618986858
 
-# Spectral model params
+# Large Spectral Scale Model params
 beta = [2.63, 2.82]
 if beta:
     if type(beta) == list:
@@ -57,7 +65,7 @@ if beta:
         npl = 1
 else:
     npl = 0
-# Fit for the optimal the large spectral scale model parameters
+# Fit for the optimal large spectral scale model parameters
 fit_for_spectral_model_parameters = False
 pl_min = 2.0
 pl_max = 3.0
@@ -102,12 +110,6 @@ if include_instrumental_effects:
     beam_center = None
 
     model_drift_scan_primary_beam = True
-    if model_drift_scan_primary_beam:
-        use_nvis_nt_nchan_ordering = False
-        use_nvis_nchan_nt_ordering = True
-    else:
-        use_nvis_nt_nchan_ordering = True
-        use_nvis_nchan_nt_ordering = False
 
 # Intrinsic noise fitting params
 use_intrinsic_noise_fitting = False

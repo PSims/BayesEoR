@@ -24,7 +24,11 @@ DAYS_PER_SEC = 1.0 / SECS_PER_DAY
 DEGREES_PER_DAY = 360.0
 DEGREES_PER_HOUR = DEGREES_PER_DAY / 24
 DEGREES_PER_SEC = DEGREES_PER_HOUR * 1 / SECS_PER_HOUR
-
+HERA_LAT_LON_ALT = (
+    -30.72152777777791,  # deg
+    21.428305555555557,  # deg
+    1073.0000000093132  # meters
+)
 
 class Healpix(HEALPix):
     """
@@ -33,40 +37,49 @@ class Healpix(HEALPix):
 
     Parameters
     ----------
-    fov_ra_deg : float
-        Field of view in degrees of the RA axis of the sky model.
-    fov_dec_deg : float
-        Field of view in degrees of the DEC axis of the sky model.
-        Defaults to ``fov_ra_deg``.
+    fov_ra_eor : float
+        Field of view in degrees of the RA axis of the EoR sky model.
+    fov_dec_eor : float, optional
+        Field of view in degrees of the DEC axis of the EoR sky model.
+        Defaults to `fov_ra_eor`.
+    fov_ra_fg : float, optional
+        Field of view in degrees of the RA axis of the FG sky model.
+    fov_dec_fg : float, optional
+        Field of view in degrees of the DEC axis of the FG sky model.
+        Defaults to `fov_ra_fg`.
     nside : int
         Nside resolution of the HEALPix map.  Defaults to 256.
-    telescope_latlonalt : tuple
+    telescope_latlonalt : tuple, optional
         Tuple containing the latitude, longitude, and altitude of the
-        telescope in degrees, degrees, and meters, respectively.
+        telescope in degrees, degrees, and meters, respectively.  Defaults
+        to the location of the HERA telescope, i.e. (-30.72152777777791, 
+        21.428305555555557, 1073.0000000093132).
     central_jd : float
         Central time step of the observation in JD2000 format.
-    nt : int
+    nt : int, optional
         Number of time integrations. Defaults to 1.
     int_time : float, optional
-        Integration time in seconds. Required if ``nt>1``.
+        Integration time in seconds. Required if ``nt > 1``.
     beam_type : str, optional
         Can be either a path to a pyuvdata.UVBeam compatible
         file or one of {'uniform', 'gaussian', 'airy'}.  Defaults to 'uniform'.
     peak_amp : float, optional
         Peak amplitude of the beam.  Defaults to 1.0.
     fwhm_deg : float, optional
-        Required if ``beam_type='gaussian'``. Sets the full width at half
+        Required if ``beam_type = 'gaussian'``. Sets the full width at half
         maximum of the beam in degrees.
     diam : float, optional
-        Antenna (aperture) diameter in meters.  Used if ``beam_type='airy'``.
+        Antenna (aperture) diameter in meters.  Used if ``beam_type = 'airy'``.
 
     """
     def __init__(
             self,
-            fov_ra_deg=None,
-            fov_dec_deg=None,
+            fov_ra_eor=None,
+            fov_dec_eor=None,
+            fov_ra_fg=None,
+            fov_dec_fg=None,
             nside=256,
-            telescope_latlonalt=None,
+            telescope_latlonalt=HERA_LAT_LON_ALT,
             central_jd=None,
             nt=1,
             int_time=None,
@@ -80,30 +93,53 @@ class Healpix(HEALPix):
         # useful astropy_healpix functions
         super().__init__(nside, frame=ICRS())
 
-        self.fov_ra_deg = fov_ra_deg
-        if fov_dec_deg is None:
-            self.fov_dec_deg = fov_ra_deg
+        assert fov_ra_eor is not None, \
+            "Missing required keyword argument: fov_ra_eor ."
+
+        self.fov_ra_eor = fov_ra_eor
+        if fov_dec_eor is None:
+            self.fov_dec_eor = self.fov_ra_eor
         else:
-            self.fov_dec_deg = fov_dec_deg
-        self.pixel_area_sr = self.pixel_area.value
-        self.lat, self.lon, self.alt = telescope_latlonalt
+            self.fov_dec_eor = fov_dec_eor
+        
+        if fov_ra_fg is None:
+            self.fov_ra_fg = self.fov_ra_eor
+            self.fov_dec_fg = self.fov_dec_eor
+            self.fovs_match = True
+        else:
+            assert fov_ra_fg >= fov_ra_eor, \
+                "fov_ra_fg must be greater than or equal to fov_ra_eor."
+            self.fov_ra_fg = fov_ra_fg
+            if fov_dec_fg is None:
+                self.fov_dec_fg = self.fov_ra_fg
+            else:
+                self.fov_dec_fg = fov_dec_fg
+            self.fovs_match = np.logical_and(
+                self.fov_ra_eor == self.fov_ra_fg,
+                self.fov_dec_eor == self.fov_dec_fg
+            )
+
+        self.pixel_area_sr = self.pixel_area.to('sr').value
+        self.tele_lat, self.tele_lon, self.tele_alt = telescope_latlonalt
         # Set telescope location
         telescope_xyz = uvutils.XYZ_from_LatLonAlt(
-            self.lat * np.pi / 180,
-            self.lon * np.pi / 180,
-            self.alt
-            )
+            self.tele_lat * np.pi / 180,
+            self.tele_lon * np.pi / 180,
+            self.tele_alt
+        )
         self.telescope_location = EarthLocation.from_geocentric(
             *telescope_xyz, unit='m'
-            )
+        )
 
         # Calculate field center in (RA, DEC)
         self.central_jd = central_jd
         t = Time(self.central_jd, scale='utc', format='jd')
-        zen = AltAz(alt=Angle('90d'),
-                    az=Angle('0d'),
-                    obstime=t,
-                    location=self.telescope_location)
+        zen = AltAz(
+            alt=Angle('90d'),
+            az=Angle('0d'),
+            obstime=t,
+            location=self.telescope_location
+        )
         zen_radec = zen.transform_to(ICRS())
         self.field_center = (zen_radec.ra.deg, zen_radec.dec.deg)
 
@@ -116,18 +152,22 @@ class Healpix(HEALPix):
             self.time_inds = np.arange(-(self.nt // 2), self.nt // 2)
         # Calculate JD per integration from `central_jd`
         if self.int_time is not None:
-            self.jds = (self.central_jd
-                        + self.time_inds * self.int_time * DAYS_PER_SEC)
+            self.jds = (
+                self.central_jd
+                + self.time_inds * self.int_time * DAYS_PER_SEC
+            )
         else:
             self.jds = np.array([self.central_jd])
         # Calculate pointing center per integration
         self.pointing_centers = []
         for jd in self.jds:
             t = Time(jd, scale='utc', format='jd')
-            zen = AltAz(alt=Angle('90d'),
-                        az=Angle('0d'),
-                        obstime=t,
-                        location=self.telescope_location)
+            zen = AltAz(
+                alt=Angle('90d'),
+                az=Angle('0d'),
+                obstime=t,
+                location=self.telescope_location
+            )
             zen_radec = zen.transform_to(ICRS())
             self.pointing_centers.append((zen_radec.ra.deg, zen_radec.dec.deg))
 
@@ -146,14 +186,6 @@ class Healpix(HEALPix):
                 # assume beam_type is a path to a UVBeam compatible file
                 uvb = UVBeam()
                 uvb.read_beamfits(beam_type)
-                # assert uvb.pixel_coordinate_system == 'healpix', (
-                #     "UVBeam.pixel_coordinate_system must be 'healpix', "
-                #     "not {}".format(uvb.pixel_coordinate_system)
-                # )
-                # assert uvb.nside == self.nside, (
-                #     f"UVBeam.nside ({uvb.nside}) and self.nside ({self.nside})"
-                #     " do not match."
-                # )
                 assert uvb.beam_type == 'power', (
                     "UVBeam.beam_type must be 'power', not '{}'.".format(
                         uvb.beam_type
@@ -190,77 +222,142 @@ class Healpix(HEALPix):
         self.diam = diam
         self.cosfreq = cosfreq
 
-        # Pixel params
-        self.pix = None  # HEALPix pixel numbers within the FoV
-        self.npix_fov = None  # Number of pixels within the FoV
-        self.ra = None  # Right ascension values of HEALPix pixels
-        self.dec = None  # Declination values of HEALPix pixels
-        # Set self.pix and self.npix_fov
-        self.set_pixel_filter()
+        # Pixel filters
+        pix_eor, ra_eor, dec_eor = self.get_pixel_filter(
+            self.fov_ra_eor, self.fov_dec_eor, return_radec=True
+        )
+        self.pix_eor = pix_eor
+        self.ra_eor = ra_eor
+        self.dec_eor = dec_eor
+        self.npix_fov_eor = self.pix_eor.size
 
-    def set_pixel_filter(self, inverse=False):
+        if self.fovs_match:
+            self.pix_fg = self.pix_eor.copy()
+            self.ra_fg = self.ra_eor.copy()
+            self.dec_fg = self.dec_eor.copy()
+            self.npix_fov_fg = self.pix_fg.size
+        else:
+            pix_fg, ra_fg, dec_fg = self.get_pixel_filter(
+                self.fov_ra_fg, self.fov_dec_fg, return_radec=True
+            )
+            self.pix_fg = pix_fg
+            self.npix_fov_fg = self.pix_fg.size
+            self.ra_fg = ra_fg
+            self.dec_fg = dec_fg
+        self.npix_fov = np.max((self.npix_fov_eor, self.npix_fov_fg))
+        self.fov_ra = np.max((self.fov_ra_eor, self.fov_ra_fg))
+        self.fov_dec = np.max((self.fov_dec_eor, self.fov_dec_fg))
+        # If the FoV values of the two models are different, so to are their
+        # HEALPix pixel index arrays.  This mask allows you to take a set of
+        # pixel values for the EoR model and propagate them into the FG model.
+        self.eor_to_fg_pix = np.in1d(self.pix_fg, self.pix_eor)
+            
+
+    def get_pixel_filter(
+            self, fov_ra, fov_dec, return_radec=False, inverse=False):
         """
-        Filter pixels that lie outside of a rectangular region
-        centered on `self.field_center`.  This rectangular region is
-        constructed such that the arc length of each side is identical.
+        Return HEALPix pixel indices lying inside a rectangular region.
 
-        This function updates the following attributes in-place:
-        pix : array of ints
-            Array of HEALPix pixel indices lying within the rectangular
-            region with shape (npix_fov,).
-        npix_fov : int
-            Number of HEALPix pixels lying within the rectangular region
-        ra : array of floats
-            Array of right ascension values for each pixel in `self.pix`.
-        dec : array of floats
-            Array of declination values for each pixel in `self.pix`.
+        This function gets the HEALPix pixel indices for all pixel centers
+        lying inside a ractangle with equal arc length on all sides.
 
         Parameters
         ----------
+        fov_ra : float
+            Field of view in degrees of the RA axis.
+        fov_dec : float
+            Field of view in degrees of the DEC axis.
+        return_radec : bool
+            Return the (RA, DEC) coordinates associated with each pixel center.
+            Defaults to False.
         inverse : boolean
             If `False`, return the pixels within the rectangular region.
             If `True`, return the pixels outside the rectangular region.
+
+        Returns
+        -------
+        pix : array
+            HEALPix pixel numbers lying within the rectangular region set by
+            `fov_ra` and `fov_dec`.
+        ra : array
+            Array of RA values for each pixel center.  Only returned if
+            ``return_radec = True``.
+        dec : array
+            Array of DEC values for each pixel center.  Only returned if
+            ``return_radec = True``.
 
         """
         lons, lats = hp.pix2ang(
             self.nside,
             np.arange(self.npix),
             lonlat=True
-            )
+        )
         thetas = (90 - lats) * np.pi / 180
-        if self.field_center[0] - self.fov_ra_deg/2 < 0:
+        if self.field_center[0] - fov_ra/2 < 0:
             lons[lons > 180] -= 360  # lons in (-180, 180]
         lons_inds = np.logical_and(
-            (lons - self.field_center[0])*np.sin(thetas) >= -self.fov_ra_deg/2,
-            (lons - self.field_center[0])*np.sin(thetas) <= self.fov_ra_deg/2,
+            (lons - self.field_center[0])*np.sin(thetas) >= -fov_ra/2,
+            (lons - self.field_center[0])*np.sin(thetas) <= fov_ra/2,
             )
         lats_inds = np.logical_and(
-            lats >= self.field_center[1] - self.fov_dec_deg / 2,
-            lats <= self.field_center[1] + self.fov_dec_deg / 2
+            lats >= self.field_center[1] - fov_dec / 2,
+            lats <= self.field_center[1] + fov_dec / 2
             )
         if inverse:
             pix = np.where(np.logical_not(lons_inds * lats_inds))[0]
         else:
             pix = np.where(lons_inds * lats_inds)[0]
-        self.pix = pix
-        self.npix_fov = pix.size
         lons[lons < 0] += 360  # RA in [0, 360)
-        self.ra = lons[pix]
-        self.dec = lats[pix]
 
-    def calc_lmn_from_radec(self, time, return_azza=False, radec_offset=None):
+        if not return_radec:
+            return pix
+        else:
+            return pix, lons[pix], lats[pix]
+    
+    def get_extent_ra_dec(self, fov_ra, fov_dec, fov_fac=1.0):
         """
-        Return arrays of (l, m, n) coordinates in radians of all
-        HEALPix pixels within the region set by `self.pix`. The pixels
-        used in this calculation are set by `self.set_pixel_filter()`.
+        Get the sampled extent of the sky in RA and DEC.
 
-        Adapted from `pyradiosky.skymodel.update_positions`.
+        Parameters
+        ----------
+        fov_ra : float
+            Field of view in degrees of the RA axis.
+        fov_dec : float
+            Field of view in degrees of the DEC axis.
+        fov_fac : float
+            Scaling factor for the sampled extent.
+
+        Returns
+        -------
+        range_ra : tuple
+            `fov_fac` scaled (min, max) sampled RA values.
+        range_dec : tuple
+            `fov_fac` scaled (min, max) sampled DEC values.
+
+        """
+        range_ra = [
+            self.field_center[0] - fov_fac*fov_ra/2,
+            self.field_center[0] + fov_fac*fov_ra/2
+        ]
+        range_dec = [
+            self.field_center[1] - fov_fac*fov_dec/2,
+            self.field_center[1] + fov_fac*fov_dec/2
+        ]
+        return range_ra, range_dec
+
+    def calc_lmn_from_radec(
+            self, time, ra, dec, return_azza=False, radec_offset=None):
+        """
+        Return arrays of (l, m, n) coordinates in radians for all (RA, DEC).
 
         Parameters
         ----------
         time : float
-            Julian date at which to convert from ICRS to AltAz coordinate
-            frames.
+            Julian date used in ICRS to AltAz coordinate frame conversion.
+        ra : array
+            Array of RA values in degrees.
+        dec : array
+            Array of DEC values in degrees.
         return_azza : boolean
             If True, return both (l, m, n) and (az, za) coordinate arrays.
             Otherwise return only (l, m, n).  Defaults to 'False'.
@@ -276,14 +373,19 @@ class Healpix(HEALPix):
         n : np.ndarray of floats
             Array containing the radial direction cosine of each HEALPix pixel.
 
+        Notes
+        -----
+        * Adapted from `pyradiosky.skymodel.update_positions` 
+          (https://github.com/RadioAstronomySoftwareGroup/pyradiosky).
+
         """
         if not isinstance(time, Time):
             time = Time(time, format='jd')
 
-        skycoord = SkyCoord(self.ra*u.deg, self.dec*u.deg, frame='icrs')
+        skycoord = SkyCoord(ra*u.deg, dec*u.deg, frame='icrs')
         altaz = skycoord.transform_to(
             AltAz(obstime=time, location=self.telescope_location)
-            )
+        )
         az = altaz.az.rad
         za = np.pi/2 - altaz.alt.rad
 
@@ -300,7 +402,8 @@ class Healpix(HEALPix):
     def get_beam_vals(self, az, za, freq=None):
         """
         Get an array of beam values from (az, za) coordinates.
-        If `self.beam_type='gaussian'`, this function assumes that the
+        
+        If ``self.beam_type = 'gaussian'``, this function assumes that the
         beam width is symmetric along the l and m axes.
 
         Parameters
@@ -361,8 +464,7 @@ class Healpix(HEALPix):
 
     def _gaussian_za(self, za, sigma, amp):
         """
-        Calculates an azimuthally symmetric Gaussian beam from an array of
-        zenith angles.
+        Calculate azimuthally symmetric Gaussian beam amplitudes.
 
         Parameters
         ----------
@@ -384,8 +486,7 @@ class Healpix(HEALPix):
     
     def _gausscosine(self, za, sigma, amp, cosfreq):
         """
-        Calculates an azimuthally symmetric Gaussian * cosine^2 beam from an
-        array of zenith angles.
+        Calculate azimuthally symmetric Gaussian * cosine^2 beam amplitudes.
 
         Parameters
         ----------
@@ -410,8 +511,7 @@ class Healpix(HEALPix):
 
     def _fwhm_to_stddev(self, fwhm):
         """
-        Converts a full width half maximum to a standard deviation for a
-        Gaussian beam.
+        Calculate standard deviation from full width at half maximum.
 
         Parameters
         ----------
@@ -423,7 +523,7 @@ class Healpix(HEALPix):
 
     def _airy_disk(self, za, diam, freq):
         """
-        Airy disk calculation from an array of zenith angles.
+        Calculate Airy disk amplitudes.
 
         Parameters
         ----------
@@ -453,10 +553,7 @@ class Healpix(HEALPix):
 
     def _fwhm_to_diam(self, fwhm, freq):
         """
-        Converts the full width at half maximum in degrees of a Gaussian into
-        an effective dish diameter for use in the calculation of an Airy disk.
-
-        Modified from `pyuvsim.analyticbeam.diameter_to_sigma`.
+        Calculates the effective diameter of an Airy disk from a FWHM.
 
         Parameters
         ----------
@@ -472,21 +569,22 @@ class Healpix(HEALPix):
             pattern whose main lobe is described by a Gaussian beam with a
             FWHM of `fwhm`.
 
+        Notes
+        -----
+        * Modified from `pyuvsim.analyticbeam.diameter_to_sigma`
+          (https://github.com/RadioAstronomySoftwareGroup/pyuvsim).
+
+
         """
         scalar = 2.2150894
         wavelength = c_ms / freq
         fwhm = np.deg2rad(fwhm)
-        diam = (scalar * wavelength
-                / (np.pi * np.sin(fwhm / np.sqrt(2)))
-                )
+        diam = scalar * wavelength / (np.pi * np.sin(fwhm / np.sqrt(2)))
         return diam
 
     def _diam_to_stddev(self, diam, freq):
         """
-        Approximates the effective standard deviation in radians of an Airy
-        disk corresponding to an antenna with a diameter of `diam` in meters.
-
-        Copied from `pyuvsim.analyticbeam.diameter_to_sigma`.
+        Calculate an effective standard deviation of an Airy disk.
 
         Parameters
         ----------
@@ -500,6 +598,11 @@ class Healpix(HEALPix):
         sigma : float
             Standard deviation of a Gaussian envelope which describes the main
             lobe of an Airy disk with aperture `diam`.
+
+        Notes
+        -----
+        * Copied from `pyuvsim.analyticbeam.diameter_to_sigma`
+          (https://github.com/RadioAstronomySoftwareGroup/pyuvsim).
 
         """
         scalar = 2.2150894

@@ -10,101 +10,132 @@ def BayesEoRParser():
     """
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-nq", "--nq",
+        "--nu",
         type=int,
-        help="Number of Large Spectral Scale Model (LSSM) quadratic modes."
+        help="Number of pixels on the u-axis of the model uv-plane for the EoR"
+             " model."
     )
     parser.add_argument(
-        '--nu',
+        "--nv",
         type=int,
-        help="Number of pixels on the u-axis of the model uv-plane."
+        help="Number of pixels on the v-axis of the model uv-plane for the EoR"
+             " model. Defaults to `nu`."
     )
     parser.add_argument(
-        '--nv',
-        type=int,
-        help="Number of pixels on the v-axis of the model uv-plane. "
-             "Defaults to `nu`."
+        "--fov_ra_eor",
+        type=float,
+        help="Field of view of the Right Ascension (RA) axis of the EoR sky "
+             "model in degrees."
     )
     parser.add_argument(
-        "-beta", "--beta",
+        "--fov_dec_eor",
+        type=float,
+        help="Field of view of the Declination (DEC) axis of the EoR sky model"
+             " in degrees."
+    )
+    parser.add_argument(
+        "--nside",
+        type=int,
+        help="HEALPix resolution parameter. Sets the resolution of the "
+             "sky model."
+    )
+    parser.add_argument(
+        "--nu_fg",
+        type=int,
+        help="Number of pixels on the u-axis of the model uv-plane for the FG"
+             " model."
+    )
+    parser.add_argument(
+        "--nv_fg",
+        type=int,
+        help="Number of pixels on the v-axis of the model uv-plane for the FG"
+             " model. Defaults to `nu_fg`."
+    )
+    parser.add_argument(
+        "--fov_ra_fg",
+        type=float,
+        help="Field of view of the Right Ascension (RA) axis of the FG sky "
+             "model in degrees."
+    )
+    parser.add_argument(
+        "--fov_dec_fg",
+        type=float,
+        help="Field of view of the Declination (DEC) axis of the FG sky model"
+             " in degrees."
+    )
+    parser.add_argument(
+        "--fit_for_monopole",
+        action="store_true",
+        help="If passed, include the (u, v) = (0, 0) pixel in the "
+             "model uv-plane."
+    )
+    parser.add_argument(
+        "--nq",
+        type=int,
+        help="Number of Large Spectral Scale Model (LSSM) basis vectors."
+    )
+    parser.add_argument(
+        "--beta",
         help="Power law spectral index used in data model"
     )
     parser.add_argument(
-        '--sigma',
+        "--sigma",
         type=float,
         help="RMS of the visibility noise."
     )
     parser.add_argument(
-        '--data_path',
+        "--data_path",
         type=str,
         help="Path to numpy readable visibility data file in mK sr.",
         default=None
     )
     parser.add_argument(
-        '--noise_data_path',
+        "--noise_data_path",
         type=str,
         help="Path to noise file associated with data_path argument.",
         default=None
     )
     parser.add_argument(
-        '--noise_seed',
+        "--noise_seed",
         type=int,
         help="Seed for numpy.random. Used to generate the noise vector. "
              "Defaults to 742123.",
         default=742123
     )
     parser.add_argument(
-        '--beam_type',
+        "--beam_type",
         type=str,
         help="Can be 'gaussian', 'uniform', or 'airy' (case insensitive)."
     )
     parser.add_argument(
-        '--beam_peak_amplitude',
+        "--beam_peak_amplitude",
         type=float,
         help="Peak amplitude of the beam."
     )
     parser.add_argument(
-        '--fwhm_deg',
+        "--fwhm_deg",
         type=float,
         help="Full Width at Half Maximum (FWHM) of beam in degrees."
     )
     parser.add_argument(
-        '--antenna_diameter',
+        "--antenna_diameter",
         type=float,
         help="Antenna diameter in meters used for Airy beam calculations."
     )
     parser.add_argument(
-        '--cosfreq',
+        "--cosfreq",
         type=float,
-        help='Cosine frequency if using a \'gausscosine\' beam.'
+        help="Cosine frequency if using a 'gausscosine' beam."
     )
     parser.add_argument(
-        '--overwrite_matrices',
-        action='store_true',
+        "--overwrite_matrices",
+        action="store_true",
         default=False,
-        dest='overwrite_matrices',
+        dest="overwrite_matrices",
         help="If passed, overwrite existing matrix stack."
     )
     parser.add_argument(
-        '--fov_ra_deg',
-        type=float,
-        help="Field of view of the Right Ascension (RA) axis of the sky model "
-             "in degrees."
-    )
-    parser.add_argument(
-        '--fov_dec_deg',
-        type=float,
-        help="Field of view of the Declination (DEC) axis of the sky model in "
-             "degrees."
-    )
-    parser.add_argument(
-        '--nside',
-        type=int,
-        help="HEALPix resolution parameter. Sets the resolution of the "
-             "sky model."
-    )
-    parser.add_argument(
-        '--beam_center',
+        "--beam_center",
         type=str,
         help="Sets the beam pointing center in (RA, DEC) relative to "
              "the pointing center of the sky model defined by "
@@ -113,20 +144,14 @@ def BayesEoRParser():
              "--beam_center=\"(RA_offset,DEC_offset)\" with no spaces."
     )
     parser.add_argument(
-        '--phased',
-        action='store_true',
+        "--phased",
+        action="store_true",
         help="If passed, the data are treated as phased."
     )
     parser.add_argument(
-        '--fit_for_monopole',
-        action='store_true',
-        help="If passed, include the (u, v) = (0, 0) pixel in the "
-             "model uv-plane."
-    )
-    parser.add_argument(
-        '--uprior_bins',
+        "--uprior_bins",
         type=str,
-        default='',
+        default="",
         help="Array indices of k-bins using a uniform prior.  Follows python "
              "slicing syntax.  Can pass a range via '1:4' (non-inclusive high "
              "end), a list of indices via '1,4,6' (no spaces between commas), "
@@ -134,47 +159,47 @@ def BayesEoRParser():
              "string (all k-bins use log-uniform priors)."
     )
     parser.add_argument(
-        '--file_root',
+        "--file_root",
         type=str,
         help="Sets the file root for the sampler (Multinest/Polychord) output."
              " If passed, analysis will continue from the last checkpoint in "
              "the output file specified."
     )
     parser.add_argument(
-        '--use_shg',
-        action='store_true',
+        "--use_shg",
+        action="store_true",
         help="If passed, use the SubHarmonic Grid (SHG)."
     )
     parser.add_argument(
-        '--nu_sh',
+        "--nu_sh",
         type=int,
         help="Number of pixels on a side for the u-axis in the SHG "
              "model uv-plane."
     )
     parser.add_argument(
-        '--nv_sh',
+        "--nv_sh",
         type=int,
         help="Number of pixels on a side for the v-axis in the SHG "
              "model uv-plane."
     )
     parser.add_argument(
-        '--nq_sh',
+        "--nq_sh",
         type=int,
         help="Number of LSSM quadratic modes for the SHG."
     )
     parser.add_argument(
-        '--npl_sh',
+        "--npl_sh",
         type=int,
         help="Number of power law coefficients used in the LSSM for the "
              "subharmonic grid."
     )
     parser.add_argument(
-        '--fit_for_shg_amps',
-        action='store_true',
+        "--fit_for_shg_amps",
+        action="store_true",
         help="If passed, fit for the amplitudes of the SHG pixels."
     )
     parser.add_argument(
-        '--taper_func',
+        "--taper_func",
         type=str,
         default=None,
         help="Tapering function to apply to the frequency axis of the model "

@@ -44,28 +44,52 @@ if p.beam_center is not None:
         ),
         rank=mpi_rank
     )
-npl = p.npl
-nq = p.nq
-if nq > npl:
-    nq = npl
+
+# Frequency axis params
 nf = p.nf
 neta = p.neta
-if not p.include_instrumental_effects:
-    neta = neta - nq
+p.deta = 1.0 / (p.nf*p.channel_width_MHz*1e6)
+
+# EoR model params
 nu = p.nu
 if p.nv is None:
     p.nv = nu
 nv = p.nv
-nuv = nu*nv - 1*(not p.fit_for_monopole)
+nuv = nu*nv - 1
+if p.fov_dec_eor is None:
+    p.fov_dec_eor = p.fov_ra_eor
+p.du_eor = 1.0 / np.deg2rad(p.fov_ra_eor)
+p.dv_eor = 1.0 / np.deg2rad(p.fov_dec_eor)
 
+# FG model params
+if p.nu_fg is None:
+    p.nu_fg = nu
+    p.nv_fg = nv
+nu_fg = p.nu_fg
+if p.nv_fg is None:
+    p.nv_fg = nu_fg
+nv_fg = p.nv_fg
+nuv_fg = nu_fg*nv_fg - (not p.fit_for_monopole)
+if p.fov_ra_fg is None:
+    p.fov_ra_fg = p.fov_ra_eor
+    p.fov_dec_fg = p.fov_dec_eor
+elif p.fov_dec_fg is None:
+    p.fov_dec_fg = p.fov_ra_fg
+p.du_fg = 1.0 / np.deg2rad(p.fov_ra_fg)
+p.dv_fg = 1.0 / np.deg2rad(p.fov_dec_fg)
+# LSSM params
+npl = p.npl
+nq = p.nq
+if nq > npl:
+    nq = npl
+if not p.include_instrumental_effects:
+    neta = neta - nq
+
+# Sky model params
 if p.fov_dec_deg is None:
     p.fov_dec_deg = p.fov_ra_deg
 
-p.delta_u_irad = 1.0 / np.deg2rad(p.fov_ra_deg)
-p.delta_v_irad = 1.0 / np.deg2rad(p.fov_dec_deg)
-p.delta_eta_iHz = 1.0 / (p.nf*p.channel_width_MHz*1e6)
-p.sky_model_pixel_area_sr = 4 * np.pi / (12 * p.nside**2)
-
+# SHG params
 nu_sh = p.nu_sh
 if p.nv_sh is None:
     p.nv_sh = nu_sh
@@ -157,42 +181,71 @@ if p.include_instrumental_effects:
     else:
         sigma = sigma*1.
 else:
+    n_vis = 0
     sigma = sigma*1.
 
 # Auxiliary and derived params
-Show = False
 chan_selection = ''
 
 # --------------------------------------------
 # Construct matrices
 # --------------------------------------------
-current_file_version = 'likelihood-v2.10'
+current_file_version = 'likelihood-v2.13'
 array_save_directory = (
     'beor-sim-paper/'
-    + '{}-nu-{}-nv-{}-neta-{}-nq-{}-sigma-{:.2E}'.format(
-        current_file_version, nu, nv, neta, nq, sigma
+    + '{}-nu-{}-nv-{}-neta-{}-sigma-{:.2E}'.format(
+        current_file_version, nu, nv, neta, sigma
     )
 )
-if nq > 0:
-    if npl == 1:
-        array_save_directory = array_save_directory.replace(
-            '-sigma',
-            '-beta-{:.2E}-sigma'.format(p.beta)
-        )
-    elif npl == 2:
-        array_save_directory = array_save_directory.replace(
-            '-sigma',
-            '-b1-{:.2E}-b2-{:.2E}-sigma'.format(*p.beta)
-        )
-if p.fit_for_monopole:
-    array_save_directory += '-ffm'
 array_save_directory += f'-nside-{p.nside}'
 
-if p.fov_ra_deg != p.fov_dec_deg:
-    fov_str = f'-fov-deg-ra-{p.fov_ra_deg:.1f}-dec-{p.fov_dec_deg:.1f}'
+fovs_match = (
+    p.fov_ra_eor == p.fov_ra_fg
+    and p.fov_dec_eor == p.fov_dec_fg
+)
+fov_str = '-fov-deg'
+if not fovs_match:
+    fov_str += '-eor'
+if p.fov_ra_eor != p.fov_dec_eor:
+    fov_str += f'-ra-{p.fov_ra_eor:.1f}-dec-{p.fov_dec_eor:.1f}'
 else:
-    fov_str = f'-fov-deg-{p.fov_ra_deg:.1f}'
+    fov_str += f'-{p.fov_ra_eor:.1f}'
+if not fovs_match:
+    fov_str += '-fg'
+    if p.fov_ra_fg != p.fov_dec_fg:
+        fov_str = f'-ra-{p.fov_ra_fg:.1f}-dec-{p.fov_dec_fg:.1f}'
+    else:
+        fov_str = f'-{p.fov_ra_fg:.1f}'
 array_save_directory += fov_str
+
+nu_nv_match = (
+    nu == nu_fg and nv == nv_fg
+)
+if not nu_nv_match:
+    array_save_directory += f'-nufg-{nu_fg}-nvfg-{nv_fg}'
+
+array_save_directory += f'-nq-{nq}'
+if nq > 0:
+    if npl == 1:
+        array_save_directory += '-beta-{:.2E}'.format(p.beta)
+    elif npl == 2:
+        array_save_directory += '-b1-{:.2E}-b2-{:.2E}-sigma'.format(*p.beta)
+if p.fit_for_monopole:
+    array_save_directory += '-ffm'
+
+if p.use_shg:
+    shg_str = '-shg'
+    if nu_sh > 0:
+        shg_str += f'-nush-{nu_sh}'
+    if nv_sh > 0:
+        shg_str += f'-nvsh-{nv_sh}'
+    if nq_sh > 0:
+        shg_str += f'-nqsh-{nq_sh}'
+    if npl_sh > 0:
+        shg_str += f'-nplsh-{npl_sh}'
+    if p.fit_for_shg_amps:
+        shg_str += '-ffsa'
+    array_save_directory += shg_str
 
 if p.beam_center is not None:
     beam_center_signs = [
@@ -212,20 +265,6 @@ if p.phased:
 if p.taper_func is not None:
     array_save_directory += f'-{p.taper_func}'
 
-if p.use_shg:
-    shg_str = '_shg'
-    if nu_sh > 0:
-        shg_str += f'-nush-{nu_sh}'
-    if nv_sh > 0:
-        shg_str += f'-nvsh-{nv_sh}'
-    if nq_sh > 0:
-        shg_str += f'-nqsh-{nq_sh}'
-    if npl_sh > 0:
-        shg_str += f'-nplsh-{npl_sh}'
-    if p.fit_for_shg_amps:
-        shg_str += '-ffsa'
-    array_save_directory += shg_str
-
 if p.include_instrumental_effects:
     beam_info_str = ''
     if not '.' in p.beam_type:
@@ -240,14 +279,6 @@ if p.include_instrumental_effects:
                 beam_info_str += f'-fwhm-{p.fwhm_deg}deg'
             elif p.antenna_diameter is not None:
                 beam_info_str += f'-antenna-diameter-{p.antenna_diameter}m'
-            else:
-                mpiprint(
-                    '\nIf using a Gaussian beam, must specify either a FWHM in'
-                    ' deg or an antenna diameter in meters.\nExiting...',
-                    end='\n\n',
-                    rank=mpi_rank
-                )
-                sys.exit()
             if p.beam_type == 'gausscosine':
                 beam_info_str += f'-cosfreq-{p.cosfreq:.2f}wls'
         elif p.beam_type in ['airy', 'taperairy']:
@@ -268,8 +299,6 @@ if p.include_instrumental_effects:
     array_save_directory = os.path.join(
         array_save_directory, instrument_info
     )
-else:
-    n_vis = 0
 
 array_save_directory = Path('array_storage') / array_save_directory
 array_save_directory = str(array_save_directory)
@@ -278,33 +307,58 @@ if not array_save_directory.endswith('/'):
 mpiprint('\nArray save directory: {}'.format(array_save_directory),
          rank=mpi_rank)
 
-
-if p.include_instrumental_effects:
-    BM = BuildMatrices(
-        array_save_directory, nu, nv,
-        n_vis, neta, nf, nq, sigma, npl=npl,
-        uvw_array_m=uvw_array_m,
-        bl_red_array=bl_red_array,
-        bl_red_array_vec=bl_red_array_vec,
-        phasor_vec=phasor_vec,
-        beam_type=p.beam_type,
-        beam_peak_amplitude=p.beam_peak_amplitude,
-        beam_center=p.beam_center,
-        fwhm_deg=p.fwhm_deg,
-        antenna_diameter=p.antenna_diameter,
-        cosfreq=p.cosfreq,
-        delta_u_irad=p.delta_u_irad, delta_v_irad=p.delta_v_irad,
-        delta_eta_iHz=p.delta_eta_iHz,
-        use_shg=p.use_shg, fit_for_shg_amps=p.fit_for_shg_amps,
-        nu_sh=nu_sh, nv_sh=nv_sh, nq_sh=nq_sh, npl_sh=npl_sh,
-        effective_noise=effective_noise,
-        taper_func=p.taper_func
-    )
-else:
-    BM = BuildMatrices(
-        array_save_directory, nu, nv,
-        n_vis, neta, nf, nq, sigma, npl=npl
-    )
+BM = BuildMatrices(
+    array_save_directory,
+    p.include_instrumental_effects,
+    p.use_sparse_matrices,
+    nu,
+    nv,
+    n_vis,
+    neta,
+    nf,
+    p.nu_min_MHz,
+    p.channel_width_MHz,
+    nq,
+    p.nt,
+    p.integration_time_seconds,
+    sigma,
+    p.fit_for_monopole,
+    nside=p.nside,
+    central_jd=p.central_jd,
+    telescope_latlonalt=p.telescope_latlonalt,
+    drift_scan_pb=p.model_drift_scan_primary_beam,
+    beam_type=p.beam_type,
+    beam_peak_amplitude=p.beam_peak_amplitude,
+    beam_center=p.beam_center,
+    fwhm_deg=p.fwhm_deg,
+    antenna_diameter=p.antenna_diameter,
+    cosfreq=p.cosfreq,
+    du_eor=p.du_eor,
+    dv_eor=p.dv_eor,
+    du_fg=p.du_fg,
+    dv_fg=p.dv_fg,
+    deta=p.deta,
+    fov_ra_eor=p.fov_ra_eor,
+    fov_dec_eor=p.fov_dec_eor,
+    nu_fg=nu_fg,
+    nv_fg=nv_fg,
+    npl=npl,
+    beta=p.beta,
+    fov_ra_fg=p.fov_ra_fg,
+    fov_dec_fg=p.fov_dec_fg,
+    uvw_array_m=uvw_array_m,
+    bl_red_array=bl_red_array,
+    bl_red_array_vec=bl_red_array_vec,
+    phasor_vec=phasor_vec,
+    use_shg=p.use_shg,
+    fit_for_shg_amps=p.fit_for_shg_amps,
+    nu_sh=nu_sh,
+    nv_sh=nv_sh,
+    nq_sh=nq_sh,
+    npl_sh=npl_sh,
+    effective_noise=effective_noise,
+    taper_func=p.taper_func
+)
 
 if p.overwrite_matrices:
     mpiprint('Overwriting matrix stack', rank=mpi_rank)
@@ -329,10 +383,10 @@ redshift = cosmo.f2z((freqs_MHz.mean() * units.MHz).to('Hz'))
 # The various box size parameters determine the side lengths of the
 # cosmological volume from which the power spectrum is estimated
 ps_box_size_ra_Mpc = (
-    cosmo.dL_dth(redshift) * np.deg2rad(p.fov_ra_deg)
+    cosmo.dL_dth(redshift) * np.deg2rad(p.fov_ra_eor)
 )
 ps_box_size_dec_Mpc = (
-    cosmo.dL_dth(redshift) * np.deg2rad(p.fov_dec_deg)
+    cosmo.dL_dth(redshift) * np.deg2rad(p.fov_dec_eor)
 )
 ps_box_size_para_Mpc = (
     cosmo.dL_df(redshift) * (bandwidth_MHz * 1e6)
@@ -341,10 +395,10 @@ mod_k, k_x, k_y, k_z, x, y, z = generate_k_cube_in_physical_coordinates(
         nu, nv, neta, ps_box_size_ra_Mpc,
         ps_box_size_dec_Mpc, ps_box_size_para_Mpc
 )
-k_mask_vo, mod_k_vo = mask_k_cubes(k_x, k_y, k_z, mod_k, neta, nq, nuv)
+mod_k_vo = mask_k_cube(mod_k)
 k_cube_voxels_in_bin, modkbins_containing_voxels = \
     generate_k_cube_model_spherical_binning(
-        k_mask_vo, mod_k_vo, ps_box_size_para_Mpc
+        mod_k_vo, ps_box_size_para_Mpc
     )
 k_vals_file_name = (
     f'nu-{nu}-nv-{nv}-nf-{nf}{fov_str}-v3.txt'
@@ -355,15 +409,6 @@ k_vals = calc_mean_binned_k_vals(
     save_k_vals=True, k_vals_file=k_vals_file_name,
     rank=mpi_rank
 )
-
-# do_cylindrical_binning = False
-# if do_cylindrical_binning:
-#     # This needs to be updated to use the new k-cube masking function(s)
-#     n_k_perp_bins = 2
-#     k_cube_voxels_in_bin, modkbins_containing_voxels, k_perp_bins =\
-#         generate_k_cube_model_cylindrical_binning(
-#             mod_k_masked, k_z_masked, k_y_masked, k_x_masked,
-#             n_k_perp_bins, ps_box_size_para_Mpc)
 
 
 # --------------------------------------------
@@ -383,7 +428,7 @@ if p.include_instrumental_effects:
     if use_EoR_cube:
         Finv = BM.read_data_s2d(array_save_directory + 'Finv', 'Finv')
         s_EoR, white_noise_sky = generate_mock_eor_signal_instrumental(
-            Finv, nf, p.fov_ra_deg, p.fov_dec_deg, p.nside,
+            Finv, nf, p.fov_ra_eor, p.fov_dec_eor, p.nside,
             p.telescope_latlonalt, p.central_jd, p.nt,
             p.integration_time_seconds, rank=mpi_rank
         )
@@ -449,7 +494,6 @@ mpiprint(
 )
 mpiprint('effective_noise.std = {:.4e}'.format(effective_noise_std),
          rank=mpi_rank)
-mpiprint('dA = {:.4e}'.format(p.sky_model_pixel_area_sr), rank=mpi_rank)
 mpiprint(
     'effective SNR = {:.4e}'.format(s_EoR.std() / effective_noise_std),
     end='\n\n',

@@ -201,6 +201,7 @@ class PowerSpectrumPosteriorProbability(object):
         self.neta = neta
         self.nf = nf
         self.nq = nq
+        self.neor_uveta = self.nuv*(self.neta - 1)
         self.masked_power_spectral_modes = masked_power_spectral_modes
         self.Ninv = Ninv
         self.d_Ninv_d = d_Ninv_d
@@ -337,8 +338,8 @@ class PowerSpectrumPosteriorProbability(object):
 
     def calc_PowerI(self, x):
         """
-        Calculate an estimate of the variance of the k-cube (uveta cube) from
-        a set of power spectrum k-bin amplitudes `x`.
+        Calculate an estimate of the inverse variance of the k-cube (uveta
+        cube) from a set of power spectrum k-bin amplitudes `x`.
 
         Place restrictions on the power in the long spectral scale
         model either for,
@@ -368,7 +369,9 @@ class PowerSpectrumPosteriorProbability(object):
         q1_index = self.neta
         q2_index = self.neta + 1
         if self.use_shg:
-            cg_end = self.nuv*self.nf
+            # TODO: Needs to be updated for the new separate EoR and FG
+            # models if used in the future!!!
+            cg_end = self.nuv*(self.neta - 1)
         else:
             cg_end = None
 
@@ -376,6 +379,8 @@ class PowerSpectrumPosteriorProbability(object):
         dimensionless_PS_scaling =\
             self.calc_physical_dimensionless_power_spectral_normalisation(0)
         if p.use_LWM_Gaussian_prior:
+            # TODO: Needs to be updated for the new separate EoR and FG
+            # models if used in the future!!!
             Fourier_mode_start_index = 3
             PowerI[:cg_end][q0_index::self.neta+self.nq] =\
                 np.mean(dimensionless_PS_scaling) / x[0]
@@ -386,30 +391,19 @@ class PowerSpectrumPosteriorProbability(object):
         else:
             Fourier_mode_start_index = 0
             # Set to zero for a uniform distribution
-            PowerI[:cg_end][q0_index::self.neta+self.nq] =\
-                self.inverse_LW_power
-            PowerI[:cg_end][q1_index::self.neta+self.nq] =\
-                self.inverse_LW_power
-            PowerI[:cg_end][q2_index::self.neta+self.nq] =\
-                self.inverse_LW_power
+            PowerI[self.neor_uveta:] = self.inverse_LW_power
+            PowerI[self.neor_uveta:] = self.inverse_LW_power
+            PowerI[self.neor_uveta:] = self.inverse_LW_power
 
             if self.inverse_LW_power == 0.0:
                 # Set to zero for a uniform distribution
-                PowerI[:cg_end][q0_index::self.neta+self.nq] =\
-                    self.inverse_LW_power_zeroth_LW_term
-                PowerI[:cg_end][q1_index::self.neta+self.nq] =\
-                    self.inverse_LW_power_first_LW_term
-                PowerI[:cg_end][q2_index::self.neta+self.nq] =\
-                    self.inverse_LW_power_second_LW_term
-
-        if self.fit_for_monopole:
-            inds = slice(
-                self.nuv//2 * (self.neta + self.nq),
-                (self.nuv//2 + 1) * (self.neta + self.nq)
-            )
-            PowerI[inds] = self.inverse_LW_power
+                PowerI[self.neor_uveta:] = self.inverse_LW_power_zeroth_LW_term
+                PowerI[self.neor_uveta:] = self.inverse_LW_power_zeroth_LW_term
+                PowerI[self.neor_uveta:] = self.inverse_LW_power_zeroth_LW_term
 
         if self.use_shg:
+            # TODO: Needs to be updated for the new separate EoR and FG
+            # models if used in the future!!!
             # This should not be a permanent fix
             # Is a minimal prior on the SHG amplitudes
             # and LSSM the right choice?
