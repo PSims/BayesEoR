@@ -229,7 +229,7 @@ if nq > 0:
     if npl == 1:
         array_save_directory += '-beta-{:.2f}'.format(p.beta)
     elif npl == 2:
-        array_save_directory += '-b1-{:.2f}-b2-{:.2f}-sigma'.format(*p.beta)
+        array_save_directory += '-b1-{:.2f}-b2-{:.2f}'.format(*p.beta)
 if p.fit_for_monopole:
     array_save_directory += '-ffm'
 
