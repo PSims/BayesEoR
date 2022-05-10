@@ -37,7 +37,9 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import ImageGrid
 
 
-plt.rcParams.update({'font.size': 16, 'figure.figsize': (12, 8)})
+plt.rcParams.update(
+    {'font.size': 16, 'figure.figsize': (12, 8), 'figure.facecolor': 'w'}
+)
 DEFAULT_SAVE_DIR = str(
     Path(BayesEoR.__file__).parent / 'scripts'
 )
