@@ -255,8 +255,12 @@ class Healpix(HEALPix):
         self.tanh_sl_red = tanh_sl_red
 
         # Pixel filters
+        eor_all_sky = (
+            self.fov_ra_eor == 180 and self.fov_dec_eor == 180
+        )
         pix_eor, ra_eor, dec_eor = self.get_pixel_filter(
-            self.fov_ra_eor, self.fov_dec_eor, return_radec=True
+            self.fov_ra_eor, self.fov_dec_eor, return_radec=True,
+            rect=(not eor_all_sky)
         )
         self.pix_eor = pix_eor
         self.ra_eor = ra_eor
@@ -269,8 +273,12 @@ class Healpix(HEALPix):
             self.dec_fg = self.dec_eor.copy()
             self.npix_fov_fg = self.pix_fg.size
         else:
+            fg_all_sky = (
+                self.fov_ra_fg == 180 and self.fov_dec_fg == 180
+            )
             pix_fg, ra_fg, dec_fg = self.get_pixel_filter(
-                self.fov_ra_fg, self.fov_dec_fg, return_radec=True
+                self.fov_ra_fg, self.fov_dec_fg, return_radec=True,
+                rect=(not fg_all_sky)
             )
             self.pix_fg = pix_fg
             self.npix_fov_fg = self.pix_fg.size
@@ -285,12 +293,15 @@ class Healpix(HEALPix):
         self.eor_to_fg_pix = np.in1d(self.pix_fg, self.pix_eor)
 
     def get_pixel_filter(
-            self, fov_ra, fov_dec, return_radec=False, inverse=False):
+            self, fov_ra, fov_dec, return_radec=False, inverse=False,
+            rect=True):
         """
-        Return HEALPix pixel indices lying inside a rectangular region.
+        Return HEALPix pixel indices lying inside an observed region.
 
         This function gets the HEALPix pixel indices for all pixel centers
-        lying inside a ractangle with equal arc length on all sides.
+        lying inside
+        * a rectangle with equal arc length on all sides if ``rect = True``
+        * a circle with radius `fov_ra` if ``rect = False``
 
         Parameters
         ----------
@@ -298,17 +309,21 @@ class Healpix(HEALPix):
             Field of view in degrees of the RA axis.
         fov_dec : float
             Field of view in degrees of the DEC axis.
-        return_radec : bool
+        return_radec : bool, optional
             Return the (RA, DEC) coordinates associated with each pixel center.
             Defaults to False.
-        inverse : boolean
-            If `False`, return the pixels within the rectangular region.
-            If `True`, return the pixels outside the rectangular region.
+        inverse : boolean, optional
+            If `False`, return the pixels within the observed region.
+            If `True`, return the pixels outside the observed region.
+        rect : boolean, optional
+            If `True`, return the pixels inside a rectangular region with equal
+            arc length on all sides.  Otherwise, return the pixels inside a
+            circular region.
 
         Returns
         -------
         pix : array
-            HEALPix pixel numbers lying within the rectangular region set by
+            HEALPix pixel numbers lying within the observed region set by
             `fov_ra` and `fov_dec`.
         ra : array
             Array of RA values for each pixel center.  Only returned if
@@ -323,23 +338,28 @@ class Healpix(HEALPix):
             np.arange(self.npix),
             lonlat=True
         )
-        thetas = (90 - lats) * np.pi / 180
-        if self.field_center[0] - fov_ra/2 < 0:
-            lons[lons > 180] -= 360  # lons in (-180, 180]
-        lons_inds = np.logical_and(
-            (lons - self.field_center[0])*np.sin(thetas) >= -fov_ra/2,
-            (lons - self.field_center[0])*np.sin(thetas) <= fov_ra/2,
-            )
-        lats_inds = np.logical_and(
-            lats >= self.field_center[1] - fov_dec / 2,
-            lats <= self.field_center[1] + fov_dec / 2
-            )
-        if inverse:
-            pix = np.where(np.logical_not(lons_inds * lats_inds))[0]
+        if rect:
+            thetas = (90 - lats) * np.pi / 180
+            if self.field_center[0] - fov_ra/2 < 0:
+                lons[lons > 180] -= 360  # lons in (-180, 180]
+            lons_inds = np.logical_and(
+                (lons - self.field_center[0])*np.sin(thetas) >= -fov_ra/2,
+                (lons - self.field_center[0])*np.sin(thetas) <= fov_ra/2,
+                )
+            lats_inds = np.logical_and(
+                lats >= self.field_center[1] - fov_dec / 2,
+                lats <= self.field_center[1] + fov_dec / 2
+                )
+            if inverse:
+                pix = np.where(np.logical_not(lons_inds * lats_inds))[0]
+            else:
+                pix = np.where(lons_inds * lats_inds)[0]
+            lons[lons < 0] += 360  # RA in [0, 360)
         else:
-            pix = np.where(lons_inds * lats_inds)[0]
-        lons[lons < 0] += 360  # RA in [0, 360)
-
+            _, _, _, az, za = self.calc_lmn_from_radec(
+                self.central_jd, lons, lats, return_azza=True
+            )
+            pix = za <= np.pi/2
         if not return_radec:
             return pix
         else:

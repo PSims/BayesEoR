@@ -204,18 +204,28 @@ fovs_match = (
     and p.fov_dec_eor == p.fov_dec_fg
 )
 fov_str = '-fov-deg'
+eor_all_sky = (
+    p.fov_ra_eor == 180 and p.fov_dec_eor == 180
+)
+fg_all_sky = (
+    p.fov_ra_fg == 180 and p.fov_dec_fg == 180
+)
 if not fovs_match:
     fov_str += '-eor'
 if p.fov_ra_eor != p.fov_dec_eor:
     fov_str += f'-ra-{p.fov_ra_eor:.1f}-dec-{p.fov_dec_eor:.1f}'
 else:
     fov_str += f'-{p.fov_ra_eor:.1f}'
+if eor_all_sky:
+    fov_str += '-za-filter'
 if not fovs_match:
     fov_str += '-fg'
     if p.fov_ra_fg != p.fov_dec_fg:
         fov_str += f'-ra-{p.fov_ra_fg:.1f}-dec-{p.fov_dec_fg:.1f}'
     else:
         fov_str += f'-{p.fov_ra_fg:.1f}'
+    if fg_all_sky:
+        fov_str += '-za-filter'
 array_save_directory += fov_str
 
 nu_nv_match = (
