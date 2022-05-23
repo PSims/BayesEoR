@@ -359,7 +359,7 @@ class Healpix(HEALPix):
             _, _, _, az, za = self.calc_lmn_from_radec(
                 self.central_jd, lons, lats, return_azza=True
             )
-            pix = za <= np.pi/2
+            pix = np.where(za <= np.pi/2)[0]
         if not return_radec:
             return pix
         else:
