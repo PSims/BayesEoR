@@ -178,7 +178,7 @@ class BuildMatrixTree(object):
         """
         start = time.time()
         self.create_directory(output_directory)
-        output_path = '/'.join((output_directory, file_name))
+        output_path = Path(output_directory) / file_name
         print('Writing data to', output_path)
         with h5py.File(output_path, 'w') as hf:
             hf.create_dataset(dataset_name, data=output_array)
@@ -207,7 +207,7 @@ class BuildMatrixTree(object):
         """
         start = time.time()
         self.create_directory(output_directory)
-        output_path = '/'.join((output_directory, file_name))
+        output_path = Path(output_directory) / file_name
         print('Writing data to', output_path)
         sparse.save_npz(output_path, output_array.tocsr())
         print('Time taken: {}'.format(time.time() - start))
