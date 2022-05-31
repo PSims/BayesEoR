@@ -204,28 +204,20 @@ fovs_match = (
     and p.fov_dec_eor == p.fov_dec_fg
 )
 fov_str = '-fov-deg'
-eor_all_sky = (
-    p.fov_ra_eor == 180 and p.fov_dec_eor == 180
-)
-fg_all_sky = (
-    p.fov_ra_fg == 180 and p.fov_dec_fg == 180
-)
 if not fovs_match:
     fov_str += '-eor'
-if p.fov_ra_eor != p.fov_dec_eor:
+if p.fov_ra_eor != p.fov_dec_eor and not p.simple_za_filter:
     fov_str += f'-ra-{p.fov_ra_eor:.1f}-dec-{p.fov_dec_eor:.1f}'
 else:
     fov_str += f'-{p.fov_ra_eor:.1f}'
-if eor_all_sky:
-    fov_str += '-za-filter'
 if not fovs_match:
     fov_str += '-fg'
-    if p.fov_ra_fg != p.fov_dec_fg:
+    if p.fov_ra_fg != p.fov_dec_fg and not p.simple_za_filter:
         fov_str += f'-ra-{p.fov_ra_fg:.1f}-dec-{p.fov_dec_fg:.1f}'
     else:
         fov_str += f'-{p.fov_ra_fg:.1f}'
-    if fg_all_sky:
-        fov_str += '-za-filter'
+if p.simple_za_filter:
+    fov_str += '-za-filter'
 array_save_directory += fov_str
 
 nu_nv_match = (
@@ -356,6 +348,7 @@ BM = BuildMatrices(
     beta=p.beta,
     fov_ra_fg=p.fov_ra_fg,
     fov_dec_fg=p.fov_dec_fg,
+    simple_za_filter=p.simple_za_filter,
     uvw_array_m=uvw_array_m,
     bl_red_array=bl_red_array,
     bl_red_array_vec=bl_red_array_vec,

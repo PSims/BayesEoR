@@ -64,6 +64,14 @@ def BayesEoRParser():
              " in degrees."
     )
     parser.add_argument(
+        "--simple_za_filter",
+        action="store_true",
+        default=False,
+        help="If passed, filter pixels in the sky model by zenith angle only. "
+             "Otherwise, filter pixels in a rectangular region set by the FoV "
+             "values along the RA and DEC axes (default)."
+    )
+    parser.add_argument(
         "--fit_for_monopole",
         action="store_true",
         help="If passed, include the (u, v) = (0, 0) pixel in the "

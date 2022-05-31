@@ -365,6 +365,10 @@ class BuildMatrices(BuildMatrixTree):
         Field of view in degrees of the RA axis of the FG sky model.
     fov_dec_fg : float
         Field of view in degrees of the DEC axis of the FG sky model.
+    simple_za_filter : bool
+        If passed, filter pixels in the sky model by zenith angle only.
+        Otherwise, filter pixels in a rectangular region set by the FoV
+        values along the RA and DEC axes (default).
     nside : int
         HEALPix nside parameter.
     telescope_latlonalt : tuple
@@ -481,6 +485,7 @@ class BuildMatrices(BuildMatrixTree):
             self.fov_dec_fg = kwargs.pop(
                 'fov_dec_fg', self.fov_ra_fg
             )
+            self.simple_za_filter = kwargs.pop('simple_za_filter', False)
             self.nside = kwargs.pop('nside')
             self.central_jd = kwargs.pop('central_jd')
             self.telescope_latlonalt = kwargs.pop('telescope_latlonalt')
@@ -497,6 +502,7 @@ class BuildMatrices(BuildMatrixTree):
                 fov_dec_eor=self.fov_dec_eor,
                 fov_ra_fg=self.fov_ra_fg,
                 fov_dec_fg=self.fov_dec_fg,
+                simple_za_filter=self.simple_za_filter,
                 nside=self.nside,
                 telescope_latlonalt=self.telescope_latlonalt,
                 central_jd=self.central_jd,

@@ -47,6 +47,10 @@ class Healpix(HEALPix):
     fov_dec_fg : float, optional
         Field of view in degrees of the DEC axis of the FG sky model.
         Defaults to `fov_ra_fg`.
+    simple_za_filter : boolean, optional
+        If True, filter pixels in the FoV by zenith angle only.  Otherwise,
+        filter pixels in a rectangular region set by the FoV values along
+        RA and DEC.
     nside : int
         Nside resolution of the HEALPix map.  Defaults to 256.
     telescope_latlonalt : tuple, optional
@@ -88,6 +92,7 @@ class Healpix(HEALPix):
             fov_dec_eor=None,
             fov_ra_fg=None,
             fov_dec_fg=None,
+            simple_za_filter=False,
             nside=256,
             telescope_latlonalt=HERA_LAT_LON_ALT,
             central_jd=None,
@@ -101,8 +106,7 @@ class Healpix(HEALPix):
             tanh_freq=None,
             tanh_sl_red=None
             ):
-        # Use HEALPix as parent class to get
-        # useful astropy_healpix functions
+        # Use HEALPix as parent class to get useful astropy_healpix functions
         super().__init__(nside, frame=ICRS())
 
         assert fov_ra_eor is not None, \
@@ -255,12 +259,10 @@ class Healpix(HEALPix):
         self.tanh_sl_red = tanh_sl_red
 
         # Pixel filters
-        eor_all_sky = (
-            self.fov_ra_eor == 180 and self.fov_dec_eor == 180
-        )
+        self.simple_za_filter = simple_za_filter
         pix_eor, ra_eor, dec_eor = self.get_pixel_filter(
             self.fov_ra_eor, self.fov_dec_eor, return_radec=True,
-            rect=(not eor_all_sky)
+            simple_za_filter=self.simple_za_filter
         )
         self.pix_eor = pix_eor
         self.ra_eor = ra_eor
@@ -273,20 +275,20 @@ class Healpix(HEALPix):
             self.dec_fg = self.dec_eor.copy()
             self.npix_fov_fg = self.pix_fg.size
         else:
-            fg_all_sky = (
-                self.fov_ra_fg == 180 and self.fov_dec_fg == 180
-            )
             pix_fg, ra_fg, dec_fg = self.get_pixel_filter(
                 self.fov_ra_fg, self.fov_dec_fg, return_radec=True,
-                rect=(not fg_all_sky)
+                simple_za_filter=self.simple_za_filter
             )
             self.pix_fg = pix_fg
             self.npix_fov_fg = self.pix_fg.size
             self.ra_fg = ra_fg
             self.dec_fg = dec_fg
-        self.npix_fov = np.max((self.npix_fov_eor, self.npix_fov_fg))
-        self.fov_ra = np.max((self.fov_ra_eor, self.fov_ra_fg))
-        self.fov_dec = np.max((self.fov_dec_eor, self.fov_dec_fg))
+        self.pix = self.pix_fg
+        self.ra = self.ra_fg
+        self.dec = self.dec_fg
+        self.npix_fov = self.npix_fov_fg
+        self.fov_ra = self.fov_ra_fg
+        self.fov_dec = self.fov_dec_fg
         # If the FoV values of the two models are different, so to are their
         # HEALPix pixel index arrays.  This mask allows you to take a set of
         # pixel values for the EoR model and propagate them into the FG model.
@@ -294,14 +296,15 @@ class Healpix(HEALPix):
 
     def get_pixel_filter(
             self, fov_ra, fov_dec, return_radec=False, inverse=False,
-            rect=True):
+            simple_za_filter=False):
         """
         Return HEALPix pixel indices lying inside an observed region.
 
         This function gets the HEALPix pixel indices for all pixel centers
         lying inside
-        * a rectangle with equal arc length on all sides if ``rect = True``
-        * a circle with radius `fov_ra` if ``rect = False``
+        * a rectangle with equal arc length on all sides if
+          ``simple_za_filter = True``
+        * a circle with radius `fov_ra` if ``simple_za_filter = False``
 
         Parameters
         ----------
@@ -315,10 +318,10 @@ class Healpix(HEALPix):
         inverse : boolean, optional
             If `False`, return the pixels within the observed region.
             If `True`, return the pixels outside the observed region.
-        rect : boolean, optional
-            If `True`, return the pixels inside a rectangular region with equal
-            arc length on all sides.  Otherwise, return the pixels inside a
-            circular region.
+        simple_za_filter : boolean, optional
+            If `True`, return the pixels inside a circular region defined by
+            ``za <= fov_ra/2``.  Otherwise, return the pixels inside a
+            rectangular region with equal arc length on all sides.
 
         Returns
         -------
@@ -338,7 +341,13 @@ class Healpix(HEALPix):
             np.arange(self.npix),
             lonlat=True
         )
-        if rect:
+        if simple_za_filter:
+            _, _, _, _, za = self.calc_lmn_from_radec(
+                self.central_jd, lons, lats, return_azza=True
+            )
+            max_za = np.deg2rad(fov_ra) / 2
+            pix = np.where(za <= max_za)[0]
+        else:
             thetas = (90 - lats) * np.pi / 180
             if self.field_center[0] - fov_ra/2 < 0:
                 lons[lons > 180] -= 360  # lons in (-180, 180]
@@ -355,11 +364,6 @@ class Healpix(HEALPix):
             else:
                 pix = np.where(lons_inds * lats_inds)[0]
             lons[lons < 0] += 360  # RA in [0, 360)
-        else:
-            _, _, _, az, za = self.calc_lmn_from_radec(
-                self.central_jd, lons, lats, return_azza=True
-            )
-            pix = np.where(za <= np.pi/2)[0]
         if not return_radec:
             return pix
         else:
