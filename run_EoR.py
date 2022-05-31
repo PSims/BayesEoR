@@ -186,8 +186,6 @@ else:
 
 if p.beam_ref_freq == 0.0:
     p.beam_ref_freq = p.nu_min_MHz
-else:
-    p.beam_ref_freq = None
 
 # Auxiliary and derived params
 chan_selection = ''
