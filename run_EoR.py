@@ -184,6 +184,11 @@ else:
     n_vis = 0
     sigma = sigma*1.
 
+if p.beam_ref_freq == 0.0:
+    p.beam_ref_freq = p.nu_min_MHz
+else:
+    p.beam_ref_freq = None
+
 # Auxiliary and derived params
 chan_selection = ''
 
@@ -272,6 +277,8 @@ if p.include_instrumental_effects:
     if not '.' in p.beam_type:
         p.beam_type = p.beam_type.lower()
         beam_info_str = f'{p.beam_type}-beam'
+        if p.achromatic_beam:
+            beam_info_str = 'achromatic-' + beam_info_str
         if (not p.beam_peak_amplitude == 1
             and p.beam_type in ['uniform', 'gaussian', 'gausscosine']):
             beam_info_str += f'-peak-amp-{p.beam_peak_amplitude}'
@@ -287,6 +294,8 @@ if p.include_instrumental_effects:
             beam_info_str += f'-antenna-diameter-{p.antenna_diameter}m'
             if p.beam_type == 'taperairy':
                 beam_info_str += f'-fwhm-{p.fwhm_deg}deg'
+        if p.achromatic_beam:
+            beam_info_str += f'-ref-freq-{p.beam_ref_freq:.2f}MHz'
     else:
         beam_info_str = Path(p.beam_type).stem
 
@@ -335,6 +344,8 @@ BM = BuildMatrices(
     fwhm_deg=p.fwhm_deg,
     antenna_diameter=p.antenna_diameter,
     cosfreq=p.cosfreq,
+    achromatic_beam=p.achromatic_beam,
+    beam_ref_freq=p.beam_ref_freq,
     du_eor=p.du_eor,
     dv_eor=p.dv_eor,
     du_fg=p.du_fg,

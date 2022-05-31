@@ -136,6 +136,19 @@ def BayesEoRParser():
         help="Cosine frequency if using a 'gausscosine' beam."
     )
     parser.add_argument(
+        "--achromatic_beam",
+        action="store_true",
+        help="If passed, force the beam to be achromatic.  Requires a "
+             "reference frequency --beam_ref_freq."
+    )
+    parser.add_argument(
+        "--beam_ref_freq",
+        type=float,
+        default=0.0,
+        help="Beam reference frequency in MHz.  Used for achromatic beams.  "
+             "Defaults to the minimum frequency."
+    )
+    parser.add_argument(
         "--overwrite_matrices",
         action="store_true",
         default=False,

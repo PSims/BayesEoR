@@ -381,8 +381,9 @@ class BuildMatrices(BuildMatrixTree):
     drift_scan_pb : bool
         If True, model a drift scan primary beam, i.e. the beam center drifts
         across the image space model with time.
-    beam_type : {'uniform', 'gaussian', 'airy'}
-        Beam type to use.
+    beam_type : string
+        Beam type to use.  Can be 'uniform', 'gaussian', 'airy', 'taperairy',
+        or 'gausscosine'.
     beam_peak_amplitude : float
         Peak amplitude of the beam.
     beam_center : tuple of floats
@@ -395,10 +396,18 @@ class BuildMatrices(BuildMatrixTree):
         or the effective FWHM of the main lobe of an Airy beam from which the
         diameter of the aperture is calculated.
     antenna_diameter : float
-        Antenna (aperture) diameter in meters..  Used in the calculation of an
+        Antenna (aperture) diameter in meters.  Used in the calculation of an
         Airy beam pattern or when using a Gaussian beam with a FWHM that varies
         as a function of frequency.  The FWHM evolves according to the
         effective FWHM of the main lobe of an Airy beam.
+    cosfreq : float
+        Cosine frequency in radians if using a 'gausscosine' beam.
+    achromatic_beam : bool, optional
+        If True, force the beam to be achromatic using `beam_ref_freq` as the
+        reference frequency.
+    beam_ref_freq : float, optional
+        Beam reference frequency in MHz.  Used to fix the beam to be
+        achromatic.
     effective_noise : :class:`numpy.ndarray`
         If the data vector being analyzed contains signal + noise, the
         effective_noise vector contains the estimate of the noise in the data
@@ -495,6 +504,8 @@ class BuildMatrices(BuildMatrixTree):
             self.fwhm_deg = kwargs.pop('fwhm_deg', None)
             self.antenna_diameter = kwargs.pop('antenna_diameter', None)
             self.cosfreq = kwargs.pop('cosfreq', None)
+            self.achromatic_beam = kwargs.pop('achromatic_beam', False)
+            self.beam_ref_freq = kwargs.pop('beam_ref_freq', None)
             self.effective_noise = kwargs.pop('effective_noise', None)
 
             self.hpx = Healpix(
@@ -1029,6 +1040,11 @@ class BuildMatrices(BuildMatrixTree):
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
         print('Performing matrix algebra')
+        if self.achromatic_beam:
+            freq_array = np.ones_like(self.freqs_hertz) * self.beam_ref_freq
+            freq_array *= 1e6  # MHz --> Hz
+        else:
+            freq_array = self.freqs_hertz
         if not self.drift_scan_pb:
             multi_chan_beam = self.sd_block_diag([
                 np.diag(
@@ -1043,7 +1059,7 @@ class BuildMatrices(BuildMatrixTree):
                         freq=freq
                         )
                     )
-                for freq in self.freqs_hertz])
+                for freq in freq_array])
         else:
             # Model the time dependence of the primary beam pointing
             # for a drift scan (i.e. change in zenith angle with time
@@ -1062,7 +1078,7 @@ class BuildMatrices(BuildMatrixTree):
                             freq=freq
                             )
                         )
-                    for freq in self.freqs_hertz])
+                    for freq in freq_array])
                 for time_i in range(self.nt)])
 
         print('Time taken: {}'.format(time.time() - start))
