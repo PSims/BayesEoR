@@ -75,12 +75,11 @@ class PosteriorCalculations(object):
 
     """
     def __init__(self, file_root, sampler='multinest', prefix='chains',
-                 nhistbins=50, ulims=None):
+                 nhistbins=50, ulim_inds=None):
         self.sampler = sampler
         self.prefix = Path(prefix)
         self.file_root = file_root
         self.nhistbins = nhistbins
-        self.ulims = ulims
         data, weights, posteriors, bin_edges = self.get_posteriors(
             self.prefix / self.file_root
         )
@@ -90,6 +89,11 @@ class PosteriorCalculations(object):
         self.posteriors = posteriors
         self.bin_edges = bin_edges
         self.calc_means_and_stddevs()
+        if ulim_inds is None:
+            ulim_inds = np.zeros(self.means.size, dtype=bool)
+        self.ulim_inds = ulim_inds
+        if np.any(self.ulim_inds):
+            self.calc_upper_limits()
     
     def get_posteriors(self, fp):
         """
@@ -138,4 +142,16 @@ class PosteriorCalculations(object):
         means, stddevs = weighted_avg_and_std(self.data, self.weights)
         self.means = means
         self.stddevs = stddevs
+    
+    def calc_upper_limits(self):
+        """
+        Calculate upper limits for any bins with self.ulim_inds = True.
+
+        """
+        _, _, uplims = weighted_avg_and_std(
+            self.data, self.weights, use_ulims=True
+        )
+        self.ulims = np.zeros(self.means.size)
+        self.ulims[self.ulim_inds] = uplims[self.ulim_inds]
+        self.ulims[np.logical_not(self.ulim_inds)] = np.nan
 
