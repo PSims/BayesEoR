@@ -330,7 +330,7 @@ def write_log_file(array_save_directory, file_root, priors):
     print('Log file written successfully to {}'.format(log_file))
 
 
-def vector_is_hermitian(data, conj_map, nt, nf, nbls):
+def vector_is_hermitian(data, conj_map, nt, nf, nbls, rtol=0, atol=1e-14):
     """
     Checks if the data in the vector `data` is Hermitian symmetric
     based on the mapping contained in `conj_map`.
@@ -353,10 +353,13 @@ def vector_is_hermitian(data, conj_map, nt, nf, nbls):
             start_ind = time_ind + freq_ind
             for bl_ind in conj_map.keys():
                 conj_bl_ind = conj_map[bl_ind]
-                if (
-                    data[start_ind+conj_bl_ind]
-                    == data[start_ind+bl_ind].conjugate()
-                ):
+                close = np.allclose(
+                    data[start_ind+conj_bl_ind],
+                    data[start_ind+bl_ind].conjugate(),
+                    rtol=rtol,
+                    atol=atol
+                )
+                if close:
                     hermitian[start_ind+bl_ind] = 1
                     hermitian[start_ind+conj_bl_ind] = 1
     return np.all(hermitian)
