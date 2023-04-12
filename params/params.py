@@ -1,0 +1,118 @@
+""" Analysis settings """
+import argparse
+import numpy as np
+from astropy import constants
+
+# Useful constants
+speed_of_light = constants.c.value
+
+
+""" Compute Params """
+# Accelerate likelihood on GPU
+useGPU = True
+
+# Use sparse matrices to reduce storage requirements
+# when constructing the data model
+use_sparse_matrices = True
+
+# MultiNest params
+# If None, MultiNest will start a new analysis.
+# Otherwise, resume analysis from ``file_root``.
+file_root = None
+
+
+""" Model Params """
+# Model uv-plane params
+# EoR model
+nf = 38
+neta = 38
+nu = 15
+nv = None
+nq = 0
+fov_ra_eor = 12.9080728652
+fov_dec_eor = None
+# FG model
+nu_fg = None
+nv_fg = None
+fov_ra_fg = None
+fov_dec_fg = None
+# Subharmonic grid (SHG)
+nu_sh = 0
+nv_sh = None
+nq_sh = 0
+npl_sh = 0
+
+# Sky model
+nside = 128
+fov_ra_deg = np.max(fov_ra_eor, fov_ra_fg)
+fov_dec_deg = np.max(fov_dec_eor, fov_dec_fg)
+
+# Simulated signals in analysis
+use_EoR_cube = False
+# EoR sim
+eor_sim_path = ''
+
+# Frequency params
+nu_min_MHz = 158.304048743
+channel_width_MHz = 0.237618986858
+
+# Large Spectral Scale Model params
+beta = [2.63, 2.82]
+if beta:
+    if type(beta) == list:
+        npl = len(beta)
+    else:
+        npl = 1
+else:
+    npl = 0
+# Fit for the optimal large spectral scale model parameters
+fit_for_spectral_model_parameters = False
+pl_min = 2.0
+pl_max = 3.0
+pl_grid_spacing = 0.1
+
+# Instrumental effects params
+include_instrumental_effects = True
+# Include minimal prior over LW modes to
+# ensure numerically stable posterior
+inverse_LW_power = 1.e-16
+
+if include_instrumental_effects:
+    # Obs params
+    nt = 34
+    integration_time_seconds = 11.
+    integration_time_minutes = integration_time_seconds/60
+    integration_time_minutes_str = '{}'.format(
+        integration_time_minutes).replace('.', 'd')
+    instrument_model_directory = (
+        '/users/jburba/data/shared/jburba/pyuvsims/beor_sim_paper/inst_models/'
+        'Hex-37-14.6m-{}-{:.1f}sec-time-steps-nbls-30-bl-cutoff-40.0m'.format(
+            nt, integration_time_seconds
+        )
+    )
+    telescope_latlonalt = (-30.72152777777791,
+                           21.428305555555557,
+                           1073.0000000093132)
+    central_jd = 2458098.3065661727
+
+    # Primary beam params
+    beam_type = 'gaussian'
+    beam_peak_amplitude = 1.0
+    fwhm_deg = None  # degrees
+    antenna_diameter = None
+    cosfreq = None
+    # Set the primary beam pointing center in (RA, DEC)
+    # If None, will use the pointing center at zenith according to
+    # telescope_latlonalt and central_jd. Otherwise, must be a tuple of
+    # offsets in degrees along the RA and DEC axes defined relative to
+    # the pointing center at zenith according to telescope_latlonalt
+    # and central_jd.
+    beam_center = None
+
+    model_drift_scan_primary_beam = True
+
+# Intrinsic noise fitting params
+use_intrinsic_noise_fitting = False
+
+# Prior on long wavelength modes
+use_LWM_Gaussian_prior = False

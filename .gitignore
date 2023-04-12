@@ -3,12 +3,11 @@
 **/*.pyc
 **/*.sh
 **/*.ipynb
-!GenerateForegroundCube/
-!Likelihood/
-!Linalg/
-!Params/
-!SimData/
-!Utils/
+!posterior/
+!matrices/
+!model/
+!params/
+!utils/
 !scripts/
 !.gitignore
 !README.md
