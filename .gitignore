@@ -1,16 +1,8 @@
-/*
 **/*.ipynb_checkpoints/
 **/*.pyc
 **/*.sh
 **/*.ipynb
-!posterior/
-!matrices/
-!model/
-!params/
-!utils/
-!scripts/
 !.gitignore
 !README.md
-!__init__.py
 !environment.yml
 !run_EoR.py
