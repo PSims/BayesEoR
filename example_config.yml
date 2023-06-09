@@ -1,6 +1,6 @@
 # Compute params
-useGPU: False
-array_dir_prefix: /home/jburba/hydra_team/bayeseor/testing/array-storage/
+useGPU: True
+array_dir_prefix: /users/jburba/data/jburba/bayes/BayesEoR/array_storage/
 # Frequency params
 nf: 38
 nu_min_MHz: 158.304048743
@@ -15,9 +15,9 @@ sigma: 0.00615864342588761
 include_instrumental_effects: True
 nt: 34
 integration_time_seconds: 11.0
-inst_model: /home/jburba/hydra_team/bayeseor/testing/inst_models/Hex-37-14.6m-34-11.0sec-time-steps-nbls-30-bl-cutoff-40.0m
+inst_model: /users/jburba/data/shared/jburba/pyuvsims/beor_sim_paper/inst_models/Hex-37-14.6m-34-11.0sec-time-steps-nbls-30-bl-cutoff-40.0m
 central_jd: 2458098.3065661727
 beam_type: gaussian
 fwhm_deg: 9.306821090681533
 # Data params
-data_path: /home/jburba/hydra_team/bayeseor/testing/data/eor/gauss/fwhm9.3/proc/wn-nside256-field-1-hex37-14.6m-nt-34-dt-11s-fov-12.9deg-start-freq-158.30-nf-38-nbls-30-pol-pI.npy
+data_path: /users/jburba/data/shared/jburba/pyuvsims/beor_sim_paper/wn/gauss/fwhm9.3/proc/wn-nside256-field-1-hex37-14.6m-nt-34-dt-11s-fov-12.9deg-start-freq-158.30-nf-38-nbls-30-pol-pI.npy

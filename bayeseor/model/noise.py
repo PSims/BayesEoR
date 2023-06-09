@@ -1,5 +1,7 @@
 import numpy as np
 
+from ..utils import mpiprint
+
 
 def generate_data_and_noise_vector_instrumental(
         sigma, s, nf, nt, uvw_array_meters, bl_redundancy_array,
@@ -42,35 +44,29 @@ def generate_data_and_noise_vector_instrumental(
     """
     if sigma == 0.0:
         complex_noise_hermitian = np.zeros(len(s)) + 0.0j
-        d = s + complex_noise_hermitian.flatten()
-        return d, complex_noise_hermitian.flatten()
+    else:
+        nbls = len(uvw_array_meters)
+        ndata = nbls * nt * nf
+        if random_seed:
+            mpiprint(f"Seeding numpy.random with {random_seed}", rank=rank)
+            np.random.seed(random_seed)
+        real_noise = np.random.normal(0, sigma/2.**0.5, ndata)
 
-    nbls = len(uvw_array_meters)
-    ndata = nbls * nt * nf
-    if random_seed:
-        mpiprint(
-            'Using the following random_seed for dataset noise:',
-            random_seed,
-            rank=rank
-        )
-        np.random.seed(random_seed)
-    real_noise = np.random.normal(0, sigma/2.**0.5, ndata)
-
-    if random_seed:
-        np.random.seed(random_seed*123)
-    imag_noise = np.random.normal(0, sigma/2.**0.5, ndata)
-    complex_noise = real_noise + 1j*imag_noise
-    complex_noise = complex_noise * sigma/complex_noise.std()
-    complex_noise_hermitian = complex_noise.copy()
+        if random_seed:
+            np.random.seed(random_seed*123)
+        imag_noise = np.random.normal(0, sigma/2.**0.5, ndata)
+        complex_noise = real_noise + 1j*imag_noise
+        complex_noise = complex_noise * sigma/complex_noise.std()
+        complex_noise_hermitian = complex_noise.copy()
 
     """
     How to create a conjugate baseline map from the instrument model:
 
     1. Create a map for a single time step that maps the array indices
-       of baselines with (u, v) and (-u, -v)
+    of baselines with (u, v) and (-u, -v)
     2. Add noise to (u, v) and conjugate noise to (-u, -v) using the
-       map from step 1 per time and frequency (identical map can be used
-       at all frequencies).
+    map from step 1 per time and frequency (identical map can be used
+    at all frequencies).
     """
     bl_conjugate_pairs_dict = {}
     bl_conjugate_pairs_map = {}
@@ -96,6 +92,6 @@ def generate_data_and_noise_vector_instrumental(
             complex_noise_hermitian[start_ind:start_ind+nbls] /=\
                 bl_redundancy_array[:, 0]**0.5
 
-    d = s + complex_noise_hermitian.flatten()
+        d = s + complex_noise_hermitian.flatten()
 
     return d, complex_noise_hermitian.flatten(), bl_conjugate_pairs_map

@@ -27,6 +27,13 @@ def BayesEoRParser():
              "slow or unreliable.  Defaults to True (use GPUs)."
     )
     parser.add_argument(
+        "--single-node",
+        action="store_true",
+        help="If passed, run an analysis on a single node.  If the MPI size is"
+             "1 and --single-node is not passed, the matrices will be built "
+             "but the power spectrum analysis will not be run."
+    )
+    parser.add_argument(
         "--array-dir-prefix",
         type=str,
         default="./array-storage/",
@@ -311,7 +318,7 @@ def BayesEoRParser():
     parser.add_argument(
         "--beam-type",
         type=str,
-        help="Can be 'gaussian', 'uniform', or 'airy' (case insensitive)."
+        help="Can be 'uniform' , 'gaussian', or 'airy' (case insensitive)."
     )
     parser.add_argument(
         "--beam-peak-amplitude",
@@ -407,6 +414,13 @@ def BayesEoRParser():
         "--eor-sim-path",
         type=Path_fr,
         help="Path to 21cmFAST EoR simulation cube."
+    )
+    parser.add_argument(
+        "--eor-random-seed",
+        type=int,
+        default=892736,
+        help="Used to seed numpy.random if generating a mock EoR white noise "
+             "signal, i.e. passing no data file via --data-path."
     )
     # --- Config file ---
     parser.add_argument(
@@ -532,7 +546,7 @@ def calculate_derived_params(args):
     # --- Instrument Model ---
     if args.achromatic_beam and not args.beam_ref_freq:
         args.beam_ref_freq = args.nu_min_MHz
-    
+
     # --- Auxiliary ---
     args.speed_of_light = constants.c.to("m/s").value
     

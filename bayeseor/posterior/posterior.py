@@ -3,9 +3,7 @@ import numpy as np
 import scipy
 from pdb import set_trace as brk
 import h5py
-from mpi4py import MPI
 from pathlib import Path
-import warnings
 
 import BayesEoR.Params.params as p
 from BayesEoR.Utils import Cosmology, mpiprint
@@ -18,6 +16,10 @@ http://www.mrao.cam.ac.uk/~kjbg1/lectures/lect1_1.pdf
 
 
 class PriorC(object):
+    """
+    Prior class for MultiNest and PolyChord sampler compatibility.
+
+    """
     def __init__(self, priors_min_max):
         self.priors_min_max = priors_min_max
 
@@ -29,10 +31,6 @@ class PriorC(object):
             theta.append(theta_i)
         return theta
 
-
-# --------------------------------------------
-# Define posterior
-# --------------------------------------------
 class PowerSpectrumPosteriorProbability(object):
     """
     Class containing posterior calculation functions.

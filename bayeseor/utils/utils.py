@@ -176,7 +176,7 @@ def get_array_dir_name(args, version=2.13, prefix="./array-storage/"):
     return str(matrices_path) + "/"
 
 
-def generate_output_file_base(file_root, version_number="1"):
+def generate_output_file_base(directory, file_root, version_number="1"):
     """
     Generate a filename for the sampler output.  The version number of the
     output file is incrimented until a new `file_root` is found to avoid
@@ -184,6 +184,8 @@ def generate_output_file_base(file_root, version_number="1"):
 
     Parameters
     ----------
+    directory : Path or str
+        Directory in which to search for files.
     file_root : str
         Filename root with a version number string `-v{}-` suffix.
     version_number : str
@@ -195,21 +197,26 @@ def generate_output_file_base(file_root, version_number="1"):
         Updated filename root with a new, largest version number.
 
     """
-    file_name_exists = (
-            os.path.isfile("chains/"+file_root+"_phys_live.txt")
-            or os.path.isfile("chains/"+file_root+".resume")
-            or os.path.isfile("chains/"+file_root+"resume.dat"))
-    while file_name_exists:
+    if not isinstance(directory, Path):
+        directory = Path(directory)
+    suffixes = ["phys_live.txt", ".resume", "resume.dat"]
+
+    def file_exists(directory, filename, suffixes):
+        exists = np.any(
+            [(directory / f"{filename}{suf}").exists() for suf in suffixes]
+        )
+        return exists
+
+    filename_exists = file_exists(directory, file_root, suffixes)
+    while filename_exists:
         fr1, fr2 = file_root.split("-v")
         fr21, fr22 = fr2.split("-")
         next_version_number = str(int(fr21)+1)
-        file_root = file_root.replace("v"+version_number+"-",
-                                      "v"+next_version_number+"-")
+        file_root = file_root.replace(
+            f"v{version_number}-", f"v{next_version_number}-"
+        )
         version_number = next_version_number
-        file_name_exists = (
-                os.path.isfile("chains/"+file_root+"_phys_live.txt")
-                or os.path.isfile("chains/"+file_root+".resume")
-                or os.path.isfile("chains/"+file_root+"resume.dat"))
+        filename_exists = file_exists(directory, file_root, suffixes)
     return file_root
 
 
@@ -254,7 +261,7 @@ def get_git_version_info(directory=None):
     return version_info
 
 #FIXME: need to remove the use of the p module and replace with new Namespace
-def write_log_file(array_save_directory, file_root, priors):
+def write_log_file(args, priors):
     """
     Write a log file containing current git hash, array save
     directory, multinest output file root, and parameters from
@@ -263,10 +270,9 @@ def write_log_file(array_save_directory, file_root, priors):
 
     Parameters
     ----------
-    array_save_directory : str
-        Directory where arrays used in the analysis are saved.
-    file_root : str
-        Filename for sampler output files.
+    args : Namespace
+        Namespace object containing command line arguments from
+        `bayeseor.params.command_line_arguments.BayesEoRParser`.
     priors : array-like
         Array-like containing prior ranges for each k-bin.
 
@@ -280,23 +286,25 @@ def write_log_file(array_save_directory, file_root, priors):
     # Get git version and hash info
     version_info = get_git_version_info()
 
-    log_file = log_dir + file_root + ".log"
+    log_file = log_dir + args.file_root + ".log"
     dashed_line = "-"*44
     with open(log_file, "w") as f:
         f.write("#" + dashed_line + "\n# GitHub Info\n#" + dashed_line + "\n")
-        for key in version_info.keys():
-            f.write("{}: {}\n".format(key, version_info[key]))
+        for key, val in version_info.items():
+            f.write(f"{key}: {val}\n")
         f.write("\n\n")
         f.write("#" + dashed_line + "\n# Directories\n#" + dashed_line + "\n")
-        f.write("Array save directory:\t{}\n".format(array_save_directory))
-        f.write("Multinest output file root:\t{}\n".format(file_root))
+        f.write(f"Array save directory: {args.array_dir}\n")
+        if args.use_Multinest:
+            sampler = "MultiNest"
+        else:
+            sampler = "PolyChord"
+        f.write(f"{sampler} output file root: {args.file_root}\n")
         f.write("\n\n")
-        f.write("#" + dashed_line + "\n# Parser / Params Variables\n#"
-                + dashed_line + "\n")
-        for key in p.__dict__.keys():
-            if (not key.startswith("_")
-                    and not isinstance(p.__dict__[key], ModuleType)):
-                f.write("{} = {}\n".format(key, p.__dict__[key]))
+        f.write("#" + dashed_line + "\n# Parameters\n#" + dashed_line + "\n")
+        for key, val in args.__dict__.items():
+            if not (key.startswith("_") or isinstance(val, ModuleType)):
+                f.write("{} = {}\n".format(key, val))
         f.write("priors = {}\n".format(priors))
     print("Log file written successfully to {}".format(log_file))
 

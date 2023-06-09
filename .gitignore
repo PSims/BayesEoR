@@ -1,8 +1,20 @@
+/*
+**/.*
 **/*.ipynb_checkpoints/
 **/*.pyc
 **/*.sh
 **/*.ipynb
 !.gitignore
+!bayeseor/
 !README.md
 !environment.yml
 !run_EoR.py
+# To be deleted after refactor
+GenerateForegroundCube/
+Likelihood/
+Linalg/
+Params/
+SimData/
+Utils/
+Instrument_Model/
+Plots/

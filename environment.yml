@@ -13,7 +13,10 @@ dependencies:
   - astropy-healpix>=0.5
   - h5py
   - gcc_linux-64
+  - rich
   # Uncomment the following two lines if using conda
   # installations of CUDA and MPI
   # - pycuda
   # - mpi4py>=3.0.0
+  - pip:
+    - jsonargparse
