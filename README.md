@@ -52,9 +52,11 @@ If installing CUDA and MPI with `conda`, you must uncomment the last two lines o
 
 ## Running BayesEoR
 
-There are two ways to interface with variables in BayesEoR: command line arguments or `Params/params.py`.  Any arguments passed via the command line interface `Params/command_line_arguments.py` will overwrite the corresponding value in the params file.  For a list of available command line arguments, run:
+There are two ways to interface with variables in BayesEoR: command line arguments or config files.  For a list of available command line arguments and their descriptions, run:
 ```
 python run_EoR.py --help
 ```
 
-`run_EoR.py` provides an example driver script for running BayesEoR.  This file contains all of the necessary steps to set up the `PowerSpectrumPosteriorProbability` class and to run MultiNest (or PolyChord for large parameter spaces).
+The jsonargparse package allows for all of these command line arguments to be set via a yaml configuration file.  An example yaml file has been provided (`example_config.yml`).  Any variable that can be set via a command line argument can also be set in this yaml configuration file (command line arguments containing dashes in the variable name must be replaced with underscores, i.e. the command line argument `--data-path` can be set in the configuration file via `data_path: <path_to_data>`).  The example configuration file also specifies the minimally sufficient variables that must be set for a BayesEoR analysis.
+
+`run_analysis.py` provides an example driver script for running BayesEoR.  This file contains all of the necessary steps to set up the `PowerSpectrumPosteriorProbability` class and to run MultiNest (or PolyChord for large parameter spaces) and obtain power spectrum posteriors.
