@@ -240,20 +240,21 @@ class PowerSpectrumPosteriorProbability(object):
         """
         try:
             import pycuda.driver as cuda
+            import pycuda.autoinit
             import ctypes
             from numpy import ctypeslib
 
             # Get path to installation of BayesEoR
-            base_dir = '/'.join(__file__.split('/')[:-2]) + '/'
+            base_dir = Path(__file__).parent
             # Load MAGMA GPU Wrapper Functions
-            GPU_wrap_dir = Path(base_dir+'Likelihood/GPU_wrapper/')
+            gpu_wrap_dir = base_dir / 'gpu_wrapper'
 
             device = cuda.Device(0)
             if 'p100' in device.name().lower():
                 gpu_arch = 'p100'
             elif 'v100' in device.name().lower():
                 gpu_arch = 'v100'
-            wrapper_path = GPU_wrap_dir / f'wrapmzpotrf_{gpu_arch}.so'
+            wrapper_path = gpu_wrap_dir / f'wrapmzpotrf_{gpu_arch}.so'
             if print_msg:
                 mpiprint(
                     f'\nFound GPU with {gpu_arch} architecture', rank=self.rank
