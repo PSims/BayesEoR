@@ -122,7 +122,7 @@ else:
 # --------------------------------------------
 # Construct matrices
 # --------------------------------------------
-mpiprint("\n", Panel("Building Matrices"))
+mpiprint("\n", Panel("Building Matrices"), rank=mpi_rank)
 
 args.array_dir = get_array_dir_name(args)
 mpiprint(
@@ -229,10 +229,10 @@ masked_power_spectral_modes = masked_power_spectral_modes.astype(bool)
 # --------------------------------------------
 # Data creation with instrumental effects
 # --------------------------------------------
-mpiprint("\n", Panel("Data and Noise"))
+mpiprint("\n", Panel("Data and Noise"), rank=mpi_rank)
 if args.include_instrumental_effects:
     if use_EoR_cube:
-        mpiprint("Generating mock EoR data:", style="bold")
+        mpiprint("Generating mock EoR data:", style="bold", rank=mpi_rank)
         Finv = BM.read_data_s2d(args.array_dir + "Finv", "Finv")
         s_EoR, white_noise_sky = generate_mock_eor_signal_instrumental(
             Finv,
@@ -298,7 +298,7 @@ if args.include_instrumental_effects:
             d = np.dot(taper_matrix, d)
         del taper_matrix
 
-mpiprint("\nHermitian symmetry checks:", style="bold")
+mpiprint("\nHermitian symmetry checks:", style="bold", rank=mpi_rank)
 mpiprint(
     "signal is Hermitian: {}".format(
         vector_is_hermitian(
@@ -316,7 +316,7 @@ mpiprint(
     rank=mpi_rank
 )
 
-mpiprint("\nSNR:", style="bold")
+mpiprint("\nSNR:", style="bold", rank=mpi_rank)
 mpiprint(f"Stddev(signal) = {s_EoR.std():.4e}", rank=mpi_rank)
 effective_noise_std = effective_noise.std()
 mpiprint(f"Stddev(noise) = {effective_noise_std:.4e}", rank=mpi_rank)
@@ -344,7 +344,7 @@ if args.include_instrumental_effects:
 # --------------------------------------------
 # Sample from the posterior
 # --------------------------------------------
-mpiprint("\n", Panel("Posterior"))
+mpiprint("\n", Panel("Posterior"), rank=mpi_rank)
 log_priors_min_max = [  # FIXME: Add this as a parameter in params
     [-2.0, 2.0], [-1.2, 2.8], [-0.7, 3.3], [0.7, 2.7], [1.1, 3.1],
     [1.5, 3.5], [2.0, 4.0], [2.4, 4.4], [2.7, 4.7]
@@ -430,7 +430,7 @@ if args.uprior_bins != "":
 else:
     args.uprior_inds = None
 
-mpiprint("\nInstantiating posterior class:", style="bold")
+mpiprint("\nInstantiating posterior class:", style="bold", rank=mpi_rank)
 pspp = PowerSpectrumPosteriorProbability(
     T_Ninv_T,
     dbar,
@@ -528,7 +528,7 @@ elif mpi_size == 1 and not args.single_node:
     )
 
 if args.single_node or mpi_size > 1:
-    mpiprint("\n", Panel("Running Analysis"))
+    mpiprint("\n", Panel("Running Analysis"), rank=mpi_rank)
     if mpi_rank == 0:
         write_log_file(args.array_dir, args.file_root, log_priors_min_max)
 
