@@ -530,9 +530,9 @@ elif mpi_size == 1 and not args.single_node:
 if args.single_node or mpi_size > 1:
     mpiprint("\n", Panel("Running Analysis"), rank=mpi_rank)
     if mpi_rank == 0:
-        write_log_file(args.array_dir, args.file_root, log_priors_min_max)
+        write_log_file(args, log_priors_min_max)
 
-    if args.use_MultiNest:
+    if args.use_Multinest:
         MN_nlive = nDims * 25
         result = solve(
             LogLikelihood=mnloglikelihood,
