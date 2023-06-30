@@ -383,7 +383,7 @@ nDerived = 0  # PolyChord parameter
 dimensionless_PS = True  # FIXME: Add normalization function for P(k)
 
 # Sampler output
-output_dir = Path(args.output_dir) / "chains"
+output_dir = Path(args.output_dir)
 output_dir.mkdir(exist_ok=True, parents=False)
 # Create filename (if not provided via args.file_root) for sampler output
 if args.file_root is None:
