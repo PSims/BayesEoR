@@ -58,6 +58,7 @@ def BayesEoRParser():
     parser.add_argument(
         "--log-priors",
         action=ActionYesNo(yes_prefix="log-", no_prefix="lin-"),
+        default=True,
         help="Use log_10 (--log-priors) or linear (--lin-priors) prior "
              "values.  If using log priors (x), the prior values will first be"
              " linearized (10^x)."
@@ -206,6 +207,7 @@ def BayesEoRParser():
     parser.add_argument(
         "--beta",
         type=List[float],
+        default=[2.63, 2.82],
         help="Brightness temperature power law spectral index/indices used in "
              "the LSSM.  Can be a single spectral index ('[2.63]') or multiple "
              "spectral indices can be passed ('[2.63,2.82]') to use multiple "
