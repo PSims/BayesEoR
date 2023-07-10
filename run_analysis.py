@@ -388,16 +388,16 @@ output_dir.mkdir(exist_ok=True, parents=False)
 # Create filename (if not provided via args.file_root) for sampler output
 if args.file_root is None:
     file_root = f"Test-{args.nu}-{args.nv}-{args.neta}-{args.nq}-{args.npl}"
-    file_root += f"{args.sigma:.1E}"
+    file_root += f"-{args.sigma:.1E}"
     if args.beta:
         beta_str = ""
         for b in args.beta:
-            beta_str += f"{b:.2f}-"
+            beta_str += f"-{b:.2f}"
         file_root += beta_str
     if args.log_priors:
-        file_root += "lp-"
+        file_root += "-lp"
     if dimensionless_PS:
-        file_root += "dPS-"
+        file_root += "-dPS"
     if args.nq == 0:
         file_root = file_root.replace("mini-", "mini-NQ-")
     elif args.inverse_LW_power >= 1e16:
@@ -409,10 +409,12 @@ if args.file_root is None:
     else:
         file_root = "PC-" + file_root
     if args.use_shg:
-        file_root += f"SH-{args.nu_sh}-{args.nv_sh}-{args.nq_sh}-{args.npl_sh}"
+        file_root += (
+            f"-SH-{args.nu_sh}-{args.nv_sh}-{args.nq_sh}-{args.npl_sh}"
+        )
         if args.fit_for_shg_amps:
             file_root += "ffsa-"
-    file_root += "v1-"
+    file_root += "-v1-"
     file_root = generate_output_file_base(
         output_dir, file_root, version_number="1"
     )
