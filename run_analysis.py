@@ -46,7 +46,7 @@ else:
     # Skip mpi and other imports that can cause crashes in ipython
     mpi_rank = 0
 if mpi_rank == 0:
-    mpiprint(Panel("Analysis parameters"), style="bold")
+    mpiprint(Panel("Parameters"), style="bold")
     pprint(args.__dict__)
 
 # --------------------------------------------
@@ -122,7 +122,7 @@ else:
 # --------------------------------------------
 # Construct matrices
 # --------------------------------------------
-mpiprint("\n", Panel("Building Matrices"), rank=mpi_rank)
+mpiprint("\n", Panel("Matrices"), rank=mpi_rank)
 
 args.array_dir = get_array_dir_name(args)
 mpiprint(
@@ -530,7 +530,7 @@ elif mpi_size == 1 and not args.single_node:
     )
 
 if args.single_node or mpi_size > 1:
-    mpiprint("\n", Panel("Running Analysis"), rank=mpi_rank)
+    mpiprint("\n", Panel("Analysis"), rank=mpi_rank)
     if mpi_rank == 0:
         write_log_file(args, log_priors_min_max)
 
