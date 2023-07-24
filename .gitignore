@@ -4,6 +4,7 @@
 **/*.pyc
 **/*.sh
 **/*.ipynb
+**/*.so
 !.gitignore
 !bayeseor/
 !README.md
