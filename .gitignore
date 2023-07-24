@@ -7,5 +7,6 @@
 !.gitignore
 !bayeseor/
 !README.md
-!environment.yml
-!run_analysis.py
+!environment.yaml
+!example-config.yaml
+!run-analysis.py
