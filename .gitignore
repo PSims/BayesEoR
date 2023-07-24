@@ -8,13 +8,4 @@
 !bayeseor/
 !README.md
 !environment.yml
-!run_EoR.py
-# To be deleted after refactor
-GenerateForegroundCube/
-Likelihood/
-Linalg/
-Params/
-SimData/
-Utils/
-Instrument_Model/
-Plots/
+!run_analysis.py
