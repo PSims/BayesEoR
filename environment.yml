@@ -1,12 +1,11 @@
-name: beor_p100
+name: bayeseor
 channels:
-  - defaults
   - conda-forge
 dependencies:
   - python>=3.6
   - pip
-  - numpy=1.19.2
-  - pymultinest=2.10
+  - numpy>=1.19.2
+  - pymultinest>=2.10
   - astropy>=4.0
   - pyuvdata
   - scipy>=1.0.1
