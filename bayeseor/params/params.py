@@ -237,7 +237,7 @@ def BayesEoRParser():
         help="Fit for the optimal LSSM spectral indices."
     )
     parser.add_argument(
-        "--pl_min",
+        "--pl-min",
         type=float,
         help="Minimum brightness temperature spectral index when fitting for "
              "the optimal LSSM spectral indices."
@@ -278,8 +278,8 @@ def BayesEoRParser():
         "--model-instrument",
         action=ActionYesNo(yes_prefix="model-", no_prefix="no-"),
         dest="include_instrumental_effects",  #FIXME
-        help="Model an instrument (--model-instrument) or don't include "
-             "instrumental effects (--no-instrument)."
+        help="Forward model an instrument (--model-instrument) or don't "
+             "include instrumental effects (--no-instrument)."
     )
     parser.add_argument(
         "--nt",
