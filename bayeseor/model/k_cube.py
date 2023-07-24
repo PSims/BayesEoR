@@ -2,8 +2,7 @@ import numpy as np
 from subprocess import os
 from pathlib import Path
 
-import BayesEoR.Params.params as p
-from BayesEoR.Utils import mpiprint
+from ..utils import mpiprint
 
 
 def generate_k_cube_in_physical_coordinates(
