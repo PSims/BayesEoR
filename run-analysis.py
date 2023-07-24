@@ -221,9 +221,6 @@ k_vals = calc_mean_binned_k_vals(
 # --------------------------------------------
 T = BM.read_data_s2d(args.array_dir + "T", "T")
 T_Ninv_T = BM.read_data_s2d(args.array_dir + "T_Ninv_T", "T_Ninv_T")
-Npar = T_Ninv_T.shape[0]
-masked_power_spectral_modes = np.ones(Npar)
-masked_power_spectral_modes = masked_power_spectral_modes.astype(bool)
 
 
 # --------------------------------------------
@@ -330,7 +327,6 @@ mpiprint(f"SNR = {(s_EoR.std() / effective_noise_std):.4e}\n", rank=mpi_rank)
 Ninv = BM.read_data(args.array_dir + "Ninv", "Ninv")
 Ninv_d = Ninv * d
 dbar = np.dot(T.conjugate().T, Ninv_d)
-Sigma_Diag_Indices = np.diag_indices(T_Ninv_T.shape[0])
 d_Ninv_d = np.dot(d.conjugate(), Ninv_d)
 nDims = len(k_cube_voxels_in_bin)
 if args.use_intrinsic_noise_fitting:
@@ -436,48 +432,30 @@ mpiprint("\nInstantiating posterior class:", style="bold", rank=mpi_rank)
 pspp = PowerSpectrumPosteriorProbability(
     T_Ninv_T,
     dbar,
-    Sigma_Diag_Indices,
-    Npar,
+    k_vals,
     k_cube_voxels_in_bin,
     args.nuv,
-    args.nu,
-    args.nv,
     args.neta,
     args.nf,
     args.nq,
-    masked_power_spectral_modes,
     Ninv,
     d_Ninv_d,
-    k_vals,
+    args.redshift,
     args.ps_box_size_ra_Mpc,
     args.ps_box_size_dec_Mpc,
     args.ps_box_size_para_Mpc,
-    block_T_Ninv_T=block_T_Ninv_T,
+    include_instrumental_effects=args.include_instrumental_effects,
     log_priors=args.log_priors,
-    dimensionless_PS=dimensionless_PS,
-    Print=True,
-    intrinsic_noise_fitting=args.use_intrinsic_noise_fitting,
     uprior_inds=args.uprior_inds,
-    fit_for_monopole=args.fit_for_monopole,
+    inverse_LW_power=args.inverse_LW_power,
+    dimensionless_PS=dimensionless_PS,
+    block_T_Ninv_T=block_T_Ninv_T,
+    intrinsic_noise_fitting=args.use_intrinsic_noise_fitting,
     use_shg=args.use_shg,
-    fit_for_shg_amps=args.fit_for_shg_amps,
-    nuv_sh=args.nuv_sh,
-    nu_sh=args.nu_sh,
-    nv_sh=args.nv_sh,
-    nq_sh=args.nq_sh,
     rank=mpi_rank,
-    use_gpu=args.useGPU
+    use_gpu=args.useGPU,
+    Print=True
 )
-# zero_the_lw_modes = args.inverse_LW_power >= 1e16
-if args.include_instrumental_effects and args.inverse_LW_power < 1e16:
-    # Include minimal prior over LW modes required for numerical stability
-    pspp.inverse_LW_power = args.inverse_LW_power
-if args.inverse_LW_power >= 1e16:
-    pspp.inverse_LW_power = args.inverse_LW_power
-    mpiprint(
-        f"Setting pspp.inverse_LW_power to {args.inverse_LW_power}",
-        rank=mpi_rank
-    )
 
 if args.useGPU:
     start = time.time()

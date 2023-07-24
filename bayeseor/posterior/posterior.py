@@ -5,8 +5,7 @@ from pdb import set_trace as brk
 import h5py
 from pathlib import Path
 
-import BayesEoR.Params.params as p
-from BayesEoR.Utils import Cosmology, mpiprint
+from ..utils import Cosmology, mpiprint
 
 
 """
@@ -43,37 +42,25 @@ class PowerSpectrumPosteriorProbability(object):
         LSSM amplitudes.  `T_Ninv_T` must be a Hermitian, positive-definite
         matrix.
     dbar : np.ndarray
-        Noise weighted representation of the data (signal + noise) vector of
+        Noise weighted representation of the data vector (signal + noise) of
         visibilities in model (u, v, eta) space.
-    Sigma_Diag_Indices : np.ndarray
-        Diagonal indices of `T_Ninv_T`.
-    Npar : int
-        Total number of model parameters being fit.
+    k_vals : np.ndarray of floats
+        Array containing the mean k for each k-bin.
     k_cube_voxels_in_bin : list
-        List containing sublists containing the flattened 3D k-space cube index
-        of all |k| that fall within a given k-bin.
+        List of sublists containing the flattened 3D k-space cube index of all
+        |k| that fall within a given k-bin.
     nuv : int
-        Number of model uv-plane points per frequency channel.  Computed as
-        `nuv = nu*nv - 1*np.logical_not(p.fit_for_monopole)`.
-    nu : int
-        Number of pixels on a side for the u-axis in the model uv-plane.
-    nv : int
-        Number of pixels on a side for the v-axis in the model uv-plane.
+        Number of model uv-plane points per frequency channel.
     neta : int
         Number of Line of Sight (LoS, frequency axis) Fourier modes.
     nf : int
         Number of frequency channels.
     nq : int
         Number of quadratic modes in the Larse Spectral Scale Model (LSSM).
-    masked_power_spectral_modes : np.ndarray
-        Boolean array used to mask additional (u, v, eta) amplitudes from
-        being included in the posterior calculations.
     Ninv : np.ndarray
         Covariance matrix of the data (signal + noise) vector of visibilities.
     d_Ninv_d : np.ndarray
         Single complex number computed as `d.conjugate() * Ninv * d`.
-    k_vals : np.ndarray of floats
-        Array containing the mean k for each k-bin.
     ps_box_size_ra_Mpc : float
         Right ascension (RA) axis extent of the cosmological volume in Mpc from
         which the power spectrum is estimated.
@@ -83,149 +70,176 @@ class PowerSpectrumPosteriorProbability(object):
     ps_box_size_para_Mpc : float
         LoS extent of the cosmological volume in Mpc from which the power
         spectrum is estimated.
-    block_T_Ninv_T : list
-        Block diagonal representation of `T_Ninv_T`.  Only used if
-        ``p.use_instrumental_effects = False``.  Defaults to `[]`.
+    include_instrumental_effects : bool
+        If True, include instrumental effects like frequency dependent (u, v)
+        sampling and the primary beam.  Defaults to `True`.
     log_priors : boolean
         If `True`, power spectrum k-bin amplitudes are assumed to be in log
         units, otherwise they will be treated using linear units.
+    uprior_inds : array
+        Boolean array with shape `len(k_vals)`.  If True (False), k-bin uses a
+        uniform (log-uniform) prior.
+    masked_power_spectral_modes : np.ndarray
+        Boolean array used to mask additional (u, v, eta) amplitudes from
+        being included in the posterior calculations.  Defaults to using all
+        EoR model modes.
+    use_LWM_Gaussian_prior : bool
+        If True, use a Gaussian prior on the LSSM (NOT IMPLEMENTED).
+        Otherwise, use a uniform prior (default).
+    inverse_LW_power : float
+        Prior over the long wavelength modes in the LSSM.  Defaults to 0.0.
     dimensionless_PS : boolean
         If `True`, use a dimensionless power spectrum normalization
         `Delta**2 ~ mK**2`, otherwise use a dimensionful power spectrum
         normalization `P(k) ~ mK**2 Mpc**3`.
-    inverse_LW_power : float
-        Prior over the long wavelength modes in the large spectral scale model
-        (LSSM).  Defaults to 0.0.
-    inverse_LW_power_zeroth_LW_term : float
-        Prior for the zeroth (monopole) term in the LSSM.  Defaults to 0.0.
-    inverse_LW_power_first_LW_term : float
-        Prior for the first (linear) term in the LSSM.  Defaults to 0.0.
-    inverse_LW_power_second_LW_term : float
-        Prior for the second (quadratic) term in the LSSM.  Defaults to 0.0.
-    Print : boolean
-        If `True`, print execution time messages.  Defaults to `False`.
-    debug : boolean
-        If `True`, execute break statements for debugging.  Defaults to
-        `False`.
-    Print_debug : boolean
-        If `True`, print debug related messages.  Defaults to `False`.
+    block_T_Ninv_T : list
+        Block diagonal representation of `T_Ninv_T`.  Only used if ignoring
+        instrumental effects.  Defaults to `[]`.
     intrinsic_noise_fitting : boolean
         If `True`, fit for the amplitude of the noise in the data instead of
         using the covariance estimate as is in `Ninv`.  Defaults to `False`.
+    fit_for_spectral_model_parameters : boolean
+        If `True`, fit for the LSSM parameter values.  Defaults to `False`.
+    pl_max : float
+        Maximum brightness temperature spectral index when fitting for the
+        optimal LSSM spectral indices.  Defaults to `None`.
+    pl_grid_spacing : float
+        Grid spacing for the power law spectral index axis when fitting for the
+        LSSM parameter values.  Defaults to `None`.
+    use_shg : bool
+        If `True`, use the SubHarmonic Grid (SHG) in the model uv-plane.
     return_Sigma : boolean
         If `True`, break and return the matrix `Sigma = T_Ninv_T + PhiI`.
         Defaults to `False`.
-    fit_for_spectral_model_parameters : boolean
-        If `True`, fit for the LSSM parameter values instead of using the
-        values in `p.beta`.  Defaults to `False`.
-    uprior_inds : array
-        Boolean array with shape `len(k_vals)`.  If True (False), k-bin uses a
-        uniform (log-uniform) prior.
-    fit_for_monopole : bool
-        If True, fit for (u, v) = (0, 0).  Defaults to False.
-    use_shg : bool
-        If `True`, use the SubHarmonic Grid (SHG) in the model uv-plane.
-    fit_for_shg_amps : bool
-        if `True`, fit explicitly for the amplitudes of the individual SHG
-        pixels per frequency.
-    nuv_sh : int
-        Number of pixels in the SHG model uv-plane `nuv_sh = nu_sh*nv_sh - 1`.
-    nu_sh : int
-        Number of pixels on a side for the u-axis in the subharmonic model
-        uv-plane.
-    nv_sh : int
-        Number of pixels on a side for the v-axis in the subharmonic model
-        uv-plane.
-    nq_sh : int
-        Number of LSSM quadratic modes for each pixel in the subharmonic grid.
     rank : int
         MPI rank.
     use_gpu : bool
         If True, try and use GPUs for Cholesky decomposition.  Otherwise, use
         CPUs (inadvisable due to inaccuracy of CPU matrix inversion).  
         Defaults to True.
+    print : boolean
+        If `True`, print execution time messages.  Defaults to `False`.
+    print_rate : int
+        Number of iterations between print statements.  Defaults to 100.
+    debug : boolean
+        If `True`, execute break statements for debugging.  Defaults to
+        `False`.
+    print_debug : boolean
+        If `True`, print debug related messages.  Defaults to `False`.
 
     """
     def __init__(
-            self, T_Ninv_T, dbar, Sigma_Diag_Indices, Npar,
-            k_cube_voxels_in_bin, nuv, nu, nv, neta, nf, nq,
-            masked_power_spectral_modes,
-            Ninv, d_Ninv_d, k_vals, ps_box_size_ra_Mpc,
-            ps_box_size_dec_Mpc, ps_box_size_para_Mpc,
-            block_T_Ninv_T=[], log_priors=False, dimensionless_PS=False,
-            inverse_LW_power=0.0,
-            inverse_LW_power_zeroth_LW_term=0.0,
-            inverse_LW_power_first_LW_term=0.0,
-            inverse_LW_power_second_LW_term=0.0,
-            Print=False, debug=False, Print_debug=False,
-            intrinsic_noise_fitting=False, return_Sigma=False,
-            fit_for_spectral_model_parameters=False,
-            uprior_inds=None, fit_for_monopole=False,
-            use_shg=False, fit_for_shg_amps=False,
-            nuv_sh=None, nu_sh=None, nv_sh=None, nq_sh=None,
-            rank=0, use_gpu=True
-            ):
-        self.rank = rank
-        self.use_gpu = use_gpu
-        self.block_T_Ninv_T = block_T_Ninv_T
-        self.log_priors = log_priors
-        if self.log_priors:
-            mpiprint('Using log-priors', rank=self.rank)
-        self.dimensionless_PS = dimensionless_PS
-        if self.dimensionless_PS:
-            mpiprint('Calculating dimensionless_PS', rank=self.rank)
-        self.inverse_LW_power = inverse_LW_power
-        self.inverse_LW_power_zeroth_LW_term = inverse_LW_power_zeroth_LW_term
-        self.inverse_LW_power_first_LW_term = inverse_LW_power_first_LW_term
-        self.inverse_LW_power_second_LW_term = inverse_LW_power_second_LW_term
-        self.Print = Print
-        self.debug = debug
-        self.Print_debug = Print_debug
-        self.intrinsic_noise_fitting = intrinsic_noise_fitting
-        self.return_Sigma = return_Sigma
-        self.fit_for_spectral_model_parameters =\
-            fit_for_spectral_model_parameters
-        self.k_vals = k_vals
-        self.uprior_inds = uprior_inds
-        self.fit_for_monopole = fit_for_monopole
-        self.ps_box_size_ra_Mpc = ps_box_size_ra_Mpc
-        self.ps_box_size_dec_Mpc = ps_box_size_dec_Mpc
-        self.ps_box_size_para_Mpc = ps_box_size_para_Mpc
-        self.use_shg = use_shg
-        self.fit_for_shg_amps = fit_for_shg_amps
-        self.nuv_sh = nuv_sh
-        self.nu_sh = nu_sh
-        self.nv_sh = nv_sh
-        self.nq_sh = nq_sh
+        self,
+        T_Ninv_T,
+        dbar,
+        k_vals,
+        k_cube_voxels_in_bin,
+        nuv,
+        neta,
+        nf,
+        nq,
+        Ninv,
+        d_Ninv_d,
+        redshift,
+        ps_box_size_ra_Mpc,
+        ps_box_size_dec_Mpc,
+        ps_box_size_para_Mpc,
+        include_instrumental_effects=True,
+        log_priors=False,
+        uprior_inds=None,
+        masked_power_spectral_modes=None,
+        use_LWM_Gaussian_prior=False,
+        inverse_LW_power=0.0,
+        dimensionless_PS=False,
+        block_T_Ninv_T=[],
+        intrinsic_noise_fitting=False,
+        fit_for_spectral_model_parameters=False,
+        pl_max=None,
+        pl_grid_spacing=None,
+        use_shg=False,
+        return_Sigma=False,
+        rank=0,
+        use_gpu=True,
+        print=False,
+        print_rate=100,
+        debug=False,
+        print_debug=False
+    ):
+        self.instantiation_time = time.time()
 
+        # Required params
         self.T_Ninv_T = T_Ninv_T
         self.dbar = dbar
-        self.Sigma_Diag_Indices = Sigma_Diag_Indices
-        self.block_diagonal_sigma = False
-        self.instantiation_time = time.time()
-        self.count = 0
-        self.Npar = Npar
+        self.k_vals = k_vals
         self.k_cube_voxels_in_bin = k_cube_voxels_in_bin
         self.nuv = nuv
-        self.nu = nu
-        self.nv = nv
         self.neta = neta
         self.nf = nf
         self.nq = nq
-        self.neor_uveta = self.nuv*(self.neta - 1)
-        self.masked_power_spectral_modes = masked_power_spectral_modes
         self.Ninv = Ninv
         self.d_Ninv_d = d_Ninv_d
-        self.print_rate = 1000
-        self.alpha_prime = 1.0
-        self.spectral_model_parameters_array_storage_dir =\
-            '/gpfs/data/jpober/psims/EoR/Python_Scripts/BayesEoR/'\
-            'git_version/BayesEoR/spec_model_tests/array_storage/'\
-            'FgSpecMOptimisation/Likelihood_v1d76_3D_ZM_nu_9_nv_9_'\
-            'neta_38_nq_2_npl_2_b1_2.00E+00_b2_3.00E+00_sigma_8d5E+04'\
-            '_instrumental/HERA_331_baselines_shorter_than_29d3_for_30'\
-            '_0d5_min_time_steps_Gaussian_beam_peak_amplitude_1d0_beam_'\
-            'width_9d0_deg_at_150d0_MHz/'
+        self.redshift = redshift
+        self.ps_box_size_ra_Mpc = ps_box_size_ra_Mpc
+        self.ps_box_size_dec_Mpc = ps_box_size_dec_Mpc
+        self.ps_box_size_para_Mpc = ps_box_size_para_Mpc
+        # Optional params
+        self.include_instrumental_effects = include_instrumental_effects
+        self.log_priors = log_priors
+        self.uprior_inds = uprior_inds
+        self.masked_power_spectral_modes = masked_power_spectral_modes
+        self.use_LWM_Gaussian_prior = use_LWM_Gaussian_prior
+        self.inverse_LW_power = inverse_LW_power
+        self.dimensionless_PS = dimensionless_PS
+        self.block_T_Ninv_T = block_T_Ninv_T
+        self.intrinsic_noise_fitting = intrinsic_noise_fitting
+        self.fit_for_spectral_model_parameters =\
+            fit_for_spectral_model_parameters
+        if self.fit_for_spectral_model_parameters:
+            req_params = np.all(
+                [x is not None for x in [pl_max, pl_grid_spacing]]
+            )
+            if self.rank == 0:
+                assert req_params, (
+                    "If fit_for_spectral_model_parameters is True, must pass "
+                    "both pl_max and pl_grid_spacing."
+                )
+            self.pl_max = pl_max
+            self.pl_grid_spacing = pl_grid_spacing
+        self.use_shg = use_shg
+        self.return_Sigma = return_Sigma
+        self.rank = rank
+        self.use_gpu = use_gpu
+        self.print = print
+        self.print_rate = print_rate
+        self.debug = debug
+        self.print_debug = print_debug
+        # Auxiliary params
+        self.count = 0  # Iteration counter
+        self.neor_uveta = self.nuv*(self.neta - 1)  # EoR model parameters
+        self.Npar = T_Ninv_T.shape[0]  # EoR+FG model parameters
+        self.Sigma_diag_inds = np.diag_indices(self.Npar)
+        self.alpha_prime = 1.0  # Initial noise fitting parameter value
+        # Conversion from observational k-cube voxel units [sr Hz] to comoving 
+        # voxel units [Mpc^3]
+        self.inst_to_cosmo_vol = Cosmology().inst_to_cosmo_vol(self.redshift)
+        # Volume of model image cube in comoving coordinates
+        self.cosmo_volume = (
+            self.ps_box_size_ra_Mpc
+            * self.ps_box_size_dec_Mpc
+            * self.ps_box_size_para_Mpc
+        )
+        # FIXME: add argument for location of pre-computed(?) arrays when
+        # fitting for spectral model parameters?
+        self.spectral_model_parameters_array_storage_dir = ''
+
+        if self.log_priors:
+            mpiprint('Using log-priors', rank=self.rank)
+        if self.dimensionless_PS:
+            mpiprint('Calculating dimensionless_PS', rank=self.rank)
+        mpiprint(
+            f"Setting inverse_LW_power to {self.inverse_LW_power}",
+            rank=self.rank
+        )
         
         self.initialize_gpu()
     
@@ -328,22 +342,12 @@ class PowerSpectrumPosteriorProbability(object):
             Dimensionless power spectrum normalization with units of
             1 / (sr**2 Hz**2).
         """
-        volume = (
-            self.ps_box_size_ra_Mpc
-            * self.ps_box_size_dec_Mpc
-            * self.ps_box_size_para_Mpc
-        )
-
         # Normalization calculated relative to mean
         # of vector k within the i_bin-th k-bin
-        dmps_norm = self.k_vals[i_bin]**3./(2*np.pi**2) / volume
+        dmps_norm = self.k_vals[i_bin]**3./(2*np.pi**2) / self.cosmo_volume
 
         # Redshift dependent quantities
-        nu_array_MHz = p.nu_min_MHz + np.arange(p.nf)*p.channel_width_MHz
-        cosmo = Cosmology()
-        z = cosmo.f2z(nu_array_MHz.mean()*1e6)
-        inst_to_cosmo_vol = cosmo.inst_to_cosmo_vol(z)
-        dmps_norm *= inst_to_cosmo_vol**2
+        dmps_norm *= self.inst_to_cosmo_vol**2
 
         return dmps_norm
 
@@ -373,7 +377,7 @@ class PowerSpectrumPosteriorProbability(object):
         """
         PowerI = np.zeros(self.Npar)
 
-        if p.include_instrumental_effects:
+        if self.include_instrumental_effects:
             q0_index = self.neta//2
         else:
             q0_index = self.nf//2 - 1
@@ -389,9 +393,12 @@ class PowerSpectrumPosteriorProbability(object):
         # Constrain LW mode amplitude distribution
         dimensionless_PS_scaling =\
             self.calc_physical_dimensionless_power_spectral_normalisation(0)
-        if p.use_LWM_Gaussian_prior:
-            # TODO: Needs to be updated for the new separate EoR and FG
-            # models if used in the future!!!
+        # FIXME: Need to update the code in this if/else block to account
+        # for the separate EoR and FG models if used in the future.  There is
+        # currently no way to implement separate priors on the individual large
+        # spectral scale model (LSSM) parameters.  Currently, the prior is set
+        # to be identical accross all LSSM parameters.
+        if self.use_LWM_Gaussian_prior:
             Fourier_mode_start_index = 3
             PowerI[:cg_end][q0_index::self.neta+self.nq] =\
                 np.mean(dimensionless_PS_scaling) / x[0]
@@ -401,16 +408,8 @@ class PowerSpectrumPosteriorProbability(object):
                 np.mean(dimensionless_PS_scaling) / x[2]
         else:
             Fourier_mode_start_index = 0
-            # Set to zero for a uniform distribution
+            # Set to zero (1e-16) for a uniform distribution
             PowerI[self.neor_uveta:] = self.inverse_LW_power
-            PowerI[self.neor_uveta:] = self.inverse_LW_power
-            PowerI[self.neor_uveta:] = self.inverse_LW_power
-
-            if self.inverse_LW_power == 0.0:
-                # Set to zero for a uniform distribution
-                PowerI[self.neor_uveta:] = self.inverse_LW_power_zeroth_LW_term
-                PowerI[self.neor_uveta:] = self.inverse_LW_power_zeroth_LW_term
-                PowerI[self.neor_uveta:] = self.inverse_LW_power_zeroth_LW_term
 
         if self.use_shg:
             # TODO: Needs to be updated for the new separate EoR and FG
@@ -489,8 +488,8 @@ class PowerSpectrumPosteriorProbability(object):
             Noise weighted representation of the data (signal + noise) vector
             of visibilities in model (u, v, eta) space.
         block_T_Ninv_T : list
-            Block diagonal representation of `T_Ninv_T`.  Only used if
-            ``p.use_instrumental_effects = False``.  Defaults to `[]`.
+            Block diagonal representation of `T_Ninv_T`.  Only used if ignoring
+            instrumental effects.  Defaults to `[]`.
 
         Returns
         -------
@@ -509,13 +508,13 @@ class PowerSpectrumPosteriorProbability(object):
         start = time.time()
         PowerI = self.calc_PowerI(x)
         PhiI = PowerI
-        if self.Print:
+        if self.print:
             mpiprint('\tPhiI time: {}'.format(time.time()-start),
                      rank=self.rank)
 
         do_block_diagonal_inversion = len(np.shape(block_T_Ninv_T)) > 1
         if do_block_diagonal_inversion:
-            if self.Print:
+            if self.print:
                 mpiprint('Using block-diagonal inversion', rank=self.rank)
             start = time.time()
             if self.intrinsic_noise_fitting:
@@ -525,14 +524,14 @@ class PowerSpectrumPosteriorProbability(object):
             else:
                 Sigma_block_diagonals = self.calc_Sigma_block_diagonals(
                     T_Ninv_T, PhiI)
-            if self.Print:
+            if self.print:
                 mpiprint('Time taken: {}'.format(time.time()-start),
                          rank=self.rank)
 
             start = time.time()
             dbar_blocks = np.split(dbar, self.nuv)
             if self.use_gpu:
-                if self.Print:
+                if self.print:
                     mpiprint('Computing block diagonal inversion on GPU',
                              rank=self.rank)
                 SigmaI_dbar_blocks_and_logdet_Sigma = np.array(
@@ -558,13 +557,13 @@ class PowerSpectrumPosteriorProbability(object):
                         )
                      for i_block in range(self.nuv)]
                     )
-            if self.Print:
+            if self.print:
                 mpiprint('Time taken: {}'.format(time.time()-start),
                          rank=self.rank)
 
             SigmaI_dbar = SigmaI_dbar_blocks.flatten()
             dbarSigmaIdbar = np.dot(dbar.conjugate().T, SigmaI_dbar)
-            if self.Print:
+            if self.print:
                 mpiprint('Time taken: {}'.format(time.time()-start),
                          rank=self.rank)
 
@@ -575,12 +574,12 @@ class PowerSpectrumPosteriorProbability(object):
                     [np.linalg.slogdet(Sigma_block)[1]
                      for Sigma_block in Sigma_block_diagonals]
                     )
-                if self.Print:
+                if self.print:
                     mpiprint('Time taken: {}'.format(time.time()-start),
                              rank=self.rank)
 
         else:
-            if self.count % self.print_rate == 0 and self.Print:
+            if self.count % self.print_rate == 0 and self.print:
                 mpiprint('Not using block-diagonal inversion', rank=self.rank)
             start = time.time()
             # Note: the following two lines can probably be speeded up
@@ -591,8 +590,8 @@ class PowerSpectrumPosteriorProbability(object):
             if self.intrinsic_noise_fitting:
                 Sigma = Sigma/self.alpha_prime**2.0
 
-            Sigma[self.Sigma_Diag_Indices] += PhiI
-            if self.Print:
+            Sigma[self.Sigma_diag_inds] += PhiI
+            if self.print:
                 mpiprint('\tSigma build time: {}'.format(time.time()-start),
                          rank=self.rank)
             if self.return_Sigma:
@@ -600,7 +599,7 @@ class PowerSpectrumPosteriorProbability(object):
 
             start = time.time()
             if self.use_gpu:
-                if self.Print:
+                if self.print:
                     mpiprint('Computing matrix inversion on GPU',
                              rank=self.rank)
                 SigmaI_dbar_and_logdet_Sigma = self.calc_SigmaI_dbar(
@@ -610,7 +609,7 @@ class PowerSpectrumPosteriorProbability(object):
             else:
                 SigmaI_dbar = self.calc_SigmaI_dbar(
                     Sigma, dbar, x_for_error_checking=x)
-            if self.Print:
+            if self.print:
                 mpiprint(
                     '\tcalc_SigmaI_dbar time: {}'.format(time.time()-start),
                     rank=self.rank
@@ -618,7 +617,7 @@ class PowerSpectrumPosteriorProbability(object):
 
             start = time.time()
             dbarSigmaIdbar = np.dot(dbar.conjugate().T, SigmaI_dbar)
-            if self.Print:
+            if self.print:
                 mpiprint(
                     '\tdbarSigmaIdbar time: {}'.format(time.time()-start),
                     rank=self.rank
@@ -629,7 +628,7 @@ class PowerSpectrumPosteriorProbability(object):
                 logSigmaDet = logdet_Sigma
             else:
                 logSigmaDet = np.linalg.slogdet(Sigma)[1]
-            if self.Print:
+            if self.print:
                 mpiprint(
                     '\tlogSigmaDet time: {}'.format(time.time()-start),
                     rank=self.rank
@@ -684,13 +683,13 @@ class PowerSpectrumPosteriorProbability(object):
             dbar_copy = dbar.copy()
             dbar_copy_copy = dbar.copy()
             self.GPU_error_flag = np.array([0])
-            if self.Print:
+            if self.print:
                 start = time.time()
             # Replace 0 with 1 to pring debug in the following command
             self.wrapmzpotrf.cpu_interface(
                 len(Sigma), self.nrhs, Sigma, dbar_copy, 0, self.GPU_error_flag
             )
-            if self.Print:
+            if self.print:
                 mpiprint(
                     '\t\tCholesky decomposition time: {}'.format(
                         time.time() - start
@@ -700,11 +699,11 @@ class PowerSpectrumPosteriorProbability(object):
             # Note: After wrapmzpotrf, Sigma is actually
             # SigmaCho (i.e. L with Sigma = LL^T)
             logdet_Magma_Sigma = np.sum(np.log(np.diag(abs(Sigma)))) * 2
-            if self.Print:
+            if self.print:
                 start = time.time()
             SigmaI_dbar = scipy.linalg.cho_solve(
                 (Sigma.conjugate().T, True), dbar_copy_copy)
-            if self.Print:
+            if self.print:
                 mpiprint(
                     '\t\tscipy cho_solve time: {}'.format(
                         time.time() - start
@@ -733,8 +732,8 @@ class PowerSpectrumPosteriorProbability(object):
         x : array_like
             Input power spectrum amplitudes per |k|-bin with length `nDims`.
         block_T_Ninv_T : list
-            Block diagonal representation of `T_Ninv_T`.  Only used if
-            ``p.use_instrumental_effects = False``.  Defaults to `[]`.
+            Block diagonal representation of `T_Ninv_T`.  Only used if ignoring
+            instrumental effects.  Defaults to `[]`.
 
         Returns
         -------
@@ -752,25 +751,23 @@ class PowerSpectrumPosteriorProbability(object):
         dbar = self.dbar
 
         if self.fit_for_spectral_model_parameters:
-            Print = self.Print
-            self.Print = True
             pl_params = x[:2]
             x = x[2:]
-            if self.Print:
+            if self.print:
                 mpiprint('pl_params', pl_params, rank=self.rank)
-            if self.Print:
-                mpiprint('p.pl_grid_spacing, p.pl_max',
-                         p.pl_grid_spacing, p.pl_max,
+            if self.print:
+                mpiprint('pl_grid_spacing, pl_max',
+                         self.pl_grid_spacing, self.pl_max,
                          rank=self.rank)
             b1 = pl_params[0]
             b2 = (b1
-                  + p.pl_grid_spacing
-                  + (p.pl_max - b1 - p.pl_grid_spacing)*pl_params[1]
+                  + self.pl_grid_spacing
+                  + (self.pl_max - b1 - self.pl_grid_spacing)*pl_params[1]
                   )
-            # Round derived pl indices to nearest p.pl_grid_spacing
-            b1, b2 = (p.pl_grid_spacing
-                      * np.round(np.array([b1, b2]) / p.pl_grid_spacing, 0))
-            if self.Print:
+            # Round derived pl indices to nearest self.pl_grid_spacing
+            b1, b2 = (self.pl_grid_spacing
+                      * np.round(np.array([b1, b2]) / self.pl_grid_spacing, 0))
+            if self.print:
                 mpiprint('b1, b2', b1, b2, rank=self.rank)
 
             # Load matrices associated with sampled beta params
@@ -786,7 +783,6 @@ class PowerSpectrumPosteriorProbability(object):
             start = time.time()
             with h5py.File(T_Ninv_T_file_path, 'r') as hf:
                 T_Ninv_T = hf[T_Ninv_T_dataset_name][:]
-                # alpha_prime = p.sigma/170000.0
                 # This is only valid if the data is uniformly weighted
                 # T_Ninv_T = T_Ninv_T/(alpha_prime**2.0)
                 if self.count % self.print_rate == 0:
@@ -805,7 +801,6 @@ class PowerSpectrumPosteriorProbability(object):
             start = time.time()
             with h5py.File(dbar_file_path, 'r') as hf:
                 dbar = hf[dbar_dataset_name][:]
-                # alpha_prime = p.sigma/170000.0
                 # This is only valid if the data is uniformly weighted
                 # dbar = dbar/(alpha_prime**2.0)
                 # if self.count % self.print_rate == 0:
@@ -813,7 +808,6 @@ class PowerSpectrumPosteriorProbability(object):
                 if self.count % self.print_rate == 0:
                     mpiprint('Time taken: {}'.format(time.time() - start),
                              rank=self.rank)
-            self.Print = Print
 
         if self.intrinsic_noise_fitting:
             self.alpha_prime = x[0]
@@ -834,19 +828,19 @@ class PowerSpectrumPosteriorProbability(object):
         start_call = time.time()
         try:
             if do_block_diagonal_inversion:
-                if self.Print:
+                if self.print:
                     mpiprint('Using block-diagonal inversion', rank=self.rank)
                 SigmaI_dbar, dbarSigmaIdbar, PhiI, logSigmaDet =\
                     self.calc_SigmaI_dbar_wrapper(
                         x, T_Ninv_T, dbar, block_T_Ninv_T=block_T_Ninv_T)
             else:
-                if self.Print:
+                if self.print:
                     mpiprint('Not using block-diagonal inversion',
                              rank=self.rank)
                 start = time.time()
                 SigmaI_dbar, dbarSigmaIdbar, PhiI, logSigmaDet =\
                     self.calc_SigmaI_dbar_wrapper(x, T_Ninv_T, dbar)
-                if self.Print:
+                if self.print:
                     mpiprint(
                         'calc_SigmaI_dbar_wrapper time: {}'.format(
                             time.time() - start
@@ -861,7 +855,7 @@ class PowerSpectrumPosteriorProbability(object):
             # np.linalg.slogdet(Phi))
             start = time.time()
             logPhiDet = -1 * np.sum(np.log(PhiI)).real
-            if self.Print:
+            if self.print:
                 mpiprint('logPhiDet time: {}'.format(time.time() - start),
                          rank=self.rank)
 
@@ -872,10 +866,10 @@ class PowerSpectrumPosteriorProbability(object):
             if self.intrinsic_noise_fitting:
                 MargLogL = MargLogL - 0.5*d_Ninv_d - 0.5*log_det_N
             MargLogL = MargLogL.real
-            if self.Print:
+            if self.print:
                 mpiprint('MargLogL time: {}'.format(time.time() - start),
                          rank=self.rank)
-            if self.Print_debug:
+            if self.print_debug:
                 MargLogL_equation_string = \
                     'MargLogL = -0.5*logSigmaDet '\
                     '-0.5*logPhiDet + 0.5*dbarSigmaIdbar'
@@ -899,10 +893,6 @@ class PowerSpectrumPosteriorProbability(object):
                 print(self.rank, ':', MargLogL_equation_string, MargLogL)
                 print(self.rank, ':', 'MargLogL.real', MargLogL.real)
 
-            # brk()
-
-            if self.nu > 10:
-                self.print_rate = 100
             if self.count % self.print_rate == 0:
                 mpiprint('count', self.count, rank=self.rank)
                 print(
