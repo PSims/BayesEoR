@@ -454,7 +454,7 @@ pspp = PowerSpectrumPosteriorProbability(
     use_shg=args.use_shg,
     rank=mpi_rank,
     use_gpu=args.useGPU,
-    print=True
+    print=args.verbose
 )
 
 if args.useGPU:

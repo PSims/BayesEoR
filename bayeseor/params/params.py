@@ -96,6 +96,13 @@ def BayesEoRParser():
              "the sampler.  Defaults to using Multinest.  Using Polychord is "
              "advised for large parameter spaces."
     )
+    parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        dest="verbose",
+        help="If True, print info/timing statements from posterior "
+             "probability calculations."
+    )
     # --- Model params ---
     # Frequency params
     parser.add_argument(
