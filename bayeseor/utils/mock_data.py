@@ -1,13 +1,7 @@
 import numpy as np
-from subprocess import os
-from astropy_healpix import HEALPix
 
-from BayesEoR.Linalg.healpix import Healpix
-import BayesEoR.Params.params as p
-from BayesEoR.Utils import mpiprint
-
-use_foreground_cube = True
-# use_foreground_cube = False
+from ..model.healpix import Healpix
+from .utils import mpiprint
 
 
 def generate_data_from_loaded_eor_cube(
@@ -44,17 +38,17 @@ def generate_data_from_loaded_eor_cube(
         Full 21cmFAST cube.
 
     """
-    mpiprint('Using use_EoR_cube data', rank=rank)
-    eor_cube = np.load(eor_npz_path)['arr_0']
+    mpiprint("Using use_EoR_cube data", rank=rank)
+    eor_cube = np.load(eor_npz_path)["arr_0"]
 
     axes_tuple = (1, 2)
-    if chan_selection == '0_38_':
+    if chan_selection == "0_38_":
         vfft1 = np.fft.ifftshift(eor_cube[0:38]-eor_cube[0].mean() + 0j,
                                  axes=axes_tuple)
-    elif chan_selection == '38_76_':
+    elif chan_selection == "38_76_":
         vfft1 = np.fft.ifftshift(eor_cube[38:76]-eor_cube[0].mean() + 0j,
                                  axes=axes_tuple)
-    elif chan_selection == '76_114_':
+    elif chan_selection == "76_114_":
         vfft1 = np.fft.ifftshift(eor_cube[76:114]-eor_cube[0].mean() + 0j,
                                  axes=axes_tuple)
     else:
@@ -75,7 +69,7 @@ def generate_data_from_loaded_eor_cube(
     s_before_ZM = vfft1_subset.flatten()
     ZM_vis_ordered_mask = np.ones(nu*nv*nf)
     ZM_vis_ordered_mask[nf*((nu*nv)//2):nf*((nu*nv)//2 + 1)] = 0
-    ZM_vis_ordered_mask = ZM_vis_ordered_mask.astype('bool')
+    ZM_vis_ordered_mask = ZM_vis_ordered_mask.astype(bool)
     ZM_chan_ordered_mask = ZM_vis_ordered_mask.reshape(-1, neta+nq).T.flatten()
     s = s_before_ZM[ZM_chan_ordered_mask]
 
@@ -85,7 +79,7 @@ def generate_data_from_loaded_eor_cube(
 def generate_mock_eor_signal_instrumental(
         Finv, nf, fov_ra_deg, fov_dec_deg, nside, telescope_latlonalt,
         central_jd, nt, int_time, wn_rms=6.4751478, random_seed=123456,
-        rank=0):
+        beam_type="uniform", rank=0):
     """
     Generate a mock dataset using numpy generated white noise for the sky
     signal.  Instrumental effects are included via the calculation of
@@ -114,8 +108,8 @@ def generate_mock_eor_signal_instrumental(
     int_time : float
         Integration time in seconds.
     wn_rms : float
-        RMS of the white noise sky model in mili-Kelvin. Defaults to
-        6.4751478 mili-Kelvin.
+        RMS of the white noise sky model in milikelvin. Defaults to
+        6.4751478 milikelvin.
     random_seed : int
         Used to seed `np.random` when generating the sky realization.
     rank : int
@@ -130,7 +124,7 @@ def generate_mock_eor_signal_instrumental(
         White noise sky realization.
 
     """
-    mpiprint('Generating white noise signal...', rank=rank)
+    mpiprint("Generating white noise sky signal...", rank=rank)
     hpx = Healpix(
         fov_ra_deg=fov_ra_deg,
         fov_dec_deg=fov_dec_deg,
@@ -139,11 +133,11 @@ def generate_mock_eor_signal_instrumental(
         central_jd=central_jd,
         nt=nt,
         int_time=int_time,
-        beam_type='uniform'
+        beam_type=beam_type
     )
     # RMS scaled to hold the power spectrum amplitude constant
     wn_rms *= nside / 256
-    mpiprint('Seeding numpy.random with {}'.format(random_seed), rank=rank)
+    mpiprint(f"Seeding numpy.random with {random_seed}", rank=rank)
     np.random.seed(random_seed)
     white_noise_sky = np.random.normal(0.0, wn_rms, (nf, hpx.npix_fov))
     white_noise_sky -= white_noise_sky.mean(axis=1)[:, None]

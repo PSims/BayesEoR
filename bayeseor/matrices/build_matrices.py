@@ -9,14 +9,14 @@ from scipy.signal import windows
 from pathlib import Path
 from astropy.constants import c
 
-from BayesEoR.Linalg import\
+from .matrix_funcs import\
     nuidft_matrix_2d, idft_matrix_1d,\
     build_lssm_basis_vectors,\
     generate_gridding_matrix_vo2co,\
     nuDFT_Array_DFT_2D_v2d0,\
     idft_array_idft_1d_sh, IDFT_Array_IDFT_2D_ZM_SH
-from BayesEoR.Linalg.healpix import Healpix
-from BayesEoR.Utils import get_git_version_info
+from ..model.healpix import Healpix
+from ..utils.utils import get_git_version_info
 
 
 """

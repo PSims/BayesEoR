@@ -1,0 +1,23 @@
+# Compute params
+useGPU: True
+array_dir_prefix: /users/jburba/data/jburba/bayes/BayesEoR/array_storage/
+# Frequency params
+nf: 38
+nu_min_MHz: 158.304048743
+channel_width_MHz: 0.237618986858
+# EoR model params
+nu: 15
+fov_ra_eor: 12.9080728652
+nside: 128
+# Noise params
+sigma: 0.00615864342588761
+# Instrument model params
+include_instrumental_effects: True
+nt: 34
+integration_time_seconds: 11.0
+inst_model: /users/jburba/data/shared/jburba/pyuvsims/beor_sim_paper/inst_models/Hex-37-14.6m-34-11.0sec-time-steps-nbls-30-bl-cutoff-40.0m
+central_jd: 2458098.3065661727
+beam_type: gaussian
+fwhm_deg: 9.306821090681533
+# Data params
+data_path: /users/jburba/data/shared/jburba/pyuvsims/beor_sim_paper/wn/gauss/fwhm9.3/proc/wn-nside256-field-1-hex37-14.6m-nt-34-dt-11s-fov-12.9deg-start-freq-158.30-nf-38-nbls-30-pol-pI.npy

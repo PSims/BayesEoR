@@ -3,9 +3,6 @@ import os  # can be removed after astropy_healpix fixes
 import numpy as np
 from scipy import sparse
 
-from BayesEoR.Linalg.healpix import Healpix
-import BayesEoR.Params.params as p
-
 """
     Useful DFT link:
     https://www.cs.cf.ac.uk/Dave/Multimedia/node228.html
