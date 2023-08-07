@@ -124,7 +124,7 @@ else:
 # --------------------------------------------
 mpiprint("\n", Panel("Matrices"), rank=mpi_rank)
 
-args.array_dir = get_array_dir_name(args)
+args.array_dir, fov_str = get_array_dir_name(args)
 mpiprint(
     f"[bold]Array save directory:[/bold] {args.array_dir}", rank=mpi_rank
 )
@@ -184,7 +184,7 @@ BM = BuildMatrices(
     taper_func=args.taper_func
 )
 
-if args.overwrite_matrices:
+if args.clobber:
     mpiprint(
         "\nWARNING: Overwriting matrix stack\n", rank=mpi_rank,
         style="bold red", justify="center"
@@ -211,8 +211,10 @@ k_cube_voxels_in_bin, modkbins_containing_voxels = \
     generate_k_cube_model_spherical_binning(
         mod_k_vo, args.ps_box_size_para_Mpc
     )
+k_vals_file = f'nu-{args.nu}-nv-{args.nv}-nf-{args.nf}{fov_str}.txt'
 k_vals = calc_mean_binned_k_vals(
-    mod_k_vo, k_cube_voxels_in_bin, save_k_vals=False, rank=mpi_rank
+    mod_k_vo, k_cube_voxels_in_bin, save_k_vals=True,
+    k_vals_file=k_vals_file, clobber=args.clobber, rank=mpi_rank
 )
 
 
@@ -484,7 +486,7 @@ if mpi_rank == 0 and not pspp.use_gpu:
         pspp,
         BM,
         effective_noise,
-        clobber=args.overwrite_matrices
+        clobber=args.clobber
     )
 
 # Log-likelihood function for MultiNest

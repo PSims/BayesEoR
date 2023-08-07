@@ -1,5 +1,4 @@
 import numpy as np
-from subprocess import os
 from pathlib import Path
 
 from ..utils import mpiprint
@@ -170,9 +169,9 @@ def generate_k_cube_model_spherical_binning(mod_k_vo, ps_box_size_para_Mpc):
 
 
 def calc_mean_binned_k_vals(
-        mod_k_vo, k_cube_voxels_in_bin, save_k_vals=False,
-        k_vals_file='k_vals.txt', k_vals_dir='k_vals', rank=0
-        ):
+    mod_k_vo, k_cube_voxels_in_bin, save_k_vals=False, clobber=False,
+    k_vals_file="k_vals.txt", k_vals_dir="k_vals", rank=0
+):
     """
     Calculates the mean of all |k| that fall within a k-bin.
 
@@ -186,6 +185,8 @@ def calc_mean_binned_k_vals(
         k-bin.
     save_k_vals : bool
         If `True`, save mean k values to `k_vals_file`.
+    clobber : bool
+        If `True`, overwrite existing files.
     k_vals_file : str
         Filename for saved k values.  Defaults to 'k_vals.txt'.
     k_vals_dir : str
@@ -202,7 +203,7 @@ def calc_mean_binned_k_vals(
     k_vals = []
     kbin_edges = []
     nsamples = []
-    mpiprint('\n---Calculating k-vals---', rank=rank)
+    mpiprint("\n---Calculating k-vals---", rank=rank)
     for i_bin in range(len(k_cube_voxels_in_bin)):
         mean_mod_k = mod_k_vo[k_cube_voxels_in_bin[i_bin]].mean()
         min_k = mod_k_vo[k_cube_voxels_in_bin[i_bin]].min()
@@ -214,18 +215,20 @@ def calc_mean_binned_k_vals(
     kbin_edges.append(max_k)
 
     k_vals_dir = Path(k_vals_dir)
-    if save_k_vals and not (k_vals_dir / k_vals_file).exists():
+    save = save_k_vals * (not (k_vals_dir / k_vals_file).exists() or clobber)
+    if save:
         if not k_vals_dir.exists():
-            mpiprint('Directory not found: \n\n' + k_vals_dir + "\n",
-                     rank=rank)
-            mpiprint('Creating required directory structure..', rank=rank)
-            os.makedirs(k_vals_dir.absolute())
+            mpiprint(f"Directory not found: \n\n{k_vals_dir}\n", rank=rank)
+            mpiprint("Creating required directory structure..", rank=rank)
+            k_vals_dir.mkdir()
 
         np.savetxt(k_vals_dir / k_vals_file, k_vals)
-        np.savetxt(k_vals_dir / k_vals_file.replace('.txt', '_bins.txt'),
-                   kbin_edges)
-        np.savetxt(k_vals_dir / k_vals_file.replace('.txt', '_nsamples.txt'),
-                   nsamples)
+        np.savetxt(
+            k_vals_dir / k_vals_file.replace(".txt", "-bins.txt"), kbin_edges
+        )
+        np.savetxt(
+            k_vals_dir / k_vals_file.replace(".txt", "-nsamples.txt"), nsamples
+        )
 
     return np.array(k_vals)
 

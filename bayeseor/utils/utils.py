@@ -173,7 +173,7 @@ def get_array_dir_name(args, version=2.13, prefix="./array-storage/"):
     
     matrices_path.mkdir(exist_ok=True, parents=True)
 
-    return str(matrices_path) + "/"
+    return str(matrices_path) + "/", fov_str
 
 
 def generate_output_file_base(directory, file_root, version_number="1"):

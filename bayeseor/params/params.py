@@ -51,9 +51,10 @@ def BayesEoRParser():
              "to True (use sparse matrices)."
     )
     parser.add_argument(
-        "--overwrite-matrices",
+        "--clobber",
         action="store_true",
-        help="If passed, overwrite existing matrix stack."
+        help="If passed, overwrite the matrix stack, k-bin centers file, and"
+             "maximum a posteriori dictionary if they exist."
     )
     parser.add_argument(
         "--log-priors",
