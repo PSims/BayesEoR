@@ -520,7 +520,7 @@ if args.single_node or mpi_size > 1:
             LogLikelihood=mnloglikelihood,
             Prior=prior_c.prior_func,
             n_dims=nDims,
-            outputfiles_basename=str(output_dir / file_root),
+            outputfiles_basename=str(output_dir / args.file_root),
             n_live_points=MN_nlive
         )
     else:
@@ -532,7 +532,7 @@ if args.single_node or mpi_size > 1:
             pspp.posterior_probability,
             nDims,
             nDerived,
-            file_root=file_root,
+            file_root=args.file_root,
             read_resume=False,
             prior=prior_c.prior_func,
             precision_criterion=precision_criterion,
