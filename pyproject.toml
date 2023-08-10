@@ -1,14 +1,35 @@
 [build-system]
-requires = ["setuptools", "setuptools-scm"]
+requires = ["setuptools", "setuptools-scm[toml]"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "bayeseor"
 description = "A Bayesian approach to estimating the power spectrum of the Epoch of Reionization (EoR) from interferometric observations."
-authors = [
-    "Peter Sims <>",
-    "Jacob Burba <>"
-]
+authors = [{name="Peter Sims"}, {name="Jacob Burba"}]
 readme = "README.md"
 repository = "https://github.com/PSims/BayesEoR/"
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "astropy",
+    "astropy-healpix",
+    "gcc_linux-64",
+    "h5py",
+    "jsonargparse",
+    "mpi4py>=3.0.0",
+    "numpy",
+    "pycuda",
+    "pymultinest",
+    "python",
+    "pyuvdata",
+    "rich",
+    "scipy"
+]
 dynamic = ["version"]
+
+[project.optional-dependencies]
+doc = ["sphinx"]
+
+[tool.setuptools]
+packages = ["bayeseor"]
