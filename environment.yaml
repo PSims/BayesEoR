@@ -7,10 +7,10 @@ dependencies:
   - gcc_linux-64
   - h5py
   - jsonargparse
-#   - mpi4py>=3.0.0
+  - mpi4py>=3.0.0
   - numpy
   - pip
-#   - pycuda
+  - pycuda
   - pymultinest
   - python
   - pyuvdata
