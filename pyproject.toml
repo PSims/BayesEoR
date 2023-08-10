@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bayeseor"
+description = "A Bayesian approach to estimating the power spectrum of the Epoch of Reionization (EoR) from interferometric observations."
+authors = [
+    "Peter Sims <>",
+    "Jacob Burba <>"
+]
+readme = "README.md"
+repository = "https://github.com/PSims/BayesEoR/"
+dynamic = ["version"]
