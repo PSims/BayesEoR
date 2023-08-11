@@ -18,3 +18,4 @@ For a detailed description of the methodology, see `Sims et al. 2016 <https://ui
    installation
    parameters
    usage
+   class_list
