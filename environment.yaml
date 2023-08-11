@@ -16,4 +16,6 @@ dependencies:
   - pyuvdata
   - rich
   - scipy
+  - setuptools
+  - setuptools_scm
   - sphinx
