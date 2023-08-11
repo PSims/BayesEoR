@@ -65,11 +65,15 @@ Similarly, if using a pre-configured implementation of MultiNest, pymultinest ca
 
 # Running BayesEoR
 
-There are two ways to interface with variables in BayesEoR: command line arguments or config files.  For a list of available command line arguments and their descriptions, run:
+There are two ways to interface with variables in BayesEoR: command line arguments or config files.  For a list of available command line arguments and their descriptions, run
 ```
 python run-analysis.py --help
 ```
+or see the [documentation](https://bayeseor.readthedocs.io/en/docs/) for more info on the analysis parameters used by BayesEoR.
 
-The `jsonargparse` package allows for all of these command line arguments to be set via a yaml configuration file.  An example yaml file has been provided (`example-config.yaml`).  Any variable that can be set via a command line argument can also be set in this yaml configuration file (command line arguments containing dashes in the variable name must be replaced with underscores, i.e. the command line argument `--data-path` can be set in the configuration file via `data_path: <path_to_data>`).  The example configuration file also specifies the minimally sufficient variables that must be set for a BayesEoR analysis.
+The `jsonargparse` package allows for all of these command line arguments to be set via a yaml configuration file.  An example yaml file has been provided (`example-config.yaml`).  Any variable that can be set via a command line argument can also be set in this yaml configuration file (command line arguments containing dashes in the variable name must be replaced with underscores, i.e. the command line argument `--data-path` can be set in the configuration file via `data_path: "/path/to/data.npy"`).  The example configuration file also specifies the minimally sufficient variables that must be set for a BayesEoR analysis.
 
-`run-analysis.py` provides an example driver script for running BayesEoR.  This file contains all of the necessary steps to set up the `PowerSpectrumPosteriorProbability` class and to run MultiNest and obtain power spectrum posteriors.
+`run-analysis.py` provides an example driver script for running BayesEoR.  This file contains all of the necessary steps to set up the `PowerSpectrumPosteriorProbability` class and to run MultiNest and obtain power spectrum posteriors.  If using a configuration file, this driver script can be run via
+```
+python run-analysis.py --config /path/to/config.yaml
+```
