@@ -4,6 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bayeseor"
+version = 0.0.0
 description = "A Bayesian approach to estimating the power spectrum of the Epoch of Reionization (EoR) from interferometric observations."
 authors = [{name="Peter Sims"}, {name="Jacob Burba"}]
 readme = "README.md"
@@ -25,10 +26,6 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 doc = ["sphinx"]
-
-[tool.setuptools_scm]
-write_to = "bayeseor/_version.py"
-fallback_version = "0.0.0"
 
 [tool.setuptools]
 packages = ["bayeseor"]
