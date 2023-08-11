@@ -1,11 +1,13 @@
-# Parameters
+Parameters
+==========
 
 All user-definable analysis parameters in BayesEoR are handled via the `BayesEoRParser` class in `bayeseor/params/params.py`.
 
 .. autoclass:: bayeseor.params.BayesEoRParser
     :members:
 
-## Setting Parameters
+Setting Parameters
+------------------
 
 The `jsonargparse` package allows for all of these parameters to be set via the command line or a yaml configuration file.  An example yaml file has been provided (`example-config.yaml`)
 

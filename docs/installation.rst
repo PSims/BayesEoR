@@ -1,6 +1,8 @@
-# Installation
+Installation
+============
 
-## Hardware/Software Dependencies
+Hardware/Software Dependencies
+------------------------------
 
 BayesEoR relies on GPUs to perform a Cholesky decomposition on large matrices using the Matrix Algebra on GPU and Multicore Architectures (MAGMA) library. As currently implemented, the following software dependencies must be installed to run BayesEoR:
 - [MAGMA](https://icl.cs.utk.edu/magma/)
@@ -18,13 +20,15 @@ BayesEoR has been succesfully run with:
 
 This is not an exhaustive list of software versions which are compatible with our analysis, just a guide of what versions we have used succesfully in our BayesEoR analyses.
 
-### A Note on Using CPUs
+A Note on Using CPUs
+^^^^^^^^^^^^^^^^^^^^
 
 While it is in principle possible to run BayesEoR on CPUs, we strongly suggest using GPUs due to their increased speed and precision relative to CPU-based methods.
 
 
 
-## Python Dependencies
+Python Dependencies
+-------------------
 
 BayesEoR is written primarily in python, with the exception of the MAGMA interface which is written in C (and wrapped in python). The required python dependencies are
 

@@ -1,4 +1,5 @@
-# Running BayesEoR
+Running BayesEoR
+================
 
 `run-analysis.py` provides an example driver script for running BayesEoR.  This file contains all of the necessary steps to set up the `PowerSpectrumPosteriorProbability` class and to run MultiNest and obtain power spectrum posteriors.  If using a configuration file, this driver script can be run via
 ```
