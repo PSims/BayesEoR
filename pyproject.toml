@@ -22,7 +22,6 @@ dependencies = [
     "rich",
     "scipy"
 ]
-dynamic = ["version"]
 
 [project.optional-dependencies]
 doc = ["sphinx"]
