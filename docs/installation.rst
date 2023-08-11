@@ -13,11 +13,11 @@ BayesEoR relies on GPUs to perform a Cholesky decomposition on large matrices us
 
 BayesEoR has been succesfully run with
 
-- **GPUs:** NVIDIA P100, V100, and A100 architectures
-- **MAGMA:** 2.4.0, 2.5.4, and 2.7.1
-- **MPI:** ``conda`` installation (mpich) and OpenMPI 4.0.5
-- **CUDA:** 9.1.85.1 and 11.1.1
-- **MultiNest:** ``conda`` installation and a source installation
+- GPUs: NVIDIA P100, V100, and A100 architectures
+- MAGMA: 2.4.0, 2.5.4, and 2.7.1
+- MPI: ``conda`` installation (mpich) and OpenMPI 4.0.5
+- CUDA: 9.1.85.1 and 11.1.1
+- MultiNest: ``conda`` installation and a source installation
 
 This is not an exhaustive list of software versions which are compatible with our analysis, just a guide of what versions we have used succesfully in our BayesEoR analyses.
 
@@ -53,7 +53,7 @@ BayesEoR is written primarily in python, with the exception of the MAGMA interfa
 
 If you with to install all of these dependencies with ``conda``, you can do so using the included ``environment.yaml`` file via
 
-.. code-block:: Bash
+.. code-block:: bash
 
     conda env create -f environment.yaml
 
