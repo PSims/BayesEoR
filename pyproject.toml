@@ -27,5 +27,10 @@ dynamic = ["version"]
 [project.optional-dependencies]
 doc = ["sphinx"]
 
+[tool.setuptools_scm]
+write_to = "bayeseor/_version.py"
+parentdir_prefix_version = "bayeseor-"
+fallback_version = "0.0.0"
+
 [tool.setuptools]
 packages = ["bayeseor"]
