@@ -1421,8 +1421,8 @@ class BuildMatrices(BuildMatrixTree):
         Notes
         -----
         * Used for the FG model in `Fz`.
-        * `idft_array_1d_fg` has shape `(nuv_fg * nf,
-           nuv_fg*(1 + nq) + fit_for_monopole*(neta + nq))`.
+        * `idft_array_1d_fg` has shape (nuv_fg \* nf,
+          nuv_fg\*(1 \+ nq) \+ fit_for_monopole\*(neta \+ nq)).
 
         """
         matrix_name = 'idft_array_1d_fg'

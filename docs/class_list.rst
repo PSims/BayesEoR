@@ -8,6 +8,7 @@ Parameter parsing of command line arguments and/or configuration files.
 
 .. autoclass:: bayeseor.params.BayesEoRParser
     :members:
+    :noindex:
 
 Matrix Building
 ---------------
@@ -25,8 +26,8 @@ Class containing HEALPix functions for the image domain model.
 .. autoclass:: bayeseor.model.healpix.Healpix
     :members:
 
-Posterior Calculation
----------------------
+.. Posterior Calculation
+.. ---------------------
 
-.. autoclass:: bayeseor.posterior.PowerSpectrumPosteriorProbability
-    :members:
+.. .. autoclass:: bayeseor.posterior.PowerSpectrumPosteriorProbability
+..     :members:
