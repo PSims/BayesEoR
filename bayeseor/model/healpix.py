@@ -302,9 +302,10 @@ class Healpix(HEALPix):
 
         This function gets the HEALPix pixel indices for all pixel centers
         lying inside
-        * a rectangle with equal arc length on all sides if
-          ``simple_za_filter = True``
-        * a circle with radius `fov_ra` if ``simple_za_filter = False``
+
+            - a rectangle with equal arc length on all sides if
+              ``simple_za_filter = True``
+            - a circle with radius `fov_ra` if ``simple_za_filter = False``
 
         Parameters
         ----------

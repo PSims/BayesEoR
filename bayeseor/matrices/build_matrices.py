@@ -1093,11 +1093,12 @@ class BuildMatrices(BuildMatrixTree):
         Build a multi-frequency NUDFT matrix for image to measurement space.
 
         Finv is a a non-uniform DFT matrix that takes a vector of
-        (l, m, n) syk model pixel amplitudes and:
-          1. Applies a beam per time and frequency via `multi_chan_beam`
-          2. Transforms to insttrumentally sampled, unphased (u(f), v(f), w(f))
+        (l, m, n) syk model pixel amplitudes and
+
+          #. Applies a beam per time and frequency via `multi_chan_beam`
+          #. Transforms to insttrumentally sampled, unphased (u(f), v(f), w(f))
              coordinates from the instrument model
-          3. If modelling phased visibilities, applies a phasor vector from the
+          #. If modelling phased visibilities, applies a phasor vector from the
              instrument model to phase the visibilities to the central time
              step
 
@@ -1420,9 +1421,8 @@ class BuildMatrices(BuildMatrixTree):
         Notes
         -----
         * Used for the FG model in `Fz`.
-        * `idft_array_1d_fg` has shape
-          (nuv_fg * nf,
-           nuv_fg*(1 + nq) + fit_for_monopole*(neta + nq)).
+        * `idft_array_1d_fg` has shape (nuv_fg \* nf,
+          nuv_fg\*(1 \+ nq) \+ fit_for_monopole\*(neta \+ nq)).
 
         """
         matrix_name = 'idft_array_1d_fg'
@@ -1559,9 +1559,9 @@ class BuildMatrices(BuildMatrixTree):
 
         Notes
         -----
-        * `Fz` has shape
-          ((nuv_eor + nuv_fg)*nf,
-           nuv_eor*(neta-1) + nuv_fg*(1 + nq) + fit_for_monopole*(neta + nq)).
+        * `Fz` has shape ((nuv_eor \+ nuv_fg)\*nf,
+           nuv_eor\*(neta \- 1) \+ nuv_fg\*(1 \+ nq)
+           \+ fit_for_monopole\*(neta \+ nq)).
 
         """
         matrix_name = 'Fz'
@@ -1590,11 +1590,9 @@ class BuildMatrices(BuildMatrixTree):
 
         Notes
         -----
-        * `Fprime_Fz` has shape
-          (npix,
-           nuv_eor * (neta - 1)
-           + (nuv_fg - fit_for_monopole) * (1 + nq)
-           + fit_for_monopole * (neta + nq)).
+        * `Fprime_Fz` has shape (npix, nuv_eor * (neta - 1)
+           \+ (nuv_fg - fit_for_monopole) * (1 \+ nq)
+           \+ fit_for_monopole * (neta \+ nq)).
 
         """
         matrix_name = 'Fprime_Fz'
@@ -1812,14 +1810,15 @@ class BuildMatrices(BuildMatrixTree):
         Build `T = Finv * Fprime * Fz`.
 
         `T` takes a model (u(eta), v(eta)) space data vector and transforms it
-        to:
-          1. uv space via Fz
-          2. image space via Fprime
-          3. measurement space via Finv
+        to
+
+          #. uv space via `Fz`
+          #. image space via `Fprime`
+          #. measurement space via `Finv`
 
         Notes
         -----
-        * `T` has shape (ndata, nuv * (neta + nq)).
+        * `T` has shape (ndata, nuv \* (neta \+ nq)).
 
         """
         matrix_name = 'T'
@@ -1934,7 +1933,7 @@ class BuildMatrices(BuildMatrixTree):
     def prepare_matrix_stack_for_deletion(
             self, src, clobber_matrices):
         """
-        Archive an existing matrix stack on disk by prepending 'delete_'
+        Archive an existing matrix stack on disk by prepending 'delete\_'
         to the child directory.
 
         Parameters
