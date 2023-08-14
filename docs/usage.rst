@@ -6,3 +6,6 @@ Running BayesEoR
 .. code-block:: Bash
     
     python run-analysis.py --config /path/to/config.yaml
+
+
+For additional help with running BayesEoR and setting analysis parameters, please see :ref:`setting-parameters`.
