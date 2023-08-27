@@ -63,6 +63,23 @@ If you have pre-configured installations of CUDA or MPI, e.g. installations opti
 Similarly, if using a pre-configured implementation of MultiNest, pymultinest can also be installed with `pip` and forced to point to a particular installation by including the MultiNest installation in your `LD_LIBRARY_PATH`.  See the pymultinest [documentation](https://johannesbuchner.github.io/PyMultiNest/install.html) for more details.
 
 
+# Documentation
+
+Documentation on how to estimate the power spectrum of redshifted 21-cm emission in a radio interferometric data set using BayesEoR is hosted on [ReadTheDocs](https://bayeseor.readthedocs.io/en/docs/).
+
+
+# Citation
+
+Users of the code are requested to cite the BayesEoR papers: 
+
+- https://ui.adsabs.harvard.edu/abs/2016MNRAS.462.3069S/abstract
+- https://ui.adsabs.harvard.edu/abs/2019MNRAS.484.4152S/abstract
+- https://ui.adsabs.harvard.edu/abs/2019MNRAS.488.2904S/abstract
+- https://ui.adsabs.harvard.edu/abs/2023MNRAS.520.4443B/abstract
+
+in their publications.
+
+
 # Running BayesEoR
 
 There are two ways to interface with variables in BayesEoR: command line arguments or config files.  For a list of available command line arguments and their descriptions, run
