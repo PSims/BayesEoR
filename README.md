@@ -65,7 +65,7 @@ Similarly, if using a pre-configured implementation of MultiNest, pymultinest ca
 
 # Documentation
 
-Documentation on how to estimate the power spectrum of redshifted 21-cm emission in a radio interferometric data set using BayesEoR is hosted on [ReadTheDocs](https://bayeseor.readthedocs.io/en/docs/).
+Documentation on how to estimate the power spectrum of redshifted 21-cm emission in a radio interferometric data set using BayesEoR is hosted on [ReadTheDocs](https://bayeseor.readthedocs.io/en/latest/).
 
 
 # Citation
@@ -86,7 +86,7 @@ There are two ways to interface with variables in BayesEoR: command line argumen
 ```
 python run-analysis.py --help
 ```
-or see the [documentation](https://bayeseor.readthedocs.io/en/docs/) for more info on the analysis parameters used by BayesEoR.
+or see the [documentation](https://bayeseor.readthedocs.io/en/latest/) for more info on the analysis parameters used by BayesEoR.
 
 The `jsonargparse` package allows for all of these command line arguments to be set via a yaml configuration file.  An example yaml file has been provided (`example-config.yaml`).  Any variable that can be set via a command line argument can also be set in this yaml configuration file (command line arguments containing dashes in the variable name must be replaced with underscores, i.e. the command line argument `--data-path` can be set in the configuration file via `data_path: "/path/to/data.npy"`).  The example configuration file also specifies the minimally sufficient variables that must be set for a BayesEoR analysis.
 
