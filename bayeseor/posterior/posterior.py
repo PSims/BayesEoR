@@ -277,7 +277,7 @@ class PowerSpectrumPosteriorProbability(object):
                 ctypeslib.ndpointer(np.complex128, ndim=2, flags='C'),
                 ctypeslib.ndpointer(np.complex128, ndim=1, flags='C'),
                 ctypes.c_int,
-                ctypeslib.ndpointer(np.int, ndim=1, flags='C')]
+                ctypeslib.ndpointer(int, ndim=1, flags='C')]
             self.wrapmzpotrf = wrapmzpotrf
             if print_msg:
                 mpiprint('Computing on GPU(s)', rank=self.rank, end='\n\n')
