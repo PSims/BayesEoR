@@ -17,7 +17,7 @@ NOTE: Currently only working for simulated healvis datasets and will
       in the creation of the noise estimate and the weighted averaging.
 """
 
-import BayesEoR
+import bayeseor
 import numpy as np
 import pickle
 import copy
@@ -41,7 +41,7 @@ plt.rcParams.update(
     {'font.size': 16, 'figure.figsize': (12, 8), 'figure.facecolor': 'w'}
 )
 DEFAULT_SAVE_DIR = str(
-    Path(BayesEoR.__file__).parent / 'scripts'
+    Path(bayeseor.__file__).parent / 'scripts'
 )
 
 
@@ -66,7 +66,7 @@ parser.add_argument(
     type=str,
     default=DEFAULT_SAVE_DIR,
     help='Filepath in which the data will be saved. '
-         'Defaults to the BayesEoR/scripts directory.'
+         "Defaults to 'BayesEoR/scripts'."
 )
 parser.add_argument(
     '--save_model',
@@ -77,7 +77,7 @@ parser.add_argument(
     '--inst_model_dir',
     type=str,
     default=None,
-    help='Path to the BayesEoR/Instrument_Model directory.'
+    help='Directory in which the instrument model will be saved.'
 )
 parser.add_argument(
     '--telescope_name',
