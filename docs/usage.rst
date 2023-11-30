@@ -28,7 +28,7 @@ To build the matrices (which will require ~17 GB of disk space) using the provid
 
     python run-analysis.py --config example-config.yaml --cpu
 
-Note that with ``jsonargparse``, command line arguments that come after the `--config` flag overwrite the value of the argument in the configuration file.  In the above example, the `--cpu` flag placed after the `--config` flag will force the code to use CPUs only.
+Note that with ``jsonargparse``, command line arguments that come after the ``--config`` flag overwrite the value of the argument in the configuration file.  In the above example, the ``--cpu`` flag placed after the ``--config`` flag will force the code to use CPUs only.
 
 Once the matrices are built, you can run the power spectrum analysis (which requires GPUs) via
 
