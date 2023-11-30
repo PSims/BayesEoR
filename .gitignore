@@ -5,9 +5,11 @@
 **/*.sh
 **/*.ipynb
 **/*.so
+**/*version.py
 !.gitignore
 !bayeseor/
 !docs/
+!test_data/
 !README.md
 !.readthedocs.yaml
 !pyproject.toml
