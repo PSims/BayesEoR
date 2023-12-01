@@ -146,6 +146,53 @@ if args.include_instrumental_effects:
 else:
     n_vis = 0
 
+# Force analysis to output the dimensionless power spectrum.  Support for
+# power spectrum P(k) output will be added in the future.
+dimensionless_PS = True  # FIXME: Add normalization function for P(k)
+
+# Set up output directory
+output_dir = Path(args.output_dir)
+output_dir.mkdir(exist_ok=True, parents=False)
+# Create filename (if not provided via cl_args.file_root) for sampler output
+if cl_args.file_root is None:
+    file_root = f"Test-{args.nu}-{args.nv}-{args.neta}-{args.nq}-{args.npl}"
+    file_root += f"-{args.sigma:.1E}"
+    if args.beta:
+        beta_str = ""
+        for b in args.beta:
+            beta_str += f"-{b:.2f}"
+        file_root += beta_str
+    if args.log_priors:
+        file_root += "-lp"
+    if dimensionless_PS:
+        file_root += "-dPS"
+    if args.nq == 0:
+        file_root = file_root.replace("mini-", "mini-NQ-")
+    elif args.inverse_LW_power >= 1e16:
+        file_root = file_root.replace("mini-", "mini-ZLWM-")
+    if use_EoR_cube:
+        file_root = file_root.replace("Test", "EoR")
+    if args.use_Multinest:
+        file_root = "MN-" + file_root
+    else:
+        file_root = "PC-" + file_root
+    if args.use_shg:
+        file_root += (
+            f"-SH-{args.nu_sh}-{args.nv_sh}-{args.nq_sh}-{args.npl_sh}"
+        )
+        if args.fit_for_shg_amps:
+            file_root += "ffsa-"
+    file_root += "-v1"
+    file_root = generate_output_file_base(
+        output_dir, file_root, version_number="1"
+    )
+    file_root += "/"
+    cl_args.file_root = file_root
+output_dir /= cl_args.file_root
+mpiprint(f"\nOutput directory: {output_dir.absolute()}", rank=mpi_rank)
+output_dir.mkdir(exist_ok=True, parents=True)
+
+
 # --------------------------------------------
 # Construct matrices
 # --------------------------------------------
@@ -238,10 +285,9 @@ k_cube_voxels_in_bin, modkbins_containing_voxels = \
     generate_k_cube_model_spherical_binning(
         mod_k_vo, args.ps_box_size_para_Mpc
     )
-k_vals_file = f'nu-{args.nu}-nv-{args.nv}-nf-{args.nf}{fov_str}.txt'
 k_vals = calc_mean_binned_k_vals(
-    mod_k_vo, k_cube_voxels_in_bin, save_k_vals=True,
-    k_vals_file=k_vals_file, clobber=args.clobber, rank=mpi_rank
+    mod_k_vo, k_cube_voxels_in_bin, save_k_vals=True, k_vals_dir=output_dir,
+    clobber=args.clobber, rank=mpi_rank
 )
 
 
@@ -402,48 +448,6 @@ else:
 mpiprint("priors = {}".format(priors), rank=mpi_rank)
 prior_c = PriorC(priors)
 nDerived = 0  # PolyChord parameter
-dimensionless_PS = True  # FIXME: Add normalization function for P(k)
-
-# Sampler output
-output_dir = Path(args.output_dir)
-output_dir.mkdir(exist_ok=True, parents=False)
-# Create filename (if not provided via cl_args.file_root) for sampler output
-if cl_args.file_root is None:
-    file_root = f"Test-{args.nu}-{args.nv}-{args.neta}-{args.nq}-{args.npl}"
-    file_root += f"-{args.sigma:.1E}"
-    if args.beta:
-        beta_str = ""
-        for b in args.beta:
-            beta_str += f"-{b:.2f}"
-        file_root += beta_str
-    if args.log_priors:
-        file_root += "-lp"
-    if dimensionless_PS:
-        file_root += "-dPS"
-    if args.nq == 0:
-        file_root = file_root.replace("mini-", "mini-NQ-")
-    elif args.inverse_LW_power >= 1e16:
-        file_root = file_root.replace("mini-", "mini-ZLWM-")
-    if use_EoR_cube:
-        file_root = file_root.replace("Test", "EoR")
-    if args.use_Multinest:
-        file_root = "MN-" + file_root
-    else:
-        file_root = "PC-" + file_root
-    if args.use_shg:
-        file_root += (
-            f"-SH-{args.nu_sh}-{args.nv_sh}-{args.nq_sh}-{args.npl_sh}"
-        )
-        if args.fit_for_shg_amps:
-            file_root += "ffsa-"
-    file_root += "-v1"
-    file_root = generate_output_file_base(
-        output_dir, file_root, version_number="1"
-    )
-    file_root += "/"
-    cl_args.file_root = file_root
-
-mpiprint(f"\nfile_root: {cl_args.file_root}", rank=mpi_rank)
 
 # Assign uniform priors to any bins specified by args.uprior_bins
 if args.uprior_bins != "":
@@ -536,20 +540,22 @@ def mnloglikelihood(theta, calc_likelihood=pspp.posterior_probability):
 
 if run_ps_analysis:
     mpiprint(
-        "\nRunning power spectrum analysis...\n",
+        "\nRunning power spectrum analysis...",
         style="bold",
         justify="center",
-        rank=mpi_rank
+        rank=mpi_rank,
+        end="\n\n"
     )
 elif mpi_size == 1 and not args.single_node:
     mpiprint(
-        "MPI size == 1, analysis will only be run with --single-node flag.",
+        "\nMPI size == 1, analysis will only be run with --single-node flag.",
         style="bold red",
         justify="center",
-        rank=mpi_rank
+        rank=mpi_rank,
+        end="\n\n"
     )
 
-sampler_output_base = str(output_dir / cl_args.file_root / "data-")
+sampler_output_base = str(output_dir / "data-")
 if run_ps_analysis:
     mpiprint("\n", Panel("Analysis"), rank=mpi_rank)
     if mpi_rank == 0:
@@ -580,6 +586,6 @@ if run_ps_analysis:
             nlive=nlive
         )
 
-    mpiprint("\nSampling complete!", rank=mpi_rank)
+    mpiprint("\nSampling complete!", rank=mpi_rank, end="\n\n")
 else:
-    mpiprint("\nSkipping sampling, exiting...", rank=mpi_rank)
+    mpiprint("\nSkipping sampling, exiting...", rank=mpi_rank, end="\n\n")

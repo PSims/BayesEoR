@@ -170,7 +170,7 @@ def generate_k_cube_model_spherical_binning(mod_k_vo, ps_box_size_para_Mpc):
 
 def calc_mean_binned_k_vals(
     mod_k_vo, k_cube_voxels_in_bin, save_k_vals=False, clobber=False,
-    k_vals_file="k_vals.txt", k_vals_dir="k_vals", rank=0
+    k_vals_file="k-vals.txt", k_vals_dir="k_vals", rank=0
 ):
     """
     Calculates the mean of all |k| that fall within a k-bin.
@@ -188,7 +188,7 @@ def calc_mean_binned_k_vals(
     clobber : bool
         If `True`, overwrite existing files.
     k_vals_file : str
-        Filename for saved k values.  Defaults to 'k_vals.txt'.
+        Filename for saved k values.  Defaults to 'k-vals.txt'.
     k_vals_dir : str
         Directory in which to save k values.  Defaults to './k_vals/'.
     rank : int
@@ -213,13 +213,14 @@ def calc_mean_binned_k_vals(
         mpiprint(i_bin, mean_mod_k, rank=rank)
     max_k = mod_k_vo[k_cube_voxels_in_bin[i_bin]].max()
     kbin_edges.append(max_k)
+    mpiprint("", rank=rank)
 
     k_vals_dir = Path(k_vals_dir)
     save = save_k_vals * (not (k_vals_dir / k_vals_file).exists() or clobber)
     if save:
         if not k_vals_dir.exists():
             mpiprint(f"Directory not found: \n\n{k_vals_dir}\n", rank=rank)
-            mpiprint("Creating required directory structure..", rank=rank)
+            mpiprint("Creating required directory structure...", rank=rank)
             k_vals_dir.mkdir()
 
         np.savetxt(k_vals_dir / k_vals_file, k_vals)
