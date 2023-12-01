@@ -217,9 +217,9 @@ def BayesEoRParser():
         action=ActionYesNo(yes_prefix="g", no_prefix="c"),
         default=True,
         dest="useGPU",
-        help="Use GPUs (--gpu) or CPUs (--cpu).  Using GPUs is strongly "
-             "encouraged as the CPU based matrix inversion methods are either "
-             "slow or unreliable.  Defaults to True (use GPUs)."
+        help="Use GPUs (--gpu) or CPUs (--cpu).  Using GPUs is required for "
+             "the power spectrum analysis.  CPUs can be used to construct the "
+             "required matrices.  Defaults to True (use GPUs)."
     )
     parser.add_argument(
         "--single-node",
