@@ -9,6 +9,7 @@
 !.gitignore
 !bayeseor/
 !docs/
+!scripts/
 !test_data/
 !README.md
 !.readthedocs.yaml
