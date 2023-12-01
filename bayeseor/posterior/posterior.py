@@ -281,6 +281,7 @@ class PowerSpectrumPosteriorProbability(object):
             self.wrapmzpotrf = wrapmzpotrf
             if print_msg:
                 mpiprint('Computing on GPU(s)', rank=self.rank, end='\n\n')
+            self.gpu_initialized = True
 
         except Exception as e:
             if print_msg:
@@ -288,10 +289,7 @@ class PowerSpectrumPosteriorProbability(object):
                     '\nException loading GPU encountered...', rank=self.rank
                 )
                 mpiprint(repr(e), rank=self.rank)
-                mpiprint(
-                    'Computing on CPU instead...', rank=self.rank, end='\n\n'
-                )
-            self.use_gpu = False
+            self.gpu_initialized = False
 
     def add_power_to_diagonals(self, T_Ninv_T_block, PhiI_block):
         """

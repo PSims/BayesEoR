@@ -2,6 +2,7 @@
 # --------------------------------------------
 # Imports
 # --------------------------------------------
+import sys
 import numpy as np
 import time
 from pathlib import Path
@@ -55,6 +56,22 @@ if __name__ == "__main__":
 else:
     # Skip mpi and other imports that can cause crashes in ipython
     mpi_rank = 0
+
+run_ps_analysis = (args.single_node or mpi_size > 1) and args.useGPU
+if (args.single_node or mpi_size > 1) and not args.useGPU:
+    # BayesEoR requires double precision GPUs to run a power spectrum analysis.
+    # CPUs are insufficient in speed and precision to obtain accurate results.
+    mpiprint(
+        "WARNING: Double precision GPUs are required to run a power spectrum"
+        " analysis.  Please run BayesEoR by either setting 'useGPU: True' in "
+        "your configuration yaml file or via the '--gpu' flag on the command "
+        "line.",
+        style="bold red",
+        justify="center",
+        rank=mpi_rank,
+        end="\n\n"
+    )
+
 if mpi_rank == 0:
     mpiprint(Panel("Parameters"), style="bold")
     pprint(args.__dict__)
@@ -466,8 +483,21 @@ pspp = PowerSpectrumPosteriorProbability(
     use_gpu=args.useGPU,
     print=args.verbose
 )
+if run_ps_analysis and not pspp.gpu_initialized:
+    mpiprint(
+        "\nERROR: GPU initialization failed.  Aborting.\n",
+        style="bold red",
+        justify="center",
+        rank=mpi_rank
+    )
+    if mpi_comm is not None:
+        mpi_comm.Abort(1)
+    else:
+        sys.exit()
 
-if args.useGPU:
+if mpi_rank == 0 and run_ps_analysis:
+    # Compute the average posterior calculation time for reference and check
+    # that this calculation is returning finite values
     start = time.time()
     pspp.Print = False
     Nit = 10
@@ -486,9 +516,11 @@ if args.useGPU:
         rank=mpi_rank
     )
 
-if mpi_rank == 0 and not pspp.use_gpu:
-    # if use_gpu, pspp will contain a ctypes object with pointers which
-    # cannot be pickled
+if mpi_rank == 0 and not args.useGPU:
+    # This function creates a python dictionary filled with objects required to
+    # do maximum a posteriori calculations outside of a power spectrum analysis
+    # which can be very useful for testing/debugging.  If using GPUs, `pspp`
+    # will contain a ctypes object with pointers which cannot be pickled.
     write_map_dict(
         args.array_dir,
         pspp,
@@ -502,9 +534,9 @@ def mnloglikelihood(theta, calc_likelihood=pspp.posterior_probability):
     return calc_likelihood(theta)[0]
 
 
-if mpi_size > 1:
+if run_ps_analysis:
     mpiprint(
-        "\nMPI size > 1, running multi-node analysis...\n",
+        "\nRunning power spectrum analysis...\n",
         style="bold",
         justify="center",
         rank=mpi_rank
@@ -518,7 +550,7 @@ elif mpi_size == 1 and not args.single_node:
     )
 
 sampler_output_base = str(output_dir / cl_args.file_root / "data-")
-if args.single_node or mpi_size > 1:
+if run_ps_analysis:
     mpiprint("\n", Panel("Analysis"), rank=mpi_rank)
     if mpi_rank == 0:
         write_log_files(parser, cl_args)
