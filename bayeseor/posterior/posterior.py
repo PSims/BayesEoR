@@ -241,6 +241,7 @@ class PowerSpectrumPosteriorProbability(object):
             rank=self.rank
         )
         
+        self.gpu_initialized = False
         self.initialize_gpu()
     
     def initialize_gpu(self, print_msg=True):
@@ -289,7 +290,6 @@ class PowerSpectrumPosteriorProbability(object):
                     '\nException loading GPU encountered...', rank=self.rank
                 )
                 mpiprint(repr(e), rank=self.rank)
-            self.gpu_initialized = False
 
     def add_power_to_diagonals(self, T_Ninv_T_block, PhiI_block):
         """
