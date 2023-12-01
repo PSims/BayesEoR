@@ -1,5 +1,6 @@
 """ Analysis settings """
 import numpy as np
+from copy import deepcopy
 from astropy import constants
 from astropy import units
 from jsonargparse import ArgumentParser, ActionYesNo, ActionConfigFile
@@ -247,6 +248,11 @@ def BayesEoRParser():
         action="store_true",
         help="If passed, overwrite the matrix stack, k-bin centers file, and"
              "maximum a posteriori dictionary if they exist."
+    )
+    parser.add_argument(
+        "--priors",
+        type=List[list],
+        help="Power spectrum prior range [min, max] for each k bin."
     )
     parser.add_argument(
         "--log-priors",
@@ -639,28 +645,26 @@ def BayesEoRParser():
     if args.achromatic_beam and not args.beam_ref_freq:
         args.beam_ref_freq = args.nu_min_MHz
 
-    # Update args with derived parameters
-    args = calculate_derived_params(args)
-
-    return args
+    return parser, args
 
 
-def calculate_derived_params(args):
+def calculate_derived_params(args_in):
     """
     Calculate analysis parameters derived from command line arguments.
 
     Parameters
     ----------
-    args : Namespace
+    args_in : Namespace
         Namespace object containing command line arguments from
         `bayeseor.params.command_line_arguments.BayesEoRParser`.
     
     Returns
     -------
     args : Namespace
-        Updated Namespace containing derived parameters.
+        Copy of `args_in` containing derived parameters.
 
     """
+    args = deepcopy(args_in)
     cosmo = Cosmology()
 
     # --- Frequency ---

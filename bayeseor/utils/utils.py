@@ -1,17 +1,15 @@
 import numpy as np
 import pickle
 import subprocess
+import json
 from subprocess import os
-from types import ModuleType
 from pathlib import Path
 from copy import deepcopy
 
-# import BayesEoR.Params.params as p  # FIXME
-# from BayesEoR.Linalg import Healpix
-from bayeseor.model.healpix import Healpix
-
 from rich.console import Console
 cns = Console()
+
+from bayeseor.model.healpix import Healpix
 
 
 def mpiprint(*args, rank=0, highlight=False, soft_wrap=True, **kwargs):
@@ -176,48 +174,46 @@ def get_array_dir_name(args, version=2.13, prefix="./array-storage/"):
     return str(matrices_path) + "/", fov_str
 
 
-def generate_output_file_base(directory, file_root, version_number="1"):
+def generate_output_file_base(output_dir, dir_name, version_number="1"):
     """
-    Generate a filename for the sampler output.  The version number of the
-    output file is incrimented until a new `file_root` is found to avoid
-    overwriting existing sampler data.
+    Generate a directory name for the sampler output.  The version number of
+    the output directory is incrimented until a new `dir_name` is found to
+    avoid overwriting existing sampler data.
 
     Parameters
     ----------
-    directory : Path or str
-        Directory in which to search for files.
-    file_root : str
-        Filename root with a version number string `-v{}-` suffix.
+    output_dir : Path or str
+        Directory in which to search for files in subdirectories.
+    dir_name : str
+        Directory name with a version number string `-v{}` suffix.
     version_number : str
         Version number as a string.  Defaults to '1'.
 
     Returns
     -------
-    file_root : str
-        Updated filename root with a new, largest version number.
+    dir_name : str
+        Updated directory name with a new, largest version number.
 
     """
-    if not isinstance(directory, Path):
-        directory = Path(directory)
+    if not isinstance(output_dir, Path):
+        output_dir = Path(output_dir)
     suffixes = ["phys_live.txt", ".resume", "resume.dat"]
 
-    def file_exists(directory, filename, suffixes):
-        exists = np.any(
-            [(directory / f"{filename}{suf}").exists() for suf in suffixes]
-        )
-        return exists
+    def check_for_files(directory, suffixes):
+        Nfiles = 0
+        for suffix in suffixes:
+            Nfiles += len(list(directory.glob(f"*{suffix}")))
+        return Nfiles > 0
 
-    filename_exists = file_exists(directory, file_root, suffixes)
-    while filename_exists:
-        fr1, fr2 = file_root.split("-v")
-        fr21, fr22 = fr2.split("-")
-        next_version_number = str(int(fr21)+1)
-        file_root = file_root.replace(
-            f"v{version_number}-", f"v{next_version_number}-"
+    while check_for_files(output_dir / dir_name, suffixes):
+        current_version = int(dir_name.split("-v")[-1])
+        next_version = current_version + 1
+        dir_name = dir_name.replace(
+            f"v{version_number}", f"v{next_version}"
         )
-        version_number = next_version_number
-        filename_exists = file_exists(directory, file_root, suffixes)
-    return file_root
+        version_number = next_version
+
+    return dir_name
 
 
 def get_git_version_info(directory=None):
@@ -260,53 +256,36 @@ def get_git_version_info(directory=None):
 
     return version_info
 
-#FIXME: need to remove the use of the p module and replace with new Namespace
-def write_log_file(args, priors):
+
+def write_log_files(parser, args):
     """
-    Write a log file containing current git hash, array save
-    directory, multinest output file root, and parameters from
-    BayesEoR.Params.params for a complete record of what parameters
-    went into each analysis run.
+    Write log files containing current git information and analysis parameters.
 
     Parameters
     ----------
+    parser : BayesEoRParser
+        BayesEoRParser instance.
     args : Namespace
-        Namespace object containing command line arguments from
-        `bayeseor.params.command_line_arguments.BayesEoRParser`.
-    priors : array-like
-        Array-like containing prior ranges for each k-bin.
+        Namespace object containing command line and analysis parameters.
 
     """
     # Make log file directory if it doesn't exist
-    log_dir = os.path.join(os.getcwd(), "log_files/")
-    if not os.path.exists(log_dir):
-        print("Creating log directory at {}".format(log_dir))
-        os.mkdir(log_dir)
+    out_dir = Path(args.output_dir) / args.file_root
+    out_dir.mkdir(exist_ok=True, parents=False)
 
-    # Get git version and hash info
-    version_info = get_git_version_info()
+    # Write git version info
+    git_file = out_dir / "git.json"
+    if not git_file.exists():
+        git_info = get_git_version_info()
+        with open(git_file, "w") as f:
+            json.dump(git_info, f)
 
-    log_file = log_dir + args.file_root + ".log"
-    dashed_line = "-"*44
-    with open(log_file, "w") as f:
-        f.write("#" + dashed_line + "\n# GitHub Info\n#" + dashed_line + "\n")
-        for key, val in version_info.items():
-            f.write(f"{key}: {val}\n")
-        f.write("\n\n")
-        f.write("#" + dashed_line + "\n# Directories\n#" + dashed_line + "\n")
-        f.write(f"Array save directory: {args.array_dir}\n")
-        if args.use_Multinest:
-            sampler = "MultiNest"
-        else:
-            sampler = "PolyChord"
-        f.write(f"{sampler} output file root: {args.file_root}\n")
-        f.write("\n\n")
-        f.write("#" + dashed_line + "\n# Parameters\n#" + dashed_line + "\n")
-        for key, val in args.__dict__.items():
-            if not (key.startswith("_") or isinstance(val, ModuleType)):
-                f.write("{} = {}\n".format(key, val))
-        f.write("priors = {}\n".format(priors))
-    print("Log file written successfully to {}".format(log_file))
+    # Write args to disk
+    args_file = out_dir / "args.json"
+    if not args_file.exists():
+        parser.save(args, args_file, format="json", skip_none=False)
+
+    print(f"Log files written successfully to {out_dir.absolute()}")
 
 
 def vector_is_hermitian(data, conj_map, nt, nf, nbls, rtol=0, atol=1e-14):

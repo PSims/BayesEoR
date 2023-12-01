@@ -8,7 +8,11 @@ from pathlib import Path
 from pprint import pprint
 from rich.panel import Panel
 
-from bayeseor.params import BayesEoRParser, parse_uprior_inds
+from bayeseor.params import (
+    BayesEoRParser,
+    calculate_derived_params,
+    parse_uprior_inds
+)
 from bayeseor.utils import (
     mpiprint,
     get_array_dir_name,
@@ -16,7 +20,7 @@ from bayeseor.utils import (
     vector_is_hermitian,
     generate_output_file_base,
     write_map_dict,
-    write_log_file
+    write_log_files
 )
 from bayeseor.model import (
     load_inst_model,
@@ -30,7 +34,13 @@ from bayeseor.matrices import BuildMatrices
 from bayeseor.posterior import PriorC, PowerSpectrumPosteriorProbability
 
 
-args = BayesEoRParser()
+parser, cl_args = BayesEoRParser()
+# Calculate derived parameters from command line arguments
+# For now, calculate_derived_params returns a new jsonargparse.Namespace
+# instance.  Attributes of the Namespace must be linked to a parser
+# argument for jsonargparse.ArgumentParser.save to function properly and this
+# save function is currently used in bayeseor.utils.write_log_files.
+args = calculate_derived_params(cl_args)
 
 if __name__ == "__main__":
     from mpi4py import MPI
@@ -343,10 +353,7 @@ if args.include_instrumental_effects:
 # Sample from the posterior
 # --------------------------------------------
 mpiprint("\n", Panel("Posterior"), rank=mpi_rank)
-log_priors_min_max = [  # FIXME: Add this as a parameter in params
-    [-2.0, 2.0], [-1.2, 2.8], [-0.7, 3.3], [0.7, 2.7], [1.1, 3.1],
-    [1.5, 3.5], [2.0, 4.0], [2.4, 4.4], [2.7, 4.7]
-]
+priors = args.priors
 if args.use_LWM_Gaussian_prior:
     """
     WARNING: use_LWM_Gaussian_prior is currently not implemented for the
@@ -360,31 +367,31 @@ if args.use_LWM_Gaussian_prior:
     # Set minimum LW model prior max using numerical stability
     # constraint at the given signal-to-noise in the data.
     fg_log_priors_max = 6.0
-    # log_priors_min_max[0] = [fg_log_priors_min, 8.0] # Set
+    # priors[0] = [fg_log_priors_min, 8.0] # Set
     # Calibrate LW model priors using white noise fitting
-    log_priors_min_max[0] = [fg_log_priors_min, fg_log_priors_max]
-    log_priors_min_max[1] = [fg_log_priors_min, fg_log_priors_max]
-    log_priors_min_max[2] = [fg_log_priors_min, fg_log_priors_max]
+    priors[0] = [fg_log_priors_min, fg_log_priors_max]
+    priors[1] = [fg_log_priors_min, fg_log_priors_max]
+    priors[2] = [fg_log_priors_min, fg_log_priors_max]
     if args.use_intrinsic_noise_fitting:
-        log_priors_min_max[1] = log_priors_min_max[0]
-        log_priors_min_max[2] = log_priors_min_max[1]
-        log_priors_min_max[3] = log_priors_min_max[2]
-        log_priors_min_max[0] = [1.0, 2.0]  # Linear alpha_prime range
+        priors[1] = priors[0]
+        priors[2] = priors[1]
+        priors[3] = priors[2]
+        priors[0] = [1.0, 2.0]  # Linear alpha_prime range
 else:
     if args.use_intrinsic_noise_fitting:
-        log_priors_min_max[0] = [1.0, 2.0]  # Linear alpha_prime range
+        priors[0] = [1.0, 2.0]  # Linear alpha_prime range
 
 
-mpiprint("log_priors_min_max = {}".format(log_priors_min_max), rank=mpi_rank)
-prior_c = PriorC(log_priors_min_max)
+mpiprint("priors = {}".format(priors), rank=mpi_rank)
+prior_c = PriorC(priors)
 nDerived = 0  # PolyChord parameter
 dimensionless_PS = True  # FIXME: Add normalization function for P(k)
 
 # Sampler output
 output_dir = Path(args.output_dir)
 output_dir.mkdir(exist_ok=True, parents=False)
-# Create filename (if not provided via args.file_root) for sampler output
-if args.file_root is None:
+# Create filename (if not provided via cl_args.file_root) for sampler output
+if cl_args.file_root is None:
     file_root = f"Test-{args.nu}-{args.nv}-{args.neta}-{args.nq}-{args.npl}"
     file_root += f"-{args.sigma:.1E}"
     if args.beta:
@@ -412,13 +419,14 @@ if args.file_root is None:
         )
         if args.fit_for_shg_amps:
             file_root += "ffsa-"
-    file_root += "-v1-"
+    file_root += "-v1"
     file_root = generate_output_file_base(
         output_dir, file_root, version_number="1"
     )
-    args.file_root = file_root
+    file_root += "/"
+    cl_args.file_root = file_root
 
-mpiprint(f"\nOutput file_root: {args.file_root}", rank=mpi_rank)
+mpiprint(f"\nfile_root: {cl_args.file_root}", rank=mpi_rank)
 
 # Assign uniform priors to any bins specified by args.uprior_bins
 if args.uprior_bins != "":
@@ -509,10 +517,11 @@ elif mpi_size == 1 and not args.single_node:
         rank=mpi_rank
     )
 
+sampler_output_base = str(output_dir / cl_args.file_root / "data-")
 if args.single_node or mpi_size > 1:
     mpiprint("\n", Panel("Analysis"), rank=mpi_rank)
     if mpi_rank == 0:
-        write_log_file(args, log_priors_min_max)
+        write_log_files(parser, cl_args)
 
     if args.use_Multinest:
         MN_nlive = nDims * 25
@@ -520,7 +529,7 @@ if args.single_node or mpi_size > 1:
             LogLikelihood=mnloglikelihood,
             Prior=prior_c.prior_func,
             n_dims=nDims,
-            outputfiles_basename=str(output_dir / args.file_root),
+            outputfiles_basename=sampler_output_base,
             n_live_points=MN_nlive
         )
     else:
@@ -532,7 +541,7 @@ if args.single_node or mpi_size > 1:
             pspp.posterior_probability,
             nDims,
             nDerived,
-            file_root=args.file_root,
+            file_root=sampler_output_base,
             read_resume=False,
             prior=prior_c.prior_func,
             precision_criterion=precision_criterion,
