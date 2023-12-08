@@ -622,36 +622,38 @@ class DataContainer(object):
                 label = labels[i_dir]
             elif self.labels is not None:
                 label = self.labels[i_dir]
+            xs = self.k_vals[i_dir] * (1 + x_offset*i_dir)
+            zorder = (10 + zorder_offset*i_dir)
             if np.any(uplim_inds[i_dir]) and self.calc_uplims:
                 upl_inds = uplim_inds[i_dir]  # upper limits
                 det_inds = np.logical_not(upl_inds)  # detections
                 ax.errorbar(  # plot upper limits
-                    self.k_vals[i_dir][upl_inds] * (1 + x_offset*i_dir),
+                    xs[upl_inds],
                     self.uplims[i_dir][upl_inds],
-                    yerr=self.uplims[i_dir][upl_inds]*2/3,
+                    yerr=self.uplims[i_dir][upl_inds].copy()*2/3,
                     uplims=True,
                     color=colors[i_dir],
                     marker=marker,
                     capsize=capsize,
                     lw=lw,
                     ls="",
-                    zorder=(10 + zorder_offset*i_dir)
+                    zorder=zorder
                 )
                 ax.errorbar(  # plot detections
-                    self.k_vals[i_dir][det_inds] * (1 + x_offset*i_dir),
-                    self.uplims[i_dir][det_inds],
-                    yerr=self.uplims[i_dir][det_inds]/2,
+                    xs[det_inds],
+                    self.avgs[i_dir][det_inds],
+                    yerr=self.stddevs[i_dir][det_inds],
                     color=colors[i_dir],
                     marker=marker,
                     capsize=capsize,
                     lw=lw,
                     ls="",
                     label=label,
-                    zorder=(10 + zorder_offset*i_dir)
+                    zorder=zorder
                 )
             else:
                 ax.errorbar(
-                    self.k_vals[i_dir] * (1 + x_offset*i_dir),
+                    xs,
                     self.avgs[i_dir],
                     yerr=self.stddevs[i_dir],
                     color=colors[i_dir],
@@ -660,7 +662,7 @@ class DataContainer(object):
                     lw=lw,
                     ls="",
                     label=label,
-                    zorder=(10 + zorder_offset*i_dir)
+                    zorder=zorder
                 )
 
             if self.has_expected:
@@ -681,21 +683,60 @@ class DataContainer(object):
                 if subplots:
                     if plot_diff:
                         diff = self.avgs[i_dir] - expected[i_exp]
-                        diff_err = self.stddevs[i_dir]
+                        diff_err = self.stddevs[i_dir].copy()
+                        if np.any(uplim_inds[i_dir]) and self.calc_uplims:
+                            diff[upl_inds] = (
+                                self.uplims[i_dir][upl_inds]
+                                - expected[i_exp][upl_inds]
+                            )
+                            diff_err[upl_inds] = np.abs(ylim_diff).max() / 2
                     else:
-                        diff = 1 - self.avgs[i_dir] / expected[i_exp]
+                        diff = self.avgs[i_dir] / expected[i_exp] - 1
                         diff_err = self.stddevs[i_dir] / expected[i_exp]
-                    ax_diff.errorbar(
-                        self.k_vals[i_dir] * (1 + x_offset*i_dir),
-                        diff,
-                        yerr=diff_err,
-                        color=colors[i_dir],
-                        marker=marker,
-                        capsize=capsize,
-                        lw=lw,
-                        ls="",
-                        zorder=(10 + zorder_offset*i_dir)
-                    )
+                        if np.any(uplim_inds[i_dir]) and self.calc_uplims:
+                            diff[upl_inds] = (
+                                self.uplims[i_dir][upl_inds]
+                                / expected[i_exp][upl_inds]
+                            )
+                            diff[upl_inds] -= 1
+                            diff_err[upl_inds] = np.abs(ylim_diff).max() / 2
+
+                    if np.any(uplim_inds[i_dir]) and self.calc_uplims:
+                        ax_diff.errorbar(
+                            xs[upl_inds],
+                            diff[upl_inds],
+                            yerr=diff_err[upl_inds],
+                            uplims=True,
+                            color=colors[i_dir],
+                            marker=marker,
+                            capsize=capsize,
+                            lw=lw,
+                            ls="",
+                            zorder=zorder
+                        )
+                        ax_diff.errorbar(
+                            xs[det_inds],
+                            diff[det_inds],
+                            yerr=diff_err[det_inds],
+                            color=colors[i_dir],
+                            marker=marker,
+                            capsize=capsize,
+                            lw=lw,
+                            ls="",
+                            zorder=zorder
+                        )
+                    else:
+                        ax_diff.errorbar(
+                            xs,
+                            diff,
+                            yerr=diff_err,
+                            color=colors[i_dir],
+                            marker=marker,
+                            capsize=capsize,
+                            lw=lw,
+                            ls="",
+                            zorder=zorder
+                        )
 
                 if self.k_vals_identical:
                     plot_expected = False
