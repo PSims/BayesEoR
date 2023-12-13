@@ -26,8 +26,8 @@ Class containing HEALPix functions for the image domain model.
 .. autoclass:: bayeseor.model.healpix.Healpix
     :members:
 
-.. Posterior Calculation
-.. ---------------------
+Posterior Probability Calculations
+----------------------------------
 
-.. .. autoclass:: bayeseor.posterior.PowerSpectrumPosteriorProbability
-..     :members:
+.. autoclass:: bayeseor.posterior.PowerSpectrumPosteriorProbability
+    :members:

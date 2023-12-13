@@ -13,7 +13,7 @@ There are currently two steps required to run a BayesEoR analysis
 Below, we provide some useful information about these two steps.  For additional help with running BayesEoR and setting analysis parameters, please see :ref:`setting-parameters`.  More information on running BayesEoR can also be found below in :ref:`test-data`.
 
 
-Building the matrix stack
+Building the Matrix Stack
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
 If using a configuration file (recommended), the driver script can be run to build the matrices via
@@ -27,7 +27,7 @@ Note that with ``jsonargparse``, command line arguments that come after the ``--
 BayesEoR automatically creates a directory in which to store the matrix stack if one does not already exist.  The name of the matrix stack directory is set automatically based on the chosen analysis parameters.  The prefix for this matrix stack directory can be set via the ``array_dir_prefix`` argument in the configuration yaml or the ``--array-dir-prefix`` flag on the command line.  The matrix stack is saved in a subdirectory within ``array_dir_prefix``.  The default matrix stack prefix is `./array-storage/`.
 
 
-Running the power spectrum analysis
+Running the Power Spectrum Analysis
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Once the matrices are built, you can run the power spectrum analysis (which requires double precision GPUs) via

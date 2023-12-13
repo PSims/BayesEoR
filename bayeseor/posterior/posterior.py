@@ -295,6 +295,9 @@ class PowerSpectrumPosteriorProbability(object):
         """
         Add a matrix and a vector reshaped as a diagonal matrix.
 
+        Used only if `T_Ninv_T` has been constructed as a block-diagonal
+        matrix, i.e. if ignoring instrumental effects.
+
         Parameters
         ----------
         T_Ninv_T_block : np.ndarray
@@ -315,22 +318,25 @@ class PowerSpectrumPosteriorProbability(object):
 
     def calc_physical_dimensionless_power_spectral_normalisation(self, i_bin):
         """
-        This normalization will calculate PowerI, an estimate for one over
-        the variance of a in units of 1 / (mK**2 sr**2 Hz**2).
+        Dimensionless power spectrum normalization in physical units.
+
+        This normalization will return `PowerI`, an estimate for one over the
+        variance of `a`, in units of 1 / (mK^2 sr^2 Hz^2).
 
         Parameters
         ----------
         i_bin : int
-            Input spherically averaged k-bin index.
+            Spherically averaged k-bin index.
 
         Returns
         -------
         dmps_norm : float
             Dimensionless power spectrum normalization with units of
             1 / (sr**2 Hz**2).
+
         """
-        # Normalization calculated relative to mean
-        # of vector k within the i_bin-th k-bin
+        # Normalization calculated relative to mean of vector k within the
+        # i_bin-th k-bin
         dmps_norm = self.k_vals[i_bin]**3./(2*np.pi**2) / self.cosmo_volume
 
         # Redshift dependent quantities
@@ -340,11 +346,11 @@ class PowerSpectrumPosteriorProbability(object):
 
     def calc_PowerI(self, x):
         """
-        Calculate an estimate of the inverse variance of the k-cube (uveta
-        cube) from a set of power spectrum k-bin amplitudes `x`.
+        Calculate an estimate of the inverse variance of the model.
 
-        Place restrictions on the power in the long spectral scale
-        model either for,
+        Given a power spectrum, this function returns an estimate of the
+        inverse variance of each voxel in the (u, v, eta) model which is used
+        as a prior in the posterior probability calculation.
 
         Parameters
         ----------
@@ -354,16 +360,15 @@ class PowerSpectrumPosteriorProbability(object):
         Returns
         -------
         PhiI : np.ndarray
-            Vector with estimates of the inverse variance of each |k| voxel.
-
-        Notes
-        -----
-        The indices used are correct for the current ordering of basis vectors
-        when nf is an even number.
+            Vector with estimates of the inverse variance of each model
+            (u, v, eta) voxel.
 
         """
         PowerI = np.zeros(self.Npar)
 
+        # FIXME: these variables, q?_index, are remnants of the old model
+        # vector ordering scheme.  This function needs to be updated and have
+        # the deprecated variables removed.
         if self.include_instrumental_effects:
             q0_index = self.neta//2
         else:
@@ -371,7 +376,7 @@ class PowerSpectrumPosteriorProbability(object):
         q1_index = self.neta
         q2_index = self.neta + 1
         if self.use_shg:
-            # TODO: Needs to be updated for the new separate EoR and FG
+            # FIXME: Needs to be updated for the new separate EoR and FG
             # models if used in the future!!!
             cg_end = self.nuv*(self.neta - 1)
         else:
@@ -399,7 +404,7 @@ class PowerSpectrumPosteriorProbability(object):
             PowerI[self.neor_uveta:] = self.inverse_LW_power
 
         if self.use_shg:
-            # TODO: Needs to be updated for the new separate EoR and FG
+            # FIXME: Needs to be updated for the new separate EoR and FG
             # models if used in the future!!!
             # This should not be a permanent fix
             # Is a minimal prior on the SHG amplitudes
@@ -428,19 +433,23 @@ class PowerSpectrumPosteriorProbability(object):
         """
         Constructs Sigma using block diagonal components like `block_T_Ninv_T`.
 
+        Used only if `T_Ninv_T` has been constructed as a block-diagonal
+        matrix, i.e. if ignoring instrumental effects.
+
         Parameters
         ----------
         T_Ninv_T : np.ndarray
-            Complex matrix product `T.conjugate().T * Ninv * T`.
+            Complex matrix product ``T.conjugate().T * Ninv * T``.
         PhiI : np.ndarray
-            Vector with estimates of the inverse variance of each |k| voxel.
+            Vector with estimates of the inverse variance of each model
+            (u, v, eta) voxel.
 
         Returns
         -------
         Sigma_block_diagonals : np.ndarray
             Array containing a block diagonal representation of
-            `Sigma = T_Ninv_T + PhiI`.  Each block is an entry along the zeroth
-            axis of `Sigma_block_diagonals`.  This allows `Sigma` to be
+            ``Sigma = T_Ninv_T + PhiI``.  Each block is an entry along the
+            zeroth axis of `Sigma_block_diagonals`.  This allows `Sigma` to be
             inverted numerically block by block as opposed to all at once.
 
         """
@@ -461,35 +470,39 @@ class PowerSpectrumPosteriorProbability(object):
 
     def calc_SigmaI_dbar_wrapper(self, x, T_Ninv_T, dbar, block_T_Ninv_T=[]):
         """
-        Wrapper of `calc_SigmaI_dbar` which calculates `SigmaI_dbar` via an
-        inversion per block diagonal element or as a single block-diagonal
-        matrix via `calc_SigmaI_dbar`.
+        Wrapper for `calc_SigmaI_dbar`.
+
+        Constructs `Sigma` and calculates `SigmaI_dbar` and other quantities
+        derived from `SigmaI_dbar`.  The actual solve step to obtain
+        `SigmaI_dbar` is performed in `calc_SigmaI_sbar`.
 
         Parameters
         ----------
         x : array_like
             Input power spectrum amplitudes per |k|-bin with length `nDims`.
         T_Ninv_T : np.ndarray
-            Complex matrix product `T.conjugate().T * Ninv * T`.
+            Complex matrix product ``T.conjugate().T * Ninv * T``.
         dbar : np.ndarray
             Noise weighted representation of the data (signal + noise) vector
             of visibilities in model (u, v, eta) space.
         block_T_Ninv_T : list
             Block diagonal representation of `T_Ninv_T`.  Only used if ignoring
-            instrumental effects.  Defaults to `[]`.
+            instrumental effects.  Defaults to an empty list.
 
         Returns
         -------
         SigmaI_dbar : np.ndarray
-            Complex array of maximum likelihood (u, v, eta) and Large Spectral
-            Scale Model (LSSM) amplitudes.  Used to compute the model data
-            vector via `m = T * SigmaI_dbar`.
+            Complex array of maximum a posteriori (u, v, eta) and Large
+            Spectral Scale Model (LSSM) amplitudes.  Used to compute the model
+            data vector via ``m = T * SigmaI_dbar``.
         dbarSigmaIdbar : np.ndarray
-            Complex array product `dbar * SigmaI_dbar`.
+            Complex array product ``dbar * SigmaI_dbar``.
         PhiI : np.ndarray
-            Vector with estimates of the inverse variance of each |k| voxel.
+            Vector with estimates of the inverse variance of each model
+            (u, v, eta) voxel.
         logSigmaDet : np.ndarray
-            Natural logarithm of the determinant of `Sigma = T_Ninv_T + PhiI`.
+            Natural logarithm of the determinant of
+            ``Sigma = T_Ninv_T + PhiI``.
 
         """
         start = time.time()
@@ -625,40 +638,38 @@ class PowerSpectrumPosteriorProbability(object):
 
     def calc_SigmaI_dbar(self, Sigma, dbar, x_for_error_checking=[]):
         """
-        Solves the linear system `Sigma * a = dbar` by calculating the Cholesky
-        decomposition (if ``self.use_gpu = True``) of the matrix'
-        `Sigma = T_Ninv_T + PhiI`.  If not using GPUs to perform the matrix
-        inversion, `scipy.linalg.inv` will be used.  This is not desired as the
-        CPU based `scipy.linalg.inv` function does not always return the "true"
-        matrix inverse for the matrices used here.
+        Solves the linear system `Sigma * a = dbar`.
+        
+        Solved by calculating the Cholesky decomposition (if `self.use_gpu` is
+        True) of the matrix ``Sigma = T_Ninv_T + PhiI``.  If not using GPUs to
+        perform the matrix inversion, ``scipy.linalg.inv`` will be used.  This
+        is not desired as the CPU based ``scipy.linalg.inv`` function does not
+        always return the "true" matrix inverse for the matrices used here.
 
         Parameters
         ----------
         Sigma : np.ndarray
-            Complex matrix `Sigma = T_Ninv_T + PhiI`.
+            Complex matrix ``Sigma = T_Ninv_T + PhiI``.
         dbar : np.ndarray
             Noise weighted representation of the data (signal + noise) vector
             of visibilities in model (u, v, eta) space.
         x_for_error_checking : array_like
             Input power spectrum amplitudes per |k|-bin with length `nDims`
-            used for error checking of the matrix inversion.  Defaults to `[]`.
+            used for error checking of the matrix inversion.  Defaults to an
+            empty list (no error checking).
 
         Returns
         -------
         SigmaI_dbar : np.ndarray
-            Complex array of maximum likelihood (u, v, eta) and Large Spectral
-            Scale Model (LSSM) amplitudes.  Used to compute the model data
-            vector via `m = T * SigmaI_dbar`.
+            Complex array of maximum a posteriori (u, v, eta) and Large
+            Spectral Scale Model (LSSM) amplitudes.  Used to compute the model
+            data vector via ``m = T * SigmaI_dbar``.
         logdet_Magma_Sigma : np.ndarray
             Natural logarith of the determinant of `Sigma`.  Only returned if
-            ``self.use_gpu = True``.
+            `self.use_gpu` is True.
 
         """
         if not self.use_gpu:
-            # Sigmacho = scipy.linalg.cholesky(
-            #         Sigma, lower=True
-            #     ).astype(np.complex256)
-            # SigmaI_dbar = scipy.linalg.cho_solve((Sigmacho, True), dbar)
             # scipy.linalg.inv is not numerically stable
             # USE WITH CAUTION
             SigmaI = scipy.linalg.inv(Sigma)
@@ -666,7 +677,6 @@ class PowerSpectrumPosteriorProbability(object):
             return SigmaI_dbar
 
         else:
-            # brk()
             dbar_copy = dbar.copy()
             dbar_copy_copy = dbar.copy()
             self.GPU_error_flag = np.array([0])
@@ -711,8 +721,7 @@ class PowerSpectrumPosteriorProbability(object):
 
     def posterior_probability(self, x, block_T_Ninv_T=[]):
         """
-        Computes the posterior probability of a given set of power spectrum
-        amplitudes per |k|-bin.
+        Computes the posterior probability for a given power spectrum sample.
 
         Parameters
         ----------
@@ -720,11 +729,10 @@ class PowerSpectrumPosteriorProbability(object):
             Input power spectrum amplitudes per |k|-bin with length `nDims`.
         block_T_Ninv_T : list
             Block diagonal representation of `T_Ninv_T`.  Only used if ignoring
-            instrumental effects.  Defaults to `[]`.
+            instrumental effects.  Defaults to an empty list.
 
         Returns
         -------
-        MargLogL.squeeze()*1.0, phi
         MargLogL : float
             Posterior probability of `x`.
         phi :
@@ -809,7 +817,6 @@ class PowerSpectrumPosteriorProbability(object):
         if self.log_priors:
             x = 10.**np.array(x)
 
-        # brk()
         do_block_diagonal_inversion = len(np.shape(block_T_Ninv_T)) > 1
         self.count += 1
         start_call = time.time()
