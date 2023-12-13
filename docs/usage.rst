@@ -119,7 +119,7 @@ The variable ``expected_ps`` in the example above has been set specifically for 
 
 The ``DataContainer`` class also provides a few plotting functions.  In the example above, we're using the ``plot_power_spectra_and_posteriors`` function which creates a summary plot containing a subplot for the power spectrum estimates, an optional difference or fractional difference subplot if providing a known input power spectrum, and a subplot for the posterior of each k bin.  This code snippet will produce the following output if the analysis has been run correctly:
 
-.. image:: ../test_data/test-data-results.png
+.. image:: ../test_data/test_data_results.png
     :width: 600
 
 
