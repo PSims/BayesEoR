@@ -45,10 +45,10 @@ class PowerSpectrumPosteriorProbability(object):
         Noise weighted representation of the data vector (signal + noise) of
         visibilities in model (u, v, eta) space.
     k_vals : np.ndarray of floats
-        Array containing the mean k for each k-bin.
+        Array containing the mean k for each k bin.
     k_cube_voxels_in_bin : list
         List of sublists containing the flattened 3D k-space cube index of all
-        |k| that fall within a given k-bin.
+        k that fall within a given k bin.
     nuv : int
         Number of model uv-plane points per frequency channel.
     neta : int
@@ -74,10 +74,10 @@ class PowerSpectrumPosteriorProbability(object):
         If True, include instrumental effects like frequency dependent (u, v)
         sampling and the primary beam.  Defaults to `True`.
     log_priors : boolean
-        If `True`, power spectrum k-bin amplitudes are assumed to be in log
+        If `True`, power spectrum k bin amplitudes are assumed to be in log
         units, otherwise they will be treated using linear units.
     uprior_inds : array
-        Boolean array with shape `len(k_vals)`.  If True (False), k-bin uses a
+        Boolean array with shape `len(k_vals)`.  If True (False), k bin uses a
         uniform (log-uniform) prior.
     masked_power_spectral_modes : np.ndarray
         Boolean array used to mask additional (u, v, eta) amplitudes from
@@ -303,7 +303,7 @@ class PowerSpectrumPosteriorProbability(object):
         T_Ninv_T_block : np.ndarray
             Single block matrix from block_T_Ninv_T.
         PhiI_block : np.ndarray
-            Vector of the estimated inverse variance of each |k| voxel present
+            Vector of the estimated inverse variance of each k voxel present
             in `T_Ninv_T_block`.
 
         Returns
@@ -326,7 +326,7 @@ class PowerSpectrumPosteriorProbability(object):
         Parameters
         ----------
         i_bin : int
-            Spherically averaged k-bin index.
+            Spherically averaged k bin index.
 
         Returns
         -------
@@ -336,7 +336,7 @@ class PowerSpectrumPosteriorProbability(object):
 
         """
         # Normalization calculated relative to mean of vector k within the
-        # i_bin-th k-bin
+        # i_bin-th k bin
         dmps_norm = self.k_vals[i_bin]**3./(2*np.pi**2) / self.cosmo_volume
 
         # Redshift dependent quantities
@@ -355,7 +355,7 @@ class PowerSpectrumPosteriorProbability(object):
         Parameters
         ----------
         x : array_like
-            Input power spectrum amplitudes per |k|-bin with length `nDims`.
+            Input power spectrum amplitudes per k bin with length `nDims`.
 
         Returns
         -------
@@ -479,7 +479,7 @@ class PowerSpectrumPosteriorProbability(object):
         Parameters
         ----------
         x : array_like
-            Input power spectrum amplitudes per |k|-bin with length `nDims`.
+            Input power spectrum amplitudes per k bin with length `nDims`.
         T_Ninv_T : np.ndarray
             Complex matrix product ``T.conjugate().T * Ninv * T``.
         dbar : np.ndarray
@@ -654,7 +654,7 @@ class PowerSpectrumPosteriorProbability(object):
             Noise weighted representation of the data (signal + noise) vector
             of visibilities in model (u, v, eta) space.
         x_for_error_checking : array_like
-            Input power spectrum amplitudes per |k|-bin with length `nDims`
+            Input power spectrum amplitudes per k bin with length `nDims`
             used for error checking of the matrix inversion.  Defaults to an
             empty list (no error checking).
 
@@ -726,7 +726,7 @@ class PowerSpectrumPosteriorProbability(object):
         Parameters
         ----------
         x : array_like
-            Input power spectrum amplitudes per |k|-bin with length `nDims`.
+            Input power spectrum amplitudes per k bin with length `nDims`.
         block_T_Ninv_T : list
             Block diagonal representation of `T_Ninv_T`.  Only used if ignoring
             instrumental effects.  Defaults to an empty list.
