@@ -5,74 +5,6 @@ from pathlib import Path
 import json
 from jsonargparse import Namespace
 import matplotlib.pyplot as plt
-from matplotlib.gridspec import GridSpec
-
-
-def weighted_avg_and_std(values, weights, q=None):
-    """
-    Calculate the weighted average and standard deviation and q-th quantile.
-
-    Parameters
-    ----------
-    values : array-like
-        Array of values.
-    weights : array-like
-        Array of weights with same shape as `values`.
-    q : float
-        Quantile in [0, 1].
-
-    Returns
-    -------
-    average : array-like
-        Weighted average.
-    std : array-like
-        Standard deviation.
-    quantiles : array-like
-        Quantile values.  Only returned if `q` is not None.
-
-    """
-    average = np.average(values, axis=0, weights=weights)
-    # Fast and numerically precise:
-    variance = np.average((values-average)**2, axis=0, weights=weights)
-    std = np.sqrt(variance)
-
-    if q is not None:
-        quantiles = np.zeros_like(average)
-        for i in range(quantiles.size):
-            quantiles[i] = weighted_quantile(values[:, i], weights, q)
-
-    if q is not None:
-        return (average, std, quantiles)
-    else:
-        return (average, std)
-
-def weighted_quantile(data, weights, q):
-    """
-    Compute the weighted quantile from a set of data and weights.
-
-    Parameters
-    ----------
-    data : array-like
-        Input (one-dimensional) array.
-    weights : array-like
-        Array of weights with shape matching `data`.
-    q : float
-        Quantile in [0, 1].
-
-    Returns
-    -------
-    quantile : float
-        Quantile value.
-
-    """
-    if q < 0 or q > 1:
-        raise ValueError("q must be in [0, 1]")
-    sort_inds = np.argsort(data)
-    d = data[sort_inds]
-    w = weights[sort_inds]
-    cdf_w = np.cumsum(w) / np.sum(w)
-    quantile = np.interp(q, cdf_w, d)
-    return quantile
 
 
 class DataContainer(object):
@@ -92,6 +24,9 @@ class DataContainer(object):
         If `calc_uplims` is True, calculate the upper limit of each k bin's
         posterior as the weighted 95th percentile using the joint posterior
         probability per iteration as the weights.  Defaults to False.
+    quantile : float, optional
+        Quantile in [0, 1].  Defaults to 0.95.  Only used if `calc_uplims`
+        is True.
     uplim_inds : array-like, optional
         Array-like of True for non-detections and False for detections.  Can
         have shape ``(Nkbins,)``, where ``Nkbins`` is the number of spherically
@@ -289,7 +224,7 @@ class DataContainer(object):
             # The relevant columns of the MultiNest output file 'data-.txt' are
             # 0 - joint posterior probability per iteration (weights)
             # 2: - these columns contain the power spectrum amplitude samples
-            out = weighted_avg_and_std(data[:, 2:], data[:, 0], q=q)
+            out = self._weighted_avg_and_std(data[:, 2:], data[:, 0], q=q)
             avgs = out[0]
             stddevs = out[1]
             if self.calc_uplims:
@@ -1175,3 +1110,71 @@ class DataContainer(object):
                 )
 
         return fig
+    
+    def _weighted_avg_and_std(self, values, weights, q=None):
+        """
+        Calculate the weighted average and standard deviation and q-th quantile.
+
+        Parameters
+        ----------
+        values : array-like
+            Array of values.
+        weights : array-like
+            Array of weights with same shape as `values`.
+        q : float
+            Quantile in [0, 1].
+
+        Returns
+        -------
+        average : array-like
+            Weighted average.
+        std : array-like
+            Standard deviation.
+        quantiles : array-like
+            Quantile values.  Only returned if `q` is not None.
+
+        """
+        average = np.average(values, axis=0, weights=weights)
+        # Fast and numerically precise:
+        variance = np.average((values-average)**2, axis=0, weights=weights)
+        std = np.sqrt(variance)
+
+        if q is not None:
+            quantiles = np.zeros_like(average)
+            for i in range(quantiles.size):
+                quantiles[i] = self._weighted_quantile(
+                    values[:, i], weights, q
+                )
+
+        if q is not None:
+            return (average, std, quantiles)
+        else:
+            return (average, std)
+
+    def _weighted_quantile(self, data, weights, q):
+        """
+        Compute the weighted quantile from a set of data and weights.
+
+        Parameters
+        ----------
+        data : array-like
+            Input (one-dimensional) array.
+        weights : array-like
+            Array of weights with shape matching `data`.
+        q : float
+            Quantile in [0, 1].
+
+        Returns
+        -------
+        quantile : float
+            Quantile value.
+
+        """
+        if q < 0 or q > 1:
+            raise ValueError("q must be in [0, 1]")
+        sort_inds = np.argsort(data)
+        d = data[sort_inds]
+        w = weights[sort_inds]
+        cdf_w = np.cumsum(w) / np.sum(w)
+        quantile = np.interp(q, cdf_w, d)
+        return quantile
