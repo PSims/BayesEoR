@@ -25,7 +25,10 @@ dependencies = [
 dynamic = ["version"]
 
 [project.optional-dependencies]
-doc = ["sphinx"]
+doc = [
+    "sphinx",
+    "matplotlib"
+]
 
 [tool.setuptools_scm]
 write_to = "bayeseor/_version.py"
