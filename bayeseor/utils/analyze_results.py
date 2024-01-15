@@ -16,7 +16,9 @@ class DataContainer(object):
     dirnames : array-like of str
         Array-like of BayesEoR output directory names.
     dir_prefix : str, optional
-        Prefix to append to dirnames. Defaults to './chains/'.
+        Prefix to append to `dirnames`. Defaults to None, i.e. the entries in
+        `dirnames` are assumed to be valid paths to BayesEoR output
+        directories.
     sampler : str, optional
         Case insensitive sampler name, e.g. 'MultiNest' or 'multinest'
         (default). The only currently supported sampler is MultiNest (default).
@@ -69,7 +71,7 @@ class DataContainer(object):
     def __init__(
         self,
         dirnames,
-        dir_prefix="./chains/",
+        dir_prefix=None,
         sampler="multinest",
         calc_uplims=False,
         quantile=0.95,
@@ -85,7 +87,7 @@ class DataContainer(object):
     ):
         self.Ndirs = len(dirnames)
         self.dirnames = dirnames
-        if not isinstance(dir_prefix, Path):
+        if not isinstance(dir_prefix, Path) and dir_prefix is not None:
             dir_prefix = Path(dir_prefix)
         self.dir_prefix = dir_prefix
         self.sampler = sampler.lower()
@@ -124,7 +126,9 @@ class DataContainer(object):
         if self.calc_kurtosis:
             self.kurtoses = []
         for i_dir in range(self.Ndirs):
-            path = Path(self.dir_prefix) / self.dirnames[i_dir]
+            path = Path(self.dirnames[i_dir])
+            if self.dir_prefix is not None:
+                path = self.dir_prefix / path
             k_vals = np.loadtxt(path / "k-vals.txt")
             with open(path / "git.json", "r") as f:
                 git_info = json.load(f)
