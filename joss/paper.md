@@ -15,7 +15,7 @@ authors:
    orcid: 0000-0002-8465-9341
    affiliation: 2
    corresponding: true
- - name: Jonathan Pober
+ - name: Jonathan C. Pober
    orcid: 0000-0002-3492-0433
    affiliation: 3
 affiliations:
