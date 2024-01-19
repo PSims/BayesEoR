@@ -8,16 +8,19 @@ tags:
  - bayes
  - epoch of reionization
 authors:
- - name: Peter Sims
+ - name: Peter H. Sims
    orcid: 0000-0002-2871-0413
    affiliation: 1
+   equal-contrib: true
  - name: Jacob Burba
    orcid: 0000-0002-8465-9341
    affiliation: 2
+   equal-contrib: true
    corresponding: true
  - name: Jonathan C. Pober
    orcid: 0000-0002-3492-0433
    affiliation: 3
+   equal-contrib: true
 affiliations:
  - name: School of Earth and Space Exploration, Arizona State University, USA
    index: 1
