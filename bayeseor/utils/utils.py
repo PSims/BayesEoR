@@ -18,7 +18,7 @@ def mpiprint(*args, rank=0, highlight=False, soft_wrap=True, **kwargs):
         cns.print(*args, highlight=highlight, soft_wrap=soft_wrap, **kwargs)
 
 
-def get_array_dir_name(args, version=2.13, prefix="./array-storage/"):
+def get_array_dir_name(args, prefix="./array-storage/"):
     """
     Generate the output path for BayesEoR matrices based on analysis params.
 
@@ -30,15 +30,13 @@ def get_array_dir_name(args, version=2.13, prefix="./array-storage/"):
          center, integration time, etc.
     The final array save directory is produced via
     ```
-    matrices_path = Path(prefix) / version / analysis_dir / inst_dir
+    matrices_path = Path(prefix) / analysis_dir / inst_dir
     ```
 
     Parameters
     ----------
     args : Namespace
         Namespace with analysis params from `BayesEoRParser`.
-    version : float
-        Current likelihood version.  Defaults to 2.13 (most recent version).
     prefix : str
         Prefix for `matrices_path`.  Defaults to './'.
 
@@ -46,12 +44,12 @@ def get_array_dir_name(args, version=2.13, prefix="./array-storage/"):
     -------
     matrices_path : Path
         Path containing the uniquely identifying info for each analysis, i.e.
-        the likelihood version, model parameters, and instrument model.
+        model parameters and the instrument model.
 
     """
     if args.array_dir_prefix is not None:
         prefix = args.array_dir_prefix
-    matrices_path = Path(prefix) / f"{version}"
+    matrices_path = Path(prefix)
 
     # Root matrix dir
     analysis_dir = (
