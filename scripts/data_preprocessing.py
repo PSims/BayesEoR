@@ -19,13 +19,10 @@ NOTE: Currently only working for simulated healvis datasets and will
 
 import bayeseor
 import numpy as np
-import pickle
 import copy
 import os
-import sys
 import argparse
 import warnings
-import subprocess
 
 from pathlib import Path
 from datetime import datetime
@@ -546,22 +543,6 @@ def data_processing(
     print('noise_array_flattened.std() =', noise_array_flattened.std(),
           end='\n\n')
 
-    # Save data vector with git and command line history
-    version_info = {}
-    version_info['git_origin'] = subprocess.check_output(
-        ['git', 'config', '--get', 'remote.origin.url'],
-        stderr=subprocess.STDOUT)
-    version_info['git_hash'] = subprocess.check_output(
-        ['git', 'rev-parse', 'HEAD'],
-        stderr=subprocess.STDOUT)
-    version_info['git_description'] = subprocess.check_output(
-        ['git', 'describe', '--dirty', '--tag', '--always'])
-    version_info['git_branch'] = subprocess.check_output(
-        ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
-        stderr=subprocess.STDOUT)
-    for key in version_info.keys():
-        version_info[key] = version_info[key].decode('utf8').strip('\n')
-
     if opts.clobber:
         print('Clobbering file if it exists')
 
@@ -569,7 +550,7 @@ def data_processing(
         'data': data_array_flattened,
         'noise': noise_array_flattened,
         'opts': vars(opts),
-        'version': version_info,
+        'version': bayeseor.__version__,
         'ctime': datetime.now().isoformat()
     }
     datapath = os.path.join(save_dir, outfile)
@@ -631,7 +612,7 @@ def data_processing(
             'uvw_model': uvw_model,
             'redundancy_model': redundancy_model,
             'opts': vars(opts),
-            'version': version_info,
+            'version': bayeseor.__version__,
             'ctime': datetime.now().isoformat()
         }
         if opts.phase:

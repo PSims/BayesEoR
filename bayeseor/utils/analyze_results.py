@@ -115,7 +115,7 @@ class DataContainer(object):
 
         # Load contents of output directories
         self.k_vals = []
-        self.git_info = []
+        self.version = []
         self.args = []
         self.posteriors = []
         self.posterior_bins = []
@@ -130,12 +130,12 @@ class DataContainer(object):
             if self.dir_prefix is not None:
                 path = self.dir_prefix / path
             k_vals = np.loadtxt(path / "k-vals.txt")
-            with open(path / "git.json", "r") as f:
-                git_info = json.load(f)
+            with open(path / "version.txt", "r") as f:
+                version = f.readlines()[0].strip("\n")
             with open(path / "args.json", "r") as f:
                 args = Namespace(**json.load(f))
             self.k_vals.append(k_vals)
-            self.git_info.append(git_info)
+            self.version.append(version)
             self.args.append(args)
 
             # Get posteriors and power spectrum estimates

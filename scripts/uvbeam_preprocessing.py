@@ -2,18 +2,16 @@
     Create a power HEALPix UVBeam object interpolated in frequency.
 """
 
-import BayesEoR
 import numpy as np
 import argparse
 import os
-import subprocess
 
 from pathlib import Path
 from datetime import datetime
-from pyuvdata import UVBeam, utils
-from astropy import units
+from pyuvdata import UVBeam
 from astropy.units import Quantity
 
+from bayeseor import __version__
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -141,32 +139,13 @@ outfile += '-{:.2f}-{:.2f}MHz-nf-{}'.format(
 outfile += '.fits'
 
 # Append Git information to history
-version_info = {}
-version_info['git_origin'] = subprocess.check_output(
-    ['git', 'config', '--get', 'remote.origin.url'],
-    stderr=subprocess.STDOUT)
-version_info['git_hash'] = subprocess.check_output(
-    ['git', 'rev-parse', 'HEAD'],
-    stderr=subprocess.STDOUT)
-version_info['git_description'] = subprocess.check_output(
-    ['git', 'describe', '--dirty', '--tag', '--always'])
-version_info['git_branch'] = subprocess.check_output(
-    ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
-    stderr=subprocess.STDOUT)
-for key in version_info.keys():
-    version_info[key] = version_info[key].decode('utf8').strip('\n')
-version_info_str = [
-    '{}: {}'.format(key, version_info[key]) for key in version_info.keys()
-]
-version_info_str = ', '.join(version_info_str)
 cla_str = [
     '{}: {}'.format(key, args.__dict__[key]) for key in args.__dict__.keys()
 ]
 cla_str = ', '.join(cla_str)
 uvb.history += (
-    '\n\nPre-processed with BayesEoR/scripts/uvbeam_preprocessing.py.  '
-    + 'Git config info - {}.  '.format(version_info_str)
-    + 'Command line arguments - {}'.format(cla_str)
+    f'\n\nPre-processed with bayeseor version {__version__}\n\n'
+    + f'Command line arguments - {cla_str}'
 )
 
 save_path = Path(args.save_dir) / outfile

@@ -1,16 +1,13 @@
 import numpy as np
 import pickle
-import subprocess
-import json
-from subprocess import os
 from pathlib import Path
 from copy import deepcopy
 
 from rich.console import Console
 cns = Console()
 
-from bayeseor.model.healpix import Healpix
-
+from ..model.healpix import Healpix
+from .. import __version__
 
 def mpiprint(*args, rank=0, highlight=False, soft_wrap=True, **kwargs):
     """
@@ -218,7 +215,7 @@ def generate_output_file_base(output_dir, dir_name, version_number="1"):
 
 def write_log_files(parser, args):
     """
-    Write log files containing current git information and analysis parameters.
+    Write log files containing the current version and analysis parameters.
 
     Parameters
     ----------
@@ -232,12 +229,11 @@ def write_log_files(parser, args):
     out_dir = Path(args.output_dir) / args.file_root
     out_dir.mkdir(exist_ok=True, parents=False)
 
-    # Write git version info
-    git_file = out_dir / "git.json"
-    if not git_file.exists():
-        git_info = get_git_version_info()
-        with open(git_file, "w") as f:
-            json.dump(git_info, f)
+    # Write version info
+    ver_file = out_dir / "version.txt"
+    if not ver_file.exists():
+        with open(ver_file, "w") as f:
+            f.write(f"{__version__}\n")
 
     # Write args to disk
     args_file = out_dir / "args.json"

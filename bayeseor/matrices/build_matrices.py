@@ -16,7 +16,6 @@ from .matrix_funcs import\
     nuDFT_Array_DFT_2D_v2d0,\
     idft_array_idft_1d_sh, IDFT_Array_IDFT_2D_ZM_SH
 from ..model.healpix import Healpix
-from ..utils.utils import get_git_version_info
 from .. import __version__
 
 
