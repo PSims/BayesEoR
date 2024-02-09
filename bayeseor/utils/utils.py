@@ -216,47 +216,6 @@ def generate_output_file_base(output_dir, dir_name, version_number="1"):
     return dir_name
 
 
-def get_git_version_info(directory=None):
-    """
-    Get git version info from repository in `directory`.
-
-    Parameters
-    ----------
-    directory : str
-        Path to GitHub repository.  If None, uses one directory up from
-        __file__.
-
-    Returns
-    -------
-    version_info : dict
-        Dictionary containing git hash information.
-
-    """
-    cwd = os.getcwd()
-    if directory is None:
-        directory = Path(__file__).parent
-    os.chdir(directory)
-
-    version_info = {}
-    version_info["git_origin"] = subprocess.check_output(
-        ["git", "config", "--get", "remote.origin.url"],
-        stderr=subprocess.STDOUT)
-    version_info["git_hash"] = subprocess.check_output(
-        ["git", "rev-parse", "HEAD"],
-        stderr=subprocess.STDOUT)
-    version_info["git_description"] = subprocess.check_output(
-        ["git", "describe", "--dirty", "--tag", "--always"])
-    version_info["git_branch"] = subprocess.check_output(
-        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-        stderr=subprocess.STDOUT)
-    for key in version_info.keys():
-        version_info[key] = version_info[key].decode("utf8").strip("\n")
-    
-    os.chdir(cwd)
-
-    return version_info
-
-
 def write_log_files(parser, args):
     """
     Write log files containing current git information and analysis parameters.
