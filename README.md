@@ -94,3 +94,10 @@ The `jsonargparse` package allows for all of these command line arguments to be 
 ```
 python run-analysis.py --config /path/to/config.yaml
 ```
+
+# How to contribute
+
+BayesEoR is an open source project and contributions to this package in any form are very welcome (e.g. new features, feature requests, bug reports, documentation fixes).  Please make such contributions in the form of an issue and/or pull request.  For any additional questions or comments, please contact one of the BayesEoR project managers:
+- Peter Sims - psims3 [at] asu.edu
+- Jacob Burba - jacob.burba [at] manchester.ac.uk
+- Jonathan Pober - jonathan_pober [at] brown.edu
