@@ -338,8 +338,14 @@ def BayesEoRParser():
              "theorem."
     )
     parser.add_argument(
+        #FIXME: see https://github.com/PSims/BayesEoR/issues/11
+        # There is a bug in the rectangular pixel selection logic due to the
+        # wrapping of Right Ascension.  We are thus forcing the analysis to use
+        # the zenith angle filter (a circular sky model FoV) as this selection
+        # method avoids this bug.
         "--simple-za-filter",
         action="store_true",
+        default=True,
         help="If passed, filter pixels in the sky model by zenith angle only. "
              "Otherwise, filter pixels in a rectangular region set by the FoV "
              "values along the RA and Dec axes (default)."
