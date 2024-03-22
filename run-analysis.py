@@ -3,6 +3,7 @@
 # Imports
 # --------------------------------------------
 import sys
+import os
 import numpy as np
 import time
 from pathlib import Path
@@ -191,6 +192,9 @@ if cl_args.file_root is None:
 output_dir /= cl_args.file_root
 mpiprint(f"\nOutput directory: {output_dir.absolute()}", rank=mpi_rank)
 output_dir.mkdir(exist_ok=True, parents=True)
+if "SLURM_JOB_ID" in os.environ:
+    # Create empty file named with the SLURM Job ID
+    (output_dir / os.environ["SLURM_JOB_ID"]).touch()
 
 
 # --------------------------------------------
