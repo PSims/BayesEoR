@@ -506,6 +506,11 @@ def BayesEoRParser():
         help="Time between observations in seconds."
     )
     parser.add_argument(
+        "--central-jd",
+        type=float,
+        help="Central Julian Date of the observations."
+    )
+    parser.add_argument(
         "--inst-model",
         type=Path_dr,
         help="Path to a numpy compatible dictionary containing the instrument "
@@ -524,11 +529,6 @@ def BayesEoRParser():
              "altitude (meters).  Passed as a list of floats, e.g. "
              "'--tele-latlonalt=[-30.1,125.6,80.4]'.  Do not put spaces after "
              "commas.  Defaults to the HERA telescope location."
-    )
-    parser.add_argument(
-        "--central-jd",
-        type=float,
-        help="Central Julian Date of the observations."
     )
     parser.add_argument(
         "--beam-type",
