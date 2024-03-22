@@ -21,7 +21,6 @@ import bayeseor
 import numpy as np
 import copy
 import os
-import argparse
 import warnings
 
 from pathlib import Path
@@ -32,17 +31,15 @@ from astropy import units
 from astropy.units import Quantity
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import ImageGrid
+from jsonargparse import ArgumentParser, ActionConfigFile
 
 
 plt.rcParams.update(
     {'font.size': 16, 'figure.figsize': (12, 8), 'figure.facecolor': 'w'}
 )
-DEFAULT_SAVE_DIR = str(
-    Path(bayeseor.__file__).parent / 'scripts'
-)
 
 
-parser = argparse.ArgumentParser()
+parser = ArgumentParser()
 parser.add_argument(
     '--data_path',
     type=str,
@@ -61,9 +58,9 @@ parser.add_argument(
 parser.add_argument(
     '--save_dir',
     type=str,
-    default=DEFAULT_SAVE_DIR,
-    help='Filepath in which the data will be saved. '
-         "Defaults to 'BayesEoR/scripts'."
+    default='./',
+    help='Filepath in which the data will be saved. Defaults to the current '
+         'working directory.'
 )
 parser.add_argument(
     '--save_model',
@@ -85,8 +82,8 @@ parser.add_argument(
 parser.add_argument(
     '--uniform_red_model',
     action='store_true',
-    help='If passed, replace the redundancy model'
-         'with a uniform model (all ones).'
+    help='If passed, replace the redundancy model with a uniform model (all '
+         'ones).'
 )
 parser.add_argument(
     '--plot_inst_model',
@@ -125,13 +122,13 @@ parser.add_argument(
 parser.add_argument(
     '--bl_cutoff_m',
     type=float,
-    help='Baseline cutoff length in meters.  Any baselines in the raw dataset'
-         ' with |b| > <bl_cutoff_m> will be excluded from the written data.'
+    help='Baseline cutoff length in meters.  Any baselines in the raw dataset '
+         'with |b| > <bl_cutoff_m> will be excluded from the written data.'
 )
 parser.add_argument(
     '--start_freq_MHz',
     type=float,
-    help='Starting frequency in MHz from which 76 right-adjacent '
+    help='Starting frequency in MHz from which `nf` right-adjacent '
          'frequency channels will be extracted. Defaults to the first '
          'frequency channel in `filename`.'
 )
@@ -183,7 +180,7 @@ parser.add_argument(
     '--pI_norm',
     type=float,
     default=1.,
-    help='Normalization N used in the formation of pI = N * (XX + YY).'
+    help='Normalization N used in the formation of pI = N * (XX + YY). '
          'Defaults to 1.0.'
 )
 parser.add_argument(
@@ -191,13 +188,17 @@ parser.add_argument(
     type=str,
     default='xx',
     help='Polarization string to keep in the data vector.  Not used if forming'
-         'pI visibilities.  Defaults to \'xx\'.'
+         ' pI visibilities.  Defaults to \'xx\'.'
 )
 parser.add_argument(
     '--all_bl_noise',
     action='store_true',
-    help='If passed, generate noise estimate from all '
-         'baselines within a redundant group.'
+    help='If passed, generate noise estimate from all baselines within a '
+         'redundant group.'
+)
+parser.add_argument(
+    "--config",
+    action=ActionConfigFile
 )
 opts = parser.parse_args()
 
@@ -227,28 +228,6 @@ def add_mtime_to_filename(path, filename_in, join_char='-'):
         join_char, mtime, suffix
     ))
     return filename_out
-
-
-def elementwise_avg(*args):
-    """
-    Returns the elementwise average of a set of np.ndarrays.
-
-    Parameters
-    ----------
-    args : sequence of ndarrays
-        Sequence of np.ndarray objects with identical shapes.
-
-    Returns
-    -------
-    avg : np.ndarray
-        Elementwise average.
-    """
-    nargs = len(args)
-    args_sum = np.zeros_like(args[0])
-    for i in range(nargs):
-        args_sum += args[i]
-    avg = args_sum / float(nargs)
-    return avg
 
 
 def weighted_avg_and_std(values, weights):
@@ -319,7 +298,7 @@ def data_processing(
         opts,
         filename,
         min_freq_MHz,
-        save_dir=DEFAULT_SAVE_DIR,
+        save_dir="./",
         inst_model_dir=None,
         uvd_all_bls=None
 ):
@@ -452,16 +431,25 @@ def data_processing(
         avg_data, _ = weighted_avg_and_std(
             blgp_data_container, blgp_nsamples_container
         )
-        blgp_eo_diff = (
-            blgp_data_container[:, ::2] - blgp_data_container[:, 1::2]
-        )
+        blgp_eo_diff = np.zeros((len(bl_group), uvd.Ntimes//2, uvd.Nfreqs))
+        even_times = blgp_data_container[:, ::2]
+        odd_times = np.zeros_like(even_times)
+        if uvd.Ntimes % 2 == 1:
+            odd_times[:, :-1] = blgp_data_container[:, 1::2]
+            odd_times[:, -1] = blgp_data_container[:, -2]
+        else:
+            odd_times = blgp_data_container[:, 1::2]
+        blgp_eo_diff = even_times - odd_times
         if blgp_eo_diff.shape[0] > 1:
             blgp_eo_noise = np.std(blgp_eo_diff, axis=0)
         else:
             blgp_eo_noise = np.sqrt(np.abs(blgp_eo_diff)**2).squeeze()
         blgp_noise_estimate = np.zeros_like(avg_data)
         blgp_noise_estimate[::2] = blgp_eo_noise
-        blgp_noise_estimate[1::2] = blgp_eo_noise
+        if uvd.Ntimes % 2 == 1:
+            blgp_noise_estimate[1::2] = blgp_eo_noise[:-1]
+        else:
+            blgp_noise_estimate[1::2] = blgp_eo_noise
 
         arr_inds = slice(i_bl * uvd.Ntimes, (i_bl + 1) * uvd.Ntimes)
         # data_array_avg[:ntimes] contains the data for a
