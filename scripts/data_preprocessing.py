@@ -224,9 +224,7 @@ def add_mtime_to_filename(path, filename_in, join_char='-'):
     suffix = fp.suffix
     mtime = datetime.fromtimestamp(os.path.getmtime(fp))
     mtime = mtime.isoformat()
-    filename_out = filename_in.replace(suffix, '{}{}{}'.format(
-        join_char, mtime, suffix
-    ))
+    filename_out = filename_in.replace(suffix, f'{join_char}{mtime}{suffix}')
     return filename_out
 
 
@@ -298,6 +296,7 @@ def data_processing(
         opts,
         filename,
         min_freq_MHz,
+        central_jd,
         save_dir="./",
         inst_model_dir=None,
         uvd_all_bls=None
@@ -322,6 +321,10 @@ def data_processing(
         Dictionary containing command line arguments.
     filename : str
         Input filename of UVData compatible file.
+    min_freq_MHz : float
+        Minimum frequency in the data.
+    central_jd : float
+        Central JD in the data.
     save_dir : str
         Path where the data vector will be written.  Defaults to the `scripts/`
         subdirectory within the installation path of `BayesEoR`.
@@ -333,38 +336,32 @@ def data_processing(
         baselines.
 
     """
-    outfile = filename.replace(
-        '.uvh5',
-        '-start-freq-{:.2f}-nf-{}-nbls-{}'.format(
-            min_freq_MHz, opts.nf, uvd_select.Nbls*2
-        )
-    )
+    # wn-gsm-ptsrc-fov-30-start-freq-150.29-nf-180-nbls-30-pol-pI.npy
+    outfile = filename.replace('.uvh5', '')
+    # Frequency parameters
+    outfile += f'-min-freq-{min_freq_MHz:.2f}MHz-Nfreqs-{opts.nf}'
     if opts.avg_adj_freqs:
-        outfile = outfile.replace(
-            '-nf-{}'.format(opts.nf), '-nf-{}-adj-freq-avg'.format(opts.nf)
-        )
+        outfile += '-adj-freq-avg'
+    # Baseline parameters
+    if opts.bl_type:
+        outfile += f'-Nbls-{uvd_select.Nbls*2}-{opts.bl_type}'
+    else:
+        if uvd_select.Nbls > 1:
+            outfile += f'-Nbls-{uvd_select.Nbls*2}'
+        elif uvd_select.Nbls == 1:
+            outfile += f'-bl-{antnums[0]}-{antnums[1]}'
+    # Time parameters
+    outfile += f'-Ntimes-{opts.nt}-central-JD-{central_jd:.2f}'
+    # Polarization parameters
     if opts.form_pI:
         outfile += '-pol-pI'
     else:
         outfile += f'-pol-{opts.pol}'
+    # Phasing parameters
     if opts.phase:
-            outfile += '-phased'
+        outfile += '-phased'
     elif opts.phase_time_jd is not None:
-        outfile += '-phase-time-{}'.format(opts.phase_time_jd)
-
-    if uvd_select.Nbls == 1:
-        antnums = uvd_select.baseline_to_antnums(uvd_select.baseline_array[0])
-        outfile = outfile.replace(
-            'nbls-{}-'.format(uvd_select.Nbls),
-            'bl-{}-{}-'.format(
-                uvd_select.Nbls, antnums[0], antnums[1]
-            )
-        )
-    elif opts.bl_type:
-        outfile = outfile.replace(
-            'nbls-{}-'.format(uvd_select.Nbls),
-            'nbls-{}-{}-'.format(uvd_select.Nbls, opts.bl_type)
-        )
+        outfile += f'-phase-time-{opts.phase_time_jd}'
     outfile += '.npy'
     # What about the case where I only keep certain baselines within a
     # redundant baseline type? Do I need some sort of unique identifier
@@ -378,7 +375,7 @@ def data_processing(
         phasor_array = np.ones(uvd_comp_phasor.data_array.shape) + 0j
         uvd_comp_phasor.data_array = phasor_array
         if opts.phase_time_jd is not None:
-            print('Phasing data to JD {}'.format(opts.phase_time_jd))
+            print(f'Phasing data to JD {opts.phase_time_jd}')
             time_to_phase = opts.phase_time_jd
         else:
             print('Phasing data to central time step')
@@ -542,14 +539,15 @@ def data_processing(
         'ctime': datetime.now().isoformat()
     }
     datapath = os.path.join(save_dir, outfile)
-    print('Writing data to\n{}'.format(datapath))
+    print(f'Writing data to\n{datapath}')
     if not os.path.exists(datapath) or opts.clobber:
         np.save(datapath, data_dict)
     else:
         old_outfile = add_mtime_to_filename(save_dir, outfile)
-        print('Existing file found.  Moving to\n{}'.format(
+        print(
+            'Existing file found.  Moving to\n',
             os.path.join(save_dir, old_outfile)
-        ))
+        )
         os.rename(
             os.path.join(save_dir, outfile),
             os.path.join(save_dir, old_outfile)
@@ -589,7 +587,7 @@ def data_processing(
             redundancy_model[i_t] = redundancy_vec[:, np.newaxis]
 
     if opts.save_model:
-        print('\nInstrument model: {}'.format(inst_model_dir.split('/')[-2]))
+        print(f"\nInstrument model: {inst_model_dir.split('/')[-2]}")
         if opts.clobber:
             print('Clobbering files if they exist')
 
@@ -607,16 +605,17 @@ def data_processing(
             data_dict['phasor_vector'] = phasor_array_flattened
         outfile = 'instrument_model.npy'
         datapath = os.path.join(inst_model_dir, outfile)
-        print('Writing instrument model to\n{}'.format(datapath))
+        print(f'Writing instrument model to\n{datapath}')
         if not os.path.exists(datapath) or opts.clobber:
             np.save(datapath, data_dict)
         else:
             old_outfile = add_mtime_to_filename(
                 inst_model_dir, outfile, join_char='_'
             )
-            print('Existing model found.  Moving to\n{}'.format(
+            print(
+                'Existing model found.  Moving to\n',
                 os.path.join(inst_model_dir, old_outfile)
-            ))
+            )
             os.rename(
                 os.path.join(inst_model_dir, outfile),
                 os.path.join(inst_model_dir, old_outfile)
@@ -687,7 +686,7 @@ uvd.select(ant_str='cross')
 
 if opts.bl_cutoff_m:
     print(
-        'Selecting only baselines <= {} meters'.format(opts.bl_cutoff_m)
+        f'Selecting only baselines <= {opts.bl_cutoff_m} meters'
     )
     bl_lengths = np.sqrt(np.sum(uvd.uvw_array[:, :2]**2, axis=1))
     blt_inds = np.where(bl_lengths <= opts.bl_cutoff_m)[0]
@@ -708,9 +707,7 @@ if opts.avg_adj_freqs:
 if not opts.start_freq_MHz:
     opts.start_freq_MHz = uvd.freq_array[0, 0] / 1e6
 print(
-    'Selecting {} frequency channels >= {:.2f} MHz'.format(
-        nf, opts.start_freq_MHz
-    )
+    f'Selecting {nf} frequency channels >= {opts.start_freq_MHz:.2f} MHz'
 )
 start_freq_ind = np.argmin(np.abs(frequencies - opts.start_freq_MHz*1e6))
 if start_freq_ind + nf > uvd.Nfreqs:
@@ -733,9 +730,7 @@ if not opts.nt:
 nt = opts.nt
 min_t_ind = opts.start_int
 print(
-    'Selecting {} times starting from integration number {}'.format(
-        nt, min_t_ind
-    )
+    f'Selecting {nt} times starting from integration number {min_t_ind}'
 )
 if (min_t_ind + nt) > uvd.Ntimes:
     warnings.warn(
@@ -745,8 +740,9 @@ if (min_t_ind + nt) > uvd.Ntimes:
 if uvd.Ntimes > nt:
     times = times[min_t_ind:min_t_ind+nt]
 dt = TimeDelta(np.mean(np.diff(times)), format='jd')
+central_jd = times[times.size//2]
 print('\tIntegration time in data =', dt.sec, 's')
-print('\tCentral JD in data =', times[times.size//2])
+print('\tCentral JD in data =', central_jd)
 if opts.phase_time_jd:
     valid_phase_time = np.logical_and(
         opts.phase_time_jd >= times.min(),
@@ -755,9 +751,7 @@ if opts.phase_time_jd:
     if not valid_phase_time:
         warnings.warn(
             'WARNING: Supplied phase_time_jd argument lies outside the '
-            'desired JD range {:.6f} -= {:.6f}'.format(
-                times.min(), times.max()
-            )
+            f'desired JD range {times.min():.6f} - {times.max():.6f}'
         )
 
 print('Reading in data_array', end='\n\n')
@@ -821,7 +815,7 @@ if opts.bl_type:
     for key in bl_info_dict.keys():
         if bl_info_dict[key] == opts.bl_type:
             if isinstance(key, tuple):
-                key = '{}_{}'.format(*key)
+                key = f'{key[0]}_{key[1]}'
             bls_to_keep.append(key)
     opts.ant_str = ','.join(bls_to_keep)
 
@@ -835,25 +829,22 @@ if opts.ant_str:
 
 # Instrument model directory setup
 inst_model_dir = str(Path(opts.inst_model_dir) / opts.telescope_name)
-inst_model_dir += '-{}-{:.1f}sec-time-steps'.format(nt, dt.sec)
+inst_model_dir += f'-{nt}-{dt.sec:.1f}sec-time-steps'
 if opts.phase:
-    inst_model_dir += '-start-freq-{:.2f}-nf-{}'.format(
-        min_freq_MHz, opts.nf
-    )
+    inst_model_dir += f'-min-freq-{min_freq_MHz:.2f}-Nfreqs-{opts.nf}'
     if opts.avg_adj_freqs:
         inst_model_dir += '-adj-freq-avg'
 if not opts.single_bls:
-    inst_model_dir += '-nbls-{}'.format(uvd.Nbls*2)
+    inst_model_dir += f'-Nbls-{uvd.Nbls*2}'
 if opts.bl_cutoff_m and not (opts.single_bls or opts.bl_type):
-    inst_model_dir += '-bl-cutoff-{}m'.format(opts.bl_cutoff_m)
+    inst_model_dir += f'-bl-cutoff-{opts.bl_cutoff_m}m'
 inst_model_dir += '/'
 
 if opts.single_bls:
     print('-'*60)
     print(
-        'Starting single baseline runs for {} baselines at {}'.format(
-            uvd.Nbls, datetime.utcnow()
-        ),
+        f'Starting single baseline runs for {uvd.Nbls} baselines '
+        f'at {datetime.utcnow()}',
         end='\n\n'
     )
 
@@ -861,12 +852,12 @@ if opts.single_bls:
         bl = uvd.baseline_to_antnums(bl)
         uvd_select = uvd.select(bls=bl, inplace=False)
 
-        print('Baseline {}:\n'.format(bl) + '-'*32)
+        print(f'Baseline {bl}:\n' + '-'*32)
 
         if opts.save_model:
             inst_model_dir_bl = (
                 inst_model_dir[:-1]
-                + '-bl-{}-{}/'.format(bl[0], bl[1])
+                + f'-bl-{bl[0]}-{bl[1]}/'
             )
         else:
             inst_model_dir_bl = None
@@ -876,23 +867,25 @@ if opts.single_bls:
             opts,
             filename,
             min_freq_MHz,
+            central_jd,
             save_dir=opts.save_dir,
             inst_model_dir=inst_model_dir_bl,
             uvd_all_bls=uvd_all_bls)
         print('')
 
-    print('Single baseline runs finished at {}'.format(datetime.utcnow()))
+    print(f'Single baseline runs finished at {datetime.utcnow()}')
     print('-'*60)
 else:
     # Keeping all baselines in one data vector / instrument model
     if opts.bl_type:
-        inst_model_dir = inst_model_dir[:-1] + '-{}/'.format(opts.bl_type)
+        inst_model_dir = inst_model_dir[:-1] + f'-{opts.bl_type}/'
 
     data_processing(
         uvd,
         opts,
         filename,
         min_freq_MHz,
+        central_jd,
         inst_model_dir=inst_model_dir,
         uvd_all_bls=uvd_all_bls,
         save_dir=opts.save_dir
