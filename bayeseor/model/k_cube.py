@@ -47,7 +47,12 @@ def generate_k_cube_in_physical_coordinates(
 
     """
     # Generate k_cube pixel coordinates
-    z, y, x = np.mgrid[-(neta//2):(neta//2),
+    eta_ind_min = -(neta//2)
+    eta_ind_max = neta//2
+    if neta % 2 == 1:
+        # neta is odd
+        eta_ind_max += 1
+    z, y, x = np.mgrid[eta_ind_min:eta_ind_max,
                        -(nv//2):(nv//2)+1,
                        -(nu//2):(nu//2)+1]
 
