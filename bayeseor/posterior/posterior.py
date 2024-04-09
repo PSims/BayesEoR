@@ -5,7 +5,7 @@ from pdb import set_trace as brk
 import h5py
 from pathlib import Path
 
-from ..gpu import GPU_Interface
+from ..gpu import GPUInterface
 from ..utils import Cosmology, mpiprint
 
 
@@ -243,7 +243,7 @@ class PowerSpectrumPosteriorProbability(object):
         
         if use_gpu:
             # Initialize the GPU interface
-            self.gpu = GPU_Interface(rank=self.rank)
+            self.gpu = GPUInterface(rank=self.rank)
             if self.gpu.gpu_initialized:
                 self.use_gpu = True
             else:

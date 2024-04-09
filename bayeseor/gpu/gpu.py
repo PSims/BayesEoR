@@ -3,7 +3,7 @@ from pathlib import Path
 
 from ..utils import mpiprint
 
-class GPU_Interface(object):
+class GPUInterface(object):
     """
     Class to interface with GPUs.
 
