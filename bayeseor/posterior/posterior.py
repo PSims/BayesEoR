@@ -5,6 +5,7 @@ from pdb import set_trace as brk
 import h5py
 from pathlib import Path
 
+from ..gpu import GPU_Interface
 from ..utils import Cosmology, mpiprint
 
 
@@ -208,7 +209,6 @@ class PowerSpectrumPosteriorProbability(object):
         self.use_shg = use_shg
         self.return_Sigma = return_Sigma
         self.rank = rank
-        self.use_gpu = use_gpu
         self.print = print
         self.print_rate = print_rate
         self.debug = debug
@@ -241,55 +241,16 @@ class PowerSpectrumPosteriorProbability(object):
             rank=self.rank
         )
         
-        self.gpu_initialized = False
-        self.initialize_gpu()
-    
-    def initialize_gpu(self, print_msg=True):
-        """
-        Attempt to initialize GPU via pycuda.
-
-        If initialization fails, falls back and uses CPU methods.
-        WARNING: This is inadvisable because the CPU linear algebra functions
-        can be inaccurate!
-
-        """
-        try:
-            import pycuda.driver as cuda
-            import pycuda.autoinit
-            import ctypes
-            from numpy import ctypeslib
-
-            # Get path to installation of BayesEoR
-            base_dir = Path(__file__).parent
-            # Load MAGMA GPU Wrapper Functions
-            gpu_wrap_dir = base_dir / 'gpu_wrapper'
-
-            wrapper_path = gpu_wrap_dir / f'wrapmzpotrf.so'
-            if print_msg:
-                mpiprint(
-                    f'Loading shared library from {wrapper_path}',
-                    rank=self.rank
-                )
-            wrapmzpotrf = ctypes.CDLL(wrapper_path)
-            self.nrhs = 1
-            wrapmzpotrf.cpu_interface.argtypes = [
-                ctypes.c_int,
-                ctypes.c_int,
-                ctypeslib.ndpointer(np.complex128, ndim=2, flags='C'),
-                ctypeslib.ndpointer(np.complex128, ndim=1, flags='C'),
-                ctypes.c_int,
-                ctypeslib.ndpointer(int, ndim=1, flags='C')]
-            self.wrapmzpotrf = wrapmzpotrf
-            if print_msg:
-                mpiprint('Computing on GPU(s)', rank=self.rank, end='\n\n')
-            self.gpu_initialized = True
-
-        except Exception as e:
-            if print_msg:
-                mpiprint(
-                    '\nException loading GPU encountered...', rank=self.rank
-                )
-                mpiprint(repr(e), rank=self.rank)
+        if use_gpu:
+            # Initialize the GPU interface
+            self.gpu = GPU_Interface(rank=self.rank)
+            if self.gpu.gpu_initialized:
+                self.use_gpu = True
+            else:
+                # GPU initilization failed, use CPU methods instead
+                self.use_gpu = False
+        else:
+            self.use_gpu = False
 
     def add_power_to_diagonals(self, T_Ninv_T_block, PhiI_block):
         """
@@ -682,9 +643,13 @@ class PowerSpectrumPosteriorProbability(object):
             self.GPU_error_flag = np.array([0])
             if self.print:
                 start = time.time()
-            # Replace 0 with 1 to pring debug in the following command
-            self.wrapmzpotrf.cpu_interface(
-                len(Sigma), self.nrhs, Sigma, dbar_copy, 0, self.GPU_error_flag
+            self.gpu.wrapmzpotrf.cpu_interface(
+                len(Sigma),
+                self.gpu.nrhs,
+                Sigma,
+                dbar_copy,
+                0,  # Replace with 1 to print debug info
+                self.GPU_error_flag
             )
             if self.print:
                 mpiprint(
