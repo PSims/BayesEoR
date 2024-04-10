@@ -1,1 +1,1 @@
-from .gpu import GPU_Interface
+from .gpu import GPUInterface
