@@ -491,7 +491,7 @@ pspp = PowerSpectrumPosteriorProbability(
     use_gpu=args.useGPU,
     print=args.verbose
 )
-if run_ps_analysis and not pspp.gpu_initialized:
+if run_ps_analysis and not pspp.gpu.gpu_initialized:
     mpiprint(
         "\nERROR: GPU initialization failed.  Aborting.\n",
         style="bold red",
