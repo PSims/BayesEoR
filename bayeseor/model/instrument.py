@@ -1,11 +1,12 @@
 import numpy as np
-import os
+from pathlib import Path
 
 def load_inst_model(
-        inst_model_dir,
-        uvw_file='uvw_model.npy',
-        red_file='redundancy_model.npy',
-        phasor_file='phasor_vector.npy'):
+    inst_model_path,
+    uvw_file="uvw_model.npy",
+    red_file="redundancy_model.npy",
+    phasor_file="phasor_vector.npy"
+):
     """
     Load the instrument model consisting of
     - a (u, v, w) array with shape (nt, nbls, 3)
@@ -16,12 +17,12 @@ def load_inst_model(
     to the central time step in the observation.
 
     This function first looks for an 'instrument_model.npy' pickled dictionary
-    in `inst_model_dir`.  If not found, it will then load the individual numpy
+    in `inst_model_path`.  If not found, it will then load the individual numpy
     arrays specified by `uvw_file`, `red_file`, and `phasor_file`.
 
     Parameters
     ----------
-    inst_model_dir : str
+    inst_model_path : str
         Path to the instrument model directory.
     uvw_file : str
         File containing instrumentally sampled (u, v, w) coords.  Defaults to
@@ -42,21 +43,26 @@ def load_inst_model(
         Array of phasor values.
 
     """
-    if os.path.exists(os.path.join(inst_model_dir, 'instrument_model.npy')):
+    inst_model_path = Path(inst_model_path)
+    if (inst_model_path / "instrument_model.npy").exists():
+        # Instrument model stored in a dictionary
         data_dict = np.load(
-            os.path.join(inst_model_dir, 'instrument_model.npy'),
+            inst_model_path / "instrument_model.npy",
             allow_pickle=True
         ).item()
-        uvw_array_m = data_dict['uvw_model']
-        bl_red_array = data_dict['redundancy_model']
-        if 'phasor_vector' in data_dict:
-            phasor_vec = data_dict['phasor_vector']
+        uvw_array_m = data_dict["uvw_model"]
+        bl_red_array = data_dict["redundancy_model"]
+        if "phasor_vector" in data_dict:
+            phasor_vec = data_dict["phasor_vector"]
         else:
             phasor_vec = None
     else:
-        # Support for old instrument model formats
-        uvw_array_m = np.load(os.path.join(inst_model_dir, uvw_file))
-        bl_red_array = np.load(os.path.join(inst_model_dir, red_file))
-        phasor_vec = np.load(os.path.join(inst_model_dir, phasor_file))
+        # Instrument model stored as individual files
+        uvw_array_m = np.load(inst_model_path / uvw_file)
+        bl_red_array = np.load(inst_model_path / red_file)
+        if (inst_model_path / phasor_file).exists():
+            phasor_vec = np.load(inst_model_path / phasor_file)
+        else:
+            phasor_vec = None
 
     return uvw_array_m, bl_red_array, phasor_vec

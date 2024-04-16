@@ -203,29 +203,36 @@ parser.add_argument(
 opts = parser.parse_args()
 
 
-def add_mtime_to_filename(path, filename_in, join_char='-'):
+def add_mtime_to_path(path, join_char='-'):
     """
-    Appends the mtime to a filename before the file suffix.
+    Appends the mtime to a file or directory.
 
     Parameters
     ----------
     path : str
-        Path to filename.
-    filename_in : str
-        Name of file.
+        Path to file or directory
 
     Returns
     -------
-    filename_out : str
-        Modified filename containing the mtime of the file.
+    path_out : str
+        Modified path containing the mtime of the file or directory.
 
     """
-    fp = Path(path) / filename_in
-    suffix = fp.suffix
-    mtime = datetime.fromtimestamp(os.path.getmtime(fp))
+    path = Path(path)
+    suffix = path.suffix
+    mtime = datetime.fromtimestamp(os.path.getmtime(path))
     mtime = mtime.isoformat()
-    filename_out = filename_in.replace(suffix, f'{join_char}{mtime}{suffix}')
-    return filename_out
+    if not suffix == "":
+        # Assume we have a path to a file
+        filename = path.name
+        filename_out = filename.replace(suffix, f"{join_char}{mtime}{suffix}")
+        path_out = path.parent / filename_out
+    else:
+        # Assume we have a path to a directory
+        dirname = path.stem
+        dirname_out = dirname + f"{join_char}{mtime}"
+        path_out = path.parent / dirname_out
+    return path_out
 
 
 def weighted_avg_and_std(values, weights):
@@ -563,10 +570,9 @@ def data_processing(
     #     np.save(noisepath, noise_array_flattened)
 
     # Instrument Model
-    # Generate a uvw and redundancy model to be used as the
-    # BayesEoR instrument model
-    # UVW coordinates must match the baseline ordering used in the flattened
-    # data array which comes from UVData.get_baseline_redundancies
+    # Generate a uvw and redundancy model to be used as the BayesEoR instrument
+    # model.  UVW coordinates must match the baseline ordering used in the
+    # flattened data array which comes from UVData.get_baseline_redundancies.
     uvws_stacked = np.vstack((vec_bin_centers, -vec_bin_centers))
     uvw_model = np.repeat(
         uvws_stacked[np.newaxis, :, :], uvd.Ntimes, axis=0
@@ -587,40 +593,30 @@ def data_processing(
             redundancy_model[i_t] = redundancy_vec[:, np.newaxis]
 
     if opts.save_model:
-        print(f"\nInstrument model: {inst_model_dir.split('/')[-2]}")
+        inst_model_dir = Path(inst_model_dir)
+        print(f"\nInstrument model: {inst_model_dir.name}")
         if opts.clobber:
-            print('Clobbering files if they exist')
+            print('Clobbering instrument model if it exists')
 
-        if not os.path.exists(inst_model_dir):
-            os.mkdir(inst_model_dir)
-
-        data_dict = {
-            'uvw_model': uvw_model,
-            'redundancy_model': redundancy_model,
-            'opts': vars(opts),
-            'version': bayeseor.__version__,
-            'ctime': datetime.now().isoformat()
-        }
-        if opts.phase:
-            data_dict['phasor_vector'] = phasor_array_flattened
-        outfile = 'instrument_model.npy'
-        datapath = os.path.join(inst_model_dir, outfile)
-        print(f'Writing instrument model to\n{datapath}')
-        if not os.path.exists(datapath) or opts.clobber:
-            np.save(datapath, data_dict)
+        if inst_model_dir.exists() and not opts.clobber:
+            inst_model_dir_mtime = add_mtime_to_filename(inst_model_dir)
+            print("\nExisting model found, moving to {inst_model_dir_mtime}")
+            _ = inst_model_dir.replace(inst_model_dir_mtime)
         else:
-            old_outfile = add_mtime_to_filename(
-                inst_model_dir, outfile, join_char='_'
+            inst_model_dir.mkdir(exist_ok=True, parents=True)
+
+        np.save(inst_model_dir / "uvw_model.npy", uvw_model)
+        np.save(inst_model_dir / "redundancy_model.npy", redundancy_model)
+        if opts.phase:
+            np.save(
+                inst_model_dir / "phasor_vector.npy",
+                phasor_array_flattened
             )
-            print(
-                'Existing model found.  Moving to\n',
-                os.path.join(inst_model_dir, old_outfile)
-            )
-            os.rename(
-                os.path.join(inst_model_dir, outfile),
-                os.path.join(inst_model_dir, old_outfile)
-            )
-            np.save(datapath, data_dict)
+        parser.save(
+            opts, inst_model_dir / "args.json", format="json", skip_none=False
+        )
+        with open(inst_model_dir / "version.txt") as f:
+            f.write(f"{bayeseor.__version__}\n")
 
     if opts.plot_inst_model:
         fig = plt.figure(figsize=(16, 8))
