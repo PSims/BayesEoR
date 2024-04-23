@@ -20,7 +20,7 @@ from bayeseor.utils import (
     get_array_dir_name,
     generate_mock_eor_signal_instrumental,
     vector_is_hermitian,
-    generate_output_file_base,
+    gen_output_file_base,
     write_map_dict,
     write_log_files
 )
@@ -156,38 +156,23 @@ output_dir = Path(args.output_dir)
 output_dir.mkdir(exist_ok=True, parents=False)
 # Create filename (if not provided via cl_args.file_root) for sampler output
 if cl_args.file_root is None:
-    file_root = f"Test-{args.nu}-{args.nv}-{args.neta}-{args.nq}-{args.npl}"
-    file_root += f"-{args.sigma:.1E}"
-    if args.beta:
-        beta_str = ""
-        for b in args.beta:
-            beta_str += f"-{b:.2f}"
-        file_root += beta_str
-    if args.log_priors:
-        file_root += "-lp"
-    if dimensionless_PS:
-        file_root += "-dPS"
-    if args.nq == 0:
-        file_root = file_root.replace("mini-", "mini-NQ-")
-    elif args.inverse_LW_power >= 1e16:
-        file_root = file_root.replace("mini-", "mini-ZLWM-")
-    if use_EoR_cube:
-        file_root = file_root.replace("Test", "EoR")
-    if args.use_Multinest:
-        file_root = "MN-" + file_root
-    else:
-        file_root = "PC-" + file_root
-    if args.use_shg:
-        file_root += (
-            f"-SH-{args.nu_sh}-{args.nv_sh}-{args.nq_sh}-{args.npl_sh}"
-        )
-        if args.fit_for_shg_amps:
-            file_root += "ffsa-"
-    file_root += "-v1"
-    file_root = generate_output_file_base(
-        output_dir, file_root, version_number="1"
+    file_root = gen_output_file_base(
+        args.nu,
+        args.nv,
+        args.neta,
+        args.nq,
+        args.beta,
+        args.sigma,
+        log_priors=args.log_priors,
+        dimensionless_PS=dimensionless_PS,
+        use_shg=args.use_shg,
+        fit_for_shg_amps=args.fit_for_shg_amps,
+        nu_sh=args.nu_sh,
+        nv_sh=args.nv_sh,
+        nq_sh=args.nq_sh,
+        use_Multinest=args.use_Multinest,
+        output_dir=output_dir
     )
-    file_root += "/"
     cl_args.file_root = file_root
 output_dir /= cl_args.file_root
 mpiprint(f"\nOutput directory: {output_dir.absolute()}", rank=mpi_rank)

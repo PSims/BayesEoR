@@ -169,27 +169,102 @@ def get_array_dir_name(args, prefix="./array-storage/"):
     return str(matrices_path) + "/", fov_str
 
 
-def generate_output_file_base(output_dir, dir_name, version_number="1"):
+def gen_output_file_base(
+    nu,
+    nv,
+    neta,
+    nq,
+    beta,
+    sigma,
+    log_priors=True,
+    dimensionless_PS=True,
+    use_shg=False,
+    fit_for_shg_amps=False,
+    nu_sh=None,
+    nv_sh=None,
+    nq_sh=None,
+    use_Multinest=True,
+    output_dir="./",
+    version_number=1
+):
     """
-    Generate a directory name for the sampler output.  The version number of
-    the output directory is incrimented until a new `dir_name` is found to
-    avoid overwriting existing sampler data.
+    Generate a directory name for the sampler output.
+
+    This function first generates the name of the subdirectory in which the
+    sampler outputs will be written, `file_root`.  It then searches in
+    `output_dir` and incriments the `version_number` in the subdirectory name
+    by 1 until a unique subdirectory name is found.
 
     Parameters
     ----------
-    output_dir : Path or str
+    nu : int
+        Number of pixels on the u-axis of the model uv-plane for the EoR model.
+    nv : int
+        Number of pixels on the v-axis of the model uv-plane for the EoR model.
+    neta : int
+        Number of line-of-sight Fourier modes.
+    nq : int
+        Number of Large Spectral Scale Model (LSSM) quadratic basis vectors.
+    beta : list of float
+        Brightness temperature power law spectral index/indices used in the
+        LSSM.
+    sigma : float
+        Standard deviation of the visibility noise.
+    log_priors : bool, optional
+        Priors on power spectrum coefficients are in log_10 units
+        (True, default) or linear units (False).
+    dimensionless_PS : bool, optional
+        Sampler output is the dimensionless power spectrum \Delta^2(k)
+        (True, default) or the power spectrum P(k) (False).
+    use_shg : bool, optional
+        Whether or not the model contains the SubHarmonic Grid (SHG).  Defaults
+        to False.
+    fit_for_shg_amps : bool, optional
+        Whether or not the SHG amplitudes are being fit.  Defaults to False.
+    nu_sh : int, optional
+        Number of pixels on a side for the u axis in the SHG.
+    nv_sh : int, optional
+        Number of pixels on a side for the v axis in the SHG.
+    nq_sh : int, optional
+        Number of LSSM quadratic basis vectors.
+    use_Multinest : bool, optional
+        Analysis uses Multinest (True, default) or Polychord (False).
+    output_dir : str or Path, optional
         Directory in which to search for files in subdirectories.
-    dir_name : str
-        Directory name with a version number string `-v{}` suffix.
-    version_number : str
-        Version number as a string.  Defaults to '1'.
+    version_number : int, optional
+        Version number suffix for `file_root`.  Defaults to 1.
 
     Returns
     -------
-    dir_name : str
-        Updated directory name with a new, largest version number.
+    file_root : str
+        Unique subdirectory name for the sampler output.
 
     """
+    if use_Multinest:
+        file_root = "MN-"
+    else:
+        file_root = "PC-"
+    if beta is not None:
+        npl = len(beta)
+    else:
+        npl = 0
+    file_root = f"Test-{nu}-{nv}-{neta}-{nq}-{npl}"
+    if beta is not None:
+        beta_str = ""
+        for b in beta:
+            beta_str += f"-{b:.2f}"
+        file_root += beta_str
+    if use_shg:
+        file_root += f"-SHG-{nu_sh}-{nv_sh}-{nq_sh}-{npl}"
+    if fit_for_shg_amps:
+        file_root += "-ffsa"
+    file_root += f"-{sigma:.1E}"
+    if log_priors:
+        file_root += "-lp"
+    if dimensionless_PS:
+        file_root += "-dPS"
+    file_root += f"-v{version_number}"
+
     if not isinstance(output_dir, Path):
         output_dir = Path(output_dir)
     suffixes = ["phys_live.txt", ".resume", "resume.dat"]
@@ -200,15 +275,15 @@ def generate_output_file_base(output_dir, dir_name, version_number="1"):
             Nfiles += len(list(directory.glob(f"*{suffix}")))
         return Nfiles > 0
 
-    while check_for_files(output_dir / dir_name, suffixes):
-        current_version = int(dir_name.split("-v")[-1])
+    while check_for_files(output_dir / file_root, suffixes):
+        current_version = int(file_root.split("-v")[-1])
         next_version = current_version + 1
-        dir_name = dir_name.replace(
+        file_root = file_root.replace(
             f"v{version_number}", f"v{next_version}"
         )
         version_number = next_version
-
-    return dir_name
+    
+    return file_root + "/"
 
 
 def write_log_files(parser, args):
