@@ -1,6 +1,6 @@
 CC = gcc
-CFLAGS = -fPIC -O3 -Wall -Wextra
-LDFLAGS = -shared
+CFLAGS = -fPIC -O3 -Wall -Wextra -I${CONDA_PREFIX}/include/ -I${CONDA_PREFIX}/targets/x86_64-linux/include/
+LDFLAGS = -shared -L${CONDA_PREFIX}/lib/ -L${CONDA_PREFIX}/targets/x86_64-linux/lib
 
 TARGET = wrapmzpotrf.so
 
