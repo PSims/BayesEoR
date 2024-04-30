@@ -40,24 +40,28 @@ class GPUInterface(object):
                     f'Loading shared library from {so_path}',
                     rank=self.rank
                 )
-            # libmagma.so contains functions from the Matrix Algebra for GPU
-            # and Multicore Architectures (MAGMA) library.  We are interested
-            # in the function magma_zpotrf from include/magma_z.h which
+            # libmagma.so contains functions from the Matrix Algebra for
+            # GPU and Multicore Architectures (MAGMA) library.  We use
+            # the function magma_zpotrf from include/magma_z.h which
             # computes the Cholesky decomposition of a complex, Hermitian,
-            # positive-definite matrix.  Please see the MAGMA documentation
-            # linked in the BayesEoR documentation for more information.
+            # positive-definite matrix.  We must also call magma_init
+            # (magma_finalize) before (after) the magma_zpotrf call to
+            # initialize (finalze) GPU communications.
             magma = ctypes.CDLL(so_path)
+            self.magma_init = magma.magma_init
+            self.magma_finalize = magma.magma_finalize
             self.magma_zpotrf = magma.magma_zpotrf
             # The function magma_zpotrf takes as arguments
-            # 1. uplo (str): 'L' or 'U' for lower or upper triangular
-            #                decomposition of dA is stored
+            # 1. uplo (int): 121 or 122 to keep the upper- or lower-triangular
+            #                matrix in memory from the decomposition
             # 2. n (int): The order of the matrix dA
             # 3. dA (complex pointer): pointer to the matrix dA with shape
             #                          (ldda, n)
             # 4. ldda (int): The leading dimension of dA
-            # 5. info (int pointer): Info flag
+            # 5. info (int pointer): Info flag which is only zero if the
+            #                        function executed successfully
             self.magma_zpotrf.argtypes = [
-                ctypes.c_wchar_p,
+                ctypes.c_int,
                 ctypes.c_int,
                 ctypeslib.ndpointer(np.complex128, ndim=2, flags='C'),
                 ctypes.c_int,
