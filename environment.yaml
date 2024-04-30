@@ -4,6 +4,7 @@ channels:
 dependencies:
   - astropy
   - astropy-healpix
+  - libmagma
   - gcc_linux-64
   - h5py
   - jsonargparse
