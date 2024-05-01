@@ -4,10 +4,10 @@ channels:
 dependencies:
   - astropy
   - astropy-healpix
-  - libmagma
   - gcc_linux-64
   - h5py
   - jsonargparse
+  - magma
   - matplotlib
   - mpi4py>=3.0.0
   - numpy
