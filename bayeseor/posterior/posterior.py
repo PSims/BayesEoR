@@ -638,24 +638,25 @@ class PowerSpectrumPosteriorProbability(object):
             return SigmaI_dbar
 
         else:
-            dbar_copy = dbar.copy()
-            dbar_copy_copy = dbar.copy()
-            self.GPU_error_flag = np.array([0])
+            self.magma_info = np.array([0])
             if self.print:
                 start = time.time()
-            self.gpu.wrapmzpotrf.cpu_interface(
-                len(Sigma),
-                self.gpu.nrhs,
+            self.gpu.magma_init()
+            # The MAGMA docs suggest that uplo = 121 corresponds to the
+            # upper-triangular component of the matrix being store in
+            # memory but testing shows 121 actually stores the lower-
+            # triangular matrix in memory, which is what we use below.
+            exit_status = self.gpu.magma_zpotrf(
+                121,
+                Sigma.shape[1],
                 Sigma,
-                dbar_copy,
-                0,  # Replace with 1 to print debug info
-                self.GPU_error_flag
+                Sigma.shape[0],
+                self.magma_info
             )
+            self.gpu.magma_finalize()
             if self.print:
                 mpiprint(
-                    '\t\tCholesky decomposition time: {}'.format(
-                        time.time() - start
-                    ),
+                    '\t\tCholesky decomposition time: {time.time() - start}',
                     rank=self.rank
                 )
             # Note: After wrapmzpotrf, Sigma is actually
@@ -663,8 +664,7 @@ class PowerSpectrumPosteriorProbability(object):
             logdet_Magma_Sigma = np.sum(np.log(np.diag(abs(Sigma)))) * 2
             if self.print:
                 start = time.time()
-            SigmaI_dbar = scipy.linalg.cho_solve(
-                (Sigma.conjugate().T, True), dbar_copy_copy)
+            SigmaI_dbar = scipy.linalg.cho_solve((Sigma, True), dbar)
             if self.print:
                 mpiprint(
                     '\t\tscipy cho_solve time: {}'.format(
@@ -672,15 +672,15 @@ class PowerSpectrumPosteriorProbability(object):
                     ),
                     rank=self.rank
                 )
-            if self.GPU_error_flag[0] != 0:
+            if exit_status != 0:
                 # If the inversion doesn't work, zero-weight the
                 # sample (may want to stop computing if this occurs?)
-                logdet_Magma_Sigma = +np.inf
-                print(self.rank, ':', 'GPU inversion error. Setting sample '
-                      'posterior probability to zero.')
-                print(self.rank, ':', 'Param values: ', x_for_error_checking)
+                logdet_Magma_Sigma = np.inf
                 print(self.rank, ':',
-                      'GPU_error_flag = {}'.format(self.GPU_error_flag))
+                      'GPU inversion error. '
+                      'Setting sample posterior probability to zero.')
+                print(self.rank, ':', 'Param values: ', x_for_error_checking)
+                print(self.rank, ':', f'info = {self.magma_info[0]}')
 
             return SigmaI_dbar, logdet_Magma_Sigma
 
