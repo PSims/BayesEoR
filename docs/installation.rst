@@ -40,6 +40,7 @@ BayesEoR is written in python. The required python dependencies are
 
 - astropy
 - astropy-healpix
+- cuda
 - gcc_linux-64
 - h5py
 - jsonargparse
@@ -70,7 +71,7 @@ Alternatively, if you use ``mamba`` (recommended, more info `here <https://mamba
 
     mamba env create -f environment.yaml
 
-If you have a pre-configure installation of CUDA, we suggest commenting out ``pycuda`` in the ``environment.yaml`` file prior to executing the above ``conda`` command.  Similarly, to use a pre-configured MPI installation, comment out ``mpi4py`` (and ``pymultinest`` as it also installs a ``conda`` binary, see the paragraph below for installation instructions for ``pymultinest`` in this case) in the ``environment.yaml`` file.  You can then install ``mpi4py`` via ``pip``.  If you install these dependencies with ``conda``, ``conda`` will install its own CUDA and MPI binaries which may not be desirable.  For ``pycuda``, you need only have the path to your cuda binaries in your bash ``PATH`` variable prior to ``pip`` installation.  For ``mpi4py``, see `this article <https://researchcomputing.princeton.edu/support/knowledge-base/mpi4py>`_ to ensure ``mpi4py`` points to the desired MPI installation.
+If you have a pre-configure installation of CUDA, we suggest commenting out ``cuda`` and ``pycuda`` in the ``environment.yaml`` file prior to executing the above ``conda`` command.  Similarly, to use a pre-configured MPI installation, comment out ``mpi4py`` (and ``pymultinest`` as it also installs a ``conda`` binary, see the paragraph below for installation instructions for ``pymultinest`` in this case) in the ``environment.yaml`` file.  You can then install ``mpi4py`` via ``pip``.  If you install these dependencies with ``conda``, ``conda`` will install its own CUDA and MPI binaries which may not be desirable.  For ``pycuda``, you need only have the path to your cuda binaries in your bash ``PATH`` variable prior to ``pip`` installation.  For ``mpi4py``, see `this article <https://researchcomputing.princeton.edu/support/knowledge-base/mpi4py>`_ to ensure ``mpi4py`` points to the desired MPI installation.
 
 Similarly, if using a pre-configured implementation of MultiNest, pymultinest can also be installed with ``pip`` and forced to point to a particular installation by including the MultiNest installation in your ``LD_LIBRARY_PATH``.  See the `pymultinest documentation <https://johannesbuchner.github.io/PyMultiNest/install.html>`_ for more details.
 
