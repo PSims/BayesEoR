@@ -5,12 +5,89 @@ Running BayesEoR
 
 ``run-analysis.py`` provides an example driver script for running BayesEoR.  This file contains all of the necessary steps to set up the :class:`bayeseor.posterior.PowerSpectrumPosteriorProbability` class and to run MultiNest and obtain power spectrum posteriors.
 
-There are currently two steps required to run a BayesEoR analysis
+There are currently three steps involved in a BayesEoR analysis
 
-1. Build the required matrices (uses only CPUs, no GPUs required)
-2. Run the power spectrum analysis (double precision GPUs required)
+1. Preprocess the data and generate an instrument model (uses only CPUs)
+2. Build the required matrices (uses only CPUs, no GPUs required)
+3. Run the power spectrum analysis (double precision GPUs required)
 
-Below, we provide some useful information about these two steps.  For additional help with running BayesEoR and setting analysis parameters, please see :ref:`setting-parameters`.  More information on running BayesEoR can also be found below in :ref:`test-data`.
+Below, we provide some useful information about the required :ref:`inputs` and these :ref:`analysis-steps`.  For additional help with running BayesEoR and setting analysis parameters, please see :ref:`setting-parameters`.  More information on running BayesEoR can also be found below in :ref:`test-data`.
+
+
+.. _inputs:
+
+Inputs
+------
+
+BayesEoR requires the following as inputs to run a power spectrum analysis:
+
+1. Input data
+2. Instrument model
+3. A set of analysis and model parameters
+
+More information about each of these components can be found below.
+
+Input Data
+^^^^^^^^^^
+
+The input dataset is expected to be a `numpy`-compatible, complex, one-dimensional vector of visibilities with shape `(Nvis,)`.  Here, `Nvis = Nbls * Ntimes * Nfreqs` is the total number of visibilities and `Nbls`, `Ntimes`, and `Nfreqs` is the number of baselines, times, and frequencies in the data.  The ordering of the visibilities for each baseline, frequency, and time in this one-dimensional vector is arbitrary.  However, this order must align with the ordering of the baselines in the instrument model (more on this below in :ref:`preprocessing-the-data`).
+
+
+Instrument Model
+^^^^^^^^^^^^^^^^
+The instrument model is comprised of several components
+
+1. "uv sampling": the specific `(u, v, w)` coordinates sampled by each baseline with shape `(Ntimes, Nbls, 3)`
+2. Redundancy model: the number of baselines which sample each `(u, v, w)` coordinate in the uv sampling with shape `(Ntimes, Nbls, 1)`
+3. Primary beam model: either a path to a `UVBeam <https://github.com/RadioAstronomySoftwareGroup/pyuvdata>`_-compatible file or a string specifying an analytic beam profile (please see :class:`bayeseor.model.healpix.Healpix` for details on supported analytic beam types and their associated parameters)
+4. Phasor vector (optional): an array which phases the visibilities as a function of time with shape `(Nvis,)`
+
+Quantities 1-3 are required in every analysis.  Quantity 4, the phasor vector, is optional and is only used if modelling phased visibilities.  In our experience, we have found that we recover more accurate model visibilities when the data and model are unphased.  For this reason, we suggest modelling unphased visibilities and excluding the phasor vector from the instrument model.
+
+The uv sampling, redundancy model, and optional phasor vector can all be generated using the provided data preprocessing script ``scripts/data_preprocessing.py``.  Please see the section below on :ref:`preprocessing-the-data` for more information.
+
+
+Choosing Analysis and Model Parameters
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The example configuration file (`example-config.yaml`) provides an example of the minimum required analysis and model parameters which must be specified by the user for a power spectrum analysis.  Please see :ref:`setting-parameters` for the contents of this file and :class:`bayeseor.params.BayesEoRParser` for a description of each of the user-definable analysis parameters.  This information can also be displayed by running
+
+.. code-block:: Bash
+
+    python run-analysis.py --help
+
+As stated in :ref:`setting-parameters`, all of these parameters can be set via a configuration yaml file (recommended) or via the command line.
+
+Some of these parameters have quite obvious values.  For example, ``nf`` and ``nt`` are simply the number of frequencies and times in the data being analyzed, respectively.  Other parameters require a little more care.  The parameters ``nu`` (the number of sampled Fourier modes along the u axis of the model uv plane) and ``fov_ra_eor`` (the field of view of the sky model along the right ascension axis) must be chosen more carefully.  In addition to the field of view of the sky model, ``fov_ra_eor`` also determines the spacing between adjacent modes along the u axis of the model uv plane.  The value of ``nu`` must therefore be chosen to fully encompass the u coordinates sampled by the baseline in the input data.  The beam must also be taken into account when choosing ``nu`` for a given ``fov_ra_eor`` as the beam effects the extent of the uv plane sampled by each baseline.  The same arguments apply when choosing ``nv`` and ``fov_dec_eor`` as these quantities correspond to the v axis of the model uv plane and the declination axis of the sky model, respectively.  Please see section 2.3 of `Burba et al. 2023 <https://ui.adsabs.harvard.edu/abs/2023MNRAS.520.4443B/abstract>`_ for a more detailed discussion on choosing model parameters.
+
+
+
+.. _analysis-steps:
+
+Analysis Steps
+--------------
+
+.. _preprocessing-the-data:
+
+Preprocessing the Data
+^^^^^^^^^^^^^^^^^^^^^^
+We have provided a script ``scripts/data_preprocessing.py`` which takes a `pyuvdata <https://github.com/RadioAstronomySoftwareGroup/pyuvdata>`_-compatible file containing visibilities for each baseline, time, and frequency and generates the following `numpy`-compatible files
+
+1. A one-dimensional visibility data vector
+2. An instrument model comprised of
+    a. ``uvw_model.npy``: the "uv sampling" or `(u, v)` coordinates sampled by each baseline
+    b. ``redundancy_model.npy``: the redundancy of each baseline
+    c. ``phasor_vector.npy`` (optional): a phasor vector which is used to phase the model visibilities as a function of time
+
+It is also possible to store the instrument model as a python dictionary instead of separate files as indicated above.  In the case of a dictionary, the uv sampling, redundancy model, and optional phasor vector must all be indexed by the keys ``'uvw_model'``, ``'redundancy_model'``, and ``'phasor_vector'``, respectively.  Please see ``bayeseor.model.instrument.load_inst_model`` for more details.
+
+The provided data preprocessing script also uses ``jsonargparse`` for the command line interface.  All of the command line arguments can thus be specified either via a configuration yaml file or via the command line directly.  For a description of each of the command line arguments please see
+
+.. code-block:: Bash
+
+    python data_preprocessing.py --help
+
+Note that this step is not required when running the test data (:ref:`test-data`) as the test data have already been run through the preprocessing script.
 
 
 Building the Matrix Stack
@@ -43,7 +120,7 @@ As above, the trailing ``--gpu`` flag will force the code to use GPUs.  The powe
 .. _output-location:
 
 Outputs
-^^^^^^^
+-------
 
 The location for the outputs of a BayesEoR analysis can be set via the ``output_dir`` argument in the configuration yaml or the ``--output-dir`` flag on the command line.  The output files from BayesEoR will be placed in a subdirectory of ``output_dir`` and the name of the subdirectory is set automatically based on the chosen analysis parameters.  The default output directory prefix is `./chains/`.
 
@@ -68,7 +145,7 @@ For convenience, we have provided a class to aid in analyzing the aforementioned
 .. _test-data:
 
 Test Dataset
-^^^^^^^^^^^^
+------------
 
 The BayesEoR repository provides a set of test data and an example yaml configuration file.  The test data contain mock EoR only simulated visibilities with a Gaussian beam and a full width at half maximum of 9.3 degrees.  For more information on the test data, see Section 3 of `Burba et al. 2023 <https://ui.adsabs.harvard.edu/abs/2023MNRAS.520.4443B/abstract>`_.
 
@@ -91,7 +168,7 @@ The mock EoR signal in the provided test data was generated as Gaussian white no
 .. _post-analysis-class:
 
 Analyzing BayesEoR Outputs
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+--------------------------
 
 We have provided a basic class for analyzing the outputs of BayesEoR.  The minimum requirement to instantiate the class is a list of directory names containing the BayesEoR output files.  There are also several kwargs you can set to calculate various quantities, compare the results with an expected power spectrum, and/or modify the attributes of the created plots.  Please see :ref:`datacontainer-class-def` below for more information.
 
@@ -132,7 +209,7 @@ The ``DataContainer`` class also provides a few plotting functions.  In the exam
 .. _datacontainer-class-def:
 
 DataContainer Class Definition
-------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. autoclass:: bayeseor.utils.analyze_results.DataContainer
     :members:
