@@ -45,7 +45,7 @@ Neutral hydrogen can undergo a spin-flip transition in which the quantum spins o
 \begin{equation}
 P(k_i) = \frac{1}{N_{k,i}}\sum_{\mathbf{k}}P(\mathbf{k})
 \end{equation}
-where $i$ indexes the spherically-averaged $k$ bins, the sum is performed over all $\mathbf{k}$ in a spherical shell satisfying $k_i \leq |\mathbf{k}| < k_i + \Delta k$, and $N_{k, i}$ is the number of voxels in the $i$-th spherical shell.  The spherically-averaged dimensionless power spectrum, $\Delta^2(k)$, which we infer in `BayesEoR`, is related to $P(k)$ via
+where $i$ indexes the spherically-averaged $k$ bins, the sum is performed over all $\mathbf{k}$ in a spherical shell satisfying $k_i \leq |\mathbf{k}| < k_i + \Delta k_i$, and $N_{k, i}$ is the number of voxels in the $i$-th spherical shell.  The spherically-averaged dimensionless power spectrum, $\Delta^2(k)$, which we infer in `BayesEoR`, is related to $P(k)$ via
 \begin{equation}
 \Delta^2(k_i) = \frac{k_i^3}{2\pi^2}P(k_i)
 \end{equation}
