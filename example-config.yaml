@@ -1,5 +1,6 @@
 # Compute params
 useGPU: True
+single_node: True
 # Frequency params
 nf: 38
 nu_min_MHz: 158.304048743
