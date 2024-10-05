@@ -35,7 +35,7 @@ bibliography: paper.bib
 
 # Summary 
 
-`BayesEoR` is a GPU-accelerated, MPI-compatible Python package for estimating the power spectrum of redshifted 21-cm emission from interferometric observations of the Epoch of Reionization (EoR). Utilizing a Bayesian framework, `BayesEoR` jointly fits for the 21-cm EoR power spectrum and a "foreground" model, referring to bright, contaminating emission between us and the cosmological signal, and forward models the instrument with which these signals are observed.  To perform the sampling, we use `MultiNest` [@buchner:2014] which calculates the Bayesian evidence as part of the analysis.  Thus, `BayesEoR` can also be used as a tool for model selection (see e.g. @sims:2019a).
+`BayesEoR` is a GPU-accelerated, MPI-compatible Python package for estimating the power spectrum of redshifted 21-cm emission from interferometric observations of the Epoch of Reionization (EoR). Utilizing a Bayesian framework, `BayesEoR` jointly fits for the 21-cm EoR power spectrum and a "foreground" model, referring to bright, contaminating emission between us and the cosmological signal, and forward models the instrument with which these signals are observed.  To perform the sampling, we use `MultiNest` [@buchner:2014] which calculates the Bayesian evidence as part of the analysis.  Thus, `BayesEoR` can also be used as a tool for model selection [see e.g. @sims:2019a].
 
 # Statement of need
 
