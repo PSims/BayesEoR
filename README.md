@@ -1,6 +1,8 @@
 BayesEoR
 ========
 
+[![DOI](https://joss.theoj.org/papers/10.21105/joss.06667/status.svg)](https://doi.org/10.21105/joss.06667)
+
 A Bayesian approach to estimating the power spectrum of the Epoch of Reionization (EoR) from interferometric observations.
 
 BayesEoR provides a means of performing a joint Bayesian analysis of models for large-spectral-scale foreground emission and a stochastic signal from redshifted 21-cm emission emitted by neutral Hydrogen during the EoR.
