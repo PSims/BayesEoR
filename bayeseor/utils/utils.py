@@ -54,6 +54,8 @@ def get_array_dir_name(args, prefix="./array-storage/"):
     # Root matrix dir
     analysis_dir = (
         f"nu-{args.nu}-nv-{args.nv}-neta-{args.neta}"
+        + f"-fmin-{args.nu_min_MHz:.2f}MHz"
+        + f"-df-{args.channel_width_MHz*1e3:.2f}kHz"
         + f"-sigma-{args.sigma:.2E}-nside-{args.nside}"
     )
 
