@@ -75,6 +75,11 @@ if (args.single_node or mpi_size > 1) and not args.useGPU:
 
 if mpi_rank == 0:
     mpiprint(Panel("Parameters"), style="bold")
+    if args.config:
+        mpiprint(
+            f"\nConfig file: {Path(args.config[0]).absolute().as_posix()}",
+            end="\n\n"
+        )
     pprint(args.__dict__)
 
 # --------------------------------------------
