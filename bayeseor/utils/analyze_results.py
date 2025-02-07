@@ -22,6 +22,9 @@ class DataContainer(object):
     sampler : str, optional
         Case insensitive sampler name, e.g. 'MultiNest' or 'multinest'
         (default). The only currently supported sampler is MultiNest (default).
+    store_samples : bool, optional
+        If `store_samples` is True, store all samples as an attribute,
+        `self.samples`.  Defaults to False.
     calc_uplims : bool, optional
         If `calc_uplims` is True, calculate the upper limit of each k bin's
         posterior as the weighted 95th percentile using the joint posterior
@@ -73,6 +76,7 @@ class DataContainer(object):
         dirnames,
         dir_prefix=None,
         sampler="multinest",
+        store_samples=False,
         calc_uplims=False,
         quantile=0.95,
         uplim_inds=None,
@@ -125,6 +129,9 @@ class DataContainer(object):
             self.uplims = []
         if self.calc_kurtosis:
             self.kurtoses = []
+        if store_samples:
+            self.samples = []
+            self.log_joint_posteriors = []
         for i_dir in range(self.Ndirs):
             path = Path(self.dirnames[i_dir])
             if self.dir_prefix is not None:
@@ -147,7 +154,8 @@ class DataContainer(object):
                 len(k_vals),
                 q=self.quantile,
                 Nhistbins=Nhistbins,
-                log_priors=args.log_priors
+                log_priors=args.log_priors,
+                return_samples=store_samples
             )
             self.posteriors.append(out[0])
             self.posterior_bins.append(out[1])
@@ -157,6 +165,9 @@ class DataContainer(object):
                 self.uplims.append(out[4])
             if self.calc_kurtosis:
                 self.kurtoses.append(out[5])
+            if store_samples:
+                self.samples.append(out[6][:, 2:])
+                self.log_joint_posteriors.append(out[6][:, 0])
         
         if self.Ndirs > 1:
             self.k_vals_identical = np.all(np.diff(self.k_vals, axis=0) == 0)
@@ -178,7 +189,8 @@ class DataContainer(object):
         Nkbins,
         q=0.95,
         Nhistbins=31,
-        log_priors=True
+        log_priors=True,
+        return_samples=False
     ):
         """
         Load sampler output and form posteriors for each k bin.
@@ -200,6 +212,8 @@ class DataContainer(object):
             assumed to be in log10 units and are first linearized prior to
             calculating e.g. upper limits.  Otherwise, the power spectrum
             samples are assumed to be in linear units.
+        return_samples : bool, optional
+            If `return_samples` is True, return all samples. Defaults to False.
         
         Returns
         -------
@@ -215,6 +229,9 @@ class DataContainer(object):
             `q`-th quantile of each k bin posterior.
         kurtoses : ndarray (returned only if `self.calc_kurtosis` is True)
             Kurtosis of each k bin posterior.
+        samples : ndarray (returned only if `return_samples` is True)
+            Samples for each power power spectrum coefficient with shape
+            ``(Nsamples, Nkbins + 2)``.
 
         """
         if not isinstance(fp, Path):
@@ -262,6 +279,10 @@ class DataContainer(object):
             return_vals += (None,)
         if self.calc_kurtosis:
             return_vals += (kurtoses,)
+        else:
+            return_vals += (None,)
+        if return_samples:
+            return_vals += (data,)
         else:
             return_vals += (None,)
         return return_vals
