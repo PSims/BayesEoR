@@ -38,7 +38,8 @@ class GPUInterface(object):
             if self.verbose:
                 mpiprint(
                     f'Loading shared library from {so_path}',
-                    rank=self.rank
+                    rank=self.rank,
+                    end='\n\n'
                 )
             # libmagma.so contains functions from the Matrix Algebra for
             # GPU and Multicore Architectures (MAGMA) library.  We use
@@ -68,7 +69,13 @@ class GPUInterface(object):
                 ctypeslib.ndpointer(int, ndim=1, flags='C')
             ]
             if self.verbose:
-                mpiprint('Computing on GPU(s)', rank=self.rank, end='\n\n')
+                Ngpus = cuda.Device.count()
+                mpiprint(
+                    f'Computing on {Ngpus} GPU(s):', rank=self.rank, end='\n\n'
+                )
+                for i_gpu in range(Ngpus):
+                    mpiprint(cuda.Device(0).name(), rank=self.rank)
+                mpiprint('', rank=self.rank, end='\n\n')
             self.gpu_initialized = True
 
         except Exception as e:
