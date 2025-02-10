@@ -524,7 +524,7 @@ if mpi_rank == 0 and run_ps_analysis:
                 rank=mpi_rank
             )
     mpiprint(
-        "Average evaluation time: {}".format((time.time()-start)/float(Nit)),
+        "\nAverage evaluation time: {}".format((time.time()-start)/float(Nit)),
         end="\n\n",
         rank=mpi_rank
     )

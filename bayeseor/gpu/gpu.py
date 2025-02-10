@@ -69,7 +69,7 @@ class GPUInterface(object):
                 ctypeslib.ndpointer(int, ndim=1, flags='C')
             ]
             if self.verbose:
-                mpiprint(f'Computing on GPU(s):', rank=self.rank, end='\n\n')
+                mpiprint(f'Computing on GPU(s)', rank=self.rank)
                 Ngpus = cuda.Device.count()
                 print(
                     f'Rank {self.rank}: {cuda.Device.count()} GPUs ('
