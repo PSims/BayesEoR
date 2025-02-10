@@ -69,13 +69,13 @@ class GPUInterface(object):
                 ctypeslib.ndpointer(int, ndim=1, flags='C')
             ]
             if self.verbose:
+                mpiprint(f'Computing on GPU(s):', rank=self.rank, end='\n\n')
                 Ngpus = cuda.Device.count()
-                mpiprint(
-                    f'Computing on {Ngpus} GPU(s):', rank=self.rank, end='\n\n'
+                print(
+                    f'Rank {self.rank}: {cuda.Device.count()} GPUs ('
+                    + ', '.join([cuda.Device(i).name() for i in range(Ngpus)])
+                    + ')',
                 )
-                for i_gpu in range(Ngpus):
-                    mpiprint(cuda.Device(0).name(), rank=self.rank)
-                mpiprint('', rank=self.rank, end='\n\n')
             self.gpu_initialized = True
 
         except Exception as e:
