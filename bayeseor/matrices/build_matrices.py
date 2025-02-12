@@ -33,6 +33,11 @@ DAYS_PER_SEC = 1.0 / SECS_PER_DAY
 DEGREES_PER_HOUR = 360.0 / 24
 DEGREES_PER_SEC = DEGREES_PER_HOUR * 1 / SECS_PER_HOUR
 DEGREES_PER_MIN = DEGREES_PER_SEC * 60
+try:
+    from threadpoolctl import threadpool_info
+    NTHREADS = threadpool_info()[0]['num_threads']
+except:
+    NTHREADS = 1
 
 
 class BuildMatrixTree(object):
@@ -483,6 +488,7 @@ class BuildMatrices(BuildMatrixTree):
 
         if self.include_instrumental_effects:
             self.uvw_array_m = kwargs.pop('uvw_array_m')
+            self.nbls = self.uvw_array_m.shape[1]
             self.bl_red_array = kwargs.pop('bl_red_array')
             self.bl_red_array_vec = kwargs.pop('bl_red_array_vec')
             self.phasor_vec = kwargs.pop('phasor_vec', None)
@@ -1825,7 +1831,38 @@ class BuildMatrices(BuildMatrixTree):
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
         print('Performing matrix algebra')
-        T = self.dot_product(pmd['Finv'], pmd['Fprime_Fz'])
+        # Finv is a stack of block diagonal matrices.  Each component of the
+        # stack encodes the sky --> visibilities transformation at a single
+        # time.  If we treat Finv as a sparse matrix, we use scipy's sparse
+        # dot product which is limited to a single core/thread.  Numpy's dot
+        # product is typically configured for threading.  If we have more than
+        # 1 thread available, it's much faster to do a dense-dense dot product.
+        # Finv has a lot of zeros, though, so it's inefficient in terms of
+        # memory to cast it as a single dense matrix.  Instead, it's more
+        # efficient in time and memory to add a couple for loops and multiply
+        # the dense block diagonals of Finv times the corresponding components
+        # in Fprime_Fz.
+        if NTHREADS == 1:
+            T = self.dot_product(pmd['Finv'], pmd['Fprime_Fz'])
+        else:
+            T = np.zeros(
+                (pmd['Finv'].shape[0], pmd['Fprime_Fz'].shape[1]),
+                dtype=complex
+            )
+            for i_t in range(self.nt):
+                time_inds = slice(
+                    i_t*self.nbls*self.nf, (i_t + 1)*self.nbls*self.nf
+                )
+                for i_f in range(self.nf):
+                    vis_inds = slice(i_f*self.nbls, (i_f + 1)*self.nbls)
+                    sky_inds = slice(
+                        i_f*self.hpx.npix_fov,
+                        (i_f + 1)*self.hpx.npix_fov
+                    )
+                    T[time_inds][vis_inds] = np.dot(
+                        pmd['Finv'][time_inds][vis_inds, sky_inds].toarray(),
+                        pmd['Fprime_Fz'][sky_inds]
+                    )
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
         self.output_data(
