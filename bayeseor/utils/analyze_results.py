@@ -27,8 +27,7 @@ class DataContainer(object):
         `self.samples`.  Defaults to False.
     calc_uplims : bool, optional
         If `calc_uplims` is True, calculate the upper limit of each k bin's
-        posterior as the weighted 95th percentile using the joint posterior
-        probability per iteration as the weights.  Defaults to False.
+        posterior as the 95th percentile.  Defaults to False.
     quantile : float, optional
         Quantile in [0, 1].  Defaults to 0.95.  Only used if `calc_uplims`
         is True.
@@ -39,6 +38,11 @@ class DataContainer(object):
         shape ``(len(dirnames), Nkbins)``.  If ``Nkbins`` varies in each file,
         each entry in `uplims` must have ``len(uplims[i]) == Nkbins`` for that
         particular file.
+    posterior_weighted : bool, optional
+        If `posterior_weighted` is True, use the joint posterior probability as
+        weights in the calculation of the individual power spectrum coefficient
+        posteriors and the associated estimates, uncertainties, and upper
+        limits.  Defaults to False.
     Nhistbins : int, optional
         Number of histogram bins for each k bin's posterior distribution.
     calc_kurtosis : bool, optional
@@ -80,6 +84,7 @@ class DataContainer(object):
         calc_uplims=False,
         quantile=0.95,
         uplim_inds=None,
+        posterior_weighted=False,
         Nhistbins=31,
         calc_kurtosis=False,
         ps_kind="dmps",
@@ -155,6 +160,7 @@ class DataContainer(object):
             out = self.get_posterior_data(
                 path / self.sampler_filename,
                 len(k_vals),
+                posterior_weighted=posterior_weighted,
                 q=self.quantile,
                 Nhistbins=Nhistbins,
                 log_priors=args.log_priors,
@@ -190,6 +196,7 @@ class DataContainer(object):
         self,
         fp,
         Nkbins,
+        posterior_weighted=False,
         q=0.95,
         Nhistbins=31,
         log_priors=True,
@@ -204,6 +211,11 @@ class DataContainer(object):
             Path to sampler output file.
         Nkbins : int
             Number of spherically averaged k bins.
+        posterior_weighted : bool, optional
+            If `posterior_weighted` is True, use the joint posterior
+            probability as weights in the calculation of the individual power
+            spectrum coefficient posteriors and the associated estimates,
+            uncertainties, and upper limits.  Defaults to False.
         q : float, optional
             Quantile in [0, 1].  Defaults to 0.95.  Only used if
             `self.calc_uplims` is True.
@@ -246,13 +258,22 @@ class DataContainer(object):
             data[:, 2:] = 10**data[:, 2:]
         if self.sampler == 'multinest':
             # The relevant columns of the MultiNest output file 'data-.txt' are
-            # 0 - joint posterior probability per iteration (weights)
+            # 0 - joint posterior probability per iteration
             # 2: - these columns contain the power spectrum amplitude samples
-            out = self._weighted_avg_and_std(data[:, 2:], data[:, 0], q=q)
-            avgs = out[0]
-            stddevs = out[1]
+            if posterior_weighted:
+                weights = data[:, 0]
+            else:
+                weights = None
+            avgs, stddevs = self._weighted_avg_and_std(
+                data[:, 2:],
+                weights=weights
+            )
             if self.calc_uplims:
-                uplims = out[2]
+                uplims = self._weighted_quantiles(
+                    data[:, 2:],
+                    q,
+                    weights=weights
+                )
 
             posteriors = np.zeros((Nkbins, Nhistbins), dtype=float)
             bins = np.zeros((Nkbins, Nhistbins + 1), dtype=float)
@@ -266,8 +287,8 @@ class DataContainer(object):
                 bins[i_k] = np.logspace(bins_min, bins_max, Nhistbins + 1)
                 posteriors[i_k], bins[i_k] = np.histogram(
                     data[:, 2 + i_k],
-                    weights=data[:, 0],
-                    bins=bins[i_k]
+                    bins=bins[i_k],
+                    weights=weights
                 )
                 if self.calc_kurtosis:
                     kurtoses[i_k] = sp.stats.kurtosis(posteriors[i_k])
@@ -1189,18 +1210,16 @@ class DataContainer(object):
 
         return fig
     
-    def _weighted_avg_and_std(self, values, weights, q=None):
+    def _weighted_avg_and_std(self, values, weights=None):
         """
-        Calculate the weighted average and standard deviation and q-th quantile.
+        Calculate the weighted average and standard deviation.
 
         Parameters
         ----------
         values : array-like
             Array of values.
-        weights : array-like
+        weights : array-like, optional
             Array of weights with same shape as `values`.
-        q : float
-            Quantile in [0, 1].
 
         Returns
         -------
@@ -1208,8 +1227,6 @@ class DataContainer(object):
             Weighted average.
         std : array-like
             Standard deviation.
-        quantiles : array-like
-            Quantile values.  Only returned if `q` is not None.
 
         """
         average = np.average(values, axis=0, weights=weights)
@@ -1217,30 +1234,22 @@ class DataContainer(object):
         variance = np.average((values-average)**2, axis=0, weights=weights)
         std = np.sqrt(variance)
 
-        if q is not None:
-            quantiles = np.zeros_like(average)
-            for i in range(quantiles.size):
-                quantiles[i] = self._weighted_quantile(
-                    values[:, i], weights, q
-                )
+        return average, std
 
-        if q is not None:
-            return (average, std, quantiles)
-        else:
-            return (average, std)
-
-    def _weighted_quantile(self, data, weights, q):
+    def _weighted_quantiles(self, data, q, weights=None):
         """
-        Compute the weighted quantile from a set of data and weights.
+        Compute a quantile from a set of data and optional weights.
 
         Parameters
         ----------
         data : array-like
-            Input (one-dimensional) array.
-        weights : array-like
-            Array of weights with shape matching `data`.
+            Input array.
         q : float
             Quantile in [0, 1].
+        weights : array-like, optional
+            Array of weights with shape matching `data` or
+            ``(data.shape[0],)``.  If `weights` is None (default), uniformly
+            weight the data.
 
         Returns
         -------
@@ -1250,9 +1259,21 @@ class DataContainer(object):
         """
         if q < 0 or q > 1:
             raise ValueError("q must be in [0, 1]")
-        sort_inds = np.argsort(data)
-        d = data[sort_inds]
-        w = weights[sort_inds]
-        cdf_w = np.cumsum(w) / np.sum(w)
-        quantile = np.interp(q, cdf_w, d)
-        return quantile
+        if weights is None:
+            weights = np.ones(data.shape[0])
+        else:
+            shapes_okay = (
+                weights.shape == data.shape
+                or weights.shape == data[:, 0].shape
+            )
+            assert shapes_okay, (
+                "weights must have the same shape as data or data[:, 0]"
+            )
+        quantiles = np.ones(data.shape[1], dtype=float)
+        for i in range(data.shape[1]):
+            sort_inds = np.argsort(data[:, i])
+            d = data[:, i][sort_inds]
+            w = weights[sort_inds]
+            cdf_w = np.cumsum(w) / np.sum(w)
+            quantiles[i] = np.interp(q, cdf_w, d)
+        return quantiles
