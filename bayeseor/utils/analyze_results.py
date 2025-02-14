@@ -46,8 +46,8 @@ class DataContainer(object):
         posterior distribution.
     ps_kind : str, optional
         Case insensitive power spectrum kind in the sampler output file.  Can
-        be 'ps' or 'dmps' for the power spectrum, P(k), or dimensionless power
-        spectrum, \Delta^2(k).  Defaults to 'dmps'.
+        be 'ps' or 'dmps' for the power spectrum, :math:`P(k)`, or
+        dimensionless power spectrum, :math:`\Delta^2(k)`.  Defaults to 'dmps'.
     temp_unit : str, optional
         Either 'mK' or 'K'.  The temperature unit of the power spectrum.  The
         default output from BayesEoR is 'mK' (default).
@@ -58,13 +58,13 @@ class DataContainer(object):
         output power spectra in little h units in the future.  This kwarg
         has thus been added for future use.
     expected_ps : float or array-like, optional
-        Expected power spectrum, P(k).  Can be a single float (for a flat P(k))
-        or an array-like with length equal to the number of spherically
-        averaged k bins.
+        Expected power spectrum, :math:`P(k)`.  Can be a single float (for a
+        flat :math:`P(k)`) or an array-like with length equal to the number of
+        spherically averaged k bins.
     expected_dmps : float or array-like, optional
-        Expected dimensionless power spectrum, \Delta^2(k).  Can be a single
-        float or an array-like with length equal to the number of spherically
-        averaged k bins.
+        Expected dimensionless power spectrum, :math:`\Delta^2(k)`.  Can be a
+        single float or an array-like with length equal to the number of
+        spherically averaged k bins.
     labels : array-like of str, optional
         Array-like containing strings with shorthand labels for each directory
         in `dirnames`.  Used in figure legends for plotting functions.
@@ -106,15 +106,15 @@ class DataContainer(object):
         # Units
         self.ps_kind = ps_kind.lower()
         self.temp_unit = temp_unit
-        self.k_units = "$h$ "*little_h_units + "Mpc$^{-1}$"
+        self.k_units = r"$h$ "*little_h_units + "Mpc$^{-1}$"
         if self.ps_kind == "ps":
-            self.ps_label = "$P(k)$"
+            self.ps_label = r"$P(k)$"
         else:
-            self.ps_label = "$\Delta^2(k)$"
+            self.ps_label = r"$\Delta^2(k)$"
         self.ps_units = (
-            f"{self.temp_unit}$^2$"
-            + " $h^{-3}$"*little_h_units
-            + " Mpc$^3$"*(self.ps_kind == "ps")
+            fr"{self.temp_unit}$^2$"
+            + r" $h^{-3}$"*little_h_units
+            + r" Mpc$^3$"*(self.ps_kind == "ps")
         )
 
         # Load contents of output directories
@@ -297,12 +297,12 @@ class DataContainer(object):
         Parameters
         ----------
         expected_ps : float or array-like, optional
-            Expected power spectrum, P(k).  Can be a single float (for a flat
-            P(k)) or an array-like with length equal to the number of
-            spherically averaged k bins.
+            Expected power spectrum, :math:`P(k)`.  Can be a single float (for
+            a flat :math:`P(k)`) or an array-like with length equal to the
+            number of spherically averaged k bins.
         expected_dmps : float or array-like, optional
-            Expected dimensionless power spectrum, \Delta^2(k).  Can be a
-            single float or an array-like with length equal to the number of
+            Expected dimensionless power spectrum, :math:`\Delta^2(k)`.  Can be
+            a single float or an array-like with length equal to the number of
             spherically averaged k bins.
 
         """        
@@ -356,7 +356,7 @@ class DataContainer(object):
     
     def _ps_to_dmps(self, ps, ks):
         """
-        Convert P(k) to \Delta^2(k).
+        Convert :math:`P(k)` to :math:`\Delta^2(k)`.
 
         Parameters
         ----------
@@ -371,7 +371,7 @@ class DataContainer(object):
     
     def _dmps_to_ps(self, dmps, ks):
         """
-        Convert \Delta^2(k) to P(k).
+        Convert :math:`\Delta^2(k)` to :math:`P(k)`.
 
         Parameters
         ----------
