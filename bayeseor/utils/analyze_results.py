@@ -119,6 +119,7 @@ class DataContainer(object):
 
         # Load contents of output directories
         self.k_vals = []
+        self.k_vals_bins = []
         self.version = []
         self.args = []
         self.posteriors = []
@@ -137,11 +138,13 @@ class DataContainer(object):
             if self.dir_prefix is not None:
                 path = self.dir_prefix / path
             k_vals = np.loadtxt(path / "k-vals.txt")
+            k_vals_bins = np.loadtxt(path / "k-vals-bins.txt")
             with open(path / "version.txt", "r") as f:
                 version = f.readlines()[0].strip("\n")
             with open(path / "args.json", "r") as f:
                 args = Namespace(**json.load(f))
             self.k_vals.append(k_vals)
+            self.k_vals_bins.append(k_vals_bins)
             self.version.append(version)
             self.args.append(args)
 
@@ -405,6 +408,7 @@ class DataContainer(object):
         plot_fracdiff=False,
         ylim=None,
         ylim_diff=[-1, 1],
+        plot_priors=False,
         legend_loc="best",
         legend_ncols=1,
         figlegend=False,
@@ -492,6 +496,9 @@ class DataContainer(object):
         ylim_diff : array-like, optional
             matplotlib ylim for the (fractional) difference subplot if
             `plot_diff` or `plot_fracdiff` is True.
+        plot_priors : bool, optional
+            If `plot_priors` is True, plot the prior bounds as shaded regions
+            for each k bin.  Defaults to False.
         legend_loc : str, optional
             Any valid matplotlib legend locator string.  Used only if
             `figlegend` is False.  Defaults to 'best'.
@@ -582,6 +589,8 @@ class DataContainer(object):
                 label = labels[i_dir]
             elif self.labels is not None:
                 label = self.labels[i_dir]
+            else:
+                label = None
             xs = self.k_vals[i_dir] * (1 + x_offset*i_dir)
             zorder = (10 + zorder_offset*i_dir)
             if np.any(uplim_inds[i_dir]) and self.calc_uplims:
@@ -702,6 +711,27 @@ class DataContainer(object):
                     plot_expected = False
                 else:
                     i_exp += 1
+
+            if plot_priors:
+                if i_dir == 0:
+                    label_priors = "Priors"
+                else:
+                    label_priors = None
+                priors_lo = np.array(self.args[i_dir].priors)[:, 0]
+                priors_hi = np.array(self.args[i_dir].priors)[:, 1]
+                if self.args[i_dir].log_priors:
+                    priors_lo = 10**priors_lo
+                    priors_hi = 10**priors_hi
+                ax.stairs(
+                    priors_hi,
+                    self.k_vals_bins[i_dir],
+                    baseline=priors_lo,
+                    fill=True,
+                    alpha=0.3,
+                    label=label_priors,
+                    zorder=0
+                )
+
         if subplots:
             ax_diff.axhline(0, ls=ls_expected, color='k', lw=lw, zorder=0)
         
@@ -767,6 +797,7 @@ class DataContainer(object):
         log_y=False,
         ymin=1e-16,
         show_k_vals=True,
+        plot_priors=False,
         suptitle=None,
         fig=None,
         axs=None
@@ -808,6 +839,9 @@ class DataContainer(object):
             If `show_k_vals` is True (default), print the value of the k bin
             associated with each posterior in the upper left corner of each
             posterior subplot.
+        plot_priors : bool, optional
+            If `plot_priors` is True, plot the prior bounds as shaded regions
+            for each k bin.  Defaults to False.
         suptitle : str, optional
             Figure suptitle string.  Defaults to None.
         fig : Figure, optional
@@ -881,6 +915,19 @@ class DataContainer(object):
                     if log_y:
                         ax.set_ylim([ymin, ax.get_ylim()[1]])
                         ax.set_yscale("log")
+                if plot_priors:
+                    prior_lo = self.args[i_dir].priors[i_k][0]
+                    prior_hi = self.args[i_dir].priors[i_k][1]
+                    if self.args[i_dir].log_priors:
+                        prior_lo = 10**prior_lo
+                        prior_hi = 10**prior_hi
+                    ax.axvspan(
+                        prior_lo,
+                        prior_hi,
+                        color=colors[i_dir], 
+                        alpha=0.3,
+                        zorder=0
+                    )
         ax.set_xlabel(fr"{self.ps_label} [{self.ps_units}]")
 
         if not external_call:
@@ -913,7 +960,8 @@ class DataContainer(object):
         plot_diff=False,
         plot_fracdiff=False,
         ylim_ps=None,
-        ylim_diff_ps=[-1, 1],  # good to here
+        ylim_diff_ps=[-1, 1],
+        plot_priors=False,
         plot_height_post=1.0,
         hspace_post=0.01,
         log_y=False,
@@ -1004,12 +1052,15 @@ class DataContainer(object):
             spectrum.  If both `plot_diff` and `plot_fracdiff` are True,
             `plot_diff` will be set to False and the fractional difference will
             be plotted instead.  Defaults to False.
-        ylim : array-like, optional
+        ylim_ps : array-like, optional
             matplotlib ylim for the power spectrum subplot.  Defaults to None
             (scales the y axis limits according to the data).
-        ylim_diff : array-like, optional
+        ylim_diff_ps : array-like, optional
             matplotlib ylim for the (fractional) difference power spectrum
             subplot if `plot_diff` or `plot_fracdiff` is True.
+        plot_priors : bool, optional
+            If `plot_priors` is True, plot the prior bounds as shaded regions
+            for each k bin.  Defaults to False.
         plot_height_post : float, optional
             Subplot height for the posterior subplots.  Defaults to 1.0.
         hspace_post : float, optional
@@ -1101,6 +1152,7 @@ class DataContainer(object):
             plot_fracdiff=plot_fracdiff,
             ylim=ylim_ps,
             ylim_diff=ylim_diff_ps,
+            plot_priors=plot_priors,
             fig=fig,
             axs=axs_ps
         )
@@ -1114,6 +1166,7 @@ class DataContainer(object):
             log_y=log_y,
             ymin=ymin_post,
             show_k_vals=show_k_vals,
+            plot_priors=plot_priors,
             fig=fig,
             axs=axs_post
         )
