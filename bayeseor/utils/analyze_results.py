@@ -322,6 +322,7 @@ class DataContainer(object):
                 posteriors[i_k], bins[i_k] = np.histogram(
                     data[:, 2 + i_k],
                     bins=bins[i_k],
+                    density=True,  # return the PDF
                     weights=weights
                 )
                 if self.calc_kurtosis:
