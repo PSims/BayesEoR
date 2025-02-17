@@ -103,7 +103,10 @@ class DataContainer(object):
         if self.sampler == 'multinest':
             self.sampler_filename = "data-.txt"
         self.labels = labels
-        self.calc_uplims = calc_uplims
+        if uplim_inds is not None:
+            self.calc_uplims = True
+        else:
+            self.calc_uplims = calc_uplims
         self.quantile = quantile
         self.uplim_inds = uplim_inds
         self.calc_kurtosis = calc_kurtosis
