@@ -50,6 +50,9 @@ class DataContainer(object):
         limits.  Defaults to False.
     Nhistbins : int, optional
         Number of histogram bins for each k bin's posterior distribution.
+    density : bool, optional
+            If `density` is True, compute the posterior as a probability
+            density function.  Defaults to False, i.e. plot counts.
     calc_kurtosis : bool, optional
         If `calc_kurtosis` is True, calculate the kurtosis of each k bin's
         posterior distribution.
@@ -92,6 +95,7 @@ class DataContainer(object):
         uplim_inds=None,
         posterior_weighted=False,
         Nhistbins=31,
+        density=False,
         calc_kurtosis=False,
         ps_kind="dmps",
         temp_unit="mK",
@@ -177,6 +181,7 @@ class DataContainer(object):
                 conf_intervals=conf_intervals,
                 uplim_quantile=self.uplim_quantile,
                 Nhistbins=Nhistbins,
+                density=density,
                 log_priors=args.log_priors,
                 return_samples=store_samples
             )
@@ -215,6 +220,7 @@ class DataContainer(object):
         conf_intervals=[68, 95],
         uplim_quantile=0.95,
         Nhistbins=31,
+        density=False,
         log_priors=True,
         return_samples=False
     ):
@@ -241,6 +247,9 @@ class DataContainer(object):
         Nhistbins : int, optional
             Number of histogram bins for each k bin's posterior distribution.
             Defaults to 31.
+        density : bool, optional
+            If `density` is True, compute the posterior as a probability
+            density function.  Defaults to False, i.e. plot counts.
         log_priors : bool, optional
             If `log_priors` is True (default), power spectrum samples are
             assumed to be in log10 units and are first linearized prior to
@@ -322,7 +331,7 @@ class DataContainer(object):
                 posteriors[i_k], bins[i_k] = np.histogram(
                     data[:, 2 + i_k],
                     bins=bins[i_k],
-                    density=True,  # return the PDF
+                    density=density,
                     weights=weights
                 )
                 if self.calc_kurtosis:
