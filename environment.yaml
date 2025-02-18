@@ -15,6 +15,7 @@ dependencies:
   - pip
   - pycuda
   - pymultinest
+  - pytest
   - python
   - pyuvdata
   - rich
