@@ -10,6 +10,7 @@
 !bayeseor/
 !docs/
 !scripts/
+!tests/
 !test_data/
 !README.md
 !.readthedocs.yaml
