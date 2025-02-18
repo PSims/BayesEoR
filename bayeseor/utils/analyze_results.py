@@ -4,6 +4,7 @@ import scipy as sp
 from pathlib import Path
 import json
 from jsonargparse import Namespace
+from collections.abc import Iterable
 import matplotlib.pyplot as plt
 
 
@@ -22,11 +23,17 @@ class DataContainer(object):
     sampler : str, optional
         Case insensitive sampler name, e.g. 'MultiNest' or 'multinest'
         (default). The only currently supported sampler is MultiNest (default).
+    store_samples : bool, optional
+        If `store_samples` is True, store all samples as an attribute,
+        `self.samples`.  Defaults to False.
+    conf_intervals : float or list of float, optional
+        Confidence intervals as percentages used for uncertainty calculations
+        and errorbars on plots.  Defaults to [68, 95], i.e. compute 68% and 95%
+        confidence intervals.
     calc_uplims : bool, optional
         If `calc_uplims` is True, calculate the upper limit of each k bin's
-        posterior as the weighted 95th percentile using the joint posterior
-        probability per iteration as the weights.  Defaults to False.
-    quantile : float, optional
+        posterior as the 95th percentile.  Defaults to False.
+    uplim_quantile : float, optional
         Quantile in [0, 1].  Defaults to 0.95.  Only used if `calc_uplims`
         is True.
     uplim_inds : array-like, optional
@@ -36,15 +43,23 @@ class DataContainer(object):
         shape ``(len(dirnames), Nkbins)``.  If ``Nkbins`` varies in each file,
         each entry in `uplims` must have ``len(uplims[i]) == Nkbins`` for that
         particular file.
+    posterior_weighted : bool, optional
+        If `posterior_weighted` is True, use the joint posterior probability as
+        weights in the calculation of the individual power spectrum coefficient
+        posteriors and the associated estimates, uncertainties, and upper
+        limits.  Defaults to False.
     Nhistbins : int, optional
         Number of histogram bins for each k bin's posterior distribution.
+    density : bool, optional
+            If `density` is True, compute the posterior as a probability
+            density function.  Defaults to False, i.e. plot counts.
     calc_kurtosis : bool, optional
         If `calc_kurtosis` is True, calculate the kurtosis of each k bin's
         posterior distribution.
     ps_kind : str, optional
         Case insensitive power spectrum kind in the sampler output file.  Can
-        be 'ps' or 'dmps' for the power spectrum, P(k), or dimensionless power
-        spectrum, \Delta^2(k).  Defaults to 'dmps'.
+        be 'ps' or 'dmps' for the power spectrum, :math:`P(k)`, or
+        dimensionless power spectrum, :math:`\\Delta^2(k)`.  Defaults to 'dmps'.
     temp_unit : str, optional
         Either 'mK' or 'K'.  The temperature unit of the power spectrum.  The
         default output from BayesEoR is 'mK' (default).
@@ -55,13 +70,13 @@ class DataContainer(object):
         output power spectra in little h units in the future.  This kwarg
         has thus been added for future use.
     expected_ps : float or array-like, optional
-        Expected power spectrum, P(k).  Can be a single float (for a flat P(k))
-        or an array-like with length equal to the number of spherically
-        averaged k bins.
+        Expected power spectrum, :math:`P(k)`.  Can be a single float (for a
+        flat :math:`P(k)`) or an array-like with length equal to the number of
+        spherically averaged k bins.
     expected_dmps : float or array-like, optional
-        Expected dimensionless power spectrum, \Delta^2(k).  Can be a single
-        float or an array-like with length equal to the number of spherically
-        averaged k bins.
+        Expected dimensionless power spectrum, :math:`\\Delta^2(k)`.  Can be a
+        single float or an array-like with length equal to the number of
+        spherically averaged k bins.
     labels : array-like of str, optional
         Array-like containing strings with shorthand labels for each directory
         in `dirnames`.  Used in figure legends for plotting functions.
@@ -73,10 +88,14 @@ class DataContainer(object):
         dirnames,
         dir_prefix=None,
         sampler="multinest",
-        calc_uplims=False,
-        quantile=0.95,
+        store_samples=False,
+        conf_intervals=[68, 95],
+        calc_uplims=True,
+        uplim_quantile=0.95,
         uplim_inds=None,
+        posterior_weighted=False,
         Nhistbins=31,
+        density=False,
         calc_kurtosis=False,
         ps_kind="dmps",
         temp_unit="mK",
@@ -94,69 +113,90 @@ class DataContainer(object):
         if self.sampler == 'multinest':
             self.sampler_filename = "data-.txt"
         self.labels = labels
-        self.calc_uplims = calc_uplims
-        self.quantile = quantile
+
+        if not isinstance(conf_intervals, Iterable):
+            conf_intervals = [conf_intervals]
+        if uplim_inds is not None:
+            self.calc_uplims = True
+        else:
+            self.calc_uplims = calc_uplims
+        self.uplim_quantile = uplim_quantile
         self.uplim_inds = uplim_inds
         self.calc_kurtosis = calc_kurtosis
 
         # Units
         self.ps_kind = ps_kind.lower()
         self.temp_unit = temp_unit
-        self.k_units = "$h$ "*little_h_units + "Mpc$^{-1}$"
+        self.k_units = r"$h$ "*little_h_units + "Mpc$^{-1}$"
         if self.ps_kind == "ps":
-            self.ps_label = "$P(k)$"
+            self.ps_label = r"$P(k)$"
         else:
-            self.ps_label = "$\Delta^2(k)$"
+            self.ps_label = r"$\Delta^2(k)$"
         self.ps_units = (
-            f"{self.temp_unit}$^2$"
-            + " $h^{-3}$"*little_h_units
-            + " Mpc$^3$"*(self.ps_kind == "ps")
+            fr"{self.temp_unit}$^2$"
+            + r" $h^{-3}$"*little_h_units
+            + r" Mpc$^3$"*(self.ps_kind == "ps")
         )
 
         # Load contents of output directories
         self.k_vals = []
+        self.k_vals_bins = []
         self.version = []
         self.args = []
         self.posteriors = []
         self.posterior_bins = []
         self.avgs = []
-        self.stddevs = []
+        self.medians = []
+        self.conf_intervals = []
         if self.calc_uplims:
             self.uplims = []
         if self.calc_kurtosis:
             self.kurtoses = []
+        if store_samples:
+            self.samples = []
+            self.log_joint_posteriors = []
         for i_dir in range(self.Ndirs):
             path = Path(self.dirnames[i_dir])
             if self.dir_prefix is not None:
                 path = self.dir_prefix / path
             k_vals = np.loadtxt(path / "k-vals.txt")
+            k_vals_bins = np.loadtxt(path / "k-vals-bins.txt")
             with open(path / "version.txt", "r") as f:
                 version = f.readlines()[0].strip("\n")
             with open(path / "args.json", "r") as f:
                 args = Namespace(**json.load(f))
             self.k_vals.append(k_vals)
+            self.k_vals_bins.append(k_vals_bins)
             self.version.append(version)
             self.args.append(args)
 
             # Get posteriors and power spectrum estimates
-            # get_posterior_data returns the weighted average, standard
-            # deviation, 95th percentile (optional), and kurtosis (optional) of
-            # each k bin's posterior distribution.
+            # get_posterior_data returns the, optionally weighted, average,
+            # standard deviation, 95th percentile (optional), and kurtosis
+            # (optional) of each k bin's posterior distribution.
             out = self.get_posterior_data(
                 path / self.sampler_filename,
                 len(k_vals),
-                q=self.quantile,
+                posterior_weighted=posterior_weighted,
+                conf_intervals=conf_intervals,
+                uplim_quantile=self.uplim_quantile,
                 Nhistbins=Nhistbins,
-                log_priors=args.log_priors
+                density=density,
+                log_priors=args.log_priors,
+                return_samples=store_samples
             )
             self.posteriors.append(out[0])
             self.posterior_bins.append(out[1])
             self.avgs.append(out[2])
-            self.stddevs.append(out[3])
+            self.medians.append(out[3])
+            self.conf_intervals.append(out[4])
             if self.calc_uplims:
-                self.uplims.append(out[4])
+                self.uplims.append(out[5])
             if self.calc_kurtosis:
-                self.kurtoses.append(out[5])
+                self.kurtoses.append(out[6])
+            if store_samples:
+                self.samples.append(out[7][:, 2:])
+                self.log_joint_posteriors.append(out[7][:, 0])
         
         if self.Ndirs > 1:
             self.k_vals_identical = np.all(np.diff(self.k_vals, axis=0) == 0)
@@ -176,9 +216,13 @@ class DataContainer(object):
         self,
         fp,
         Nkbins,
-        q=0.95,
+        posterior_weighted=False,
+        conf_intervals=[68, 95],
+        uplim_quantile=0.95,
         Nhistbins=31,
-        log_priors=True
+        density=False,
+        log_priors=True,
+        return_samples=False
     ):
         """
         Load sampler output and form posteriors for each k bin.
@@ -189,17 +233,30 @@ class DataContainer(object):
             Path to sampler output file.
         Nkbins : int
             Number of spherically averaged k bins.
-        q : float, optional
+        posterior_weighted : bool, optional
+            If `posterior_weighted` is True, use the joint posterior
+            probability as weights in the calculation of the individual power
+            spectrum coefficient posteriors and the associated estimates,
+            uncertainties, and upper limits.  Defaults to False.
+        conf_intervals : float or list of floats, optional
+            Confidence intervals as percentages.  Defaults to [68, 95], i.e.
+            compute 68% and 95% confidence intervals.
+        uplim_quantile : float, optional
             Quantile in [0, 1].  Defaults to 0.95.  Only used if
             `self.calc_uplims` is True.
         Nhistbins : int, optional
             Number of histogram bins for each k bin's posterior distribution.
             Defaults to 31.
+        density : bool, optional
+            If `density` is True, compute the posterior as a probability
+            density function.  Defaults to False, i.e. plot counts.
         log_priors : bool, optional
             If `log_priors` is True (default), power spectrum samples are
             assumed to be in log10 units and are first linearized prior to
             calculating e.g. upper limits.  Otherwise, the power spectrum
             samples are assumed to be in linear units.
+        return_samples : bool, optional
+            If `return_samples` is True, return all samples. Defaults to False.
         
         Returns
         -------
@@ -208,13 +265,21 @@ class DataContainer(object):
             ``(Nkbins, Nhistbins)`` where `Nkbins` is the number of spherically
             averaged k bins in `fp`.
         avgs : ndarray
-            Weighted average of each k bin posterior.
-        stddev : ndarray
-            Weighted standard deviation of each k bin posterior.
+            Average of each k bin.
+        medians : ndarray
+            Median value of each k bin.
+        ci_dict : dict
+            Dictionary with the confidence interval(s) as key(s) and nested
+            dictionaries for each confidence interval indexed by 'lo' and 'hi'
+            for the low and high bounds of the confidence inverval,
+            respectively.
         uplims : ndarray (returned only if `self.calc_uplims` is True)
-            `q`-th quantile of each k bin posterior.
+            `uplim_quantile`-th quantile of each k bin.
         kurtoses : ndarray (returned only if `self.calc_kurtosis` is True)
-            Kurtosis of each k bin posterior.
+            Kurtosis of each k bin's posterior.
+        samples : ndarray (returned only if `return_samples` is True)
+            Samples for each power power spectrum coefficient with shape
+            ``(Nsamples, Nkbins + 2)``.
 
         """
         if not isinstance(fp, Path):
@@ -226,13 +291,32 @@ class DataContainer(object):
             data[:, 2:] = 10**data[:, 2:]
         if self.sampler == 'multinest':
             # The relevant columns of the MultiNest output file 'data-.txt' are
-            # 0 - joint posterior probability per iteration (weights)
+            # 0 - joint posterior probability per iteration
             # 2: - these columns contain the power spectrum amplitude samples
-            out = self._weighted_avg_and_std(data[:, 2:], data[:, 0], q=q)
-            avgs = out[0]
-            stddevs = out[1]
+            if posterior_weighted:
+                weights = data[:, 0]
+            else:
+                weights = None
+            avgs = np.average(data[:, 2:], axis=0, weights=weights)
+            medians = self._weighted_quantiles(
+                data[:, 2:], 0.5, weights=weights
+            )
+            ci_dict = {}
+            for ci in conf_intervals:
+                quantile = (ci/2 + 50) / 100
+                lobounds = self._weighted_quantiles(
+                    data[:, 2:], 1 - quantile, weights=weights
+                )
+                hibounds = self._weighted_quantiles(
+                    data[:, 2:], quantile, weights=weights
+                )
+                ci_dict[ci] = {'lo': lobounds, 'hi': hibounds}
             if self.calc_uplims:
-                uplims = out[2]
+                uplims = self._weighted_quantiles(
+                    data[:, 2:],
+                    uplim_quantile,
+                    weights=weights
+                )
 
             posteriors = np.zeros((Nkbins, Nhistbins), dtype=float)
             bins = np.zeros((Nkbins, Nhistbins + 1), dtype=float)
@@ -246,8 +330,9 @@ class DataContainer(object):
                 bins[i_k] = np.logspace(bins_min, bins_max, Nhistbins + 1)
                 posteriors[i_k], bins[i_k] = np.histogram(
                     data[:, 2 + i_k],
-                    weights=data[:, 0],
-                    bins=bins[i_k]
+                    bins=bins[i_k],
+                    density=density,
+                    weights=weights
                 )
                 if self.calc_kurtosis:
                     kurtoses[i_k] = sp.stats.kurtosis(posteriors[i_k])
@@ -255,13 +340,17 @@ class DataContainer(object):
             print("'multinest' is currently the only supported sampler.")
             return
         
-        return_vals = (posteriors, bins, avgs, stddevs)
+        return_vals = (posteriors, bins, avgs, medians, ci_dict)
         if self.calc_uplims:
             return_vals += (uplims,)
         else:
             return_vals += (None,)
         if self.calc_kurtosis:
             return_vals += (kurtoses,)
+        else:
+            return_vals += (None,)
+        if return_samples:
+            return_vals += (data,)
         else:
             return_vals += (None,)
         return return_vals
@@ -276,23 +365,25 @@ class DataContainer(object):
         Parameters
         ----------
         expected_ps : float or array-like, optional
-            Expected power spectrum, P(k).  Can be a single float (for a flat
-            P(k)) or an array-like with length equal to the number of
-            spherically averaged k bins.
+            Expected power spectrum, :math:`P(k)`.  Can be a single float (for
+            a flat :math:`P(k)`) or an array-like with length equal to the
+            number of spherically averaged k bins.
         expected_dmps : float or array-like, optional
-            Expected dimensionless power spectrum, \Delta^2(k).  Can be a
-            single float or an array-like with length equal to the number of
-            spherically averaged k bins.
+            Expected dimensionless power spectrum, :math:`\\Delta^2(k)`.  Can
+            be a single float or an array-like with length equal to the number
+            of spherically averaged k bins.
 
         """        
         if expected_ps is not None:
-            if hasattr(expected_ps, "__iter__"):
+            # if hasattr(expected_ps, "__iter__"):
+            if isinstance(expected_ps, Iterable):
                 expected_ps = np.array(expected_ps)
                 input_iterable = True
             else:
                 input_iterable = False
         if expected_dmps is not None:
-            if hasattr(expected_dmps, "__iter__"):
+            # if hasattr(expected_dmps, "__iter__"):
+            if isinstance(expected_dmps, Iterable):
                 expected_dmps = np.array(expected_dmps)
                 input_iterable = True
             else:
@@ -335,7 +426,7 @@ class DataContainer(object):
     
     def _ps_to_dmps(self, ps, ks):
         """
-        Convert P(k) to \Delta^2(k).
+        Convert :math:`P(k)` to :math:`\\Delta^2(k)`.
 
         Parameters
         ----------
@@ -350,7 +441,7 @@ class DataContainer(object):
     
     def _dmps_to_ps(self, dmps, ks):
         """
-        Convert \Delta^2(k) to P(k).
+        Convert :math:`\\Delta^2(k)` to :math:`P(k)`.
 
         Parameters
         ----------
@@ -366,6 +457,7 @@ class DataContainer(object):
 
     def plot_power_spectra(
         self,
+        conf_interval=68,
         uplim_inds=None,
         plot_height=4.0,
         plot_width=7.0,
@@ -384,6 +476,7 @@ class DataContainer(object):
         plot_fracdiff=False,
         ylim=None,
         ylim_diff=[-1, 1],
+        plot_priors=False,
         legend_loc="best",
         legend_ncols=1,
         figlegend=False,
@@ -393,10 +486,13 @@ class DataContainer(object):
         axs=None
     ):
         """
-        Plot the power spectrum as the weighted average and std. dev.
+        Plot the power spectrum as the average with a confidence interval.
 
         Parameters
         ----------
+        conf_interval : float, optional
+            Confidence interval as a percentage to plot as the uncertainty.
+            Defaults to 68.
         uplim_inds : array-like, optional
             Array-like of True for non-detections and False for detections.
             Can have shape ``(Nkbins,)``, where ``Nkbins`` is the number of
@@ -471,6 +567,9 @@ class DataContainer(object):
         ylim_diff : array-like, optional
             matplotlib ylim for the (fractional) difference subplot if
             `plot_diff` or `plot_fracdiff` is True.
+        plot_priors : bool, optional
+            If `plot_priors` is True, plot the prior bounds as shaded regions
+            for each k bin.  Defaults to False.
         legend_loc : str, optional
             Any valid matplotlib legend locator string.  Used only if
             `figlegend` is False.  Defaults to 'best'.
@@ -557,53 +656,6 @@ class DataContainer(object):
             i_exp = 0
 
         for i_dir in range(self.Ndirs):
-            if labels is not None:
-                label = labels[i_dir]
-            elif self.labels is not None:
-                label = self.labels[i_dir]
-            xs = self.k_vals[i_dir] * (1 + x_offset*i_dir)
-            zorder = (10 + zorder_offset*i_dir)
-            if np.any(uplim_inds[i_dir]) and self.calc_uplims:
-                upl_inds = uplim_inds[i_dir]  # upper limits
-                det_inds = np.logical_not(upl_inds)  # detections
-                ax.errorbar(  # plot upper limits
-                    xs[upl_inds],
-                    self.uplims[i_dir][upl_inds],
-                    yerr=self.uplims[i_dir][upl_inds].copy()*2/3,
-                    uplims=True,
-                    color=colors[i_dir],
-                    marker=marker,
-                    capsize=capsize,
-                    lw=lw,
-                    ls="",
-                    zorder=zorder
-                )
-                ax.errorbar(  # plot detections
-                    xs[det_inds],
-                    self.avgs[i_dir][det_inds],
-                    yerr=self.stddevs[i_dir][det_inds],
-                    color=colors[i_dir],
-                    marker=marker,
-                    capsize=capsize,
-                    lw=lw,
-                    ls="",
-                    label=label,
-                    zorder=zorder
-                )
-            else:
-                ax.errorbar(
-                    xs,
-                    self.avgs[i_dir],
-                    yerr=self.stddevs[i_dir],
-                    color=colors[i_dir],
-                    marker=marker,
-                    capsize=capsize,
-                    lw=lw,
-                    ls="",
-                    label=label,
-                    zorder=zorder
-                )
-
             if self.has_expected:
                 if self.k_vals_identical:
                     color = 'k'
@@ -619,68 +671,139 @@ class DataContainer(object):
                         label="Expected",
                         zorder=0 + zorder_offset*i_dir
                     )
+            if labels is not None:
+                label = labels[i_dir]
+            elif self.labels is not None:
+                label = self.labels[i_dir]
+            else:
+                label = None
+            xs = self.k_vals[i_dir] * (1 + x_offset*i_dir)
+            zorder = (10 + zorder_offset*i_dir)
+            upl_inds = uplim_inds[i_dir]  # upper limits
+            det_inds = np.logical_not(upl_inds)  # detections    
+            ax.errorbar(  # plot upper limits
+                xs[upl_inds],
+                self.uplims[i_dir][upl_inds],
+                yerr=self.uplims[i_dir][upl_inds].copy() * 2/3,
+                uplims=True,
+                color=colors[i_dir],
+                marker=marker,
+                capsize=capsize,
+                lw=lw,
+                ls="",
+                zorder=zorder
+            )
+            ax.scatter(  # plot detections
+                xs[det_inds],
+                self.avgs[i_dir][det_inds],
+                color=colors[i_dir],
+                marker=marker,
+                label=label,
+                zorder=zorder
+            )
+            yerr_lo = (
+                self.medians[i_dir]
+                - self.conf_intervals[i_dir][conf_interval]['lo']
+            )
+            yerr_hi = (
+                self.conf_intervals[i_dir][conf_interval]['hi']
+                - self.medians[i_dir]
+            )
+            yerr = np.array([yerr_lo, yerr_hi])
+            ax.errorbar(  # plot uncertainties
+                xs[det_inds],
+                self.medians[i_dir][det_inds],
+                yerr=yerr[:, det_inds],
+                color=colors[i_dir],
+                capsize=capsize,
+                lw=lw,
+                ls="",
+                zorder=zorder
+            )
+
+            if self.has_expected:
+                if self.k_vals_identical:
+                    color = 'k'
+                else:
+                    color = colors[i_dir]
                 if subplots:
                     if plot_diff:
                         diff = self.avgs[i_dir] - expected[i_exp]
-                        diff_err = self.stddevs[i_dir].copy()
+                        diff_median = self.medians[i_dir] - expected[i_exp]
+                        diff_err = yerr.copy()
                         if np.any(uplim_inds[i_dir]) and self.calc_uplims:
                             diff[upl_inds] = (
                                 self.uplims[i_dir][upl_inds]
                                 - expected[i_exp][upl_inds]
                             )
-                            diff_err[upl_inds] = np.abs(ylim_diff).max() / 2
+                            diff_err[1, upl_inds] = np.abs(ylim_diff).max() / 2
                     else:
                         diff = self.avgs[i_dir] / expected[i_exp] - 1
-                        diff_err = self.stddevs[i_dir] / expected[i_exp]
+                        diff_median = self.medians[i_dir] / expected[i_exp] - 1
+                        diff_err = yerr / expected[i_exp]
                         if np.any(uplim_inds[i_dir]) and self.calc_uplims:
                             diff[upl_inds] = (
                                 self.uplims[i_dir][upl_inds]
                                 / expected[i_exp][upl_inds]
                             )
                             diff[upl_inds] -= 1
-                            diff_err[upl_inds] = np.abs(ylim_diff).max() / 2
+                            diff_err[1, upl_inds] = np.abs(ylim_diff).max() / 2
 
-                    if np.any(uplim_inds[i_dir]) and self.calc_uplims:
-                        ax_diff.errorbar(
-                            xs[upl_inds],
-                            diff[upl_inds],
-                            yerr=diff_err[upl_inds],
-                            uplims=True,
-                            color=colors[i_dir],
-                            marker=marker,
-                            capsize=capsize,
-                            lw=lw,
-                            ls="",
-                            zorder=zorder
-                        )
-                        ax_diff.errorbar(
-                            xs[det_inds],
-                            diff[det_inds],
-                            yerr=diff_err[det_inds],
-                            color=colors[i_dir],
-                            marker=marker,
-                            capsize=capsize,
-                            lw=lw,
-                            ls="",
-                            zorder=zorder
-                        )
-                    else:
-                        ax_diff.errorbar(
-                            xs,
-                            diff,
-                            yerr=diff_err,
-                            color=colors[i_dir],
-                            marker=marker,
-                            capsize=capsize,
-                            lw=lw,
-                            ls="",
-                            zorder=zorder
-                        )
+                    ax_diff.errorbar(
+                        xs[upl_inds],
+                        diff[upl_inds],
+                        yerr=diff_err[:, upl_inds],
+                        uplims=True,
+                        color=colors[i_dir],
+                        marker=marker,
+                        capsize=capsize,
+                        lw=lw,
+                        ls="",
+                        zorder=zorder
+                    )
+                    ax_diff.scatter(
+                        xs[det_inds],
+                        diff[det_inds],
+                        color=colors[i_dir],
+                        marker=marker,
+                        zorder=zorder,
+                    )
+                    ax_diff.errorbar(
+                        xs[det_inds],
+                        diff_median[det_inds],
+                        yerr=diff_err[:, det_inds],
+                        color=colors[i_dir],
+                        capsize=capsize,
+                        lw=lw,
+                        ls="",
+                        zorder=zorder
+                    )
 
                 if self.k_vals_identical:
                     plot_expected = False
                 else:
                     i_exp += 1
+
+            if plot_priors:
+                if i_dir == 0:
+                    label_priors = "Priors"
+                else:
+                    label_priors = None
+                priors_lo = np.array(self.args[i_dir].priors)[:, 0]
+                priors_hi = np.array(self.args[i_dir].priors)[:, 1]
+                if self.args[i_dir].log_priors:
+                    priors_lo = 10**priors_lo
+                    priors_hi = 10**priors_hi
+                ax.stairs(
+                    priors_hi,
+                    self.k_vals_bins[i_dir],
+                    baseline=priors_lo,
+                    fill=True,
+                    alpha=0.3,
+                    label=label_priors,
+                    zorder=0
+                )
+
         if subplots:
             ax_diff.axhline(0, ls=ls_expected, color='k', lw=lw, zorder=0)
         
@@ -746,6 +869,7 @@ class DataContainer(object):
         log_y=False,
         ymin=1e-16,
         show_k_vals=True,
+        plot_priors=False,
         suptitle=None,
         fig=None,
         axs=None
@@ -787,6 +911,9 @@ class DataContainer(object):
             If `show_k_vals` is True (default), print the value of the k bin
             associated with each posterior in the upper left corner of each
             posterior subplot.
+        plot_priors : bool, optional
+            If `plot_priors` is True, plot the prior bounds as shaded regions
+            for each k bin.  Defaults to False.
         suptitle : str, optional
             Figure suptitle string.  Defaults to None.
         fig : Figure, optional
@@ -797,7 +924,6 @@ class DataContainer(object):
             `self.plot_power_spectra_and_posteriors`.
 
         """
-        # do some shit
         external_call = np.all([x is not None for x in [fig, axs]])
         if not external_call:
             # Not being used by `self.plot_power_spectra_and_posteriors`
@@ -860,6 +986,19 @@ class DataContainer(object):
                     if log_y:
                         ax.set_ylim([ymin, ax.get_ylim()[1]])
                         ax.set_yscale("log")
+                if plot_priors:
+                    prior_lo = self.args[i_dir].priors[i_k][0]
+                    prior_hi = self.args[i_dir].priors[i_k][1]
+                    if self.args[i_dir].log_priors:
+                        prior_lo = 10**prior_lo
+                        prior_hi = 10**prior_hi
+                    ax.axvspan(
+                        prior_lo,
+                        prior_hi,
+                        color=colors[i_dir], 
+                        alpha=0.3,
+                        zorder=0
+                    )
         ax.set_xlabel(fr"{self.ps_label} [{self.ps_units}]")
 
         if not external_call:
@@ -875,6 +1014,7 @@ class DataContainer(object):
 
     def plot_power_spectra_and_posteriors(
         self,
+        conf_interval=68,
         uplim_inds=None,
         plot_height_ps=4.0,
         plot_width=7.0,
@@ -892,7 +1032,8 @@ class DataContainer(object):
         plot_diff=False,
         plot_fracdiff=False,
         ylim_ps=None,
-        ylim_diff_ps=[-1, 1],  # good to here
+        ylim_diff_ps=[-1, 1],
+        plot_priors=False,
         plot_height_post=1.0,
         hspace_post=0.01,
         log_y=False,
@@ -912,6 +1053,9 @@ class DataContainer(object):
 
         Parameters
         ----------
+        conf_interval : float, optional
+            Confidence interval as a percentage to plot as the uncertainty.
+            Defaults to 68.
         uplim_inds : array-like, optional
             Array-like of True for non-detections and False for detections.
             Can have shape ``(Nkbins,)``, where ``Nkbins`` is the number of
@@ -983,12 +1127,15 @@ class DataContainer(object):
             spectrum.  If both `plot_diff` and `plot_fracdiff` are True,
             `plot_diff` will be set to False and the fractional difference will
             be plotted instead.  Defaults to False.
-        ylim : array-like, optional
+        ylim_ps : array-like, optional
             matplotlib ylim for the power spectrum subplot.  Defaults to None
             (scales the y axis limits according to the data).
-        ylim_diff : array-like, optional
+        ylim_diff_ps : array-like, optional
             matplotlib ylim for the (fractional) difference power spectrum
             subplot if `plot_diff` or `plot_fracdiff` is True.
+        plot_priors : bool, optional
+            If `plot_priors` is True, plot the prior bounds as shaded regions
+            for each k bin.  Defaults to False.
         plot_height_post : float, optional
             Subplot height for the posterior subplots.  Defaults to 1.0.
         hspace_post : float, optional
@@ -1063,9 +1210,11 @@ class DataContainer(object):
         temp_ax.set_ylabel(ylabel)
 
         axs_ps = gs_ps.subplots(sharex=True)
-        if not hasattr(axs_ps, "__iter__"):
+        # if not hasattr(axs_ps, "__iter__"):
+        if not isinstance(axs_ps, Iterable):
             axs_ps = [axs_ps]
         axs_ps = self.plot_power_spectra(
+            conf_interval=conf_interval,
             uplim_inds=uplim_inds,
             x_offset=x_offset,
             zorder_offset=zorder_offset,
@@ -1080,6 +1229,7 @@ class DataContainer(object):
             plot_fracdiff=plot_fracdiff,
             ylim=ylim_ps,
             ylim_diff=ylim_diff_ps,
+            plot_priors=plot_priors,
             fig=fig,
             axs=axs_ps
         )
@@ -1093,6 +1243,7 @@ class DataContainer(object):
             log_y=log_y,
             ymin=ymin_post,
             show_k_vals=show_k_vals,
+            plot_priors=plot_priors,
             fig=fig,
             axs=axs_post
         )
@@ -1114,71 +1265,50 @@ class DataContainer(object):
                 )
 
         return fig
-    
-    def _weighted_avg_and_std(self, values, weights, q=None):
+
+    def _weighted_quantiles(self, data, q, weights=None):
         """
-        Calculate the weighted average and standard deviation and q-th quantile.
-
-        Parameters
-        ----------
-        values : array-like
-            Array of values.
-        weights : array-like
-            Array of weights with same shape as `values`.
-        q : float
-            Quantile in [0, 1].
-
-        Returns
-        -------
-        average : array-like
-            Weighted average.
-        std : array-like
-            Standard deviation.
-        quantiles : array-like
-            Quantile values.  Only returned if `q` is not None.
-
-        """
-        average = np.average(values, axis=0, weights=weights)
-        # Fast and numerically precise:
-        variance = np.average((values-average)**2, axis=0, weights=weights)
-        std = np.sqrt(variance)
-
-        if q is not None:
-            quantiles = np.zeros_like(average)
-            for i in range(quantiles.size):
-                quantiles[i] = self._weighted_quantile(
-                    values[:, i], weights, q
-                )
-
-        if q is not None:
-            return (average, std, quantiles)
-        else:
-            return (average, std)
-
-    def _weighted_quantile(self, data, weights, q):
-        """
-        Compute the weighted quantile from a set of data and weights.
+        Compute a quantile from a set of data and optional weights.
 
         Parameters
         ----------
         data : array-like
-            Input (one-dimensional) array.
-        weights : array-like
-            Array of weights with shape matching `data`.
+            Input array.
         q : float
             Quantile in [0, 1].
+        weights : array-like, optional
+            Array of weights with shape matching `data` or
+            ``(data.shape[0],)``.  If `weights` is None (default), uniformly
+            weight the data.
 
         Returns
         -------
         quantile : float
             Quantile value.
 
+        Notes
+        -----
+        This function should be replaced with `numpy.quantile` which, for
+        ``numpy>=2.0``, now contains a `weights` kwarg.
+
         """
         if q < 0 or q > 1:
             raise ValueError("q must be in [0, 1]")
-        sort_inds = np.argsort(data)
-        d = data[sort_inds]
-        w = weights[sort_inds]
-        cdf_w = np.cumsum(w) / np.sum(w)
-        quantile = np.interp(q, cdf_w, d)
-        return quantile
+        if weights is None:
+            weights = np.ones(data.shape[0])
+        else:
+            shapes_okay = (
+                weights.shape == data.shape
+                or weights.shape == data[:, 0].shape
+            )
+            assert shapes_okay, (
+                "weights must have the same shape as data or data[:, 0]"
+            )
+        quantiles = np.ones(data.shape[1], dtype=float)
+        for i in range(data.shape[1]):
+            sort_inds = np.argsort(data[:, i])
+            d = data[:, i][sort_inds]
+            w = weights[sort_inds]
+            cdf_w = np.cumsum(w) / np.sum(w)
+            quantiles[i] = np.interp(q, cdf_w, d)
+        return quantiles
