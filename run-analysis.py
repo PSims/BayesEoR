@@ -10,11 +10,7 @@ from pathlib import Path
 from pprint import pprint
 from rich.panel import Panel
 
-from bayeseor.params import (
-    BayesEoRParser,
-    calculate_derived_params,
-    parse_uprior_inds
-)
+from bayeseor.params import BayesEoRParser
 from bayeseor.utils import (
     mpiprint,
     get_array_dir_name,
@@ -36,13 +32,14 @@ from bayeseor.matrices import BuildMatrices
 from bayeseor.posterior import PriorC, PowerSpectrumPosteriorProbability
 
 
-parser, cl_args = BayesEoRParser()
+parser = BayesEoRParser()
+cl_args = parser.parse_args()
 # Calculate derived parameters from command line arguments
 # For now, calculate_derived_params returns a new jsonargparse.Namespace
 # instance.  Attributes of the Namespace must be linked to a parser
 # argument for jsonargparse.ArgumentParser.save to function properly and this
 # save function is currently used in bayeseor.utils.write_log_files.
-args = calculate_derived_params(cl_args)
+args = parser.calculate_derived_params(cl_args)
 
 if __name__ == "__main__":
     from mpi4py import MPI
@@ -460,7 +457,7 @@ nDerived = 0  # PolyChord parameter
 
 # Assign uniform priors to any bins specified by args.uprior_bins
 if args.uprior_bins != "":
-    args.uprior_inds = parse_uprior_inds(args.uprior_bins, nDims)
+    args.uprior_inds = parser.parse_uprior_inds(args.uprior_bins, nDims)
     mpiprint(
         f"\nUniform prior k-bin indices: {np.where(args.uprior_inds)[0]}\n",
         rank=mpi_rank
