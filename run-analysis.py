@@ -33,7 +33,7 @@ from bayeseor.posterior import PriorC, PowerSpectrumPosteriorProbability
 
 
 parser = BayesEoRParser()
-cl_args = parser.parse_args()
+cl_args = parser.parse_args(derived_params=False)
 # Calculate derived parameters from command line arguments
 # For now, calculate_derived_params returns a new jsonargparse.Namespace
 # instance.  Attributes of the Namespace must be linked to a parser

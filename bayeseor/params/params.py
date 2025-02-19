@@ -9,7 +9,7 @@ from jsonargparse.typing import List, Path_fr, path_type
 from ..utils.cosmology import Cosmology
 
 
-class BayesEoRParser():
+class BayesEoRParser(ArgumentParser):
     """
     Class used to parse command line arguments.
 
@@ -213,9 +213,9 @@ class BayesEoRParser():
 
     """
     def __init__(self):
-        parser = ArgumentParser()
+        super().__init__()
         # --- Compute params ---
-        parser.add_argument(
+        self.add_argument(
             "--gpu",
             action=ActionYesNo(yes_prefix="g", no_prefix="c"),
             default=True,
@@ -224,20 +224,20 @@ class BayesEoRParser():
                 "the power spectrum analysis.  CPUs can be used to construct the "
                 "required matrices.  Defaults to True (use GPUs)."
         )
-        parser.add_argument(
+        self.add_argument(
             "--single-node",
             action="store_true",
             help="If passed, run an analysis on a single node.  If the MPI size is"
                 "1 and --single-node is not passed, the matrices will be built "
                 "but the power spectrum analysis will not be run."
         )
-        parser.add_argument(
+        self.add_argument(
             "--array-dir-prefix",
             type=str,
             default="./array-storage/",
             help="Directory for matrix storage.  Defaults to './array-storage/'."
         )
-        parser.add_argument(
+        self.add_argument(
             "--sparse-mats",
             action=ActionYesNo(yes_prefix="sparse-", no_prefix="dense-"),
             dest="use_sparse_matrices",
@@ -246,18 +246,18 @@ class BayesEoRParser():
                 "requirements or use dense matrices (--dense-mats).  Defaults "
                 "to True (use sparse matrices)."
         )
-        parser.add_argument(
+        self.add_argument(
             "--clobber",
             action="store_true",
             help="If passed, overwrite the matrix stack, k-bin centers file, and"
                 "maximum a posteriori dictionary if they exist."
         )
-        parser.add_argument(
+        self.add_argument(
             "--priors",
             type=List[list],
             help="Power spectrum prior range [min, max] for each k bin."
         )
-        parser.add_argument(
+        self.add_argument(
             "--log-priors",
             action=ActionYesNo(yes_prefix="log-", no_prefix="lin-"),
             default=True,
@@ -265,7 +265,7 @@ class BayesEoRParser():
                 "values.  If using log priors (x), the prior values will first be"
                 " linearized (10^x)."
         )
-        parser.add_argument(
+        self.add_argument(
             "--uprior-bins",
             type=str,
             default="",
@@ -275,7 +275,7 @@ class BayesEoRParser():
                 " a single index '3' or '-3', or 'all'.  Defaults to an empty "
                 "string (all k-bins use log-uniform priors)."
         )
-        parser.add_argument(
+        self.add_argument(
             "--output-dir",
             type=str,
             default="./chains/",
@@ -283,13 +283,13 @@ class BayesEoRParser():
                 "directory 'chains' in the current working directory, i.e. "
                 "outputs to './chains/'."
         )
-        parser.add_argument(
+        self.add_argument(
             "--file-root",
             type=str,
             help="If None (default), start a new analysis.  Otherwise, resume "
                 "analysis from `file_root`."
         )
-        parser.add_argument(
+        self.add_argument(
             "--multinest",
             action=ActionYesNo(yes_prefix="multinest", no_prefix="polychord"),
             default=True,
@@ -298,7 +298,7 @@ class BayesEoRParser():
                 "the sampler.  Defaults to using Multinest.  Using Polychord is "
                 "advised for large parameter spaces."
         )
-        parser.add_argument(
+        self.add_argument(
             "-v", "--verbose",
             action="store_true",
             dest="verbose",
@@ -307,31 +307,31 @@ class BayesEoRParser():
         )
         # --- Model params ---
         # Frequency params
-        parser.add_argument(
+        self.add_argument(
             "--nf",
             type=int,
             help="Number of frequency channels."
         )
-        parser.add_argument(
+        self.add_argument(
             "--neta",
             type=int,
             help="Number of line-of-sight Fourier modes.  Defaults to the number "
                 "of frequency channels."
         )
-        parser.add_argument(
+        self.add_argument(
             "--freq-min",
             type=float,
             dest="nu_min_MHz",  #FIXME
             help="Minimum frequency in megahertz."
         )
-        parser.add_argument(
+        self.add_argument(
             "--delta-freq",
             type=float,
             dest="channel_width_MHz",  #FIXME
             help="Frequency channel width in megahertz."
         )
         # Sky model params
-        parser.add_argument(
+        self.add_argument(
             "--nside",
             type=int,
             help="HEALPix resolution parameter. Sets the resolution of the "
@@ -340,7 +340,7 @@ class BayesEoRParser():
                 "from the model uv-plane to satisfy the Nyquist-Shannon sampling "
                 "theorem."
         )
-        parser.add_argument(
+        self.add_argument(
             #FIXME: see https://github.com/PSims/BayesEoR/issues/11
             # There is a bug in the rectangular pixel selection logic due to the
             # wrapping of Right Ascension.  We are thus forcing the analysis to use
@@ -354,64 +354,64 @@ class BayesEoRParser():
                 "values along the RA and Dec axes (default)."
         )
         # EoR model params
-        parser.add_argument(
+        self.add_argument(
             "--nu",
             type=int,
             help="Number of pixels on the u-axis of the model uv-plane for the EoR"
                 " model."
         )
-        parser.add_argument(
+        self.add_argument(
             "--nv",
             type=int,
             help="Number of pixels on the v-axis of the model uv-plane for the EoR"
                 " model. Defaults to the value of '--nu'."
         )
-        parser.add_argument(
+        self.add_argument(
             "--fov-ra-eor",
             type=float,
             help="Field of view of the Right Ascension (RA) axis of the EoR sky "
                 "model in degrees."
         )
-        parser.add_argument(
+        self.add_argument(
             "--fov-dec-eor",
             type=float,
             help="Field of view of the Declination (Dec) axis of the EoR sky model"
                 " in degrees.  Defaults to the value of `--fov-ra-eor`."
         )
         # FG model params
-        parser.add_argument(
+        self.add_argument(
             "--nu-fg",
             type=int,
             help="Number of pixels on the u-axis of the model uv-plane for the "
                 "foreground (FG) model.  Defaults to the value of '--nu'."
         )
-        parser.add_argument(
+        self.add_argument(
             "--nv-fg",
             type=int,
             help="Number of pixels on the v-axis of the model uv-plane for the FG"
                 " model. Defaults to the value of '--nu-fg' or '--nv' if "
                 "'--nu-fg' is not defined."
         )
-        parser.add_argument(
+        self.add_argument(
             "--fov-ra-fg",
             type=float,
             help="Field of view of the Right Ascension (RA) axis of the FG sky "
                 "model in degrees.  Defaults to the value of '--fov-ra-eor'."
         )
-        parser.add_argument(
+        self.add_argument(
             "--fov-dec-fg",
             type=float,
             help="Field of view of the Declination (DEC) axis of the FG sky model"
                 " in degrees.  Defaults to the value of '--fov-ra-fg' or "
                 "'--fov-dec-eor' if '--fov-ra-fg' is not defined."
         )
-        parser.add_argument(
+        self.add_argument(
             "--fit-for-monopole",
             action="store_true",
             help="If passed, include the (u, v) = (0, 0) pixel in the "
                 "model uv-plane."
         )
-        parser.add_argument(
+        self.add_argument(
             "--nq",
             type=int,
             default=0,
@@ -420,7 +420,7 @@ class BayesEoRParser():
                 "replaced by power law basis vectors according to the spectral "
                 "indices in '--beta'."
         )
-        parser.add_argument(
+        self.add_argument(
             "--beta",
             type=List[float],
             default=[2.63, 2.82],
@@ -430,7 +430,7 @@ class BayesEoRParser():
                 "power law spectral basis vectors.  Do not put spaces after "
                 "commas if using multiple spectral indices."
         )
-        parser.add_argument(
+        self.add_argument(
             "--inverse-lw-power",
             type=float,
             default=1e-16,
@@ -440,80 +440,80 @@ class BayesEoRParser():
                 "small value (1e-16) leaves the LSSM coefficients unconstrained "
                 "(default)."
         )
-        parser.add_argument(
+        self.add_argument(
             "--lw-gaussian-priors",
             action="store_true",
             dest="use_LWM_Gaussian_prior",
             help="If passed, uses a Gaussian prior on the LSSM (NOT IMPLEMENTED). "
                 "Otherwise, use a uniform prior (default)."
         )
-        parser.add_argument(
+        self.add_argument(
             "--fit-for-spectral-model-parameters",
             action="store_true",
             help="Fit for the optimal LSSM spectral indices."
         )
-        parser.add_argument(
+        self.add_argument(
             "--pl-min",
             type=float,
             help="Minimum brightness temperature spectral index when fitting for "
                 "the optimal LSSM spectral indices."
         )
-        parser.add_argument(
+        self.add_argument(
             "--pl-max",
             type=float,
             help="Maximum brightness temperature spectral index when fitting for "
                 "the optimal LSSM spectral indices."
         )
-        parser.add_argument(
+        self.add_argument(
             "--pl-grid-spacing",
             type=float,
             help="Grid spacing for the power law spectral index axis when fitting "
                 "for the optimal LSSM spectral indices."
         )
         # Noise model
-        parser.add_argument(
+        self.add_argument(
             "--sigma",
             type=float,
             help="Standard deviation of the visibility noise."
         )
-        parser.add_argument(
+        self.add_argument(
             "--noise-seed",
             type=int,
             default=742123,
             help="Seed for numpy.random. Used to generate the noise vector. "
                 "Defaults to 742123."
         )
-        parser.add_argument(
+        self.add_argument(
             "--fit-noise",
             action="store_true",
             dest="use_intrinsic_noise_fitting",
             help="If passed, fit for the noise level."
         )
         # Instrument model
-        parser.add_argument(
+        self.add_argument(
             "--model-instrument",
             action=ActionYesNo(yes_prefix="model-", no_prefix="no-"),
             dest="include_instrumental_effects",  #FIXME
             help="Forward model an instrument (--model-instrument) or don't "
                 "include instrumental effects (--no-instrument)."
         )
-        parser.add_argument(
+        self.add_argument(
             "--nt",
             type=int,
             help="Number of times."
         )
-        parser.add_argument(
+        self.add_argument(
             "--dt",
             type=float,
             dest="integration_time_seconds",
             help="Time between observations in seconds."
         )
-        parser.add_argument(
+        self.add_argument(
             "--central-jd",
             type=float,
             help="Central Julian Date of the observations."
         )
-        parser.add_argument(
+        self.add_argument(
             "--inst-model",
             type=path_type("dr"),
             help="Path to a numpy compatible dictionary containing the instrument "
@@ -523,7 +523,7 @@ class BayesEoRParser():
                 "shape (Ntimes, Nbls, 1) accessible via the key "
                 "'redundancy_model'."
         )
-        parser.add_argument(
+        self.add_argument(
             "--tele-latlonalt",
             type=List[float],
             dest="telescope_latlonalt",
@@ -533,18 +533,18 @@ class BayesEoRParser():
                 "'--tele-latlonalt=[-30.1,125.6,80.4]'.  Do not put spaces after "
                 "commas.  Defaults to the HERA telescope location."
         )
-        parser.add_argument(
+        self.add_argument(
             "--beam-type",
             type=str,
             help="Can be 'uniform' , 'gaussian', or 'airy' (case insensitive)."
         )
-        parser.add_argument(
+        self.add_argument(
             "--beam-peak-amplitude",
             type=float,
             default=1.0,
             help="Peak amplitude of the beam."
         )
-        parser.add_argument(
+        self.add_argument(
             "--beam-center",
             type=List[float],
             help="Beam center offsets from the phase center in right ascension "
@@ -552,65 +552,65 @@ class BayesEoRParser():
                 "center aligns with the phase center.  Passed as a list of "
                 "floats, e.g. '[-1.3,0.01]'.  Do not put a space after the comma."
         )
-        parser.add_argument(
+        self.add_argument(
             "--drift-scan",
             action=ActionYesNo(yes_prefix="drift-scan", no_prefix="phased"),
             default=True,
             help="Model the instrument in drift scan mode (--drift-scan) or "
                 "in phased mode (--phased).  Defaults to drift scan mode."
         )
-        parser.add_argument(
+        self.add_argument(
             "--fwhm-deg",
             type=float,
             help="Full Width at Half Maximum (FWHM) of beam in degrees."
         )
-        parser.add_argument(
+        self.add_argument(
             "--antenna-diameter",
             type=float,
             help="Antenna diameter in meters used for Airy beam calculations."
         )
-        parser.add_argument(
+        self.add_argument(
             "--cosfreq",
             type=float,
             help="Cosine frequency if using a 'gausscosine' beam."
         )
-        parser.add_argument(
+        self.add_argument(
             "--achromatic-beam",
             action="store_true",
             help="If passed, force the beam to be achromatic.  The frequency at "
                 "which the beam will be calculated is set via '--beam-ref-freq'."
         )
-        parser.add_argument(
+        self.add_argument(
             "--beam-ref-freq",
             type=float,
             help="Beam reference frequency in megahertz.  Used for achromatic "
                 "beams.  Defaults to the minimum frequency."
         )
         # --- Subharmonic Grid Params ---
-        parser.add_argument(
+        self.add_argument(
             "--nu-sh",
             type=int,
             help="Number of pixels on a side for the u-axis in the SubHarmonic "
                 "Grid (SHG) model uv-plane."
         )
-        parser.add_argument(
+        self.add_argument(
             "--nv-sh",
             type=int,
             help="Number of pixels on a side for the v-axis in the SHG "
                 "model uv-plane.  Defaults to the value of '--nu-sh'."
         )
-        parser.add_argument(
+        self.add_argument(
             "--nq-sh",
             type=int,
             help="Number of LSSM quadratic modes for the SHG."
         )
-        parser.add_argument(
+        self.add_argument(
             "--fit-for-shg-amps",
             action="store_true",
             help="If passed, fit for the amplitudes of the SHG pixels."
         )
         # --- Tapering params ---
-        parser.add_argument(
+        self.add_argument(
             "--taper-func",
             type=str,
             help="Tapering function to apply to the frequency axis of the model "
@@ -618,22 +618,22 @@ class BayesEoRParser():
                 "`scipy.signal.windows.get_window`."
         )
         # --- Data params ---
-        parser.add_argument(
+        self.add_argument(
             "--data-path",
             type=Path_fr,
             help="Path to numpy readable visibility data file in units of mK sr."
         )
-        parser.add_argument(
+        self.add_argument(
             "--noise-data-path",
             type=Path_fr,
             help="Path to noise file associated with data_path argument."
         )
-        parser.add_argument(
+        self.add_argument(
             "--eor-sim-path",
             type=Path_fr,
             help="Path to 21cmFAST EoR simulation cube."
         )
-        parser.add_argument(
+        self.add_argument(
             "--eor-random-seed",
             type=int,
             default=892736,
@@ -641,23 +641,26 @@ class BayesEoRParser():
                 "signal, i.e. passing no data file via --data-path."
         )
         # --- Config file ---
-        parser.add_argument(
+        self.add_argument(
             "--config",
             action=ActionConfigFile
         )
 
-        self.parser = parser
-
-    def parse_args(self, args_str=None):
+    def parse_args(self, args_str=None, derived_params=True):
         """
         Parse arguments from `sys.argv` or `args`.
 
         Parameters
         ----------
-        args_str : list of str
+        args_str : list of str, optional
             Command line arguments as a list of strings, e.g.
             '["--config", "example_config.yaml"]'.  If None (default),
             pulls from `sys.argv`.
+        derived_params : bool, optional
+            If `derived_params` is True (default), calculate the full set of
+            parameters derived from the minimum parameter set via
+            ``self.calculate_derived_params``.  Otherwise, continue with only
+            the parameters parsed from `args_str` or `sys.argv`.
 
         Returns
         -------
@@ -665,7 +668,7 @@ class BayesEoRParser():
             Namespace of parsed arguments.
 
         """
-        args = self.parser.parse_args(args_str)
+        args = super().parse_args(args_str)
 
         if args.beam_type:
             args.beam_type = args.beam_type.lower()
@@ -674,7 +677,8 @@ class BayesEoRParser():
         if args.achromatic_beam and not args.beam_ref_freq:
             args.beam_ref_freq = args.nu_min_MHz
 
-        args = self.calculate_derived_params(args)
+        if derived_params:
+            args = self.calculate_derived_params(args)
 
         return args
 
