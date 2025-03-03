@@ -59,7 +59,7 @@ def test_build_T(build_matrices):
         (BM.nu*BM.nv - 1)*(BM.neta - 1)
         # Number of eta=0 FG model parameters accounting
         # for the Large Spectral Scale Model (LSSM)
-        + BM.nu_fg*BM.nv_fg*(1 + BM.nq)
+        + BM.nu_fg*BM.nv_fg*(1 + BM.nq)*(BM.nq > 0)
         # Number of (u, v)=(0, 0) monopole model parameters
         + (BM.neta - 1)*BM.fit_for_monopole
     )
