@@ -693,14 +693,6 @@ class DataContainer(object):
                 ls="",
                 zorder=zorder
             )
-            ax.scatter(  # plot detections
-                xs[det_inds],
-                self.avgs[i_dir][det_inds],
-                color=colors[i_dir],
-                marker=marker,
-                label=label,
-                zorder=zorder
-            )
             yerr_lo = (
                 self.medians[i_dir]
                 - self.conf_intervals[i_dir][conf_interval]['lo']
@@ -710,14 +702,16 @@ class DataContainer(object):
                 - self.medians[i_dir]
             )
             yerr = np.array([yerr_lo, yerr_hi])
-            ax.errorbar(  # plot uncertainties
+            ax.errorbar(  # plot detections
                 xs[det_inds],
                 self.medians[i_dir][det_inds],
                 yerr=yerr[:, det_inds],
                 color=colors[i_dir],
+                marker=marker,
                 capsize=capsize,
                 lw=lw,
                 ls="",
+                label=label,
                 zorder=zorder
             )
 
@@ -728,8 +722,7 @@ class DataContainer(object):
                     color = colors[i_dir]
                 if subplots:
                     if plot_diff:
-                        diff = self.avgs[i_dir] - expected[i_exp]
-                        diff_median = self.medians[i_dir] - expected[i_exp]
+                        diff = self.medians[i_dir] - expected[i_exp]
                         diff_err = yerr.copy()
                         if np.any(uplim_inds[i_dir]) and self.calc_uplims:
                             diff[upl_inds] = (
@@ -738,8 +731,7 @@ class DataContainer(object):
                             )
                             diff_err[1, upl_inds] = np.abs(ylim_diff).max() / 2
                     else:
-                        diff = self.avgs[i_dir] / expected[i_exp] - 1
-                        diff_median = self.medians[i_dir] / expected[i_exp] - 1
+                        diff = self.medians[i_dir] / expected[i_exp] - 1
                         diff_err = yerr / expected[i_exp]
                         if np.any(uplim_inds[i_dir]) and self.calc_uplims:
                             diff[upl_inds] = (
@@ -761,18 +753,12 @@ class DataContainer(object):
                         ls="",
                         zorder=zorder
                     )
-                    ax_diff.scatter(
-                        xs[det_inds],
-                        diff[det_inds],
-                        color=colors[i_dir],
-                        marker=marker,
-                        zorder=zorder,
-                    )
                     ax_diff.errorbar(
                         xs[det_inds],
-                        diff_median[det_inds],
+                        diff[det_inds],
                         yerr=diff_err[:, det_inds],
                         color=colors[i_dir],
+                        marker=marker,
                         capsize=capsize,
                         lw=lw,
                         ls="",
