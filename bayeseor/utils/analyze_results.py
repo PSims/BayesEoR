@@ -93,7 +93,7 @@ class DataContainer(object):
         calc_uplims=True,
         uplim_quantile=0.95,
         uplim_inds=None,
-        posterior_weighted=False,
+        posterior_weighted=True,
         Nhistbins=31,
         density=False,
         calc_kurtosis=False,
