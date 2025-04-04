@@ -55,8 +55,6 @@ class BuildMatrixTree(object):
 
         self.matrix_prerequisites_dictionary = {
             'Finv': ['multi_chan_nudft', 'multi_chan_beam'],
-            'Fprime': ['multi_chan_nuidft', 'multi_chan_nuidft_fg'],
-            'multi_chan_nuidft': ['nuidft_array'],
             'multi_vis_idft_array_1d': ['idft_array_1d'],
             'gridding_matrix_co2vo': ['gridding_matrix_vo2co'],
             'Fz': [
@@ -586,12 +584,6 @@ class BuildMatrices(BuildMatrixTree):
                 self.build_gridding_matrix_vo2co_fg,
             'Fz':
                 self.build_Fz,
-            'nuidft_array':
-                self.build_nuidft_array,
-            'multi_chan_nuidft':
-                self.build_multi_chan_nuidft,
-            'multi_chan_nuidft_fg':
-                self.build_multi_chan_nuidft_fg,
             'Fprime':
                 self.build_Fprime,
             'multi_chan_nudft':
@@ -633,16 +625,10 @@ class BuildMatrices(BuildMatrixTree):
                 'multi_vis_idft_array_1d': [
                     'idft_array_1d',
                     'idft_array_1d_sh'
-                ],
-                'Fprime': [
-                    'multi_chan_nuidft',
-                    'multi_chan_nuidft_fg',
-                    'nuidft_array_sh'
                 ]
             })
             self.matrix_construction_methods_dictionary.update({
-                'idft_array_1d_sh': self.build_idft_array_1d_sh,
-                'nuidft_array_sh': self.build_nuidft_array_sh
+                'idft_array_1d_sh': self.build_idft_array_1d_sh
             })
 
         if self.taper_func is not None:
@@ -1130,171 +1116,9 @@ class BuildMatrices(BuildMatrixTree):
                          matrix_name)
 
     # Fprime functions
-    def build_nuidft_array(self):
-        """
-        Build a NUIDFT matrix for uv to image space.
-
-        This matrix forms a block in `multi_chan_nuidft` and transforms the EoR
-        model uv-plane to image space at a single frequency. Specifically,
-        `nuidft_array` transforms a rectilinear (u, v) grid to HEALPix sampled
-        (l, m).  The model uv-plane has w=0, so no w or n terms are included
-        in this transformation.
-
-        Notes
-        -----
-        * Used for the EoR model in `Fprime`.
-        * `nuidft_array` has shape (npix, nuv).
-        * If the EoR and FG models have different FoV values, `nuidft_array` is
-          reshaped to match the dimensions of the FG model (FoV_FG >= FoV_EoR).
-          The HEALPix pixel ordering must be preserved in this reshaping so
-          that shared pixels between the EoR and FG models are summed together
-          in image-space.
-
-        """
-        matrix_name = 'nuidft_array'
-        pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
-        # Get (l, m) coordinates from Healpix object
-        ls_rad, ms_rad, _ = self.hpx.calc_lmn_from_radec(
-            self.hpx.jds[self.nt//2],
-            self.hpx.ra_eor,
-            self.hpx.dec_eor
-        )
-        nuidft_array = nuidft_matrix_2d(
-            self.nu, self.nv, self.du_eor, self.dv_eor, ls_rad, ms_rad
-        )
-        if not self.hpx.fovs_match:
-            nuidft_array_fg_pix = np.zeros(
-                (self.hpx.npix_fov, nuidft_array.shape[1]), dtype=complex
-            )
-            nuidft_array_fg_pix[self.hpx.eor_to_fg_pix] = (
-                nuidft_array
-            )
-            nuidft_array = nuidft_array_fg_pix
-        nuidft_array *= self.Fprime_normalization_eor
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(nuidft_array,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
-
-    def build_multi_chan_nuidft(self):
-        """
-        Build a multi-frequency NUIDFT matrix for uv to image space.
-        
-        `multi_chan_nuidft` is constructed as a block-diagonal matrix.  Each
-        block is constructed via `build_nuidft_array` and represents a 2D
-        non-uniform DFT matrix from rectilinear (u, v) to HEALPix (l, m) for a
-        single frequency.
-
-        Notes
-        -----
-        * Used for the EoR model in `Fprime`.
-        * `multi_chan_nuidft` has shape (npix_eor * nf, nuv_eor * nf).
-
-        """
-        matrix_name = 'multi_chan_nuidft'
-        pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
-        multi_chan_nuidft = self.sd_block_diag(
-            [pmd['nuidft_array'] for i in range(self.nf)]
-        )
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(multi_chan_nuidft,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
-
-    def build_multi_chan_nuidft_fg(self):
-        """
-        Build a multi-frequency NUIDFT matrix for uv to image space.
-
-        `multi_chan_nuidft_fg` is constructed as a block-diagonal matrix.  Each
-        block is a 2D non-uniform DFT matrix from rectilinear (u, v) to
-        HEALPix (l, m) at a single frequency.
-
-        Notes
-        -----
-        * Used for the FG model in `Fprime`.
-        * `multi_chan_nuidft_fg` has shape
-          (npix_fg * nf, nuv_fg * nf)
-
-        """
-        matrix_name = 'multi_chan_nuidft_fg'
-        pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
-        ls_rad, ms_rad, _ = self.hpx.calc_lmn_from_radec(
-            self.hpx.jds[self.nt//2],
-            self.hpx.ra_fg,
-            self.hpx.dec_fg
-        )
-        nuidft_array = nuidft_matrix_2d(
-            self.nu_fg, self.nv_fg, self.du_fg, self.dv_fg,
-            ls_rad, ms_rad, exclude_mean=False
-        )
-        nuidft_array *= self.Fprime_normalization_fg
-        if self.fit_for_monopole:
-            mp_col = nuidft_array[:, self.nuv_fg//2].copy().reshape(-1, 1)
-        nuidft_array = np.delete(nuidft_array, self.nuv_fg//2, axis=1)
-        if self.fit_for_monopole:
-            nuidft_array = np.hstack((nuidft_array, mp_col))
-        multi_chan_nuidft_fg = self.sd_block_diag(
-            [nuidft_array for i in range(self.nf)]
-        )
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(multi_chan_nuidft_fg,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
-
-    def build_nuidft_array_sh(self):
-        """
-        Build a multi-frequency NUIDFT matrix for uv to image space.
-        
-        `nuidft_array_sh` is constructed as a block diagonal matrix.  Each
-        block transforms the SubHarmonic Grid (SHG) model uv-plane to HEALPix
-        sampled (l, m) at a single frequency.
-
-        Notes
-        -----
-        * Used for the SHG model in `Fprime`.
-        * `nuidft_array_sh` has shape
-          (npix*nf, nuv_sh*fit_for_shg_amps + nuv_sh*nq_sh).
-
-        """
-        matrix_name = 'nuidft_array_sh'
-        pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
-        # Get (l, m) coordinates from Healpix object
-        ls_rad, ms_rad, _ = self.hpx.calc_lmn_from_radec(
-            self.hpx.jds[self.nt//2]
-        )
-        sampled_lm_coords_radians = np.vstack((ls_rad, ms_rad)).T
-
-        nuidft_array_sh_block = IDFT_Array_IDFT_2D_ZM_SH(
-            self.nu_sh, self.nv_sh,
-            sampled_lm_coords_radians)
-        nuidft_array_sh_block *= self.Fprime_normalization / (self.nu*self.nv)
-        nuidft_array_sh = self.sd_block_diag(
-            [nuidft_array_sh_block for i in range(self.nf)]
-        )
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(nuidft_array_sh,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
-
     def build_Fprime(self):
         """
-        Build a multi-frequency NUIDFT matrix fo uv to image space.
+        Build a multi-frequency NUIDFT matrix for uv to image space.
         
         Fprime takes a rectilinear (u, v) model as a channel ordered vector
         and transforms it to HEALPix sky model (l, m) space.  Fprime is
@@ -1304,24 +1128,124 @@ class BuildMatrices(BuildMatrixTree):
         Notes
         -----
         * `Fprime` has shape
-          ((npix_eor + npix_fg) * nf, (nuv_eor + nuv_fg) * nf).
+        (max(npix_eor, npix_fg) * nf,
+        (nuv_eor + nuv_fg + (nq_sh + fit_for_shg_amps) * nuv_sh) * nf).
 
         """
         matrix_name = 'Fprime'
-        pmd = self.load_prerequisites(matrix_name)
+
+        nuv_eor = self.nu*self.nv - 1
+        model_fgs = self.nq > 0 or self.fit_for_monopole
+        if model_fgs:
+            nuv_fg = self.nu_fg*self.nv_fg - (not self.fit_for_monopole)
+        if self.use_shg:
+            nuv_sh = self.nu_sh*self.nv_sh - 1
+        Fprime_shape = [
+            # Sky model axis
+            # Number of HEALPix pixels in the model FoV across all frequencies
+            self.hpx.npix_fov*self.nf,
+            # Combined EoR + FG model (u, v, f) cube axis
+            # Number of EoR model parameters
+            nuv_eor*self.nf
+        ]
+        if model_fgs:
+            # Number of FG model parameters
+            Fprime_shape[1] += model_fgs*nuv_fg*self.nf
+        if self.use_shg:
+            # Number of SHG model parameters
+            Fprime_shape[1] += nuv_sh*(self.nq_sh + self.fit_for_shg_amps)
+        Fprime_shape = tuple(Fprime_shape)
+        
         start = time.time()
         print('Performing matrix algebra')
-        Fprime = self.sd_hstack([
-            pmd['multi_chan_nuidft'], pmd['multi_chan_nuidft_fg']
-        ])
+
+        # Construct non-uniform inverse DFT matrix for the EoR model
+        ls_rad, ms_rad, _ = self.hpx.calc_lmn_from_radec(
+            self.hpx.jds[self.nt//2],
+            self.hpx.ra_eor,
+            self.hpx.dec_eor
+        )
+        nuidft_array_eor = nuidft_matrix_2d(
+            self.nu, self.nv, self.du_eor, self.dv_eor, ls_rad, ms_rad
+        )
+        if not self.hpx.fovs_match:
+            nuidft_array_fg_pix = np.zeros(
+                (self.hpx.npix_fov, nuidft_array_eor.shape[1]), dtype=complex
+            )
+            nuidft_array_fg_pix[self.hpx.eor_to_fg_pix] = (
+                nuidft_array_eor
+            )
+            nuidft_array_eor = nuidft_array_fg_pix
+        nuidft_array_eor *= self.Fprime_normalization_eor
+
+        if model_fgs:
+            # multi_chan_nuidft_fg construction
+            if not self.hpx.fovs_match:
+                ls_rad, ms_rad, _ = self.hpx.calc_lmn_from_radec(
+                    self.hpx.jds[self.nt//2],
+                    self.hpx.ra_fg,
+                    self.hpx.dec_fg
+                )
+            nuidft_array_fg = nuidft_matrix_2d(
+                self.nu_fg, self.nv_fg, self.du_fg, self.dv_fg,
+                ls_rad, ms_rad, exclude_mean=False
+            )
+            nuidft_array_fg *= self.Fprime_normalization_fg
+            if self.fit_for_monopole:
+                mp_col = nuidft_array_fg[:, self.nuv_fg//2].copy().reshape(-1, 1)
+            nuidft_array_fg = np.delete(nuidft_array_fg, self.nuv_fg//2, axis=1)
+            if self.fit_for_monopole:
+                nuidft_array_fg = np.hstack((nuidft_array_fg, mp_col))
+        
         if self.use_shg:
-            Fprime = self.sd_hstack([Fprime, pmd['nuidft_array_sh']])
+            # Fprime = self.sd_hstack([Fprime, pmd['nuidft_array_sh']])
+            sampled_lm_coords_radians = np.vstack((ls_rad, ms_rad)).T
+            nuidft_array_sh = IDFT_Array_IDFT_2D_ZM_SH(
+                self.nu_sh, self.nv_sh,
+                sampled_lm_coords_radians
+            )
+            nuidft_array_sh *= (
+                self.Fprime_normalization / (self.nu*self.nv)
+            )
+
+        # Construct Fprime from individual nuidft arrays
+        Fprime = sparse.dok_array(Fprime_shape, dtype=complex)
+        for i_f in range(self.nf):
+            row_inds = slice(
+                i_f*self.hpx.npix_fov,
+                (i_f + 1)*self.hpx.npix_fov
+            )
+            col_inds_eor = slice(
+                i_f*nuv_eor,
+                (i_f + 1)*nuv_eor
+            )
+            Fprime[row_inds, col_inds_eor] = nuidft_array_eor
+
+            if model_fgs:
+                col_inds_fg = slice(
+                    self.nf*nuv_eor + i_f*nuv_fg,
+                    self.nf*nuv_eor + (i_f + 1)*nuv_fg,
+                )
+                Fprime[row_inds, col_inds_fg] = nuidft_array_fg
+
+            if self.use_shg:
+                col_inds_sh = slice(
+                    self.nf*(nuv_eor + model_fgs*nuv_fg)
+                    + i_f*self.fit_for_shg_amps*nuv_sh
+                    + i_f*self.nq_sh,
+                    self.nf*(nuv_eor + model_fgs*nuv_fg)
+                    + (i_f + 1)*self.fit_for_shg_amps*nuv_sh,
+                    + (i_f + 1)*self.nq_sh
+                )
+                Fprime[row_inds, col_inds_sh] = nuidft_array_sh
+
         print('Time taken: {}'.format(time.time() - start))
+
         # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(Fprime,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
+        self.output_data(Fprime.tocsr(),
+                        self.array_save_directory,
+                        matrix_name,
+                        matrix_name)
 
     # Fz functions
     def build_idft_array_1d_sh(self):
