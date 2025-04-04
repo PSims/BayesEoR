@@ -1209,7 +1209,7 @@ class BuildMatrices(BuildMatrixTree):
             )
 
         # Construct Fprime from individual nuidft arrays
-        Fprime = sparse.dok_array(Fprime_shape, dtype=complex)
+        Fprime = sparse.dok_matrix(Fprime_shape, dtype=complex)
         for i_f in range(self.nf):
             row_inds = slice(
                 i_f*self.hpx.npix_fov,
