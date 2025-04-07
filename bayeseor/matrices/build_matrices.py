@@ -1168,14 +1168,6 @@ class BuildMatrices(BuildMatrixTree):
         nuidft_array_eor = nuidft_matrix_2d(
             self.nu, self.nv, self.du_eor, self.dv_eor, ls_rad, ms_rad
         )
-        if not self.hpx.fovs_match:
-            nuidft_array_fg_pix = np.zeros(
-                (self.hpx.npix_fov, nuidft_array_eor.shape[1]), dtype=complex
-            )
-            nuidft_array_fg_pix[self.hpx.eor_to_fg_pix] = (
-                nuidft_array_eor
-            )
-            nuidft_array_eor = nuidft_array_fg_pix
         nuidft_array_eor *= self.Fprime_normalization_eor
 
         if model_fgs:
@@ -1219,7 +1211,16 @@ class BuildMatrices(BuildMatrixTree):
                 i_f*nuv_eor,
                 (i_f + 1)*nuv_eor
             )
-            Fprime[row_inds, col_inds_eor] = nuidft_array_eor
+            if self.hpx.fovs_match:
+                Fprime[row_inds, col_inds_eor] = nuidft_array_eor
+            else:
+                # Using self.hpx.eor_to_fg_pix here ensures that no extra
+                # zeros are stored in memory for FG image model pixels that
+                # are not included in the EoR image model (because the EoR
+                # and FG model FoV values differ)
+                Fprime[row_inds, col_inds_eor][self.hpx.eor_to_fg_pix] = (
+                    nuidft_array_eor
+                )
 
             if model_fgs:
                 col_inds_fg = slice(
