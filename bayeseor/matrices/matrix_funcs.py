@@ -10,7 +10,7 @@ from scipy import sparse
 
 
 # FT array coordinate functions
-def sampled_uv_vectors(nu, nv, exclude_mean=True):
+def sampled_uv_vectors(nu, nv, du=1.0, dv=1.0, exclude_mean=True):
     """
     Creates vectorized arrays of 2D grid coordinates for the rectilinear
     model uv-plane.
@@ -21,20 +21,79 @@ def sampled_uv_vectors(nu, nv, exclude_mean=True):
         Number of pixels on a side for the u-axis in the model uv-plane.
     nv : int
         Number of pixels on a side for the v-axis in the model uv-plane.
+    du : float, optional
+        Spacing between adjacent u, i.e. :math:`\\Delta u`.  Defaults to 1.
+    dv : float, optional
+        Spacing between adjacent v, i.e. :math:`\\Delta v`.  Defaults to 1.
     exclude_mean : bool
         If True, remove the (u, v) = (0, 0) pixel from the model
         uv-plane coordinate arrays. Defaults to True.
 
+    Returns
+    -------
+    us_vec : np.ndarray of float
+        Flattened vector (C ordering) of u coordinates in the model uv plane.
+    vs_vec : np.ndarray of float
+        Flattened vector (C ordering) of v coordinates in the model uv plane.
+
     """
     us, vs = np.meshgrid(np.arange(nu) - nu//2, np.arange(nv) - nv//2)
-    us_vec = us.reshape(1, nu*nv)
-    vs_vec = vs.reshape(1, nu*nv)
+    us_vec = du * us.reshape(1, nu*nv)
+    vs_vec = dv * vs.reshape(1, nu*nv)
 
     if exclude_mean:
         us_vec = np.delete(us_vec, (nu*nv)//2, axis=1)
         vs_vec = np.delete(vs_vec, (nu*nv)//2, axis=1)
 
     return us_vec, vs_vec
+
+
+def build_nudft_array(coords_in, coords_out, sign=-1):
+    """
+    Construct a non-uniform discrete Fourier transform (NUDFT) matrix.
+    
+    Parameters
+    ----------
+    coords_in : np.ndarray of float
+        Input coordinates with shape (Nin,) or (Nax, Nin) where Nin is the
+        number of input coordinates and Nax is the number of axes.  Nax must
+        be the same for `coords_in` and `coords_out`.  `coords_in` and
+        `coords_out` should have reciprocal units.
+    coords_out : np.ndarray of float
+        Output coordinates with shape (Nout,) or (Nax, Nout) where Nout is the
+        number of output coordinates and Nax is the number of axes.  Nax must
+        be the same for `coords_in` and `coords_out`.  `coords_in` and
+        `coords_out` should have reciprocal units.
+    sign : {-1, +1}, optional
+        Sign of the :math:`2\\pi i` term in the argument of the exponent.
+        Defaults to -1 (negative).
+
+    Returns
+    -------
+    nudft : np.ndarray of complex
+        Complex, NUDFT matrix.
+
+    """
+    if len(coords_in.shape) == 1:
+        coords_in = coords_in.reshape(1, -1)
+    if len(coords_out.shape) == 1:
+        coords_out = coords_out.reshape(1, -1)
+
+    if coords_in.shape[0] != coords_out.shape[0]:
+        raise ValueError(
+            f"coords_in and coords_out must have the same number of "
+            f"coordinate axes but have {coords_in.shape[0]} and "
+            f"{coords_out.shape[0]}, respectively."
+        )
+
+    nudft = np.exp(sign*2*np.pi*1j*np.outer(coords_out[0], coords_in[0]))
+    if coords_in.shape[0] > 1:
+        for i in range(1, coords_in.shape[0]):
+            nudft *= np.exp(
+                sign*2*np.pi*1j*np.outer(coords_out[i], coords_in[i])
+            )
+
+    return nudft
 
 
 def Produce_Coordinate_Arrays_ZM_SH(nu, nv):
