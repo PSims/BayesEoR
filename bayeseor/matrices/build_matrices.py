@@ -606,6 +606,8 @@ class BuildMatrices(BuildMatrixTree):
                 self.build_Finv,
             'Fprime_Fz':
                 self.build_Fprime_Fz,
+            'Finv_Fprime':
+                self.build_Finv_Fprime,
             'T':
                 self.build_T,
             'N':
@@ -2060,7 +2062,7 @@ class BuildMatrices(BuildMatrixTree):
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
         print('Performing matrix algebra')
-        T = self.dot_product(pmd['Finv_Fprime'], pmd['Fz'])
+        T = self.dot_product(pmd['Finv_Fprime'], pmd['Fz']).todense()
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
         self.output_data(
