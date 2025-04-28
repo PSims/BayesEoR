@@ -205,15 +205,13 @@ def nuidft_matrix_2d(nu, nv, du, dv, l_vec, m_vec, exclude_mean=True):
     * Used in the construction of `Fprime`
 
     """
-    u_vec, v_vec = sampled_uv_vectors(nu, nv, exclude_mean=exclude_mean)
+    u_vec, v_vec = sampled_uv_vectors(
+        nu, nv, exclude_mean=exclude_mean, du=du, dv=dv
+    )
 
     l_vec = l_vec.reshape(-1, 1)
     m_vec = m_vec.reshape(-1, 1)
 
-    # The uv coordinates need to be rescaled to units of
-    # wavelengths by multiplying by the uv pixel width
-    u_vec = u_vec.astype('float') * du
-    v_vec = v_vec.astype('float') * dv
     # Sign change for consistency, Finv chosen to
     # have + to match healvis
     nudft_array_2d = np.exp(-2.0*np.pi*1j*(l_vec*u_vec + m_vec*v_vec))
