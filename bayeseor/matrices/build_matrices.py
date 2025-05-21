@@ -60,9 +60,9 @@ class BuildMatrixTree(object):
     Finv_Fprime : bool
         If True (default), construct the matrix product Finv_Fprime in place
         from the dense matrices comprising Finv and Fprime to minimize the
-        memory required to build the matrix stack.  In this case, only the
-        matrix product Finv_Fprime is written to disk.  Otherwise, construct
-        Finv and Fprime and save both matrices to disk.
+        memory and time required to build the matrix stack.  In this case,
+        only the matrix product Finv_Fprime is written to disk.  Otherwise,
+        construct Finv and Fprime independently and save both matrices to disk.
 
     """
     def __init__(
@@ -376,9 +376,9 @@ class BuildMatrices(BuildMatrixTree):
     Finv_Fprime : bool
         If True (default), construct the matrix product Finv_Fprime in place
         from the dense matrices comprising Finv and Fprime to minimize the
-        memory required to build the matrix stack.  In this case, only the
-        matrix product Finv_Fprime is written to disk.  Otherwise, construct
-        Finv and Fprime and save both matrices to disk.
+        memory and time required to build the matrix stack.  In this case,
+        only the matrix product Finv_Fprime is written to disk.  Otherwise,
+        construct Finv and Fprime independently and save both matrices to disk.
     npl : int
         Number of power law coefficients which replace quadratic modes in
         the LSSM.

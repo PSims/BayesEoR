@@ -227,6 +227,7 @@ BM = BuildMatrices(
     args.integration_time_seconds,
     args.sigma,
     args.fit_for_monopole,
+    Finv_Fprime=np.logical_not(args.build_Finv_and_Fprime),
     nside=args.nside,
     central_jd=args.central_jd,
     telescope_latlonalt=args.telescope_latlonalt,

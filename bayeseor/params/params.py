@@ -33,6 +33,13 @@ def BayesEoRParser():
         Use sparse matrices ('--sparse-mats', True) to reduce storage
         requirements or dense matrices ('--dense-mats', False).  Defaults to
         True (use sparse matrices).
+    build_Finv_and_Fprime : bool, optional
+        If True, construct Finv and Fprime independently and write 
+        both matrices to disk when building the matrix stack. 
+        Otherwise (default), construct the matrix product Finv_Fprime in
+        place from the dense matrices comprising Finv and Fprime to minimize 
+        the memory and time required to build the matrix stack.  In this
+        case, only the matrix product Finv_Fprime is written to disk.
     overwrite_matrices : bool, optional
         Overwrite existing matrix stack.  Defaults to False (use existing
         matrix stack).
@@ -242,6 +249,17 @@ def BayesEoRParser():
         help="Use sparse matrices (--sparse-mats) to reduce storage "
              "requirements or use dense matrices (--dense-mats).  Defaults "
              "to True (use sparse matrices)."
+    )
+    parser.add_argument(
+        "--build-Finv-and-Fprime",
+        action="store_true",
+        help="If passed, construct Finv and Fprime independently and write "
+             "both matrices to disk when building the matrix stack. "
+             "Otherwise (default), construct the matrix product Finv_Fprime "
+             "in place from the dense matrices comprising Finv and Fprime to "
+             "minimize the memory and time required to build the matrix "
+             "stack. In this case, only the matrix product Finv_Fprime is "
+             "written to disk."
     )
     parser.add_argument(
         "--clobber",
