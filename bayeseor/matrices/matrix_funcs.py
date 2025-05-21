@@ -73,6 +73,91 @@ def build_nudft_array(coords_in, coords_out, sign=-1):
     nudft : np.ndarray of complex
         Complex, NUDFT matrix.
 
+    Examples
+    --------
+    In the examples below, we construct uniform discrete Fourier transform
+    (DFT) matrices so we can compare the results with `numpy.fft`.  The input
+    and output coordinates need not be uniformly spaced in practice.
+
+    In this example, we construct a one-dimensional NUDFT matrix relating
+    frequency and delay:
+
+    >>> freqs = np.linspace(100, 150, 21)
+    >>> freqs -= freqs[freqs.size//2]  # for consistency with numpy
+    >>> df = freqs[1] -  freqs[0]
+    >>> delays = np.fft.fftshift(np.fft.fftfreq(freqs.size, d=df))
+    >>> coords_in = freqs
+    >>> print(f"{coords_in.shape = }")
+    coords_in.shape = (21,)
+    >>> coords_out = delays
+    >>> print(f"{coords_out.shape = }")
+    coords_out.shape = (21,)
+    >>> nudft = build_nudft_array(coords_in, coords_out)
+    >>> print(f"{nudft.shape = }")
+    nudft.shape = (21, 21)
+
+    Subtracting the central frequency from `freqs` in this example is only
+    required for comparing the result of applying `nudft` to a one-dimensional
+    signal with the resulting FFTd quantity from `numpy.fft.fft`:    
+
+    >>> np.random.seed(912387)
+    >>> signal = 1j*np.random.normal(0, 1, freqs.size)
+    >>> signal += np.random.normal(0, 1, freqs.size)
+    >>> nudft_signal = nudft @ signal
+    >>> fft_signal = np.fft.ifftshift(signal)
+    >>> fft_signal = np.fft.fft(fft_signal)
+    >>> fft_signal = np.fft.fftshift(fft_signal)
+    >>> print(np.abs(nudft_signal - fft_signal).mean())
+    3.9389409635500696e-15
+
+    In this example, we construct a two-dimensional NUDFT matrix relating
+    (l, m) to (u, v):
+
+    >>> Nl = 15
+    >>> Nm = 18
+    >>> dl = 1.3
+    >>> dm = 1.3
+    >>> ls = dl * np.arange(-(Nl//2), Nl//2 + Nl%2)
+    >>> ms = dl * np.arange(-(Nm//2), Nm//2 + Nm%2)
+    >>> ls_mg, ms_mg = np.meshgrid(ls, ms)
+    >>> ls_vec = ls_mg.flatten()
+    >>> ms_vec = ms_mg.flatten()
+    >>> us = np.fft.fftshift(np.fft.fftfreq(ls.size, d=dl))
+    >>> vs = np.fft.fftshift(np.fft.fftfreq(ms.size, d=dm))
+    >>> us_mg, vs_mg = np.meshgrid(us, vs)
+    >>> us_vec = us_mg.flatten()
+    >>> vs_vec = vs_mg.flatten()
+    >>> coords_in = np.vstack((ls_vec, ms_vec))
+    >>> print(f"{coords_in.shape = }")
+    coords_in.shape = (2, 270)
+    >>> coords_out = np.vstack((us_vec, vs_vec))
+    >>> print(f"{coords_out.shape = }")
+    coords_out.shape = (2, 270)
+    >>> nudft = build_nudft_array(coords_in, coords_out)
+    >>> print(f"{nudft.shape = }")
+    nudft.shape = (270, 270)
+
+    The for loop in this code is only used if `Nax`, the number of coordinate
+    axes, is greater than 1.  In the example above, because `coords_in` and
+    `coords_out` contain are two-dimensional arrays, with the zeroth axis
+    indexing the `Nax` axis, the for loop accounts for the fact that both
+    coordinates must appear in the argument of the exponent for the two-
+    dimensional Fourier transform to be applied correctly to both coordinate
+    axes.
+
+    Comparing the results of applying `nudft` to a flattened two-dimensional
+    input signal yields:
+
+    >>> signal = 1j*np.random.normal(0, 1, ls_mg.shape)
+    >>> signal += np.random.normal(0, 1, ls_mg.shape)
+    >>> nudft_signal = (nudft @ signal.flatten()).reshape(us_mg.shape)
+    >>> axes = (0, 1)
+    >>> fft_signal = np.fft.ifftshift(signal, axes=axes)
+    >>> fft_signal = np.fft.fftn(fft_signal, axes=axes)
+    >>> fft_signal = np.fft.fftshift(fft_signal, axes=axes)
+    >>> print(np.abs(nudft_signal - fft_signal).mean())
+    2.7322899219671044e-14
+
     """
     if len(coords_in.shape) == 1:
         coords_in = coords_in.reshape(1, -1)
