@@ -48,14 +48,34 @@ class BuildMatrixTree(object):
     """
     Class for building and manipulating BayesEoR matrices.
 
+    Parameters
+    ----------
+    array_save_directory : str
+        Path to the directory where arrays will be saved.
+    include_instrumental_effects : bool
+        If True, include instrumental effects like frequency dependent (u, v)
+        sampling and the primary beam.
+    use_sparse_matrices : bool
+        If True, use sparse matrices in place of numpy arrays.
+    Finv_Fprime : bool
+        If True (default), construct the matrix product Finv_Fprime in place
+        from the dense matrices comprising Finv and Fprime to minimize the
+        memory required to build the matrix stack.  In this case, only the
+        matrix product Finv_Fprime is written to disk.  Otherwise, construct
+        Finv and Fprime and save both matrices to disk.
+
     """
-    def __init__(self, array_save_directory,
-                 include_instrumental_effects,
-                 use_sparse_matrices,
-                 **kwargs):
+    def __init__(
+        self, array_save_directory,
+        include_instrumental_effects,
+        use_sparse_matrices,
+        Finv_Fprime=True,
+        **kwargs
+    ):
         self.array_save_directory = array_save_directory
         self.include_instrumental_effects = include_instrumental_effects
         self.use_sparse_matrices = use_sparse_matrices
+        self.Finv_Fprime = Finv_Fprime
 
         self.matrix_prerequisites_dictionary = {
             'Finv': ['multi_chan_nudft', 'multi_chan_beam'],
@@ -69,12 +89,21 @@ class BuildMatrixTree(object):
                 'gridding_matrix_vo2co_fg',
                 'idft_array_1d_fg'
             ],
-            # 'Fprime_Fz': ['Fprime', 'Fz'],
-            'T': ['Finv_Fprime', 'Fz'],
             'Ninv_T': ['Ninv', 'T'],
             'T_Ninv_T': ['T', 'Ninv_T'],
             'block_T_Ninv_T': ['T_Ninv_T'],
         }
+        if Finv_Fprime:
+            self.matrix_prerequisites_dictionary.update(
+                {'T': ['Finv_Fprime', 'Fz'],}
+            )
+        else:
+            self.matrix_prerequisites_dictionary.update(
+                {
+                    'Fprime_Fz': ['Fprime', 'Fz'],
+                    'T': ['Finv', 'Fprime_Fz']
+                }
+            )
 
         if self.include_instrumental_effects:
             self.beam_center = None
@@ -344,6 +373,12 @@ class BuildMatrices(BuildMatrixTree):
         Expected noise amplitude in the data vector = signal + noise.
     fit_for_monopole : bool
         If True, fit for (u, v) = (0, 0).  Otherwise, exclude it from the fit.
+    Finv_Fprime : bool
+        If True (default), construct the matrix product Finv_Fprime in place
+        from the dense matrices comprising Finv and Fprime to minimize the
+        memory required to build the matrix stack.  In this case, only the
+        matrix product Finv_Fprime is written to disk.  Otherwise, construct
+        Finv and Fprime and save both matrices to disk.
     npl : int
         Number of power law coefficients which replace quadratic modes in
         the LSSM.
@@ -464,14 +499,31 @@ class BuildMatrices(BuildMatrixTree):
         Number of pixels on a side for the v-axis in the FG model uv-plane.
 
     """
-    def __init__(self, array_save_directory, include_instrumental_effects,
-                 use_sparse_matrices, nu, nv, n_vis,
-                 neta, nf, f_min, df, nq, nt, dt, sigma,
-                 fit_for_monopole, **kwargs):
+    def __init__(
+        self,
+        array_save_directory,
+        include_instrumental_effects,
+        use_sparse_matrices,
+        nu,
+        nv,
+        n_vis,
+        neta,
+        nf,
+        f_min,
+        df,
+        nq,
+        nt,
+        dt,
+        sigma,
+        fit_for_monopole,
+        Finv_Fprime=True,
+        **kwargs
+    ):
         super(BuildMatrices, self).__init__(
             array_save_directory,
             include_instrumental_effects,
-            use_sparse_matrices
+            use_sparse_matrices,
+            Finv_Fprime=Finv_Fprime
         )
 
         # Required params
@@ -2062,7 +2114,50 @@ class BuildMatrices(BuildMatrixTree):
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
         print('Performing matrix algebra')
-        T = self.dot_product(pmd['Finv_Fprime'], pmd['Fz']).todense()
+        if self.Finv_Fprime:
+            print('Constructing T = Finv_Fprime * Fz')
+            # Fz is mostly sparse (<3% of the entries are non-zero).
+            # This matrix product Finv_Fprime * Fz is quick to compute
+            # even using Fz as a sparse matrix which only usese a
+            # single thread for matrix multiplications.
+            T = self.dot_product(pmd['Finv_Fprime'], pmd['Fz']).todense()
+        else:
+            print('Constructing T = Finv * Fprime_Fz')
+            # Finv is a stack of block diagonal matrices.  Each
+            # component of the stack encodes the sky --> visibilities
+            # transformation at a single time.  If we treat Finv as a
+            # sparse matrix, we use scipy's sparse dot product which is
+            # limited to a single core/thread.  Numpy's dot product is
+            # typically configured for threading.  If we have more than
+            # 1 thread available, it's much faster to do a dense-dense
+            # dot product.  Finv has a lot of zeros, though, so it's
+            # inefficient in terms of memory to cast it as a single
+            # dense matrix.  Instead, it's more efficient in time and
+            # memory to add a couple for loops and multiply the dense
+            # block diagonals of Finv times the corresponding
+            # components in Fprime_Fz.
+            if NTHREADS == 1:
+                T = self.dot_product(pmd['Finv'], pmd['Fprime_Fz'])
+            else:
+                T = np.zeros(
+                    (pmd['Finv'].shape[0], pmd['Fprime_Fz'].shape[1]),
+                    dtype=complex
+                )
+                for i_t in range(self.nt):
+                    time_inds = slice(
+                        i_t*self.nbls*self.nf, (i_t + 1)*self.nbls*self.nf
+                    )
+                    for i_f in range(self.nf):
+                        vis_inds = slice(i_f*self.nbls, (i_f + 1)*self.nbls)
+                        sky_inds = slice(
+                            i_f*self.hpx.npix_fov,
+                            (i_f + 1)*self.hpx.npix_fov
+                        )
+                        inds = [vis_inds, sky_inds]
+                        T[time_inds][vis_inds] = np.dot(
+                            pmd['Finv'][time_inds][*inds].toarray(),
+                            pmd['Fprime_Fz'][sky_inds]
+                        )
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
         self.output_data(
