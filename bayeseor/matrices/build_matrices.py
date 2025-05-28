@@ -9,12 +9,16 @@ from scipy.signal import windows
 from pathlib import Path
 from astropy.constants import c
 
-from .matrix_funcs import\
-    nuidft_matrix_2d, idft_matrix_1d,\
-    build_lssm_basis_vectors,\
-    generate_gridding_matrix_vo2co,\
-    nuDFT_Array_DFT_2D_v2d0,\
-    idft_array_idft_1d_sh, IDFT_Array_IDFT_2D_ZM_SH
+from .matrix_funcs import (
+    nuidft_matrix_2d, idft_matrix_1d,
+    build_lssm_basis_vectors,
+    generate_gridding_matrix_vo2co,
+    nuDFT_Array_DFT_2D_v2d0,
+    idft_array_idft_1d_sh,
+    IDFT_Array_IDFT_2D_ZM_SH,
+    sampled_uv_vectors,
+    build_nudft_array
+)
 from ..model.healpix import Healpix
 from .. import __version__
 
@@ -44,14 +48,34 @@ class BuildMatrixTree(object):
     """
     Class for building and manipulating BayesEoR matrices.
 
+    Parameters
+    ----------
+    array_save_directory : str
+        Path to the directory where arrays will be saved.
+    include_instrumental_effects : bool
+        If True, include instrumental effects like frequency dependent (u, v)
+        sampling and the primary beam.
+    use_sparse_matrices : bool
+        If True, use sparse matrices in place of numpy arrays.
+    Finv_Fprime : bool
+        If True (default), construct the matrix product Finv_Fprime in place
+        from the dense matrices comprising Finv and Fprime to minimize the
+        memory and time required to build the matrix stack.  In this case,
+        only the matrix product Finv_Fprime is written to disk.  Otherwise,
+        construct Finv and Fprime independently and save both matrices to disk.
+
     """
-    def __init__(self, array_save_directory,
-                 include_instrumental_effects,
-                 use_sparse_matrices,
-                 **kwargs):
+    def __init__(
+        self, array_save_directory,
+        include_instrumental_effects,
+        use_sparse_matrices,
+        Finv_Fprime=True,
+        **kwargs
+    ):
         self.array_save_directory = array_save_directory
         self.include_instrumental_effects = include_instrumental_effects
         self.use_sparse_matrices = use_sparse_matrices
+        self.Finv_Fprime = Finv_Fprime
 
         self.matrix_prerequisites_dictionary = {
             'Finv': ['multi_chan_nudft', 'multi_chan_beam'],
@@ -65,12 +89,21 @@ class BuildMatrixTree(object):
                 'gridding_matrix_vo2co_fg',
                 'idft_array_1d_fg'
             ],
-            'Fprime_Fz': ['Fprime', 'Fz'],
-            'T': ['Finv', 'Fprime_Fz'],
             'Ninv_T': ['Ninv', 'T'],
             'T_Ninv_T': ['T', 'Ninv_T'],
             'block_T_Ninv_T': ['T_Ninv_T'],
         }
+        if Finv_Fprime:
+            self.matrix_prerequisites_dictionary.update(
+                {'T': ['Finv_Fprime', 'Fz'],}
+            )
+        else:
+            self.matrix_prerequisites_dictionary.update(
+                {
+                    'Fprime_Fz': ['Fprime', 'Fz'],
+                    'T': ['Finv', 'Fprime_Fz']
+                }
+            )
 
         if self.include_instrumental_effects:
             self.beam_center = None
@@ -340,6 +373,12 @@ class BuildMatrices(BuildMatrixTree):
         Expected noise amplitude in the data vector = signal + noise.
     fit_for_monopole : bool
         If True, fit for (u, v) = (0, 0).  Otherwise, exclude it from the fit.
+    Finv_Fprime : bool
+        If True (default), construct the matrix product Finv_Fprime in place
+        from the dense matrices comprising Finv and Fprime to minimize the
+        memory and time required to build the matrix stack.  In this case,
+        only the matrix product Finv_Fprime is written to disk.  Otherwise,
+        construct Finv and Fprime independently and save both matrices to disk.
     npl : int
         Number of power law coefficients which replace quadratic modes in
         the LSSM.
@@ -460,14 +499,31 @@ class BuildMatrices(BuildMatrixTree):
         Number of pixels on a side for the v-axis in the FG model uv-plane.
 
     """
-    def __init__(self, array_save_directory, include_instrumental_effects,
-                 use_sparse_matrices, nu, nv, n_vis,
-                 neta, nf, f_min, df, nq, nt, dt, sigma,
-                 fit_for_monopole, **kwargs):
+    def __init__(
+        self,
+        array_save_directory,
+        include_instrumental_effects,
+        use_sparse_matrices,
+        nu,
+        nv,
+        n_vis,
+        neta,
+        nf,
+        f_min,
+        df,
+        nq,
+        nt,
+        dt,
+        sigma,
+        fit_for_monopole,
+        Finv_Fprime=True,
+        **kwargs
+    ):
         super(BuildMatrices, self).__init__(
             array_save_directory,
             include_instrumental_effects,
-            use_sparse_matrices
+            use_sparse_matrices,
+            Finv_Fprime=Finv_Fprime
         )
 
         # Required params
@@ -602,6 +658,8 @@ class BuildMatrices(BuildMatrixTree):
                 self.build_Finv,
             'Fprime_Fz':
                 self.build_Fprime_Fz,
+            'Finv_Fprime':
+                self.build_Finv_Fprime,
             'T':
                 self.build_T,
             'N':
@@ -1590,6 +1648,231 @@ class BuildMatrices(BuildMatrixTree):
                          matrix_name,
                          matrix_name)
 
+    def build_Finv_Fprime(self):
+        """
+        Build the matrix product Finv @ Fprime from their dense blocks.
+
+        This function has been added to reduce the RAM required to build
+        Finv and Fprime when the foreground sky model FoV is large.  Building
+        the matrix product Finv @ Fprime directly from their dense blocks
+        requires much less memory than constructing Finv and Fprime
+        independently.  If more than one thread is available and threading is
+        available within numpy, this method also significantly reduces the time
+        required to compute the matrix product Finv @ Fprime.
+        
+        Notes
+        -----
+        * `Finv_Fprime` has shape
+          - (ndata, nf\*nuv_eor) if modelling the EoR only
+          - (ndata, nf\*(nuv_eor + nuv_fg)) if modelling EoR + foregrounds
+          - (ndata, nf\*(nuv_eor + nuv_fg) + nuv_sh\*(nq_sh +
+            fit_for_shg_amps)) if modelling EoR + foregrounds + SHG.  Please
+            note that the SHG is not currently supported (see issue #50).
+
+        """
+        nuv_eor = self.nu*self.nv - 1
+        model_fgs = self.nq > 0 or self.fit_for_monopole
+        if model_fgs:
+            nuv_fg = self.nu_fg*self.nv_fg - (not self.fit_for_monopole)
+        # FIXME: add support for the SHG uv-plane (issue #50)
+        # if self.use_shg:
+        #     nuv_sh = self.nu_sh*self.nv_sh - 1
+
+        Finv_Fprime_shape = [
+            # Measurement space axis
+            # Number of visibilities
+            self.nbls * self.nt * self.nf,
+            # Combined EoR + FG model (u, v, f) cube axis
+            # Number of EoR model parameters
+            nuv_eor * self.nf
+        ]
+        if model_fgs:
+            # Number of FG model parameters
+            Finv_Fprime_shape[1] += nuv_fg * self.nf
+        # FIXME: add support for the SHG uv-plane (issue #50)
+        # if self.use_shg:
+        #     # Number of SHG model parameters
+        #     Finv_Fprime_shape[1] += nuv_sh*(self.nq_sh + self.fit_for_shg_amps)
+        Finv_Fprime_shape = tuple(Finv_Fprime_shape)
+
+        # Get time-dependent (l, m, n, az, za) coordinates
+        model_lmnazza_rad = [
+            self.hpx.calc_lmn_from_radec(
+                self.hpx.jds[i_t],
+                self.hpx.ra,
+                self.hpx.dec,
+                return_azza=True,
+                radec_offset=self.beam_center,
+            )
+            for i_t in range(self.nt)
+        ]
+        # Shape (nt, nax, npix)
+        # nax index mapping:
+        # 0: l
+        # 1: m
+        # 2: n
+        # 3: az
+        # 4: za
+        model_lmnazza_rad = np.array(model_lmnazza_rad)
+
+        # Frequency-dependent (u, v, w) sampled by the instrument
+        inst_uvw_m = self.uvw_array_m.copy()
+        # Convert from meters to inverse radians per frequency
+        inst_uvw_irad = [
+            inst_uvw_m / (c.to('m/s').value / freq)
+            for freq in self.freqs_hertz
+        ]
+        # Shape (nf, nt, nbls, 3)
+        inst_uvw_irad = np.array(inst_uvw_irad)
+        inst_uvw_irad = np.swapaxes(inst_uvw_irad, -2, -1)
+
+        # Construct the dense NUIDFT matrices in Fprime relating the model
+        # uv-plane (u, v, f) to the image space (l, m, f) coordinates.
+        # EoR model uv-plane components and matrix:
+        # Flattened vectors of (u, v) in the EoR model uv-plane
+        model_us_eor_irad, model_vs_eor_irad = sampled_uv_vectors(
+            self.nu,
+            self.nv,
+            du=self.du_eor,
+            dv=self.dv_eor,
+            exclude_mean=True
+        )
+        model_uv_eor_irad = np.vstack((model_us_eor_irad, model_vs_eor_irad))
+        nuidft_uv_to_lm_eor = build_nudft_array(
+            model_uv_eor_irad,
+            model_lmnazza_rad[self.nt//2, :2, self.hpx.eor_to_fg_pix].T,
+            sign=-1
+        )
+        # FIXME: Fprime normalization no longer needs to include nu*nv norm
+        # when using the build_nudft_array function.  The nuidft_matrix_2d
+        # function follows the numpy approach and uses 1/Npix for the inverse
+        # transform which is why the nu*nv normalization is currently
+        # included in self.Fprime_normalization_eor.
+        nuidft_uv_to_lm_eor *= (
+            self.Fprime_normalization_eor / (self.nu * self.nv)
+        )
+        
+        if model_fgs:
+            model_us_fg_irad, model_vs_fg_irad = sampled_uv_vectors(
+                self.nu_fg,
+                self.nv_fg,
+                du=self.du_fg,
+                dv=self.dv_fg,
+                exclude_mean=(not self.fit_for_monopole)
+            )
+            model_uv_fg_irad = np.vstack((model_us_fg_irad, model_vs_fg_irad))
+            nuidft_uv_to_lm_fg = build_nudft_array(
+                model_uv_fg_irad,
+                model_lmnazza_rad[self.nt//2, :2],
+                sign=-1
+            )
+            # FIXME: Fprime normalization no longer needs to include nu*nv norm
+            # when using the build_nudft_array function.  The nuidft_matrix_2d
+            # function follows the numpy approach and uses 1/Npix for the
+            # inverse transform which is why the nu*nv normalization is
+            # currently included in self.Fprime_normalization_fg.
+            nuidft_uv_to_lm_fg *= (
+                self.Fprime_normalization_fg / (self.nu_fg * self.nv_fg)
+            )
+            # Move the (u, v) = (0, 0) pixel to the rightmost column in
+            # nuidft_uv_to_lm_fg so that the LSSM components are all clustered
+            # together in the model vector (recall that (u, v) = (0, 0) acts
+            # like the constant term in the LSSM).
+            mp_column = nuidft_uv_to_lm_fg[:, nuv_fg//2].copy()
+            mp_ind = nuv_fg//2
+            nuidft_uv_to_lm_fg[:, mp_ind:-1] = nuidft_uv_to_lm_fg[:, mp_ind+1:]
+            nuidft_uv_to_lm_fg[:, -1] = mp_column
+
+        # FIXME: add support for the SHG uv-plane (issue #50)
+        # if self.use_shg:
+        #     nuidft_uv_to_lm_shg = ?
+
+        # Instantiate empty containers for matrices
+        Finv_Fprime = sparse.lil_matrix(Finv_Fprime_shape, dtype=complex)
+        
+        matrix_name = 'Finv_Fprime'
+        # FIXME: for now, there are no prerequisites for this matrix.  But,
+        # this might change in the future if we add a kwarg for writing out
+        # intermediate matrices to disk (e.g. the dense blocks that comprise
+        # Fprime).
+        pmd = self.load_prerequisites(matrix_name)
+        start = time.time()
+        print('Performing matrix algebra')
+        
+        for i_f in range(self.nf):
+            uv_Fprime_inds_eor = slice(
+                i_f*nuv_eor, (i_f + 1)*nuv_eor
+            )
+            if model_fgs:
+                uv_Fprime_inds_fg = slice(
+                    self.nf*nuv_eor + i_f*nuv_fg,
+                    self.nf*nuv_eor + (i_f + 1)*nuv_fg
+                )
+            # FIXME: add support for the SHG uv-plane (issue #50)
+            # if self.use_shg:
+            #     uv_Fprime_inds_shg = slice(
+            #         self.nf*(nuv_eor + nuv_fg) + i_f*?,
+            #         self.nf*(nuv_eor + nuv_fg) + (i_f + 1)*?
+            #     )
+            for i_t in range(self.nt):
+                vis_inds = slice(
+                    i_t*self.nf*self.nbls + i_f*self.nbls,
+                    i_t*self.nf*self.nbls + (i_f + 1)*self.nbls
+                )
+
+                if self.drift_scan_pb:
+                    # For a drift scan observation, the beam drifts across the
+                    # modelled patch of sky, so the (l, m, n) coordinates for
+                    # a given HEALPix pixel change with time.
+                    lmn_rad = model_lmnazza_rad[i_t, :3]
+                    az_rad = model_lmnazza_rad[i_t, 3]
+                    za_rad = model_lmnazza_rad[i_t, 4]
+                else:
+                    # For modelling phased observations, the beam is always
+                    # phased to the center of the model FoV.  The (l, m, n)
+                    # coordinates in this case are independent of time.
+                    lmn_rad = model_lmnazza_rad[self.nt//2, :3]
+                    az_rad = model_lmnazza_rad[self.nt//2, 3]
+                    za_rad = model_lmnazza_rad[self.nt//2, 4]
+
+                # NUDFT matrix for image space (l, m, n) to measurement
+                # space (u, v, w) sampled by the instrument
+                nudft_lmn_to_vis = build_nudft_array(
+                    lmn_rad,
+                    inst_uvw_irad[i_f, 0],
+                    sign=+1
+                )
+                nudft_lmn_to_vis *= self.Finv_normalisation
+                # Beam amplitude at each (l, m, n)
+                beam_vals = self.hpx.get_beam_vals(
+                    az_rad, za_rad, freq=self.freqs_hertz[i_f]
+                )
+                # Equivalent to np.dot(nudft_lmn_to_vis, np.diag(beam_vals))
+                Finv_block = nudft_lmn_to_vis * beam_vals[None, :]
+
+                # FIXME: add support for modelling phased visibilities via
+                # the phasor vector.
+
+                Finv_Fprime[vis_inds, uv_Fprime_inds_eor] = np.dot(
+                    Finv_block[:, self.hpx.eor_to_fg_pix],
+                    nuidft_uv_to_lm_eor
+                )
+                if model_fgs:
+                    Finv_Fprime[vis_inds, uv_Fprime_inds_fg] = np.dot(
+                        Finv_block,
+                        nuidft_uv_to_lm_fg
+                    )
+                # FIXME: add support for the SHG uv-plane (issue #50)
+                # if self.use_shg:
+                #     Finv_Fprime[vis_inds, uv_Fprime_inds_shg] = ?
+
+        print('Time taken: {}'.format(time.time() - start))
+        # Save matrix to HDF5 or sparse matrix to npz
+        self.output_data(Finv_Fprime,
+                         self.array_save_directory,
+                         matrix_name,
+                         matrix_name)
+
     def build_Fprime_Fz(self):
         """
         Build `Fprime_Fz = Fprime * Fz`.
@@ -1831,38 +2114,50 @@ class BuildMatrices(BuildMatrixTree):
         pmd = self.load_prerequisites(matrix_name)
         start = time.time()
         print('Performing matrix algebra')
-        # Finv is a stack of block diagonal matrices.  Each component of the
-        # stack encodes the sky --> visibilities transformation at a single
-        # time.  If we treat Finv as a sparse matrix, we use scipy's sparse
-        # dot product which is limited to a single core/thread.  Numpy's dot
-        # product is typically configured for threading.  If we have more than
-        # 1 thread available, it's much faster to do a dense-dense dot product.
-        # Finv has a lot of zeros, though, so it's inefficient in terms of
-        # memory to cast it as a single dense matrix.  Instead, it's more
-        # efficient in time and memory to add a couple for loops and multiply
-        # the dense block diagonals of Finv times the corresponding components
-        # in Fprime_Fz.
-        if NTHREADS == 1:
-            T = self.dot_product(pmd['Finv'], pmd['Fprime_Fz'])
+        if self.Finv_Fprime:
+            print('Constructing T = Finv_Fprime * Fz')
+            # Fz is mostly sparse (<3% of the entries are non-zero).
+            # This matrix product Finv_Fprime * Fz is quick to compute
+            # even using Fz as a sparse matrix which only usese a
+            # single thread for matrix multiplications.
+            T = self.dot_product(pmd['Finv_Fprime'], pmd['Fz']).todense()
         else:
-            T = np.zeros(
-                (pmd['Finv'].shape[0], pmd['Fprime_Fz'].shape[1]),
-                dtype=complex
-            )
-            for i_t in range(self.nt):
-                time_inds = slice(
-                    i_t*self.nbls*self.nf, (i_t + 1)*self.nbls*self.nf
+            print('Constructing T = Finv * Fprime_Fz')
+            # Finv is a stack of block diagonal matrices.  Each
+            # component of the stack encodes the sky --> visibilities
+            # transformation at a single time.  If we treat Finv as a
+            # sparse matrix, we use scipy's sparse dot product which is
+            # limited to a single core/thread.  Numpy's dot product is
+            # typically configured for threading.  If we have more than
+            # 1 thread available, it's much faster to do a dense-dense
+            # dot product.  Finv has a lot of zeros, though, so it's
+            # inefficient in terms of memory to cast it as a single
+            # dense matrix.  Instead, it's more efficient in time and
+            # memory to add a couple for loops and multiply the dense
+            # block diagonals of Finv times the corresponding
+            # components in Fprime_Fz.
+            if NTHREADS == 1:
+                T = self.dot_product(pmd['Finv'], pmd['Fprime_Fz'])
+            else:
+                T = np.zeros(
+                    (pmd['Finv'].shape[0], pmd['Fprime_Fz'].shape[1]),
+                    dtype=complex
                 )
-                for i_f in range(self.nf):
-                    vis_inds = slice(i_f*self.nbls, (i_f + 1)*self.nbls)
-                    sky_inds = slice(
-                        i_f*self.hpx.npix_fov,
-                        (i_f + 1)*self.hpx.npix_fov
+                for i_t in range(self.nt):
+                    time_inds = slice(
+                        i_t*self.nbls*self.nf, (i_t + 1)*self.nbls*self.nf
                     )
-                    T[time_inds][vis_inds] = np.dot(
-                        pmd['Finv'][time_inds][vis_inds, sky_inds].toarray(),
-                        pmd['Fprime_Fz'][sky_inds]
-                    )
+                    for i_f in range(self.nf):
+                        vis_inds = slice(i_f*self.nbls, (i_f + 1)*self.nbls)
+                        sky_inds = slice(
+                            i_f*self.hpx.npix_fov,
+                            (i_f + 1)*self.hpx.npix_fov
+                        )
+                        inds = [vis_inds, sky_inds]
+                        T[time_inds][vis_inds] = np.dot(
+                            pmd['Finv'][time_inds][*inds].toarray(),
+                            pmd['Fprime_Fz'][sky_inds]
+                        )
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
         self.output_data(
