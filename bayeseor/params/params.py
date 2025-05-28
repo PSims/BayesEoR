@@ -254,6 +254,17 @@ class BayesEoRParser(ArgumentParser):
                 "to True (use sparse matrices)."
         )
         self.add_argument(
+            "--build-Finv-and-Fprime",
+            action="store_true",
+            help="If passed, construct Finv and Fprime independently and write "
+                "both matrices to disk when building the matrix stack. "
+                "Otherwise (default), construct the matrix product Finv_Fprime "
+                "in place from the dense matrices comprising Finv and Fprime to "
+                "minimize the memory and time required to build the matrix "
+                "stack. In this case, only the matrix product Finv_Fprime is "
+                "written to disk."
+        )
+        self.add_argument(
             "--clobber",
             action="store_true",
             help="If passed, overwrite the matrix stack, k-bin centers file, and"
