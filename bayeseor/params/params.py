@@ -219,8 +219,8 @@ class BayesEoRParser(ArgumentParser):
         `jsonargparse.ArgumentParser`.
 
     """
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, parse_as_dict=False, **kwargs):
+        super().__init__(*args, parse_as_dict=False, **kwargs)
         # --- Compute params ---
         self.add_argument(
             "--gpu",
