@@ -1,2 +1,2 @@
-from .build_matrices import *
-from .matrix_funcs import *
+from .build import *
+from .funcs import *
