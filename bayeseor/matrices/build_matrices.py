@@ -422,7 +422,7 @@ class BuildMatrices(BuildMatrixTree):
         Central time step of the observation in JD2000 format.
     dt : float
         Time cadence of observations in seconds.
-    drift_scan_pb : bool
+    drift_scan : bool
         If True, model a drift scan primary beam, i.e. the beam center drifts
         across the image space model with time.
     beam_type : string
@@ -588,7 +588,7 @@ class BuildMatrices(BuildMatrixTree):
                 cosfreq=self.cosfreq
             )
 
-            self.drift_scan_pb = kwargs.pop('drift_scan_pb', True)
+            self.drift_scan = kwargs.pop('drift_scan', True)
 
         # FG model params
         self.nu_fg = kwargs.pop('nu_fg')
@@ -1033,8 +1033,8 @@ class BuildMatrices(BuildMatrixTree):
             sampled_uvw_coords_m / (c.to('m/s').value / freq)
             for freq in self.freqs_hertz
         ])
-        if not self.drift_scan_pb:
-            # Used if self.drift_scan_pb = False
+        if not self.drift_scan:
+            # Used if self.drift_scan = False
             # Get (l, m, n) coordinates from Healpix object
             ls_rad, ms_rad, ns_rad = self.hpx.calc_lmn_from_radec(
                 self.hpx.jds[self.nt//2],
@@ -1054,7 +1054,7 @@ class BuildMatrices(BuildMatrixTree):
             ])
         else:
             # This will be used if a drift scan primary beam is included in
-            # the data model (i.e. self.drift_scan_pb=True)
+            # the data model (i.e. self.drift_scan=True)
             multi_chan_nudft = self.sd_block_diag([
                 self.sd_block_diag([
                     nuDFT_Array_DFT_2D_v2d0(
@@ -1109,7 +1109,7 @@ class BuildMatrices(BuildMatrixTree):
             freq_array *= 1e6  # MHz --> Hz
         else:
             freq_array = self.freqs_hertz
-        if not self.drift_scan_pb:
+        if not self.drift_scan:
             multi_chan_beam = self.sd_block_diag([
                 np.diag(
                     self.hpx.get_beam_vals(
@@ -1820,7 +1820,7 @@ class BuildMatrices(BuildMatrixTree):
                     i_t*self.nf*self.nbls + (i_f + 1)*self.nbls
                 )
 
-                if self.drift_scan_pb:
+                if self.drift_scan:
                     # For a drift scan observation, the beam drifts across the
                     # modelled patch of sky, so the (l, m, n) coordinates for
                     # a given HEALPix pixel change with time.
@@ -1950,7 +1950,7 @@ class BuildMatrices(BuildMatrixTree):
         start = time.time()
         print('Performing matrix algebra')
         if self.include_instrumental_effects:
-            if not self.drift_scan_pb:
+            if not self.drift_scan:
                 # This array is channel_ordered and the covariance
                 # matrix assumes a channel_ordered data set
                 # (this vector should be re-ordered if
@@ -2030,7 +2030,7 @@ class BuildMatrices(BuildMatrixTree):
         start = time.time()
         print('Performing matrix algebra')
         if self.include_instrumental_effects:
-            if not self.drift_scan_pb:
+            if not self.drift_scan:
                 # This array is channel_ordered and the covariance
                 # matrix assumes a channel_ordered data set
                 # (this vector should be re-ordered if
