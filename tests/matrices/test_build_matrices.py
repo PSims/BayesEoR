@@ -6,7 +6,11 @@ def test_build_Finv(build_matrices):
     BM = build_matrices
 
     BM.build_Finv()
-    Finv = BM.read_data(BM.array_save_directory, "Finv")
+    if BM.use_sparse_matrices:
+        suffix = ".npz"
+    else:
+        suffix = ".h5"
+    Finv = BM.read_data(BM.array_save_directory, f"Finv{suffix}")
 
     Finv_shape = (
         # Visibility axis
@@ -23,7 +27,11 @@ def test_build_Fprime(build_matrices):
     BM = build_matrices
 
     BM.build_Fprime()
-    Fprime = BM.read_data(BM.array_save_directory, "Fprime")
+    if BM.use_sparse_matrices:
+        suffix = ".npz"
+    else:
+        suffix = ".h5"
+    Fprime = BM.read_data(BM.array_save_directory, f"Fprime{suffix}")
 
     Fprime_shape = (
         # Sky model axis
@@ -31,9 +39,10 @@ def test_build_Fprime(build_matrices):
         BM.hpx.npix_fov*BM.nf,
         # Combined EoR + FG model (u, v, f) cube axis
         # Number of EoR model parameters
-        (BM.nu*BM.nv - 1)*BM.nf
+        (BM.nu*BM.nv - 1)*(BM.neta - 1)
         # Number of FG model parameters
-        + (BM.nu_fg*BM.nv_fg - 1 + BM.fit_for_monopole)*BM.nf
+        + (BM.nu_fg*BM.nv_fg - (not BM.fit_for_monopole))*BM.neta
+        # FIXME: add support for the SHG uv-plane (issue #50)
     )
 
     assert Fprime.shape == Fprime_shape
@@ -42,13 +51,15 @@ def test_build_T(build_matrices):
     BM = build_matrices
 
     # Ensure that pre-requisite matrices are built
+    # FIXME: add new functionality for T = Finv_Fprime * Fz
     BM.build_Finv()
     BM.build_Fprime_Fz()
 
     # Test build_T with a single thread
     with threadpool_limits(limits=1):
         BM.build_T()
-    T_single = BM.read_data(BM.array_save_directory, "T")
+    # T always saved as a dense matrix
+    T_single = BM.read_data(BM.array_save_directory, "T.h5")
 
     T_shape = (
         # Visibility axis
@@ -74,5 +85,9 @@ def test_build_T(build_matrices):
         assert T_multi.shape == T_shape
 
         # Ensure that T is identical with or without threading
-        diff = T_single - T_multi
-        assert np.abs(diff).max() <= 1e-12
+        x = 1j*np.random.normal(0, 1, T_shape[1])
+        x += np.random.normal(0, 1, T_shape[1])
+        T_single_x = T_single @ x
+        T_multi_x = T_multi @ x
+        diff = T_single_x - T_multi_x
+        assert np.abs(diff).max() <= 1e-10
