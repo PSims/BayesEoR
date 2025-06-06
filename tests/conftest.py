@@ -1,10 +1,11 @@
-from pathlib import Path
+import numpy as np
 
 import pytest
 
 from bayeseor.params import BayesEoRParser
 from bayeseor.matrices import BuildMatrices
 from bayeseor.model import load_inst_model
+from bayeseor.utils import get_array_dir_name
 
 @pytest.fixture(scope="session")
 def config():
@@ -28,29 +29,31 @@ def config():
 def build_matrices(config):
     cl_args = config
 
+    array_dir = get_array_dir_name(cl_args)[0]
+
     args = [
-        args.array_dir,
-        args.include_instrumental_effects,
-        args.use_sparse_matrices,
-        args.nu,
-        args.nv,
-        args.n_vis,
-        args.neta,
-        args.nf,
-        args.nu_min_MHz,
-        args.channel_width_MHz,
-        args.nq,
-        args.nt,
-        args.integration_time_seconds,
-        args.sigma,
-        args.fit_for_monopole,
+        array_dir,
+        cl_args.include_instrumental_effects,
+        cl_args.use_sparse_matrices,
+        cl_args.nu,
+        cl_args.nv,
+        cl_args.n_vis,
+        cl_args.neta,
+        cl_args.nf,
+        cl_args.nu_min_MHz,
+        cl_args.channel_width_MHz,
+        cl_args.nq,
+        cl_args.nt,
+        cl_args.integration_time_seconds,
+        cl_args.sigma,
+        cl_args.fit_for_monopole,
     ]
 
     required_params = [
         'nside',
         'central_jd',
         'telescope_latlonalt',
-        'drift_scan_pb',
+        'drift_scan',
         'beam_type',
         'beam_peak_amplitude',
         'beam_center',
