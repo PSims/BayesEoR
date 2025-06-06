@@ -1,0 +1,32 @@
+# Output params
+output_dir: ./
+# Compute params
+useGPU: True
+array_dir_prefix: array_dir/
+# Frequency params
+nf: 12
+nu_min_MHz: 157.2265625  # check
+channel_width_MHz: 0.09765625  # check
+# Sky model params
+nside: 32
+simple_za_filter: True
+# EoR model params
+nu: 7
+fov_ra_eor: 12.9080728652
+# FG model params
+fit_for_monopole: False
+nq: 0
+# Noise model params
+sigma: 0.000615864342588761
+# Instrument model params
+include_instrumental_effects: True
+nt: 21
+integration_time_seconds: 21.511369943618774
+central_jd: 2459999.0939296028
+inst_model: instrument_model
+beam_type: airy
+antenna_diameter: 14.2
+# Data params
+data_path: data.npy
+# Prior params
+priors: [[1.7, 5.7], [2.6, 6.6], [3.1, 7.1]]
