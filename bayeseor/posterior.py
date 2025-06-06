@@ -5,8 +5,8 @@ from pdb import set_trace as brk
 import h5py
 from pathlib import Path
 
-from ..gpu import GPUInterface
-from ..utils import Cosmology, mpiprint
+from .setup.gpu import GPUInterface
+from .utils import Cosmology, mpiprint
 
 
 """

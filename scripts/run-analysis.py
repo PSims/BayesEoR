@@ -15,10 +15,10 @@ from bayeseor.params import (
     calculate_derived_params,
     parse_uprior_inds
 )
+from bayeseor.setup.mock_data import generate_mock_eor_signal_instrumental
 from bayeseor.utils import (
     mpiprint,
     get_array_dir_name,
-    generate_mock_eor_signal_instrumental,
     vector_is_hermitian,
     generate_output_file_base,
     write_map_dict,

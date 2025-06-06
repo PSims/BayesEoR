@@ -16,7 +16,7 @@ from ..model import (
 )
 from ..params import calculate_derived_params, parse_uprior_inds
 from ..posterior import PowerSpectrumPosteriorProbability
-from .utils import mpiprint, vector_is_hermitian
+from ..utils import mpiprint, vector_is_hermitian
 
 class MaximumAPosteriori(object):
     """

@@ -1,7 +1,7 @@
 import numpy as np
 
 from ..model.healpix import Healpix
-from .utils import mpiprint
+from ..utils import mpiprint
 
 
 def generate_data_from_loaded_eor_cube(
