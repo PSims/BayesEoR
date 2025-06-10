@@ -1,8 +1,11 @@
 import numpy as np
 from astropy import units
 from astropy.units import Quantity
+from astropy.time import Time
 from pathlib import Path
 from pyuvdata import UVData
+from pyuvdata.utils import polstr2num
+import warnings
 
 from ..model.healpix import Healpix
 from ..utils import mpiprint
@@ -10,14 +13,30 @@ from ..utils import mpiprint
 
 def preprocess_data(
     fp,
-    ant_str=None,
-    save_vec=False,
+    ant_str="cross",
+    save_vis=False,
     save_model=False,
     out_dir=Path("./"),
     uniform_redundancy=False,
     single_bls=False,
     bl_cutoff=None,
     freq_min=None,
+    freq_idx_min=None,
+    freq_center=None,
+    Nfreqs=None,
+    jd_min=None,
+    jd_idx_min=None,
+    jd_center=None,
+    Ntimes=None,
+    phase=False,
+    phase_time=False,
+    form_pI=True,
+    pI_norm=1.0,
+    pol="xx",
+    calc_noise=False,
+    blgroup_noise=False,
+    verbose=False,
+    rank=0
 ):
     """
     Read visibility data from disk and form a one-dimensional data vector.
@@ -27,7 +46,7 @@ def preprocess_data(
     and forms a one-dimensional data vector with shape
     (2*Nbls * Ntimes * Nfreqs,) and an accompanying instrument model of
     sampled (u, v, w) coordinates and a redundancy model (when averaging
-    redundant baselines).  The factor of 2 in the data vector shape comes from
+    redundant baselines). The factor of 2 in the data vector shape comes from
     the fact that the input visibility vector must be Hermitian, so we copy
     all baselines at (u, v) to (-u, -v) and conjugate the data accordingly.
     This is captured in the instrument model as the instrument model also
@@ -38,9 +57,10 @@ def preprocess_data(
     fp : Path or str
         Path to pyuvdata-compatible file containing visibilities.
     ant_str : str, optional
-        Antenna downselect string.  This determines what baselines to keep in
-        the data vector.  Please see `pyuvdata.UVData.select` for more details.
-    save_vec : bool, optional
+        Antenna downselect string. This determines what baselines to keep in
+        the data vector. Please see `pyuvdata.UVData.select` for more details.
+        Defaults to 'cross' (cross-correlation baselines only).
+    save_vis : bool, optional
         Write visibility vector to disk in `out_dir`.
     save_model : bool, optional
         Write instrument model to disk in `out_dir`.
@@ -51,77 +71,271 @@ def preprocess_data(
     single_bls : bool, optional
         Create data vectors for each individual baseline.
     bl_cutoff : float, optional
-        Baseline length cutoff in meters.  Defaults to None (keep all
+        Baseline length cutoff in meters. Defaults to None (keep all
         baselines).
     freq_min : :class:`astropy.Quantity` or float, optional
         Minimum frequency to keep in the data vector in Hertz if not a
-        Quantity.  Defaults to None (keep all frequencies).
+        Quantity. All frequencies greater than or equal to `freq_min` will be
+        kept, unless `Nfreqs` is specified. Defaults to None (keep all
+        frequencies).
     freq_idx_min : int, optional
-        Minimum frequency channel index to keep in the data vector.  Defaults
+        Minimum frequency channel index to keep in the data vector. Defaults
         to None (keep all frequencies).
+    freq_center : :class:`astropy.Quantity` or float, optional
+        Central frequency around which `Nfreqs` frequencies will be kept in the
+        data vector in Hertz of not a Quantity. `Nfreqs` must also be passed,
+        otherwise an error is raised. Note, if `Nfreqs` is even, the resulting
+        set of frequencies kept will be asymmetric around `freq_center` with 
+        one additional frequency channel on the low end, but the central 
+        frequency channel, ``freqs[Nfreqs//2]``, will still match
+        `freq_center`.  Defaults to None (keep all frequencies).
     Nfreqs : int, optional
         Number of frequencies to keep starting from `freq_idx_min` or the
-        channel corresponding to `freq_min`.  Defaults to None (keep all
+        channel corresponding to `freq_min`. Defaults to None (keep all
         frequencies).
-    time_min : :class:`astropy.Time` or float, optional
-        Minimum time to keep in the data vector expressed as a Julian Date.
+    jd_min : :class:`astropy.Time` or float, optional
+        Minimum time to keep in the data vector as a Julian date if not a Time.
         Defaults to None (keep all times).
-    time_idx_min : int, optional
-        Minimum time index to keep in the data vector.  Defaults to None (keep
+    jd_idx_min : int, optional
+        Minimum time index to keep in the data vector. Defaults to None (keep
         all times).
+    jd_center : :class:`astropy.Time` or float, optional
+        Central Julian date around which `Ntimes` times will be kept in the
+        data vector as a Julian date if not a Time. `Ntimes` must also be
+        passed, otherwise an error is raised.  Note, if `Ntimes` is even, the
+        resulting set of times kept will be asymmetric around `jd_center` with
+        one additional time being kept on the low end, but the central time,
+        ``jds[Ntimes//2]``, will still match `jd_center`. Defaults to None
+        (keep all times).
     Ntimes : int, optional
-        Number of times to keep starting from `time_idx_min` or the time
-        corresponding to `time_min`.  Defaults to None (keep all times).
+        Number of times to keep starting from `jd_idx_min` or the time
+        corresponding to `jd_min`. Defaults to None (keep all times).
     phase : bool, optional
         Create a "phasor vector" which is created identically to the data
         vector which can be used to phase each visibility as a function of
         baseline, time, and frequency using element-wise multiplication.
     phase_time : :class:`astropy.Time` or float, optional
-        The time to which the visibilities will be phased as a Julian Date.
-        Defaults to None (phase visibilities to the central time if `phase`
-        is True).
+        The time to which the visibilities will be phased as a Julian date if
+        not a Time. Defaults to None (phase visibilities to the central time
+        if `phase` is True).
     form_pI : bool, optional
-        Form pseudo-Stokes I visibilities.  Defaults to True.  Otherwise, use
+        Form pseudo-Stokes I visibilities. Defaults to True. Otherwise, use
         the polarization specified by `pol`.
     pI_norm : float, optional
         Normalization, ``N``, used in forming pseudo-Stokes I from XX and YY
-        via ``pI = N * (XX + YY)``.  Defaults to 1.0.
+        via ``pI = N * (XX + YY)``. Defaults to 1.0.
     pol : str, optional
-        Case-insensitive polarization string.  Defaults to 'xx'.
+        Case-insensitive polarization string. Defaults to 'xx'.
     calc_noise : bool, optional
         Calculate a noise estimate from the visibilities via differencing
-        adjacent times.  By default, this time-differenced noise estimate is
-        calculated for each baseline independently.  All baselines within a
+        adjacent times. By default, this time-differenced noise estimate is
+        calculated for each baseline independently. All baselines within a
         redundant baseline group can be used simultaneously to form the noise
         estimate if `blgroup_noise` is True.
     blgroup_noise : bool, optional
         Use all baselines within a redundant baseline group to form the noise
         estimate and assign this noise estimate to all baselines in the group.
+    verbose : bool, optional
+        Print statements useful for debugging. Defaults to False.
+    rank : int, optional
+        MPI rank. Defaults to 0.
 
     Returns
     -------
     vis_vec : :class:`numpy.ndarray`
         Visibility vector with shape (Nbls*Nfreqs*Ntimes,).
     uvw_array : :class:`numpy.ndarray`
-        Sampled (u, v, w) with shape (Ntimes, Nbls, 3).  The ordering of the
+        Sampled (u, v, w) with shape (Ntimes, Nbls, 3). The ordering of the
         Nbls axis matches the ordering of the baselines in `vis_vec`.
     red_array : :class:`numpy.ndarray`
         Redundancy model containing the number of baselines averaged within
-        a redundant baseline group.  This redundancy is uniform (all 1s) if
+        a redundant baseline group. This redundancy is uniform (all 1s) if
         `uniform_redundancy` is True.
     noise : :class:`numpy.ndarray`, optional
-        Estimated noise vector with shape (Nbls*Nfreqs*Ntimes,).  Returned only
+        Estimated noise vector with shape (Nbls*Nfreqs*Ntimes,). Returned only
         if `calc_noise` is True.
 
     """
+    if not isinstance(fp, Path):
+        fp = Path(fp)
+    if not fp.exists():
+        raise FileNotFoundError(f"No such file or directory: '{fp}'")
+
+    # Modify MPI rank so we only print if verbose is True and rank == 0
+    rank = 1 - (verbose and rank==0)
+
+    # Preprocess metadata
     uvd = UVData()
-    uvd.read(fp)
+    mpiprint(f"\nReading data from: {fp}", rank=rank)
+    uvd.read(fp, ant_str=ant_str, read_data=False)
+
+    if bl_cutoff:
+        mpiprint(
+            f"\nBaseline downselect: keeping |b| <= {bl_cutoff} m",
+            rank=rank
+        )
+        bl_lengths = np.sqrt(np.sum(uvd.uvw_array[:, :2]**2, axis=1))
+        blt_inds = np.where(bl_lengths <= bl_cutoff)[0]
+        mpiprint(f"\tBaselines before length select: {uvd.Nbls}", rank=rank)
+        uvd.select(blt_inds=blt_inds)
+        mpiprint(f"\tBaselines after length select:  {uvd.Nbls}", rank=rank)
+        bls_to_read = uvd.get_antpairs()
+    
+    # Frequency downselect
+    if freq_min or freq_idx_min or freq_center:
+        freqs = Quantity(uvd.freq_array, unit="Hz")
+        if not uvd.future_array_shapes:
+            freqs = freqs[0]
+        if freq_center:
+            if Nfreqs is None:
+                raise ValueError("Must pass Nfreqs with freq_center")
+            if not isinstance(freq_center, Quantity):
+                freq_center = Quantity(freq_center, unit="Hz")
+            freq_idx_center = np.argmin(
+                np.abs(freqs.to("Hz") - freq_center.to("Hz"))
+            )
+            if freq_idx_center - (Nfreqs//2) < 0:
+                raise ValueError(
+                    f"Invalid combination of freq_center ({freq_center}) "
+                    f"and Nfreqs ({Nfreqs}).  There are fewer than Nfreqs//2 "
+                    "frequencies less than or equal to freq_center."
+                )
+            if freq_idx_center + Nfreqs//2 > freqs.size - 1:
+                warnings.warn(
+                    "WARNING: There are more than Nfreqs//2 frequencies "
+                    "greater than or equal to freq_center.  This combination "
+                    f"of freq_center ({freq_center}) and Nfreqs ({Nfreqs}) "
+                    "will result in an asymmetric set of frequencies with "
+                    "a central value < freq_center."
+                )
+            freq_idx_min = freq_idx_center - (Nfreqs//2)
+            freq_min = freqs[freq_idx_min]
+        elif freq_min:
+            if not isinstance(freq_min, Quantity):
+                freq_min = Quantity(freq_min, unit="Hz")
+            freq_idx_min = np.where(freqs.to("Hz") >= freq_min.to("Hz"))[0][0]
+        else:
+            freq_min = freqs[freq_idx_min]
+        if Nfreqs is None:
+            Nfreqs = freqs.size - freq_idx_min
+        if not freq_center:
+            mpiprint(
+                f"\nFrequency downselect: keeping {Nfreqs} frequencies "
+                + f">= {freq_min.to('MHz'):.2f}",
+                rank=rank
+            )
+        if freq_idx_min + Nfreqs >= freqs.size:
+            warnings.warn(
+                "WARNING: this combination of freq_min or freq_idx_min and "
+                "Nfreqs will result in fewer than Nfreqs frequencies being "
+                "kept in the data vector."
+            )
+        freqs = freqs[freq_idx_min : freq_idx_min+Nfreqs]
+        mpiprint(f"\tNfreqs before frequency select: {uvd.Nfreqs}", rank=rank)
+        mpiprint(f"\tNfreqs after frequency select:  {freqs.size}", rank=rank)
+        mpiprint(
+            f"\tMinimum frequency in data vector: {freqs[0].to('MHz'):.2f}",
+            rank=rank
+        )
+        mpiprint(
+            "\tCentral frequency in data vector: "
+            + f"{freqs[freqs.size//2].to('MHz'):.2f}",
+            rank=rank
+        )
+        mpiprint(
+            f"\tMaximum frequency in data vector: {freqs[-1].to('MHz'):.2f}",
+            rank=rank
+        )
+    
+    # Time downselect
+    if jd_min or jd_idx_min or jd_center:
+        jds = Time(np.unique(uvd.time_array), format="jd")
+        if jd_center:
+            if Ntimes is None:
+                raise ValueError("Must pass Ntimes with jd_center")
+            if not isinstance(jd_center, Time):
+                jd_center = Time(jd_center, format="jd")
+            jd_idx_center = np.argmin(np.abs(jds.jd - jd_center.jd))
+            if jd_idx_center - (Ntimes//2) < 0:
+                raise ValueError(
+                    f"Invalid combination of jd_center ({jd_center}) and "
+                    f"Ntimes ({Ntimes}).  There are fewer than Ntimes//2 times "
+                    "less than or equal to jd_center."
+                )
+            if jd_idx_center + Ntimes//2 > jds.size - 1:
+                warnings.warn(
+                    "WARNING: There are more than Ntimes//2 times greater "
+                    "than or equal to jd_center.  This combination of "
+                    f"jd_center ({jd_center}) and Ntimes ({Ntimes}) will "
+                    "result in an asymmetric set of times with a central "
+                    "value < jd_center."
+                )
+            mpiprint(
+                f"\nTime downselect: keeping {Ntimes} times "
+                + f"centered on {jd_center}",
+                rank=rank
+            )
+        elif jd_min:
+            if not isinstance(jd_min, Time):
+                jd_min = Time(jd_min, format="jd")
+            jd_idx_min = np.where(jds.jd >= jd_min.jd)[0][0]
+        else:
+            jd_min = jds[jd_idx_min]
+        if Ntimes is None:
+            Ntimes = jds.size - jd_idx_min
+        if not jd_center:
+            mpiprint(
+                f"\nTime downselect: keeping {Ntimes} times >= {jd_center}",
+                rank=rank
+            )
+        if jd_idx_min + Ntimes >= jds.size:
+            warnings.warn(
+                "WARNING: this combination of jd_min or jd_idx_min and Ntimes "
+                "will result in fewer than Ntimes times being kept in the "
+                "data vector."
+            )
+        jds = jds[jd_idx_min : jd_idx_min+Ntimes]
+        mpiprint(f"\tNtimes before time select: {uvd.Ntimes}", rank=rank)
+        mpiprint(f"\tNtimes after time select:  {jds.size}", rank=rank)
+        mpiprint(f"\tMinimum time in data vector: {jds[0].jd}", rank=rank)
+        mpiprint(
+            f"\tCentral time in data vector: {jds[jds.size//2].jd}", rank=rank
+        )
+        mpiprint(f"\tMaximum time in data vector: {jds[-1].jd}", rank=rank)
+        
     # Preprocess data...
 
-def form_pseudo_stokes_vis(uvd, convention=1.0):
+def form_pI_vis(uvd, norm=1.0):
     """
-    Form pseudo-Stokes I visibilities by summing XX + YY visibilities.
+    Form pseudo-Stokes I visibilities by summing XX and YY visibilities.
+
+    Parameters
+    ----------
+    uvd : :class:`pyuvdata.UVData`
+        UVData object containing XX and YY polarization visibilities.
+    norm : float, optional
+        Normalization, ``N``, used in forming pseudo-Stokes I from XX and YY
+        via ``pI = N * (XX + YY)``. Defaults to 1.0.
+
+    Returns
+    -------
+    uvd : :class:`pyuvdata.UVData`
+        UVData object containing pI visibilities.
+
     """
+    assert isinstance(uvd, UVData), "uvd must be a pyuvdata.UVData object."
+
+    if polstr2num("pI") not in uvd.polarization_array:
+        xx_pol_num = polstr2num("xx")
+        yy_pol_num = polstr2num("yy")
+        xpol_ind = np.where(uvd.polarization_array == xx_pol_num)[0]
+        ypol_ind = np.where(uvd.polarization_array == yy_pol_num)[0]
+        uvd.data_array[..., xpol_ind] += uvd.data_array[..., ypol_ind]
+        uvd.data_array *= norm
+        uvd.select(polarizations=["xx"])
+        uvd.polarization_array[0] = polstr2num("pI")
+
+    return uvd
 
 def jy_to_ksr(data, freqs, mK=False):
     """
@@ -135,8 +349,13 @@ def jy_to_ksr(data, freqs, mK=False):
     freqs : :class:`astropy.Quantity` or :class:`numpy.ndarray`
         Frequencies along the second axis of `data` in Hertz if not a Quantity.
     mK : bool, optional
-        Return data in milikelvin units, i.e. mK sr.  Defaults to False (data
+        Return data in milikelvin units, i.e. mK sr. Defaults to False (data
         returned in K sr).
+
+    Returns
+    -------
+    data : :class:`numpy.ndarray`
+        Visibilities in units of K sr (or mK sr if `mK` is True).
 
     """
     if not isinstance(freqs, Quantity):
@@ -151,32 +370,6 @@ def jy_to_ksr(data, freqs, mK=False):
     conv_factor *= units.sr / units.Jy
 
     return data * conv_factor[np.newaxis, :].value
-
-def form_data_vector(
-    uvd,
-    save=False,
-    out_dir=Path("./")
-):
-    """
-    Form a one-dimensional visibility data vector from a UVData object.
-
-    
-
-    Parameters
-    ----------
-    uvd : UVData
-        UVData object containing visibilities.
-    
-
-    Returns
-    -------
-    vis_vec : :class:`numpy.ndarray`
-        One-dimensional vector of visibilities.
-    uvw_array : :class:`numpy.ndarray`
-        Sampled (u, v, w) coordinates with shape (Ntimes, 2*Nbls, 3).
-
-    """
-
 
 def mock_data_from_eor_cube(
     nu,
@@ -269,7 +462,7 @@ def generate_mock_eor_signal_instrumental(
         beam_type="uniform", rank=0):
     """
     Generate a mock dataset using numpy generated white noise for the sky
-    signal.  Instrumental effects are included via the calculation of
+    signal. Instrumental effects are included via the calculation of
     visibilities using `Finv`.
 
     Parameters
