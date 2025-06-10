@@ -4,8 +4,8 @@ from astropy.units import Quantity
 from pathlib import Path
 from pyuvdata import UVData
 
-from ...model.healpix import Healpix
-from ...utils import mpiprint
+from ..model.healpix import Healpix
+from ..utils import mpiprint
 
 
 def preprocess_data(

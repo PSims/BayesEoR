@@ -2,7 +2,7 @@ import numpy as np
 from pathlib import Path
 from sysconfig import get_paths
 
-from ..utils import mpiprint
+from .utils import mpiprint
 
 class GPUInterface(object):
     """
