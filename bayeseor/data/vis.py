@@ -11,14 +11,9 @@ from ..model.healpix import Healpix
 from ..utils import mpiprint
 
 
-def preprocess_data(
+def preprocess_uvdata(
     fp,
     ant_str="cross",
-    save_vis=False,
-    save_model=False,
-    out_dir=Path("./"),
-    uniform_redundancy=False,
-    single_bls=False,
     bl_cutoff=None,
     freq_min=None,
     freq_idx_min=None,
@@ -28,11 +23,16 @@ def preprocess_data(
     jd_idx_min=None,
     jd_center=None,
     Ntimes=None,
-    phase=False,
-    phase_time=False,
     form_pI=True,
     pI_norm=1.0,
     pol="xx",
+    form_vector=True,
+    save_vis=False,
+    save_model=False,
+    save_dir=None,
+    uniform_redundancy=False,
+    phase=False,
+    phase_time=False,
     calc_noise=False,
     blgroup_noise=False,
     verbose=False,
@@ -60,19 +60,9 @@ def preprocess_data(
         Antenna downselect string. This determines what baselines to keep in
         the data vector. Please see `pyuvdata.UVData.select` for more details.
         Defaults to 'cross' (cross-correlation baselines only).
-    save_vis : bool, optional
-        Write visibility vector to disk in `out_dir`.
-    save_model : bool, optional
-        Write instrument model to disk in `out_dir`.
-    out_dir : Path or str, optional
-        Output directory for visibility vector if `save_vec` is True.
-    uniform_redundancy : bool, optional
-        Force the redundancy model to be uniform.
-    single_bls : bool, optional
-        Create data vectors for each individual baseline.
-    bl_cutoff : float, optional
-        Baseline length cutoff in meters. Defaults to None (keep all
-        baselines).
+    bl_cutoff : :class:`astropy.Quantity` or float, optional
+        Baseline length cutoff in meters if not a Quantity. Defaults to None
+        (keep all baselines).
     freq_min : :class:`astropy.Quantity` or float, optional
         Minimum frequency to keep in the data vector in Hertz if not a
         Quantity. All frequencies greater than or equal to `freq_min` will be
@@ -110,14 +100,6 @@ def preprocess_data(
     Ntimes : int, optional
         Number of times to keep starting from `jd_idx_min` or the time
         corresponding to `jd_min`. Defaults to None (keep all times).
-    phase : bool, optional
-        Create a "phasor vector" which is created identically to the data
-        vector which can be used to phase each visibility as a function of
-        baseline, time, and frequency using element-wise multiplication.
-    phase_time : :class:`astropy.Time` or float, optional
-        The time to which the visibilities will be phased as a Julian date if
-        not a Time. Defaults to None (phase visibilities to the central time
-        if `phase` is True).
     form_pI : bool, optional
         Form pseudo-Stokes I visibilities. Defaults to True. Otherwise, use
         the polarization specified by `pol`.
@@ -126,6 +108,23 @@ def preprocess_data(
         via ``pI = N * (XX + YY)``. Defaults to 1.0.
     pol : str, optional
         Case-insensitive polarization string. Defaults to 'xx'.
+    save_vis : bool, optional
+        Write visibility vector to disk in `save_dir`. Defaults to False.
+    save_model : bool, optional
+        Write instrument model to disk in `save_dir`. Defaults to False.
+    save_dir : Path or str, optional
+        Output directory for visibility vector which must be specified if
+        `save_vis` or `save_model` is True. Defaults to None.
+    uniform_redundancy : bool, optional
+        Force the redundancy model to be uniform.
+    phase : bool, optional
+        Create a "phasor vector" which is created identically to the data
+        vector which can be used to phase each visibility as a function of
+        baseline, time, and frequency using element-wise multiplication.
+    phase_time : :class:`astropy.Time` or float, optional
+        The time to which the visibilities will be phased as a Julian date if
+        not a Time. Defaults to None (phase visibilities to the central time
+        if `phase` is True).
     calc_noise : bool, optional
         Calculate a noise estimate from the visibilities via differencing
         adjacent times. By default, this time-differenced noise estimate is
@@ -161,36 +160,66 @@ def preprocess_data(
     if not fp.exists():
         raise FileNotFoundError(f"No such file or directory: '{fp}'")
 
-    # Modify MPI rank so we only print if verbose is True and rank == 0
-    rank = 1 - (verbose and rank==0)
+    # print_rank will only trigger print if verbose is True and rank == 0
+    print_rank = 1 - (verbose and rank==0)
 
     # Preprocess metadata
     uvd = UVData()
-    mpiprint(f"\nReading data from: {fp}", rank=rank)
+    mpiprint(f"\nReading data from: {fp}", rank=print_rank)
     uvd.read(fp, ant_str=ant_str, read_data=False)
 
-    if bl_cutoff:
+    if uvd.vis_units not in ["Jy", "K str"]:
+        raise ValueError(
+            "This code requires calibrated input visibilities in units of "
+            "Janskys or kelvin steradians. The input UVData object has "
+            f"incompatible units of {uvd.vis_units}."
+        )
+
+    try uvd.__getattribute__("_future_array_shapes"):
+        # The future_array_shapes attribute is a legacy attribute that has
+        # been removed as of pyuvdata 3.2, but this check should remain for
+        # backwards compatibility.
+        future_array_shapes = True
+    except:
+        future_array_shapes = False
+
+    if bl_cutoff is not None:
+        if not isinstance(bl_cutoff, Quantity):
+            bl_cutoff = Quantity(bl_cutoff, unit="m")
         mpiprint(
             f"\nBaseline downselect: keeping |b| <= {bl_cutoff} m",
-            rank=rank
+            rank=print_rank
         )
-        bl_lengths = np.sqrt(np.sum(uvd.uvw_array[:, :2]**2, axis=1))
+        bl_lengths = Quantity(
+            np.sqrt(np.sum(uvd.uvw_array[:, :2]**2, axis=1)),
+            unit="m"
+        )
         blt_inds = np.where(bl_lengths <= bl_cutoff)[0]
-        mpiprint(f"\tBaselines before length select: {uvd.Nbls}", rank=rank)
+        mpiprint(f"\tBaselines before length select: {uvd.Nbls}", rank=print_rank)
         uvd.select(blt_inds=blt_inds)
-        mpiprint(f"\tBaselines after length select:  {uvd.Nbls}", rank=rank)
-        bls_to_read = uvd.get_antpairs()
+        mpiprint(f"\tBaselines after length select:  {uvd.Nbls}", rank=print_rank)
+    bls = uvd.get_antpairs()
     
     # Frequency downselect
-    if freq_min or freq_idx_min or freq_center:
+    if np.any([param is not None for param in [freq_min, freq_idx_min, freq_center]]):
         freqs = Quantity(uvd.freq_array, unit="Hz")
-        if not uvd.future_array_shapes:
+        if not future_array_shapes:
             freqs = freqs[0]
-        if freq_center:
+        if freq_center is not None:
             if Nfreqs is None:
                 raise ValueError("Must pass Nfreqs with freq_center")
             if not isinstance(freq_center, Quantity):
                 freq_center = Quantity(freq_center, unit="Hz")
+            if freq_center.to("Hz") < freqs[0].to("Hz"):
+                raise ValueError(
+                    f"freq_center ({freq_center.to('MHz')}) < minimum frequency "
+                    f"in data ({freqs[0].to('MHz')})"
+                )
+            if freq_center.to("Hz") > freqs[-1].to("Hz"):
+                raise ValueError(
+                    f"freq_center ({freq_center.to('MHz')}) > maximum frequency "
+                    f"in data ({freqs[-1].to('MHz')})"
+                )
             freq_idx_center = np.argmin(
                 np.abs(freqs.to("Hz") - freq_center.to("Hz"))
             )
@@ -202,59 +231,98 @@ def preprocess_data(
                 )
             if freq_idx_center + Nfreqs//2 > freqs.size - 1:
                 warnings.warn(
-                    "WARNING: There are more than Nfreqs//2 frequencies "
+                    "There are less than Nfreqs//2 frequencies "
                     "greater than or equal to freq_center.  This combination "
                     f"of freq_center ({freq_center}) and Nfreqs ({Nfreqs}) "
                     "will result in an asymmetric set of frequencies with "
                     "a central value < freq_center."
                 )
+            mpiprint(
+                f"Frequency downselect: keeping {Nfreqs} frequencies "
+                + f"centered on {freq_center}",
+                rank=print_rank
+            )
             freq_idx_min = freq_idx_center - (Nfreqs//2)
             freq_min = freqs[freq_idx_min]
-        elif freq_min:
+        elif freq_min is not None:
             if not isinstance(freq_min, Quantity):
                 freq_min = Quantity(freq_min, unit="Hz")
+            if freq_min.to("Hz") < freqs[0].to("Hz"):
+                warnings.warn(
+                    f"freq_min ({freq_min.to('MHz')}) < minimum frequency "
+                    f"in data ({freqs[0].to('MHz')}).  All frequencies will "
+                    "kept in the data vector if Nfreqs is not specified."
+                )
+            if freq_min.to("Hz") > freqs[-1].to("Hz"):
+                raise ValueError(
+                    f"freq_min ({freq_min.to('MHz')}) > maximum frequency "
+                    f"in data ({freqs[-1].to('MHz')})"
+                )
             freq_idx_min = np.where(freqs.to("Hz") >= freq_min.to("Hz"))[0][0]
         else:
+            if freq_idx_min < 0:
+                raise ValueError("freq_idx_min must be positive")
+            if freq_idx_min >= freqs.size:
+                raise ValueError(
+                    "freq_idx_min cannot exceed the number of "
+                    "frequencies in the data"
+                )
             freq_min = freqs[freq_idx_min]
         if Nfreqs is None:
             Nfreqs = freqs.size - freq_idx_min
-        if not freq_center:
+        else:
+            if Nfreqs <= 0:
+                raise ValueError("Nfreqs must be positive")
+        if freq_center is None:
             mpiprint(
                 f"\nFrequency downselect: keeping {Nfreqs} frequencies "
                 + f">= {freq_min.to('MHz'):.2f}",
-                rank=rank
+                rank=print_rank
             )
-        if freq_idx_min + Nfreqs >= freqs.size:
+        if Nfreqs > freqs[freq_idx_min : freq_idx_min+Nfreqs].size:
             warnings.warn(
-                "WARNING: this combination of freq_min or freq_idx_min and "
+                "this combination of freq_min or freq_idx_min and "
                 "Nfreqs will result in fewer than Nfreqs frequencies being "
                 "kept in the data vector."
             )
         freqs = freqs[freq_idx_min : freq_idx_min+Nfreqs]
-        mpiprint(f"\tNfreqs before frequency select: {uvd.Nfreqs}", rank=rank)
-        mpiprint(f"\tNfreqs after frequency select:  {freqs.size}", rank=rank)
+        mpiprint(f"\tNfreqs before frequency select: {uvd.Nfreqs}", rank=print_rank)
+        mpiprint(f"\tNfreqs after frequency select:  {freqs.size}", rank=print_rank)
         mpiprint(
             f"\tMinimum frequency in data vector: {freqs[0].to('MHz'):.2f}",
-            rank=rank
+            rank=print_rank
         )
         mpiprint(
             "\tCentral frequency in data vector: "
             + f"{freqs[freqs.size//2].to('MHz'):.2f}",
-            rank=rank
+            rank=print_rank
         )
         mpiprint(
             f"\tMaximum frequency in data vector: {freqs[-1].to('MHz'):.2f}",
-            rank=rank
+            rank=print_rank
         )
+        freqs = freqs.to("Hz").value
+    else:
+        freqs = None
     
     # Time downselect
-    if jd_min or jd_idx_min or jd_center:
+    if np.any([param is not None for param in [jd_min, jd_idx_min, jd_center]]):
         jds = Time(np.unique(uvd.time_array), format="jd")
-        if jd_center:
+        if jd_center is not None:
             if Ntimes is None:
                 raise ValueError("Must pass Ntimes with jd_center")
             if not isinstance(jd_center, Time):
                 jd_center = Time(jd_center, format="jd")
+            if jd_center.jd < jds[0].jd:
+                raise ValueError(
+                    f"jd_center ({jd_center.jd}) < minimum time "
+                    f"in data ({jds[0].jd})"
+                )
+            if jd_center.jd > jds[-1].jd:
+                raise ValueError(
+                    f"jd_center ({jd_center.jd}) > maximum time "
+                    f"in data ({jds[-1].jd})"
+                )
             jd_idx_center = np.argmin(np.abs(jds.jd - jd_center.jd))
             if jd_idx_center - (Ntimes//2) < 0:
                 raise ValueError(
@@ -264,7 +332,7 @@ def preprocess_data(
                 )
             if jd_idx_center + Ntimes//2 > jds.size - 1:
                 warnings.warn(
-                    "WARNING: There are more than Ntimes//2 times greater "
+                    "There are less than Ntimes//2 times greater "
                     "than or equal to jd_center.  This combination of "
                     f"jd_center ({jd_center}) and Ntimes ({Ntimes}) will "
                     "result in an asymmetric set of times with a central "
@@ -273,37 +341,206 @@ def preprocess_data(
             mpiprint(
                 f"\nTime downselect: keeping {Ntimes} times "
                 + f"centered on {jd_center}",
-                rank=rank
+                rank=print_rank
             )
-        elif jd_min:
+            jd_idx_min = jd_idx_center - (Ntimes//2)
+            jd_min = jds[jd_idx_min]
+        elif jd_min is not None:
             if not isinstance(jd_min, Time):
                 jd_min = Time(jd_min, format="jd")
+            if jd_min.jd < jds[0].jd:
+                warnings.warn(
+                    f"jd_min ({jd_min.jd}) < minimum time in data ({jds[0].jd}). "
+                    "All times will be kept in the data vector if Ntimes is "
+                    "not specified."
+                )
+            if jd_min.jd > jds[-1].jd:
+                raise ValueError(
+                    f"jd_min ({jd_min.jd}) > maximum time in data ({jds[-1].jd})"
+                )
             jd_idx_min = np.where(jds.jd >= jd_min.jd)[0][0]
         else:
+            if jd_idx_min < 0:
+                raise ValueError("jd_idx_min must be positive")
+            if jd_idx_min >= jds.size:
+                raise ValueError(
+                    "jd_idx_min cannot exceed the number of times in the data"
+                )
             jd_min = jds[jd_idx_min]
         if Ntimes is None:
             Ntimes = jds.size - jd_idx_min
-        if not jd_center:
+        else:
+            if Ntimes <= 0:
+                raise ValueError("Ntimes must be positive")
+        if jd_center is None:
             mpiprint(
                 f"\nTime downselect: keeping {Ntimes} times >= {jd_center}",
-                rank=rank
+                rank=print_rank
             )
-        if jd_idx_min + Ntimes >= jds.size:
+        if Ntimes > jds[jd_idx_min : jd_idx_min+Ntimes].size:
             warnings.warn(
-                "WARNING: this combination of jd_min or jd_idx_min and Ntimes "
+                "this combination of jd_min or jd_idx_min and Ntimes "
                 "will result in fewer than Ntimes times being kept in the "
                 "data vector."
             )
         jds = jds[jd_idx_min : jd_idx_min+Ntimes]
-        mpiprint(f"\tNtimes before time select: {uvd.Ntimes}", rank=rank)
-        mpiprint(f"\tNtimes after time select:  {jds.size}", rank=rank)
-        mpiprint(f"\tMinimum time in data vector: {jds[0].jd}", rank=rank)
+        mpiprint(f"\tNtimes before time select: {uvd.Ntimes}", rank=print_rank)
+        mpiprint(f"\tNtimes after time select:  {jds.size}", rank=print_rank)
+        mpiprint(f"\tMinimum time in data vector: {jds[0].jd}", rank=print_rank)
         mpiprint(
-            f"\tCentral time in data vector: {jds[jds.size//2].jd}", rank=rank
+            f"\tCentral time in data vector: {jds[jds.size//2].jd}", rank=print_rank
         )
-        mpiprint(f"\tMaximum time in data vector: {jds[-1].jd}", rank=rank)
-        
-    # Preprocess data...
+        mpiprint(f"\tMaximum time in data vector: {jds[-1].jd}", rank=print_rank)
+        jds = jds.jd
+    else:
+        jds = None
+
+    uvd = UVData()
+    uvd.read(fp, times=jds, frequencies=freqs, bls=bls)
+    # FIXME: there's no need to enforce this particular conjugation and we
+    # should switch to the default ant1<ant2 to make things easier.  Leaving
+    # in place now for testing versus the data_preprocessing.py script.
+    uvd.conjugate_bls(convention="u>0", uvw_tol=1.0)
+
+    if np.sum(uvd.flag_array) > 0:
+        # Remove any fully flagged baselines
+        antpairs = uvd.get_antpairs()
+        good_antpairs = []
+        for antpair in antpairs:
+            flags = uvd.get_flags(antpair)  # + ('xx',) ?
+            if np.sum(flags) < flags.size:
+                good_antpairs.append(antpair)
+        mpiprint("Removing fully flagged baselines")
+        mpiprint("\tBaselines before flagging selection:", uvd.Nbls)
+        uvd.select(bls=good_antpairs)
+        mpiprint("\tBaselines after flagging selection: ", uvd.Nbls)
+    
+    if np.any(~uvd._check_for_cat_type("unprojected")):
+        # Ensure that data are unphased to begin.  If phasing, they will be
+        # rephased later to allow for the phasor vector to be created.
+        # This if statement avoids an unecessary warning being printed if the
+        # data are already unphased.
+        uvd.unproject_phase()
+    
+    if form_pI:
+        mpiprint("Forming pseudo-Stokes I visibilities", rank=print_rank)
+        uvd = form_pI_vis(uvd, norm=pI_norm)
+    else:
+        uvd.select(polarizations=[pol])
+    
+    if uvd.vis_units == "K str":
+        uvd.data_array *= 1e3
+    else:
+        if future_array_shapes:
+            uvd.data_array[..., 0] = jy_to_ksr(
+                uvd.data_array[..., 0], uvd.freq_array, mK=True
+            )
+        else:
+            uvd.data_array[:, 0, :, 0] = jy_to_ksr(
+                uvd.data_array[:, 0, :, 0], uvd.freq_array[0], mK=True
+            )
+    x = 2
+    # WARNING: In BayesEoR, we operate with visibilities in units of 'mK sr'.
+    # UVData objects have an attribute vis_units which can be one of 'Jy', 
+    # 'K str', or 'uncalib'.  In principle, we could manually set vis_units
+    # to 'mK str', but this causes errors with some pyuvdata functions, so
+    # we don't bother modifying vis_units here. This means that the vis_units
+    # attribute will remain unchanged and its value will not reflect the
+    # value of the visibilities in uvd.data_array or in the data vector which
+    # will have units of 'mK sr'.
+    
+    if form_vector:
+        out = uvd_to_data_vector(
+            uvd,
+            save_vis=save_vis,
+            save_model=save_model,
+            save_dir=save_dir,
+            uniform_redundancy=uniform_redundancy,
+            phase=phase,
+            phase_time=phase_time,
+            calc_noise=calc_noise,
+            blgroup_noise=blgroup_noise,
+            verbose=verbose,
+            rank=rank
+        )
+        return uvd, out
+    else:
+        return uvd
+
+def uvd_to_data_vector(
+    uvd,
+    save_vis=False,
+    save_model=False,
+    save_dir=Path("./"),
+    uniform_redundancy=False,
+    phase=False,
+    phase_time=False,
+    calc_noise=False,
+    blgroup_noise=False,
+    verbose=False,
+    rank=0
+):
+    """
+    Form a one-dimensional data vector from a :class:`pyuvdata.UVData` object.
+
+    Parameters
+    ----------
+    uvd : :class:`pyuvdata.UVData`
+        UVData object containing unphased visibilities.
+    save_vis : bool, optional
+        Write visibility vector to disk in `save_dir`. Defaults to False.
+    save_model : bool, optional
+        Write instrument model to disk in `save_dir`. Defaults to False.
+    save_dir : Path or str, optional
+        Output directory for visibility vector which must be specified if
+        `save_vis` or `save_model` is True. Defaults to None.
+    uniform_redundancy : bool, optional
+        Force the redundancy model to be uniform.
+    phase : bool, optional
+        Create a "phasor vector" which is created identically to the data
+        vector which can be used to phase each visibility as a function of
+        baseline, time, and frequency using element-wise multiplication.
+    phase_time : :class:`astropy.Time` or float, optional
+        The time to which the visibilities will be phased as a Julian date if
+        not a Time. Defaults to None (phase visibilities to the central time
+        if `phase` is True).
+    calc_noise : bool, optional
+        Calculate a noise estimate from the visibilities via differencing
+        adjacent times. By default, this time-differenced noise estimate is
+        calculated for each baseline independently. All baselines within a
+        redundant baseline group can be used simultaneously to form the noise
+        estimate if `blgroup_noise` is True.
+    blgroup_noise : bool, optional
+        Use all baselines within a redundant baseline group to form the noise
+        estimate and assign this noise estimate to all baselines in the group.
+    verbose : bool, optional
+        Print statements useful for debugging. Defaults to False.
+    rank : int, optional
+        MPI rank. Defaults to 0.
+    
+    Returns
+    -------
+    TBD
+
+    """
+    # print_rank will only trigger print if verbose is True and rank == 0
+    print_rank = 1 - (verbose and rank==0)
+
+    if save_vis or save_model:
+        if save_dir is None:
+            raise ValueError(
+                "save_dir cannot be none if save_vis or save_model is True"
+            )
+        else:
+            if not isinstance(save_dir, Path):
+                save_dir = Path(save_dir)
+        if save_vis:
+            vis_path = save_dir / "vis-vector.npy"
+        if save_model:
+            inst_model_path = save_dir / "inst-model.npy"
+    
+    
+
 
 def form_pI_vis(uvd, norm=1.0):
     """
@@ -339,7 +576,7 @@ def form_pI_vis(uvd, norm=1.0):
 
 def jy_to_ksr(data, freqs, mK=False):
     """
-    Convert visibilities from units of Janskys to Kelvin steradians.
+    Convert visibilities from units of Janskys to kelvin steradians.
 
     Parameters
     ----------
