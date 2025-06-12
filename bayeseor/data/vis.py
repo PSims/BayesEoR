@@ -9,6 +9,7 @@ import warnings
 
 from ..model.healpix import Healpix
 from ..utils import mpiprint
+from .. import __version__
 
 
 def preprocess_uvdata(
@@ -26,15 +27,16 @@ def preprocess_uvdata(
     form_pI=True,
     pI_norm=1.0,
     pol="xx",
-    form_vector=True,
-    save_vis=False,
-    save_model=False,
-    save_dir=None,
-    uniform_redundancy=False,
+    redundant_avg=True,
+    uniform_redundancy=True,
     phase=False,
     phase_time=False,
     calc_noise=False,
-    blgroup_noise=False,
+    return_uvd=False,
+    save_vis=False,
+    save_model=False,
+    save_dir=None,
+    clobber=False,
     verbose=False,
     rank=0
 ):
@@ -51,6 +53,13 @@ def preprocess_uvdata(
     all baselines at (u, v) to (-u, -v) and conjugate the data accordingly.
     This is captured in the instrument model as the instrument model also
     contains all (u, v) and conjugated (-u, -v).
+
+    Optionally, if `phase` and/or `calc_noise` is True, a phasor vector and/or
+    noise vector is also produced. The phasor vector is calculated as the 
+    phase required to rotate 1+0j to the corresponding location of the phased
+    (u, v, w) coordinate for a given baseline per frequency and time.  The
+    noise is estimated by differencing visibilities at even and odd time steps
+    per baseline and frequency.
 
     Parameters
     ----------
@@ -78,7 +87,7 @@ def preprocess_uvdata(
         set of frequencies kept will be asymmetric around `freq_center` with 
         one additional frequency channel on the low end, but the central 
         frequency channel, ``freqs[Nfreqs//2]``, will still match
-        `freq_center`.  Defaults to None (keep all frequencies).
+        `freq_center`. Defaults to None (keep all frequencies).
     Nfreqs : int, optional
         Number of frequencies to keep starting from `freq_idx_min` or the
         channel corresponding to `freq_min`. Defaults to None (keep all
@@ -92,7 +101,7 @@ def preprocess_uvdata(
     jd_center : :class:`astropy.Time` or float, optional
         Central Julian date around which `Ntimes` times will be kept in the
         data vector as a Julian date if not a Time. `Ntimes` must also be
-        passed, otherwise an error is raised.  Note, if `Ntimes` is even, the
+        passed, otherwise an error is raised. Note, if `Ntimes` is even, the
         resulting set of times kept will be asymmetric around `jd_center` with
         one additional time being kept on the low end, but the central time,
         ``jds[Ntimes//2]``, will still match `jd_center`. Defaults to None
@@ -108,6 +117,24 @@ def preprocess_uvdata(
         via ``pI = N * (XX + YY)``. Defaults to 1.0.
     pol : str, optional
         Case-insensitive polarization string. Defaults to 'xx'.
+    redundant_avg : bool, optional
+        Redundantly average the data.  Defaults to True.
+    uniform_redundancy : bool, optional
+        Force the redundancy model to be uniform. Defaults to True.
+    phase : bool, optional
+        Create a "phasor vector" which is created identically to the data
+        vector which can be used to phase each visibility as a function of
+        baseline, time, and frequency using element-wise multiplication.
+        Defaults to False.
+    phase_time : :class:`astropy.Time` or float, optional
+        The time to which the visibilities will be phased as a Julian date if
+        not a Time. Defaults to None (phase visibilities to the central time
+        if `phase` is True).
+    calc_noise : bool, optional
+        Calculate a noise estimate from the visibilities via differencing
+        adjacent times. Defaults to False.
+    return_uvd : bool, optional
+        Return the preprocessed UVData object. Defaults to False.
     save_vis : bool, optional
         Write visibility vector to disk in `save_dir`. Defaults to False.
     save_model : bool, optional
@@ -115,25 +142,8 @@ def preprocess_uvdata(
     save_dir : Path or str, optional
         Output directory for visibility vector which must be specified if
         `save_vis` or `save_model` is True. Defaults to None.
-    uniform_redundancy : bool, optional
-        Force the redundancy model to be uniform.
-    phase : bool, optional
-        Create a "phasor vector" which is created identically to the data
-        vector which can be used to phase each visibility as a function of
-        baseline, time, and frequency using element-wise multiplication.
-    phase_time : :class:`astropy.Time` or float, optional
-        The time to which the visibilities will be phased as a Julian date if
-        not a Time. Defaults to None (phase visibilities to the central time
-        if `phase` is True).
-    calc_noise : bool, optional
-        Calculate a noise estimate from the visibilities via differencing
-        adjacent times. By default, this time-differenced noise estimate is
-        calculated for each baseline independently. All baselines within a
-        redundant baseline group can be used simultaneously to form the noise
-        estimate if `blgroup_noise` is True.
-    blgroup_noise : bool, optional
-        Use all baselines within a redundant baseline group to form the noise
-        estimate and assign this noise estimate to all baselines in the group.
+    clobber : bool, optional
+        Clobber files if they exist.  Defaults to False.
     verbose : bool, optional
         Print statements useful for debugging. Defaults to False.
     rank : int, optional
@@ -141,24 +151,56 @@ def preprocess_uvdata(
 
     Returns
     -------
-    vis_vec : :class:`numpy.ndarray`
+    vis : :class:`numpy.ndarray`
         Visibility vector with shape (Nbls*Nfreqs*Ntimes,).
-    uvw_array : :class:`numpy.ndarray`
+    uvws : :class:`numpy.ndarray`
         Sampled (u, v, w) with shape (Ntimes, Nbls, 3). The ordering of the
         Nbls axis matches the ordering of the baselines in `vis_vec`.
-    red_array : :class:`numpy.ndarray`
+    redundancy : :class:`numpy.ndarray`
         Redundancy model containing the number of baselines averaged within
         a redundant baseline group. This redundancy is uniform (all 1s) if
         `uniform_redundancy` is True.
-    noise : :class:`numpy.ndarray`, optional
+    phasor : :class:`numpy.ndarray`
+        Phasor vector which can be multiplied element-wise into `vis` to form
+        phased visibilities. Returned only if `phase` is True.
+    noise : :class:`numpy.ndarray`
         Estimated noise vector with shape (Nbls*Nfreqs*Ntimes,). Returned only
         if `calc_noise` is True.
+    uvd : :class:`pyuvdata.UVData`
+        Preprocessed UVData object.  Returned only if `return_uvd` is True.
 
     """
     if not isinstance(fp, Path):
         fp = Path(fp)
     if not fp.exists():
         raise FileNotFoundError(f"No such file or directory: '{fp}'")
+    
+    if save_vis or save_model:
+        if save_dir is None:
+            raise ValueError(
+                "save_dir cannot be none if save_vis or save_model is True"
+            )
+        else:
+            if not isinstance(save_dir, Path):
+                save_dir = Path(save_dir)
+        if save_vis:
+            vis_path = save_dir / "vis_vector.npy"
+            if calc_noise:
+                noise_path = save_dir / "noise_vector.npy"
+        if save_model:
+            uvw_path = save_dir / "uvw_model.npy"
+            ants_path = save_dir / "antpairs.npy"
+            red_path = save_dir / "redundancy_model.npy"
+            if phase:
+                phasor_path = save_dir / "phasor_vector.npy"
+
+    if redundant_avg and not uniform_redundancy:
+        # If the data are noisy and being redundantly averaged, the noise
+        # estimate derived from the redundantly-averaged visibilities will
+        # automatically account for the number of baselines in each
+        # redundant group. To avoid double counting, we exclude the number
+        # of baselines in each redundant group from the redundancy model.
+        uniform_redundancy = True
 
     # print_rank will only trigger print if verbose is True and rank == 0
     print_rank = 1 - (verbose and rank==0)
@@ -166,7 +208,8 @@ def preprocess_uvdata(
     # Preprocess metadata
     uvd = UVData()
     mpiprint(f"\nReading data from: {fp}", rank=print_rank)
-    uvd.read(fp, ant_str=ant_str, read_data=False)
+    uvd.read(fp, read_data=False)
+    uvd.select(ant_str=ant_str)
 
     if uvd.vis_units not in ["Jy", "K str"]:
         raise ValueError(
@@ -175,11 +218,11 @@ def preprocess_uvdata(
             f"incompatible units of {uvd.vis_units}."
         )
 
-    try uvd.__getattribute__("_future_array_shapes"):
+    try:
         # The future_array_shapes attribute is a legacy attribute that has
         # been removed as of pyuvdata 3.2, but this check should remain for
         # backwards compatibility.
-        future_array_shapes = True
+        future_array_shapes = uvd.__getattribute__("_future_array_shapes").value
     except:
         future_array_shapes = False
 
@@ -238,7 +281,7 @@ def preprocess_uvdata(
                     "a central value < freq_center."
                 )
             mpiprint(
-                f"Frequency downselect: keeping {Nfreqs} frequencies "
+                f"\nFrequency downselect: keeping {Nfreqs} frequencies "
                 + f"centered on {freq_center}",
                 rank=print_rank
             )
@@ -397,10 +440,6 @@ def preprocess_uvdata(
 
     uvd = UVData()
     uvd.read(fp, times=jds, frequencies=freqs, bls=bls)
-    # FIXME: there's no need to enforce this particular conjugation and we
-    # should switch to the default ant1<ant2 to make things easier.  Leaving
-    # in place now for testing versus the data_preprocessing.py script.
-    uvd.conjugate_bls(convention="u>0", uvw_tol=1.0)
 
     if np.sum(uvd.flag_array) > 0:
         # Remove any fully flagged baselines
@@ -410,7 +449,7 @@ def preprocess_uvdata(
             flags = uvd.get_flags(antpair)  # + ('xx',) ?
             if np.sum(flags) < flags.size:
                 good_antpairs.append(antpair)
-        mpiprint("Removing fully flagged baselines")
+        mpiprint("\nRemoving fully flagged baselines")
         mpiprint("\tBaselines before flagging selection:", uvd.Nbls)
         uvd.select(bls=good_antpairs)
         mpiprint("\tBaselines after flagging selection: ", uvd.Nbls)
@@ -423,9 +462,14 @@ def preprocess_uvdata(
         uvd.unproject_phase()
     
     if form_pI:
-        mpiprint("Forming pseudo-Stokes I visibilities", rank=print_rank)
+        mpiprint("\nForming pseudo-Stokes I visibilities", rank=print_rank)
         uvd = form_pI_vis(uvd, norm=pI_norm)
+        pol = "pI"
     else:
+        if not polstr2num(pol) in uvd.polarization_array:
+            raise ValueError(
+                f"Polarization {pol} not present in uvd.polarization_array"
+            )
         uvd.select(polarizations=[pol])
     
     if uvd.vis_units == "K str":
@@ -439,7 +483,6 @@ def preprocess_uvdata(
             uvd.data_array[:, 0, :, 0] = jy_to_ksr(
                 uvd.data_array[:, 0, :, 0], uvd.freq_array[0], mK=True
             )
-    x = 2
     # WARNING: In BayesEoR, we operate with visibilities in units of 'mK sr'.
     # UVData objects have an attribute vis_units which can be one of 'Jy', 
     # 'K str', or 'uncalib'.  In principle, we could manually set vis_units
@@ -449,34 +492,100 @@ def preprocess_uvdata(
     # value of the visibilities in uvd.data_array or in the data vector which
     # will have units of 'mK sr'.
     
-    if form_vector:
-        out = uvd_to_data_vector(
-            uvd,
-            save_vis=save_vis,
-            save_model=save_model,
-            save_dir=save_dir,
+    if redundant_avg:
+        mpiprint("\nRedundantly averaging visibilities")
+        if not uniform_redundancy:
+            red_grps = uvd.get_redundancies()[0]
+        uvd.compress_by_redundancy(method="average")
+    # WARNING: this if condition for the baseline-time axis ordering will 
+    # fail if we ever analyze data with baseline-dependent averaging.
+    if uvd.blt_order != ("time", "baseline"):
+        uvd.reorder_blts(order="time")
+    antpairs = uvd.get_antpairs()
+    Nbls = uvd.Nbls
+    Nbls_vec = 2*Nbls
+    
+    # FIXME: there is no need for the time axis to be part of the
+    # instrument model, it should be removed.  It is a vestigial axis
+    # from an old attempt to model phased visibilities using phased
+    # (u, v, w) coordinates instead of the phasor vector.
+    uvws = np.zeros((uvd.Ntimes, Nbls_vec, 3), dtype=float)
+    redundancy = np.ones((uvd.Ntimes, Nbls_vec, 1), dtype=float)
+    for i_bl, antpair in enumerate(antpairs):
+        uvw = uvd.uvw_array[uvd.antpair2ind(antpair)[0]]
+        uvws[:, i_bl] = uvw
+        uvws[:, Nbls+i_bl] = -1*uvw
+        if redundant_avg and not uniform_redundancy:
+            bl = uvd.antnums_to_baseline(*antpair)
+            for bls in red_grps:
+                if bl in bls:
+                    redundancy[:, i_bl] = len(bls)
+                    redundancy[:, Nbls+i_bl] = len(bls)
+    
+    vis, phasor, noise = uvd_to_vector(
+        uvd,
+        pol=pol,
+        phase=phase,
+        phase_time=phase_time,
+        calc_noise=calc_noise,
+        verbose=verbose,
+        rank=rank
+    )
+    
+    if save_vis or save_model:
+        args = dict(
+            fp=fp.as_posix(),
+            ant_str=ant_str,
+            bl_cutoff=bl_cutoff,
+            freq_min=freq_min,
+            freq_idx_min=freq_idx_min,
+            freq_center=freq_center,
+            Nfreqs=Nfreqs,
+            jd_min=jd_min,
+            jd_idx_min=jd_idx_min,
+            jd_center=jd_center,
+            Ntimes=Ntimes,
+            form_pI=form_pI,
+            pI_norm=pI_norm,
+            pol=pol,
+            redundant_avg=redundant_avg,
             uniform_redundancy=uniform_redundancy,
             phase=phase,
             phase_time=phase_time,
-            calc_noise=calc_noise,
-            blgroup_noise=blgroup_noise,
-            verbose=verbose,
-            rank=rank
+            calc_noise=calc_noise
         )
-        return uvd, out
+    if save_vis:
+        mpiprint(f"\nSaving data vector(s) to disk:", rank=print_rank)
+        mpiprint(f"\tVisibility vector: {vis_path}", rank=print_rank)
+        save_numpy_dict(vis_path, vis, args, clobber=clobber)
+        if calc_noise:
+            mpiprint(f"\tNoise vector: {noise_path}", rank=print_rank)
+            save_numpy_dict(noise_path, noise, args, clobber=clobber)
+    if save_model:
+        mpiprint(f"\nSaving instrument model to disk:", rank=print_rank)
+        mpiprint(f"\tAntpairs: {ants_path}", rank=print_rank)
+        save_numpy_dict(ants_path, antpairs, args, clobber=clobber)
+        mpiprint(f"\t(u, v, w) model: {uvw_path}", rank=print_rank)
+        save_numpy_dict(uvw_path, uvws, args, clobber=clobber)
+        mpiprint(f"\tRedundancy model: {red_path}", rank=print_rank)
+        save_numpy_dict(red_path, redundancy, args, clobber=clobber)
+        if phase:
+            mpiprint(f"\tPhasor vector: {phasor_path}", rank=print_rank)
+            save_numpy_dict(phasor_path, phasor, args, clobber=clobber)
+    
+    return_vals = (vis, antpairs, uvws, redundancy, phasor, noise)
+    if return_uvd:
+        return_vals += (uvd,)
     else:
-        return uvd
+        return_vals += (None,)
+    return return_vals
 
-def uvd_to_data_vector(
+def uvd_to_vector(
     uvd,
-    save_vis=False,
-    save_model=False,
-    save_dir=Path("./"),
-    uniform_redundancy=False,
+    pol="xx",
     phase=False,
     phase_time=False,
     calc_noise=False,
-    blgroup_noise=False,
     verbose=False,
     rank=0
 ):
@@ -486,7 +595,10 @@ def uvd_to_data_vector(
     Parameters
     ----------
     uvd : :class:`pyuvdata.UVData`
-        UVData object containing unphased visibilities.
+        UVData object containing unphased visibilities for a single
+        polarization specified by `pol`.
+    pol : str, optional
+        Case-insensitive polarization string. Defaults to 'xx'.
     save_vis : bool, optional
         Write visibility vector to disk in `save_dir`. Defaults to False.
     save_model : bool, optional
@@ -506,13 +618,7 @@ def uvd_to_data_vector(
         if `phase` is True).
     calc_noise : bool, optional
         Calculate a noise estimate from the visibilities via differencing
-        adjacent times. By default, this time-differenced noise estimate is
-        calculated for each baseline independently. All baselines within a
-        redundant baseline group can be used simultaneously to form the noise
-        estimate if `blgroup_noise` is True.
-    blgroup_noise : bool, optional
-        Use all baselines within a redundant baseline group to form the noise
-        estimate and assign this noise estimate to all baselines in the group.
+        adjacent times. Defaults to False.
     verbose : bool, optional
         Print statements useful for debugging. Defaults to False.
     rank : int, optional
@@ -520,27 +626,161 @@ def uvd_to_data_vector(
     
     Returns
     -------
-    TBD
+    vis_vec : :class:`numpy.ndarray`
+        Visibility vector with shape (Nbls*Nfreqs*Ntimes,).
+    phasor_vec : :class:`numpy.ndarray`
+        Phasor vector which can be multiplied element-wise into `vis` to form
+        phased visibilities. Returned only if `phase` is True.
+    noise_vec : :class:`numpy.ndarray`
+        Estimated noise vector with shape (Nbls*Nfreqs*Ntimes,). Returned only
+        if `calc_noise` is True.
 
     """
+    if uvd.Npols > 1:
+        raise ValueError(
+            "Input UVData object must have only one polarization"
+        )
+    
     # print_rank will only trigger print if verbose is True and rank == 0
     print_rank = 1 - (verbose and rank==0)
 
-    if save_vis or save_model:
-        if save_dir is None:
-            raise ValueError(
-                "save_dir cannot be none if save_vis or save_model is True"
-            )
-        else:
-            if not isinstance(save_dir, Path):
-                save_dir = Path(save_dir)
-        if save_vis:
-            vis_path = save_dir / "vis-vector.npy"
-        if save_model:
-            inst_model_path = save_dir / "inst-model.npy"
-    
-    
+    try:
+        # The future_array_shapes attribute is a legacy attribute that has
+        # been removed as of pyuvdata 3.2, but this check should remain for
+        # backwards compatibility.
+        future_array_shapes = uvd.__getattribute__("_future_array_shapes").value
+    except:
+        future_array_shapes = False
 
+    antpairs = uvd.get_antpairs()
+
+    if phase:
+        uvd_phasor = uvd.copy()
+        # We form the phasor vector by phasing 1+0j for each time
+        # and frequency so that the resulting data vector can be
+        # phased by a simple element-wise multiplication.  We have
+        # found that this produces better results for modelling phased
+        # visibilities than dealing with time-dependent (u, v, w)
+        # coordinates.
+        uvd_phasor.data_array = np.ones_like(uvd_phasor.data_array)
+
+        jds = Time(np.unique(uvd.time_array), format="jd")
+        if phase_time is not None:
+            if not isinstance(phase_time, Time):
+                phase_time = Time(phase_time, format="jd")
+            if phase_time.jd < jds[0].jd:
+                warnings.warn(
+                    f"phase_time ({phase_time}) < minimum time in data ({jds[0]})"
+                )
+            if phase_time.jd > jds[-1].jd:
+                warnings.warn(
+                    f"phase_time ({phase_time}) > maximum time in data ({jds[-1]})"
+                )
+        else:
+            warnings.warn(
+                "phase is True but no phase_time specified.  Phasing data to "
+                "the central time step."
+            )
+            phase_time = jds[jds.size//2]
+        mpiprint(f"Phasing data to time {phase_time}", rank=print_rank)
+        uvd_phasor.phase_to_time(phase_time)
+
+    if calc_noise:
+        mpiprint(f"\nEstimating noise", rank=print_rank)
+        uvd_noise = uvd.copy()
+        for antpair in antpairs:
+            vis = uvd_noise.get_data(antpair + (pol,), force_copy=True)
+            even_times = vis[::2]
+            odd_times = np.zeros_like(even_times)
+            odd_times[:-1] = vis[1::2]
+            if uvd.Ntimes%2 == 1:
+                odd_times[-1] = vis[-2]
+            eo_diff = even_times - odd_times
+            noise = np.zeros_like(vis)
+            noise[::2] = eo_diff
+            if uvd.Ntimes%2 == 1:
+                noise[1::2] = eo_diff[:-1]
+            else:
+                noise[1::2] = eo_diff
+            blt_inds = uvd_noise.antpair2ind(*antpair)
+            if future_array_shapes:
+                uvd_noise.data_array[blt_inds, :, 0] = noise
+            else:
+                uvd_noise.data_array[blt_inds, 0, :, 0] = noise
+
+    # The data vector in BayesEoR needs to be Hermitian, so we include
+    # both (u, v) and (-u, -v) in the data vector and instrument model.
+    # Thus, we create a vector with shape (2*Nbls*Ntimes*Nfreqs,).
+    vis_vec = np.zeros(2*uvd.Nblts*uvd.Nfreqs, dtype=complex)
+    if phase:
+        phasor_vec = np.zeros_like(vis_vec)
+    if calc_noise:
+        noise_vec = np.zeros_like(vis_vec)
+
+    # Data are ordered by time, frequency, then baseline.  The baseline
+    # axis evolves most rapidly, then frequency, then time.  For example,
+    # The first Nbls entries in the data vector are the visibilities for
+    # all baselines at the 0th frequency and 0th time, the second Nbls
+    # entries in the data vector are the visibilities for all baselines
+    # at the 1st frequency and 0th time, etc.  The first Nbls*Nfreqs
+    # entries are thus the visibilities for all baselines and frequencies
+    # at the 0th time.
+    Nbls = uvd.Nbls
+    Nbls_vec = 2*Nbls
+    mpiprint(f"\nForming data vector(s)", rank=print_rank)
+    for i_bl, antpair in enumerate(antpairs):
+        antpairpol = antpair + (pol,)
+        vis = uvd.get_data(antpairpol)
+        vis_vec[i_bl :: Nbls_vec] = vis.flatten()
+        vis_vec[Nbls+i_bl :: Nbls_vec] = vis.flatten().conj()
+        if phase:
+            phasor = uvd_phasor.get_data(antpairpol)
+            phasor_vec[i_bl :: Nbls_vec] = phasor.flatten()
+            phasor_vec[Nbls+i_bl :: Nbls_vec] = phasor.flatten().conj()
+        if calc_noise:
+            noise = uvd_noise.get_data(antpairpol)
+            noise_vec[i_bl :: Nbls_vec] = noise.flatten()
+            noise_vec[Nbls+i_bl :: Nbls_vec] = noise.flatten().conj()
+
+    return_vals = (vis_vec,)
+    if phase:
+        return_vals += (phasor_vec,)
+    else:
+        return_vals += (None,)
+    if calc_noise:
+        return_vals += (noise_vec,)
+    else:
+        return_vals += (None,)
+    return return_vals
+
+def save_numpy_dict(fp, arr, args, version=__version__, clobber=False):
+    """
+    Save array to disk with metadata as dictionary.
+
+    Parameters
+    ----------
+    fp : :class:`pathlib.Path` or str
+        File path for dictionary.
+    arr : array_like
+        Data to write to disk.
+    args : dict
+        Dictionary of associated metadata.
+    version : str
+        Version string.  Defaults to ``__version__``.
+    clobber : bool, optional
+        Clobber file if it exists.  Defaults to False.
+
+    """
+    if not isinstance(fp, Path):
+        fp = Path(fp)
+    if fp.exists() and not clobber:
+        raise ValueError(
+            f"clobber is false but file already exists: {fp}"
+        )
+    if not fp.parent.exists():
+        fp.parent.mkdir(exist_ok=True, parents=True)
+
+    np.save(fp, {"data": arr, "args": args, "version": version})
 
 def form_pI_vis(uvd, norm=1.0):
     """
