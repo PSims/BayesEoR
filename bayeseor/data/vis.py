@@ -16,26 +16,26 @@ def preprocess_uvdata(
     fp,
     ant_str="cross",
     bl_cutoff=None,
-    freq_min=None,
     freq_idx_min=None,
+    freq_min=None,
     freq_center=None,
     Nfreqs=None,
-    jd_min=None,
     jd_idx_min=None,
+    jd_min=None,
     jd_center=None,
     Ntimes=None,
     form_pI=True,
     pI_norm=1.0,
     pol="xx",
     redundant_avg=True,
-    uniform_redundancy=True,
+    uniform_redundancy=False,
     phase=False,
     phase_time=False,
     calc_noise=False,
     return_uvd=False,
     save_vis=False,
     save_model=False,
-    save_dir=None,
+    save_dir="./",
     clobber=False,
     verbose=False,
     rank=0
@@ -72,78 +72,76 @@ def preprocess_uvdata(
     bl_cutoff : :class:`astropy.Quantity` or float, optional
         Baseline length cutoff in meters if not a Quantity. Defaults to None
         (keep all baselines).
+    freq_idx_min : int, optional
+        Minimum frequency channel index to keep in the data vector. Defaults
+        to None (keep all frequencies).
     freq_min : :class:`astropy.Quantity` or float, optional
         Minimum frequency to keep in the data vector in Hertz if not a
         Quantity. All frequencies greater than or equal to `freq_min` will be
         kept, unless `Nfreqs` is specified. Defaults to None (keep all
         frequencies).
-    freq_idx_min : int, optional
-        Minimum frequency channel index to keep in the data vector. Defaults
-        to None (keep all frequencies).
     freq_center : :class:`astropy.Quantity` or float, optional
-        Central frequency around which `Nfreqs` frequencies will be kept in the
-        data vector in Hertz of not a Quantity. `Nfreqs` must also be passed,
-        otherwise an error is raised. Note, if `Nfreqs` is even, the resulting
-        set of frequencies kept will be asymmetric around `freq_center` with 
-        one additional frequency channel on the low end, but the central 
-        frequency channel, ``freqs[Nfreqs//2]``, will still match
-        `freq_center`. Defaults to None (keep all frequencies).
-    Nfreqs : int, optional
-        Number of frequencies to keep starting from `freq_idx_min` or the
-        channel corresponding to `freq_min`. Defaults to None (keep all
+        Central frequency, in Hertz if not a Quantity, around which `Nfreqs`
+        frequencies will be kept in the data vector. `Nfreqs` must also be
+        passed, otherwise an error is raised. Defaults to None (keep all
         frequencies).
-    jd_min : :class:`astropy.Time` or float, optional
-        Minimum time to keep in the data vector as a Julian date if not a Time.
-        Defaults to None (keep all times).
+    Nfreqs : int, optional
+        Number of frequencies to keep starting from `freq_idx_min`, the
+        channel corresponding to `freq_min`, or around `freq_center`. Defaults
+        to None (keep all frequencies).
     jd_idx_min : int, optional
         Minimum time index to keep in the data vector. Defaults to None (keep
         all times).
+    jd_min : :class:`astropy.Time` or float, optional
+        Minimum time to keep in the data vector as a Julian date if not a Time.
+        Defaults to None (keep all times).
     jd_center : :class:`astropy.Time` or float, optional
-        Central Julian date around which `Ntimes` times will be kept in the
-        data vector as a Julian date if not a Time. `Ntimes` must also be
-        passed, otherwise an error is raised. Note, if `Ntimes` is even, the
-        resulting set of times kept will be asymmetric around `jd_center` with
-        one additional time being kept on the low end, but the central time,
-        ``jds[Ntimes//2]``, will still match `jd_center`. Defaults to None
-        (keep all times).
+        Central time, as a Julian date if not a Time, around which `Ntimes`
+        times will be kept in the data vector. `Ntimes` must also be passed,
+        otherwise an error is raised. Defaults to None (keep all times).
     Ntimes : int, optional
-        Number of times to keep starting from `jd_idx_min` or the time
-        corresponding to `jd_min`. Defaults to None (keep all times).
+        Number of times to keep starting from `jd_idx_min`, the time
+        corresponding to `jd_min` or around `jd_center`. Defaults to None (keep
+        all times).
     form_pI : bool, optional
-        Form pseudo-Stokes I visibilities. Defaults to True. Otherwise, use
-        the polarization specified by `pol`.
+        Form pseudo-Stokes I visibilities. Otherwise, use the polarization
+        specified by `pol`. Defaults to True.
     pI_norm : float, optional
         Normalization, ``N``, used in forming pseudo-Stokes I from XX and YY
         via ``pI = N * (XX + YY)``. Defaults to 1.0.
     pol : str, optional
-        Case-insensitive polarization string. Defaults to 'xx'.
+        Case-insensitive polarization string. Used only if `form_pI` is False.
+        Defaults to 'xx'.
     redundant_avg : bool, optional
         Redundantly average the data.  Defaults to True.
     uniform_redundancy : bool, optional
-        Force the redundancy model to be uniform. Defaults to True.
+        Force the redundancy model to be uniform. Defaults to False.
     phase : bool, optional
-        Create a "phasor vector" which is created identically to the data
-        vector which can be used to phase each visibility as a function of
-        baseline, time, and frequency using element-wise multiplication.
-        Defaults to False.
+        Create a "phasor vector" which can be used to phase each visibility
+        in the data vector as a function of baseline, time, and frequency via
+        element-wise multiplication. Defaults to False.
     phase_time : :class:`astropy.Time` or float, optional
         The time to which the visibilities will be phased as a Julian date if
-        not a Time. Defaults to None (phase visibilities to the central time
-        if `phase` is True).
+        not a Time. If `phase` is True and `phase_time` is None, `phase_time`
+        will be automatically set to the central time in the data. Defaults to
+        None.
     calc_noise : bool, optional
         Calculate a noise estimate from the visibilities via differencing
-        adjacent times. Defaults to False.
+        adjacent times per baseline and frequency. Defaults to False.
     return_uvd : bool, optional
         Return the preprocessed UVData object. Defaults to False.
     save_vis : bool, optional
-        Write visibility vector to disk in `save_dir`. Defaults to False.
+        Write visibility vector to disk in `save_dir`. If `calc_noise` is True,
+        also save the noise vector. Defaults to False.
     save_model : bool, optional
-        Write instrument model to disk in `save_dir`. Defaults to False.
+        Write instrument model (antenna pairs, (u, v, w) sampling, and
+        redundancy model) to disk in `save_dir`. If `phase` is True, also save
+        the phasor vector. Defaults to False.
     save_dir : Path or str, optional
-        Output directory for visibility vector which must be specified if
-        `save_vis` or `save_model` is True. Defaults to None.
+        Output directory if `save_vis` or `save_model` is True. Defaults to
+        './'.
     clobber : bool, optional
-        Clobber files if they exist.  Defaults to False.
+        Clobber files on disk if they exist.  Defaults to False.
     verbose : bool, optional
         Print statements useful for debugging. Defaults to False.
     rank : int, optional
@@ -152,20 +150,23 @@ def preprocess_uvdata(
     Returns
     -------
     vis : :class:`numpy.ndarray`
-        Visibility vector with shape (Nbls*Nfreqs*Ntimes,).
+        Visibility vector with shape (2*Nbls*Nfreqs*Ntimes,).
+    antpairs : list of tuple
+        List of antenna pair tuples corresponding to the (u, v, w) coordinates
+        in `uvws`, in identical order, with length (2*Nbls).
     uvws : :class:`numpy.ndarray`
-        Sampled (u, v, w) with shape (Ntimes, Nbls, 3). The ordering of the
-        Nbls axis matches the ordering of the baselines in `vis_vec`.
+        Sampled (u, v, w) coordinates with shape (Ntimes, 2*Nbls, 3). The
+        ordering of the Nbls axis matches the ordering of the baselines in
+        `vis_vec`.
     redundancy : :class:`numpy.ndarray`
         Redundancy model containing the number of baselines averaged within
-        a redundant baseline group. This redundancy is uniform (all 1s) if
-        `uniform_redundancy` is True.
+        a redundant baseline group.
     phasor : :class:`numpy.ndarray`
         Phasor vector which can be multiplied element-wise into `vis` to form
         phased visibilities. Returned only if `phase` is True.
     noise : :class:`numpy.ndarray`
-        Estimated noise vector with shape (Nbls*Nfreqs*Ntimes,). Returned only
-        if `calc_noise` is True.
+        Estimated noise vector with shape (2*Nbls*Nfreqs*Ntimes,). Returned
+        only if `calc_noise` is True.
     uvd : :class:`pyuvdata.UVData`
         Preprocessed UVData object.  Returned only if `return_uvd` is True.
 
@@ -521,6 +522,9 @@ def preprocess_uvdata(
                 if bl in bls:
                     redundancy[:, i_bl] = len(bls)
                     redundancy[:, Nbls+i_bl] = len(bls)
+    # Add conjugated antenna pairs to antpairs for a one-to-one mapping
+    # with the (u, v, w) coordinates in uvws
+    antpairs += [antpair[::-1] for antpair in antpairs]
     
     vis, phasor, noise = uvd_to_vector(
         uvd,
