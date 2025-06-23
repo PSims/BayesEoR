@@ -786,6 +786,24 @@ def save_numpy_dict(fp, arr, args, version=__version__, clobber=False):
 
     np.save(fp, {"data": arr, "args": args, "version": version})
 
+def load_numpy_dict(fp):
+    """
+    Save array to disk with metadata as dictionary.
+
+    Parameters
+    ----------
+    fp : :class:`pathlib.Path` or str
+        File path for dictionary with contents from
+        `bayeseor.vis.save_numpy_dict`.
+
+    """
+    if not isinstance(fp, Path):
+        fp = Path(fp)
+    if not fp.exists():
+        raise FileNotFoundError(f"{fp} does not exist")
+
+    return np.load(fp, allow_pickle=True).item()
+
 def form_pI_vis(uvd, norm=1.0):
     """
     Form pseudo-Stokes I visibilities by summing XX and YY visibilities.
