@@ -6,7 +6,7 @@ from astropy import units
 from jsonargparse import ArgumentParser, ActionYesNo, ActionConfigFile
 from jsonargparse.typing import List, Path_fr, path_type
 
-from ..utils.cosmology import Cosmology
+from .utils.cosmology import Cosmology
 
 
 class BayesEoRParser(ArgumentParser):
