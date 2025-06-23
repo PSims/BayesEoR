@@ -7,9 +7,9 @@ from pyuvdata import UVData
 from pyuvdata.utils import polstr2num
 import warnings
 
-from ..model.healpix import Healpix
-from ..utils import mpiprint
-from .. import __version__
+from .model.healpix import Healpix
+from .utils import mpiprint
+from . import __version__
 
 
 def preprocess_uvdata(
