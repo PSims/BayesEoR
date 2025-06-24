@@ -802,7 +802,7 @@ def load_numpy_dict(fp):
     if not fp.exists():
         raise FileNotFoundError(f"{fp} does not exist")
 
-    return np.load(fp, allow_pickle=True).item()
+    return np.load(fp, allow_pickle=True).item()["data"]
 
 def form_pI_vis(uvd, norm=1.0):
     """
