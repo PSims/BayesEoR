@@ -14,17 +14,17 @@ from .model.k_cube import (
 )
 
 def run_setup(
-    nf,
-    neta,
-    nq,
-    nt,
-    nu,
-    nv,
-    nu_fg,
-    nv_fg,
-    ps_box_size_ra_Mpc,
-    ps_box_size_dec_Mpc,
-    ps_box_size_para_Mpc,
+    nf=None,
+    neta=None,
+    nq=None,
+    nt=None,
+    nu=None,
+    nv=None,
+    nu_fg=None,
+    nv_fg=None,
+    ps_box_size_ra_Mpc=None,
+    ps_box_size_dec_Mpc=None,
+    ps_box_size_para_Mpc=None,
     beta=[2.63, 2.82],
     full=False,
     preproc_data=False,
@@ -32,12 +32,13 @@ def run_setup(
     ant_str="cross",
     bl_cutoff=None,
     freq_idx_min=None,
-    freq_min=None,
+    nu_min_MHz=None,
     freq_center=None,
-    df=None,
+    channel_width_MHz=None,
     jd_idx_min=None,
     jd_min=None,
-    jd_center=None,
+    central_jd=None,
+    integration_time_seconds=None,
     form_pI=True,
     pI_norm=1.0,
     pol="xx",
@@ -53,7 +54,7 @@ def run_setup(
     sigma=None,
     random_seed=None,
     noise_path=None,
-    inst_model_dir=None,
+    inst_model=None,
     build_k_cube=False,
     save_k_vals=False,
     build_matrices=False,
@@ -72,7 +73,8 @@ def run_setup(
     npl_sh=None,
     fit_for_shg_amps=False,
     verbose=False,
-    rank=0
+    rank=0,
+    **kwargs
 ):
     """
     Run setup steps.
@@ -82,7 +84,7 @@ def run_setup(
     nf : int
         Number of frequency channels. If `preproc_data` is True, sets the
         number of frequencies to keep starting from `freq_idx_min`, the
-        channel corresponding to `freq_min`, or around `freq_center`. Defaults
+        channel corresponding to `nu_min_MHz`, or around `freq_center`. Defaults
         to None (keep all frequencies).
     neta : int
         Number of Line of Sight (LoS, frequency axis) Fourier modes.
@@ -94,7 +96,7 @@ def run_setup(
     nt : int
         Number of times. If `preproc_data` is True, sets the number of times
         to keep starting from `jd_idx_min`, the time corresponding to `jd_min`
-        or around `jd_center`. Defaults to None (keep all times).
+        or around `central_jd`. Defaults to None (keep all times).
     nu : int
         Number of pixels on a side for the u-axis in the EoR model uv-plane.
     nv : int
@@ -140,9 +142,9 @@ def run_setup(
     freq_idx_min : int, optional
         Minimum frequency channel index to keep in the data vector. Defaults
         to None (keep all frequencies).
-    freq_min : :class:`astropy.Quantity` or float, optional
+    nu_min_MHz : :class:`astropy.Quantity` or float, optional
         Minimum frequency to keep in the data vector in Hertz if not a
-        Quantity. All frequencies greater than or equal to `freq_min` will be
+        Quantity. All frequencies greater than or equal to `nu_min_MHz` will be
         kept, unless `nf` is specified. Defaults to None (keep all
         frequencies).
     freq_center : :class:`astropy.Quantity` or float, optional
@@ -150,7 +152,7 @@ def run_setup(
         frequencies will be kept in the data vector. `nf` must also be
         passed, otherwise an error is raised. Defaults to None (keep all
         frequencies).
-    df : :class:`astropy.Quantity` or float, optional
+    channel_width_MHz : :class:`astropy.Quantity` or float, optional
         Frequency channel width in Hertz if not a Quantity. Defaults to None.
         Overwritten by the frequency channel width in the UVData object if
         `data_path` points to a pyuvdata-compatible file containing
@@ -161,11 +163,11 @@ def run_setup(
     jd_min : :class:`astropy.Time` or float, optional
         Minimum time to keep in the data vector as a Julian date if not a Time.
         Defaults to None (keep all times).
-    jd_center : :class:`astropy.Time` or float, optional
+    central_jd : :class:`astropy.Time` or float, optional
         Central time, as a Julian date if not a Time, around which `nt`
         times will be kept in the data vector. `nt` must also be passed,
         otherwise an error is raised. Defaults to None (keep all times).
-    dt : :class:`astropy.Quantity` or float, optional
+    integration_time_seconds : :class:`astropy.Quantity` or float, optional
         Integration time in seconds of not a Quantity. Defaults to None.
         Overwritten by the integration time in the UVData object if `data_path`
         points to a pyuvdata-compatible file containing visibilities and
@@ -216,7 +218,7 @@ def run_setup(
     noise_path : :class:`pathlib.Path` or str, optional
         Path to a numpy-compatible file containing a preprocessed noise vector.
         Defaults to None.
-    inst_model_dir : :class:`pathlib.Path` or str, optional
+    inst_model : :class:`pathlib.Path` or str, optional
         Path to directory containing instrument model files (`uvw_array.npy`,
         `redundancy_model.npy`, and optionally `phasor_vector.npy`). Defaults
         to False.
@@ -298,6 +300,8 @@ def run_setup(
         build_k_cube = True
         build_matrices = True
         make_output_dir = True
+    if not np.any([preproc_data, build_k_cube, build_matrices, make_output_dir]):
+        return {}
     
     if build_k_cube and save_k_vals and not make_output_dir:
         make_output_dir = True
@@ -312,6 +316,8 @@ def run_setup(
         npl = len(beta)
     else:
         npl = 0
+
+    out_dict = {}
     
     if preproc_data:
         if data_path is not None:
@@ -322,30 +328,43 @@ def run_setup(
             if data_path.suffix == ".npy":
                 vis = load_numpy_dict(data_path)
 
-                if inst_model_dir is None:
+                if channel_width_MHz is None:
                     raise ValueError(
-                        "inst_model_dir cannot be None if loading a "
+                        "channel_width_MHz must be specified if loading a preprocessed data "
+                        "vector (data_path has .npy suffix)"
+                    )
+                if integration_time_seconds is None:
+                    raise ValueError(
+                        "integration_time_seconds must be specified if loading a preprocessed data "
+                        "vector (data_path has .npy suffix)"
+                    )
+
+                if inst_model is None:
+                    raise ValueError(
+                        "inst_model cannot be None if loading a "
                         "preprocessed data vector (data_path has .npy suffix)"
                     )
                 else:
-                    if not isinstance(inst_model_dir, Path):
-                        inst_model_dir = Path(inst_model_dir)
+                    if not isinstance(inst_model, Path):
+                        inst_model = Path(inst_model)
                     required_files = ["uvw_model.npy", "redundancy_model.npy"]
-                    dir_files = inst_model_dir.glob("*.npy")
-                    if not np.all([f in dir_files for f in required_files]):
+                    required_files_exist = np.all(
+                        [(inst_model / f).exists() for f in required_files]
+                    )
+                    if not required_files_exist:
                         raise ValueError(
-                            "inst_model_dir must point to a directory with "
+                            "inst_model must point to a directory with "
                             "uvw_model.npy and redundancy_model.npy"
                         )
                     uvws = load_numpy_dict(
-                        inst_model_dir / "uvw_model.npy"
+                        inst_model / "uvw_model.npy"
                     )
                     redundancy = load_numpy_dict(
-                        inst_model_dir / "redundancy_model.npy"
+                        inst_model / "redundancy_model.npy"
                     )
                     if phase:
                         phasor = load_numpy_dict(
-                            inst_model_dir / "phasor_vector.npy"
+                            inst_model / "phasor_vector.npy"
                         )
 
                 if noise_path is not None:
@@ -354,7 +373,8 @@ def run_setup(
                     if not noise_path.exists():
                         raise FileNotFoundError(f"{noise_path} does not exist")
                     noise = load_numpy_dict(noise_path)
-                    vis_noisy = vis + noise
+                else:
+                    noise = None
 
             elif data_path.suffix in [".uvh5", ".uvfits", ".ms"]:
                 vis, antpairs, uvws, redundancy, phasor, noise, uvd = \
@@ -363,12 +383,12 @@ def run_setup(
                         ant_str=ant_str,
                         bl_cutoff=bl_cutoff,
                         freq_idx_min=freq_idx_min,
-                        freq_min=freq_min,
+                        freq_min=nu_min_MHz,
                         freq_center=freq_center,
                         Nfreqs=nf,
                         jd_idx_min=jd_idx_min,
                         jd_min=jd_min,
-                        jd_center=jd_center,
+                        jd_center=central_jd,
                         Ntimes=nt,
                         form_pI=form_pI,
                         pI_norm=pI_norm,
@@ -399,25 +419,36 @@ def run_setup(
                 freqs = uvd.freq_array
                 if not future_array_shapes:
                     freqs = freqs[0]
-                df = freqs[1] - freqs[0]  # Hz
+                channel_width_MHz = freqs[1] - freqs[0]  # Hz
 
                 jds = Time(np.unique(uvd.time_array), format="jd")
-                dt = (jds[1] - jds[0]).to("s").value
+                integration_time_seconds = (jds[1] - jds[0]).to("s").value
 
-                if noise is not None:
-                    vis_noisy = vis + noise
-                else:
-                    vis_noisy, noise, bl_conj_pairs_map = \
-                        generate_data_and_noise_vector_instrumental(
-                            sigma,
-                            vis,
-                            nf,
-                            nt,
-                            uvws,
-                            redundancy,
-                            random_seed=random_seed,
-                            rank=rank
-                        )
+            if noise is not None:
+                vis_noisy = vis + noise
+            else:
+                vis_noisy, noise, bl_conj_pairs_map = \
+                    generate_data_and_noise_vector_instrumental(
+                        sigma,
+                        vis,
+                        nf,
+                        nt,
+                        uvws[0],
+                        redundancy[0],
+                        random_seed=random_seed,
+                        rank=rank
+                    )
+            vis_dict = {
+                "vis": vis,
+                "vis_noisy": vis_noisy,
+                "noise": noise,
+                "bl_conj_pairs_map": bl_conj_pairs_map,
+                "uvws": uvws,
+                "redundancy": redundancy
+            }
+            if phase:
+                vis_dict["phasor"] = phasor
+            out_dict["vis"] = vis_dict
         else:
             # FIXME
             raise NotImplementedError(
@@ -434,7 +465,11 @@ def run_setup(
             output_dir = Path(output_dir)
         output_dir.mkdir(exist_ok=True, parents=True)
 
-    if file_root is None:
+    if file_root is None and build_matrices:
+        # We store the Slurm job ID in the file_root directory when building
+        # the matrix stack, if running in a Slurm environment, so we need to
+        # first make the file_root directory a valid, writable directory if
+        # it doesn't already exist.
         file_root = generate_file_root(
             output_dir,
             nu,
@@ -456,6 +491,8 @@ def run_setup(
             npl_sh=npl_sh,
             fit_for_shg_amps=fit_for_shg_amps
         )
+        (output_dir / file_root).mkdir(exist_ok=True, parents=True)
+        out_dict["file_root"] = file_root
 
     if build_k_cube:
         mod_k, _, _, _, _, _, _ = generate_k_cube_in_physical_coordinates(
@@ -479,7 +516,14 @@ def run_setup(
             clobber=clobber,
             rank=rank
         )
+        k_dict = {
+            "k_vals": k_vals,
+            "k_cube_voxels_in_bin": k_cube_voxels_in_bin,
+            "modkbins_containing_voxels": modkbins_containing_voxels
+        }
+        out_dict["ks"] = k_dict
 
+    return out_dict
 
 def generate_file_root(
     output_dir,
@@ -631,8 +675,8 @@ def get_array_dir_name(
     nq_sh=None,
     npl_sh=None,
     fit_for_shg_amps=False,
-    freq_min=None,
-    df=None,
+    nu_min_MHz=None,
+    channel_width_MHz=None,
     nq=None,
     npl=None,
     beta=None,
@@ -705,9 +749,9 @@ def get_array_dir_name(
     fit_for_shg_amps : bool
         Fit for the amplitudes of the subharmonic grid pixels. Defaults to
         False.
-    freq_min : float
+    nu_min_MHz : float
         Minimum frequency in MHz.
-    df : float
+    channel_width_MHz : float
         Frequency channel width in MHz.
     nq : int
         Number of large spectral scale model quadratic basis vectors.
@@ -781,8 +825,8 @@ def get_array_dir_name(
     # Root matrix dir
     analysis_dir = (
         f"nu-{nu}-nv-{nv}-neta-{neta}"
-        + f"-fmin-{freq_min:.2f}MHz"
-        + f"-df-{df*1e3:.2f}kHz"
+        + f"-fmin-{nu_min_MHz:.2f}MHz"
+        + f"-df-{channel_width_MHz*1e3:.2f}kHz"
         + f"-sigma-{sigma:.2E}-nside-{nside}"
     )
 
