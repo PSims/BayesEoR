@@ -9,7 +9,6 @@ import warnings
 
 from .model.healpix import Healpix
 from .utils import mpiprint
-from . import __version__
 
 
 def preprocess_uvdata(
@@ -756,53 +755,6 @@ def uvd_to_vector(
     else:
         return_vals += (None,)
     return return_vals
-
-def save_numpy_dict(fp, arr, args, version=__version__, clobber=False):
-    """
-    Save array to disk with metadata as dictionary.
-
-    Parameters
-    ----------
-    fp : :class:`pathlib.Path` or str
-        File path for dictionary.
-    arr : array_like
-        Data to write to disk.
-    args : dict
-        Dictionary of associated metadata.
-    version : str
-        Version string.  Defaults to ``__version__``.
-    clobber : bool, optional
-        Clobber file if it exists.  Defaults to False.
-
-    """
-    if not isinstance(fp, Path):
-        fp = Path(fp)
-    if fp.exists() and not clobber:
-        raise ValueError(
-            f"clobber is false but file already exists: {fp}"
-        )
-    if not fp.parent.exists():
-        fp.parent.mkdir(exist_ok=True, parents=True)
-
-    np.save(fp, {"data": arr, "args": args, "version": version})
-
-def load_numpy_dict(fp):
-    """
-    Save array to disk with metadata as dictionary.
-
-    Parameters
-    ----------
-    fp : :class:`pathlib.Path` or str
-        File path for dictionary with contents from
-        `bayeseor.vis.save_numpy_dict`.
-
-    """
-    if not isinstance(fp, Path):
-        fp = Path(fp)
-    if not fp.exists():
-        raise FileNotFoundError(f"{fp} does not exist")
-
-    return np.load(fp, allow_pickle=True).item()["data"]
 
 def form_pI_vis(uvd, norm=1.0):
     """
