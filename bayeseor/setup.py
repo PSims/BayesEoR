@@ -63,8 +63,6 @@ def run_setup(
     antenna_diameter=None,
     cosfreq=None,
     beam_ref_freq=None,
-    # full=False,
-    # setup_data_vec=False,
     data_path=None,
     ant_str="cross",
     bl_cutoff=None,
@@ -86,24 +84,20 @@ def run_setup(
     calc_noise=False,
     save_vis=False,
     save_model=False,
-    save_dir=None,  # TODO: fix docstring
+    save_dir=None,
     clobber=False,
     sigma=None,
     random_seed=None,
     noise_data_path=None,
     inst_model=None,
-    # setup_k_cube=False,
     save_k_vals=False,
     telescope_name="",
     telescope_latlonalt=(0, 0, 0),
-    # setup_matrices=False,
     array_dir_prefix="./matrices/",
     use_sparse_matrices=True,
     build_Finv_and_Fprime=True,
-    # make_output_dir=False,
     output_dir="./",
     file_root=None,
-    # setup_posterior=False,
     priors=None,
     log_priors=False,
     uprior_inds=None,
@@ -115,11 +109,11 @@ def run_setup(
     use_EoR_cube=False,
     use_Multinest=True,
     return_vis=False,
-    return_ks=False,  # TODO: add docstring
-    return_bm=False,  # TODO: add docstring
+    return_ks=False,
+    return_bm=False,
     verbose=False,
     rank=0,
-    # **kwargs
+    **kwargs
 ):
     """
     Run setup steps.
@@ -251,13 +245,6 @@ def run_setup(
         Cosine frequency if using a 'gausscosine' beam.
     beam_ref_freq : float
         Beam reference frequency in MHz.
-    full : bool, optional
-        Run the full setup.  Sets `setup_data_vec`, `setup_k_cube`,
-        `setup_matrices`, and `make_output_dir` to True.  Defaults to False.
-    setup_data_vec : bool, optional
-        Load and/or preprocess visibility data. The instrument model will be
-        loaded or created as part of this process. Noise visibilities will also
-        be generated if noise is to be added to the data. Defaults to False.
     data_path : pathlib.Path or str, optional
         Path to either a pyuvdata-compatible file containing visibilities or
         a numpy-compatible file containing a preprocessed visibility vector.
@@ -352,8 +339,6 @@ def run_setup(
         Path to directory containing instrument model files (`uvw_array.npy`,
         `redundancy_model.npy`, and optionally `phasor_vector.npy`). Defaults
         to False.
-    setup_k_cube : bool, optional
-        Build the model k cube. Defaults to False.
     save_k_vals : bool, optional
         Save k bin files (means, edges, and number of voxels in each bin).
         Defaults to False.
@@ -362,8 +347,6 @@ def run_setup(
     telescope_latlonalt : tuple of float
         The latitude, longitude, and altitude of the telescope in degrees,
         degrees, and meters, respectively.
-    setup_matrices : bool, optional
-        Build and/or load the matrix stack. Defaults to False.
     array_dir_prefix : pathlib.Path or str, optional
         Array directory prefix. Defaults to './matrices/'.
     use_sparse_matrices : bool
@@ -374,15 +357,11 @@ def run_setup(
         memory and time required to build the matrix stack.  In this case,
         only the matrix product Finv_Fprime is written to disk.  Otherwise,
         construct Finv and Fprime independently and save both matrices to disk.
-    make_output_dir : bool, optional
-        Make the output directory for sampler output.
     output_dir : pathlib.Path or str, optional
         Parent directory for sampler output. Defaults to './'.
     file_root : str, optional
         Sampler output directory name. If None (default), start a new analysis.
         Otherwise, resume analysis from `file_root`.
-    setup_posterior : bool
-        Build the power spectrum posterior class. Defaults to False.
     priors : list of list of floats
         Prior [min, max] for each k bin as a list, e.g. [[min1, max1],
         [min2, max2], ...].
@@ -1620,20 +1599,116 @@ def build_posterior(
     ps_box_size_dec_Mpc=None,
     ps_box_size_para_Mpc=None,
     include_instrumental_effects=True,
+    priors=None,
     log_priors=False,
-    inverse_LW_power=1e-16,
+    uprior_inds=None,
     dimensionless_PS=True,
+    inverse_LW_power=1e-16,
     block_T_Ninv_T=[],
     use_shg=False,
     use_gpu=True,
-    priors=None,
-    uprior_inds=None,
     use_intrinsic_noise_fitting=False,
     use_LWM_Gaussian_prior=False,
     verbose=False,
     rank=0,
     **kwargs
 ):
+    """
+    Instantiate the power spectrum posterior class.
+
+    Parameters
+    ----------
+    k_vals : numpy.ndarray
+        Mean of each k bin.
+    k_cube_voxels_in_bin : list
+        List containing sublists for each k bin.  Each sublist contains the
+        flattened 3D k-space cube index of all |k| that fall within a given
+        k bin.
+    nuv : int
+        Number of EoR model uv-plane (u, v) pixels per frequency. Computed as
+        nu*nv - 1 (the (u, v) = (0, 0) monopole pixel is part of the 
+        foreground model).
+    neta : int
+        Number of Line of Sight (LoS, frequency axis) Fourier modes.
+    nf : int
+        Number of frequency channels.
+    nq : int
+        Number of large spectral scale model quadratic basis vectors.
+    redshift : float
+        Cosmological redshift.
+    Ninv : numpy.ndarray or scipy.sparse
+        Inverse noise covariance matrix.
+    dbar : numpy.ndarray
+        Inverse-noise-weighted projection of the data onto the model computed
+        as :math:`\\bar{d} = T^\dagger N^{-1}d` where :math:`d` are the noisy
+        visibilities.
+    d_Ninv_d : numpy.ndarray
+        Matrix-vector product :math:`d^\dagger N^{-1} d` where :math:`d` are
+        the noisy visibilities.
+    T_Ninv_T
+        Matrix product :math:`T^\dagger N^{-1} T`.
+    ps_box_size_ra_Mpc : float
+        Right Ascension (RA) axis extent of the cosmological volume in Mpc from
+        which the power spectrum is estimated.
+    ps_box_size_dec_Mpc : float
+        Declination (DEC) axis extent of the cosmological volume in Mpc from
+        which the power spectrum is estimated.
+    ps_box_size_para_Mpc : float
+        LoS extent of the cosmological volume in Mpc from which the power
+        spectrum is estimated.
+    include_instrumental_effects : bool
+        Forward model an instrument.
+    priors : list of list of floats
+        Prior [min, max] for each k bin as a list, e.g. [[min1, max1],
+        [min2, max2], ...].
+    log_priors : bool, optional
+        Assume priors on power spectrum coefficients are in log_10 units.
+        Defaults to False.
+    uprior_inds : numpy.ndarray, optional
+        Boolean 1D array that is True for any k bins using a uniform prior.
+        False entries use a log-uniform prior. Defaults to None (all k bins
+        use a log-uniform prior).
+    dimensionless_PS : bool, optional
+        Fit for the dimensionless power spectrum, :math:`\\Delta^2(k)` (True,
+        default), or the power spectrum, :math:`P(k)` (False).
+    inverse_LW_power : float, optional
+        Prior on the inverse power of the large spectral scale model
+        coefficients. Defaults to 1e-16.
+    block_T_Ninv_T : numpy.ndarray, optional
+        Block-diagonal representation of T_Ninv_T. Used only if
+        `include_instrumental_effects` is False. Defaults to [].
+    use_shg : bool, optional
+        Use the subharmonic grid. Defaults to False.
+    use_gpu : bool, optional
+        Use GPUs (True, default) or CPUs (False).
+    use_intrinsic_noise_fitting : bool, optional
+        Fit for the noise level. Defaults to False.
+    use_LWM_Gaussian_prior : bool, optional
+        Use a Gaussian prior (True) or a uniform prior (False, default) on the
+        large spectral scale model. This option is currently not implemented
+        but will be reimplemented in the future.
+    verbose : bool, optional
+        Print statements useful for debugging. Defaults to False.
+    rank : int, optional
+        MPI rank. Defaults to 0.
+    **kwargs : :class:`bayeseor.params.BayesEoRParser` attributes
+        Catch-all for auxiliary BayesEoRParser attributes so the function may
+        be called using the arguments parsed by a BayesEoRParser instance via
+        e.g. `build_posterior(**args)`.
+    
+    Returns
+    -------
+    pspp : :class:`bayeseor.posterior.PowerSpectrumPosteriorProbability`
+        Posterior probability class instance.
+
+    """
+    if use_LWM_Gaussian_prior:
+        raise NotImplementedError(
+            "use_LWM_Gaussian_prior is not currently implemented. It will be "
+            "reimplemented in the future. For now, please set "
+            "use_LWM_Gaussian_prior to False."
+        )
+
     # print_rank will only trigger print if verbose is True and rank == 0
     print_rank = 1 - (verbose and rank==0)
 
@@ -1756,23 +1831,13 @@ def generate_array_dir(
     beam_ref_freq=None,
     noise_data_path=None,
     prefix=Path("./matrices/"),
-    mkdir=False
+    mkdir=False,
+    **kwargs
 ):
     """
-    Generate the output path for BayesEoR matrices based on analysis params.
+    Generate the directory for BayesEoR matrices based on analysis params.
 
-    This function constructs two strings which form two subdirectories:
-      1. The `analysis_dir` string contains all the unique analysis/model
-         parameters, e.g. the field(s) of view, nu, nv, neta, etc.
-      2. The `inst_dir` string contains all of the instrument model specific
-         parameters, e.g. the instrument model filename, beam type, beam
-         center, integration time, etc.
-    The final array save directory is produced via
-    ```
-    matrices_path = Path(prefix) / analysis_dir / inst_dir
-    ```
-
-    Parameters
+    Parameters  # TODO: add ", optional" for optional kwargs
     ----------
     nu : int
         Number of pixels on a side for the u-axis in the EoR model uv-plane.
@@ -1875,6 +1940,10 @@ def generate_array_dir(
         Array directory prefix. Defaults to './matrices/'.
     mkdir : bool, optional
         Make array directory (including parents). Defaults to False.
+    **kwargs : :class:`bayeseor.params.BayesEoRParser` attributes
+        Catch-all for auxiliary BayesEoRParser attributes so the function may
+        be called using the arguments parsed by a BayesEoRParser instance via
+        e.g. `generate_array_dir(**args)`.
 
     Returns
     -------
