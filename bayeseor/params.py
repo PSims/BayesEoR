@@ -1080,8 +1080,8 @@ class BayesEoRParser(ArgumentParser):
     
         Returns
         -------
-        uprior_inds : array
-            Boolean array that is True for any k-bins using a uniform prior.
+        uprior_inds : numpy.ndarray
+            Boolean array that is True for any k bins using a uniform prior.
             False entries use a log-uniform prior.
     
         """
