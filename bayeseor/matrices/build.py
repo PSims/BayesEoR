@@ -9,7 +9,7 @@ from scipy.signal import windows
 from pathlib import Path
 from astropy.constants import c
 
-from .matrix_funcs import (
+from .funcs import (
     nuidft_matrix_2d, idft_matrix_1d,
     build_lssm_basis_vectors,
     generate_gridding_matrix_vo2co,
@@ -66,7 +66,8 @@ class BuildMatrixTree(object):
 
     """
     def __init__(
-        self, array_save_directory,
+        self,
+        array_save_directory,
         include_instrumental_effects,
         use_sparse_matrices,
         Finv_Fprime=True,
@@ -266,38 +267,41 @@ class BuildMatrixTree(object):
         data = self.read_data(file_path, dataset_name)
         data = self.convert_sparse_matrix_to_dense_numpy_array(data)
         return data
-
-    def read_data(self, file_path, dataset_name):
+    
+    def read_data(self, matrix_name):
         """
-        Read matrix from disk as dense/sparse matrix.
+        Read matrix from disk as dense or sparse matrix.
 
-        Checks if the data is an array (.h5) or sparse matrix (.npz)
-        and calls the corresponding read method.
+        This function searches `self.array_save_directory` for a file with a
+        prefix matching `matrix_name`. It first searches for a sparse matrix,
+        i.e. ``matrix_name + '.npz'``, and then searches for a dense matrix if
+        a sparse matrix is not found, i.e. ``matrix_name + '.h5'``. If no
+        valid file is found, an error is raised.
 
         Parameters
         ----------
-        file_path : str
-            Path to array file.
-        dataset_name : str
-            If reading an hdf5 file, the key used to access the dataset.
+        matrix_name : str
+            Matrix name. For example, to load Finv from disk, `matrix_name`
+            would be 'Finv'.
+
+        Returns
+        -------
+        data : :class:`numpy.ndarray` or :class:`scipy.sparse`
+            Loaded matrix as a dense or sparse array.
 
         """
-        if file_path.count('.h5'):
-            data = self.read_data_from_hdf5(file_path, dataset_name)
-        elif file_path.count('.npz'):
-            data = self.read_data_from_npz(file_path, dataset_name)
+        array_dir = Path(self.array_save_directory)
+        if (array_dir / f"{matrix_name}.npz").exists():
+            data = self.read_data_from_npz(array_dir / f"{matrix_name}.npz")
+        elif (array_dir / f"{matrix_name}.h5").exists():
+            data = self.read_data_from_hdf5(
+                array_dir / f"{matrix_name}.h5", matrix_name
+            )
         else:
-            # If no file extension is given, look to see
-            # if an hdf5 or npz with the file name exists
-            found_npz = os.path.exists(file_path+'.npz')
-            if found_npz:
-                data = self.read_data_from_npz(
-                    file_path+'.npz', dataset_name)
-            else:
-                found_hdf5 = os.path.exists(file_path+'.h5')
-                if found_hdf5:
-                    data = self.read_data_from_hdf5(
-                        file_path+'.h5', dataset_name)
+            raise FileNotFoundError(
+                f"File prefix {matrix_name} not found in "
+                "self.array_save_directory"
+            )
         return data
 
     def read_data_from_hdf5(self, file_path, dataset_name):
@@ -316,7 +320,7 @@ class BuildMatrixTree(object):
             data = hf[dataset_name][:]
         return data
 
-    def read_data_from_npz(self, file_path, dataset_name):
+    def read_data_from_npz(self, file_path):
         """
         Read sparse matrix from npz file.
 
@@ -324,8 +328,6 @@ class BuildMatrixTree(object):
         ----------
         file_path : str
             Path to array file.
-        dataset_name : str
-            If reading an hdf5 file, the key used to access the dataset.
 
         Notes
         -----
@@ -1485,8 +1487,8 @@ class BuildMatrices(BuildMatrixTree):
         Notes
         -----
         * Used for the FG model in `Fz`.
-        * `idft_array_1d_fg` has shape (nuv_fg \* nf,
-          nuv_fg\*(1 \+ nq) \+ fit_for_monopole\*(neta \+ nq)).
+        * `idft_array_1d_fg` has shape (nuv_fg * nf,
+          nuv_fg*(1 + nq) + fit_for_monopole*(neta + nq)).
 
         """
         matrix_name = 'idft_array_1d_fg'
@@ -1623,9 +1625,9 @@ class BuildMatrices(BuildMatrixTree):
 
         Notes
         -----
-        * `Fz` has shape ((nuv_eor \+ nuv_fg)\*nf,
-           nuv_eor\*(neta \- 1) \+ nuv_fg\*(1 \+ nq)
-           \+ fit_for_monopole\*(neta \+ nq)).
+        * `Fz` has shape ((nuv_eor + nuv_fg)*nf,
+           nuv_eor*(neta \- 1) + nuv_fg*(1 + nq)
+           + fit_for_monopole*(neta + nq)).
 
         """
         matrix_name = 'Fz'
@@ -1663,9 +1665,9 @@ class BuildMatrices(BuildMatrixTree):
         Notes
         -----
         * `Finv_Fprime` has shape
-          - (ndata, nf\*nuv_eor) if modelling the EoR only
-          - (ndata, nf\*(nuv_eor + nuv_fg)) if modelling EoR + foregrounds
-          - (ndata, nf\*(nuv_eor + nuv_fg) + nuv_sh\*(nq_sh +
+          - (ndata, nf*nuv_eor) if modelling the EoR only
+          - (ndata, nf*(nuv_eor + nuv_fg)) if modelling EoR + foregrounds
+          - (ndata, nf*(nuv_eor + nuv_fg) + nuv_sh*(nq_sh +
             fit_for_shg_amps)) if modelling EoR + foregrounds + SHG.  Please
             note that the SHG is not currently supported (see issue #50).
 
@@ -1880,8 +1882,8 @@ class BuildMatrices(BuildMatrixTree):
         Notes
         -----
         * `Fprime_Fz` has shape (npix, nuv_eor * (neta - 1)
-           \+ (nuv_fg - fit_for_monopole) * (1 \+ nq)
-           \+ fit_for_monopole * (neta \+ nq)).
+           + (nuv_fg - fit_for_monopole) * (1 + nq)
+           + fit_for_monopole * (neta + nq)).
 
         """
         matrix_name = 'Fprime_Fz'
@@ -2107,7 +2109,7 @@ class BuildMatrices(BuildMatrixTree):
 
         Notes
         -----
-        * `T` has shape (ndata, nuv \* (neta \+ nq)).
+        * `T` has shape (ndata, nuv * (neta + nq)).
 
         """
         matrix_name = 'T'
@@ -2265,7 +2267,7 @@ class BuildMatrices(BuildMatrixTree):
     def prepare_matrix_stack_for_deletion(
             self, src, clobber_matrices):
         """
-        Archive an existing matrix stack on disk by prepending 'delete\_'
+        Archive an existing matrix stack on disk by prepending 'delete_'
         to the child directory.
 
         Parameters
