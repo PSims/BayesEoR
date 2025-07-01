@@ -1,5 +1,8 @@
 import numpy as np
 import os
+from pathlib import Path
+
+from ..utils import load_numpy_dict
 
 def load_inst_model(
         inst_model_dir,
@@ -7,11 +10,12 @@ def load_inst_model(
         red_file='redundancy_model.npy',
         phasor_file='phasor_vector.npy'):
     """
-    Load the instrument model consisting of
+    Load a BayesEoR instrument model.
+    
+    The instrument model consists of:
     - a (u, v, w) array with shape (nt, nbls, 3)
     - baseline redundancy array with shape (nt, nbls, 1)
-    - a phasor vector with shape (ndata,) (if modelling phased visibilities)
-
+    - (optional) a phasor vector with shape (ndata,)
     The phasor vector takes an unphased set of visibilities and phases them
     to the central time step in the observation.
 
@@ -21,7 +25,7 @@ def load_inst_model(
 
     Parameters
     ----------
-    inst_model_dir : str
+    inst_model_dir : :class:`pathlib.Path` or str
         Path to the instrument model directory.
     uvw_file : str
         File containing instrumentally sampled (u, v, w) coords.  Defaults to
@@ -42,9 +46,12 @@ def load_inst_model(
         Array of phasor values.
 
     """
-    if os.path.exists(os.path.join(inst_model_dir, 'instrument_model.npy')):
+    if not isinstance(inst_model_dir, Path):
+        inst_model_dir = Path(inst_model_dir)
+
+    if (inst_model_dir / "instrument_model.npy").exists():
         data_dict = np.load(
-            os.path.join(inst_model_dir, 'instrument_model.npy'),
+            inst_model_dir / "instrument_model.npy",
             allow_pickle=True
         ).item()
         uvw_array_m = data_dict['uvw_model']
@@ -54,9 +61,11 @@ def load_inst_model(
         else:
             phasor_vec = None
     else:
-        # Support for old instrument model formats
-        uvw_array_m = np.load(os.path.join(inst_model_dir, uvw_file))
-        bl_red_array = np.load(os.path.join(inst_model_dir, red_file))
-        phasor_vec = np.load(os.path.join(inst_model_dir, phasor_file))
+        uvw_array_m = load_numpy_dict(inst_model_dir / uvw_file)
+        bl_red_array = load_numpy_dict(inst_model_dir / red_file)
+        if (inst_model_dir / phasor_file).exists():
+            phasor_vec = load_numpy_dict(inst_model_dir / phasor_file)
+        else:
+            phasor_vec = None
 
     return uvw_array_m, bl_red_array, phasor_vec
