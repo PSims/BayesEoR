@@ -3,8 +3,10 @@
 import numpy as np
 from astropy.time import Time
 from pathlib import Path
+from rich.panel import Panel
 
-from .vis import load_numpy_dict, preprocess_uvdata
+from .matrices.build import BuildMatrices
+from .model.instrument import load_inst_model
 from .model.noise import generate_data_and_noise_vector_instrumental
 from .model.k_cube import (
     generate_k_cube_in_physical_coordinates,
@@ -12,22 +14,57 @@ from .model.k_cube import (
     generate_k_cube_model_spherical_binning,
     calc_mean_binned_k_vals
 )
+from .posterior import PriorC, PowerSpectrumPosteriorProbability
+from .vis import load_numpy_dict, preprocess_uvdata
+from .utils import mpiprint, Cosmology
 
 def run_setup(
     nf=None,
     neta=None,
+    deta=None,
     nq=None,
+    beta=[2.63, 2.82],
     nt=None,
     nu=None,
     nv=None,
     nu_fg=None,
     nv_fg=None,
+    fit_for_monopole=False,
+    du_eor=None,
+    dv_eor=None,
+    du_fg=None,
+    dv_fg=None,
+    use_shg=False,
+    nu_sh=None,
+    nv_sh=None,
+    nq_sh=None,
+    npl_sh=None,
+    fit_for_shg_amps=False,
     ps_box_size_ra_Mpc=None,
     ps_box_size_dec_Mpc=None,
     ps_box_size_para_Mpc=None,
-    beta=[2.63, 2.82],
-    full=False,
-    preproc_data=False,
+    nside=None,
+    fov_ra_eor=None,
+    fov_dec_eor=None,
+    fov_ra_fg=None,
+    fov_dec_fg=None,
+    simple_za_filter=True,
+    taper_func=None,
+    drift_scan=True,
+    include_instrumental_effects=True,
+    uvws=None,
+    redundancy=None,
+    phasor=None,
+    beam_type="",
+    beam_center=None,
+    achromatic_beam=False,
+    beam_peak_amplitude=1.0,
+    fwhm_deg=None,
+    antenna_diameter=None,
+    cosfreq=None,
+    beam_ref_freq=None,
+    # full=False,
+    # setup_data_vec=False,
     data_path=None,
     ant_str="cross",
     bl_cutoff=None,
@@ -49,32 +86,40 @@ def run_setup(
     calc_noise=False,
     save_vis=False,
     save_model=False,
-    save_dir="./",
+    save_dir=None,  # TODO: fix docstring
     clobber=False,
     sigma=None,
     random_seed=None,
-    noise_path=None,
+    noise_data_path=None,
     inst_model=None,
-    build_k_cube=False,
+    # setup_k_cube=False,
     save_k_vals=False,
-    build_matrices=False,
-    make_output_dir=False,
+    telescope_name="",
+    telescope_latlonalt=(0, 0, 0),
+    # setup_matrices=False,
+    array_dir_prefix="./matrices/",
+    use_sparse_matrices=True,
+    build_Finv_and_Fprime=True,
+    # make_output_dir=False,
     output_dir="./",
     file_root=None,
+    # setup_posterior=False,
+    priors=None,
     log_priors=False,
+    uprior_inds=None,
     dimensionless_PS=True,
     inverse_LW_power=1e-16,
+    use_gpu=True,
+    use_intrinsic_noise_fitting=False,
+    use_LWM_Gaussian_prior=False,
     use_EoR_cube=False,
     use_Multinest=True,
-    use_shg=False,
-    nu_sh=None,
-    nv_sh=None,
-    nq_sh=None,
-    npl_sh=None,
-    fit_for_shg_amps=False,
+    return_vis=False,
+    return_ks=False,  # TODO: add docstring
+    return_bm=False,  # TODO: add docstring
     verbose=False,
     rank=0,
-    **kwargs
+    # **kwargs
 ):
     """
     Run setup steps.
@@ -82,19 +127,27 @@ def run_setup(
     Parameters
     ----------
     nf : int
-        Number of frequency channels. If `preproc_data` is True, sets the
+        Number of frequency channels. If `setup_data_vec` is True, sets the
         number of frequencies to keep starting from `freq_idx_min`, the
         channel corresponding to `nu_min_MHz`, or around `freq_center`. Defaults
         to None (keep all frequencies).
     neta : int
         Number of Line of Sight (LoS, frequency axis) Fourier modes.
+    deta : float
+        Fourier mode spacing along the eta (line of sight, frequency) axis in
+        inverse Hz.
     nq : int
         Number of large spectral scale model basis vectors. If `beta` is None,
         the basis vectors are quadratic in frequency. If `beta` is not None,
         the basis vectors are power laws with brightness temperature spectral
         indices from `beta`.
+    beta : list of float, optional
+        Brightness temperature power law spectral index/indices used in the
+        large spectral scale model. Can be a single spectral index, e.g.
+        [2.63], or multiple spectral indices, e.g. [2.63, 2.82]. Defaults to
+        [2.63, 2.82].
     nt : int
-        Number of times. If `preproc_data` is True, sets the number of times
+        Number of times. If `setup_data_vec` is True, sets the number of times
         to keep starting from `jd_idx_min`, the time corresponding to `jd_min`
         or around `central_jd`. Defaults to None (keep all times).
     nu : int
@@ -107,6 +160,37 @@ def run_setup(
     nv_fg : int
         Number of pixels on a side for the v-axis in the foreground model
         uv-plane.
+    fit_for_monopole : bool
+        Fit for the (u, v) = (0, 0) pixel in the model uv-plane.
+    du_eor : float
+        Fourier mode spacing along the u axis in inverse radians of the
+        EoR model uv-plane.
+    dv_eor : float
+        Fourier mode spacing along the v axis in inverse radians of the
+        EoR model uv-plane.
+    du_fg : float
+        Fourier mode spacing along the u axis in inverse radians of the
+        FG model uv-plane.
+    dv_fg : float
+        Fourier mode spacing along the v axis in inverse radians of the
+        FG model uv-plane.
+    use_shg : bool, optional
+        Use the subharmonic grid. Defaults to False.
+    nu_sh : int, optional
+        Number of pixels on a side for the u-axis in the subharmonic grid
+        model uv-plane. Defaults to None.
+    nv_sh : int, optional
+        Number of pixels on a side for the v-axis in the subharmonic grid
+        model uv-plane. Defaults to None.
+    nq_sh : int, optional
+        Number of large spectral scale model quadratic basis vectors for the
+        subharmonic grid. Defaults to None.
+    npl_sh : int, optional
+        Number of large spectral scale model power law basis vectors for the
+        subharmonic grid. Defaults to None.
+    fit_for_shg_amps : bool, optional
+        Fit for the amplitudes of the subharmonic grid pixels. Defaults to
+        False.
     ps_box_size_ra_Mpc : float
         Right Ascension (RA) axis extent of the cosmological volume in Mpc from
         which the power spectrum is estimated.
@@ -116,19 +200,65 @@ def run_setup(
     ps_box_size_para_Mpc : float
         LoS extent of the cosmological volume in Mpc from which the power
         spectrum is estimated.
-    beta : list of float, optional
-        Brightness temperature power law spectral index/indices used in the
-        large spectral scale model. Can be a single spectral index, e.g.
-        [2.63], or multiple spectral indices, e.g. [2.63, 2.82]. Defaults to
-        [2.63, 2.82].
+    nside : int
+        HEALPix nside parameter.
+    fov_ra_eor : float
+        Field of view of the Right Ascension axis of the EoR sky model in
+        degrees.
+    fov_dec_eor : float
+        Field of view of the Declination axis of the EoR sky model in degrees.
+    fov_ra_fg : float
+        Field of view of the Right Ascension axis of the foreground sky model
+        in degrees.
+    fov_dec_fg : float
+        Field of view of the Declination axis of the foreground sky model in
+        degrees.
+    simple_za_filter : bool
+        Filter pixels in the sky model by zenith angle only.
+    taper_func : str
+        Taper function applied to the frequency axis of the visibilities.
+        Can be any valid argument to `scipy.signal.windows.get_window`.
+    drift_scan : bool
+        Model drift scan (True, default) or phased (False) visibilities.
+    include_instrumental_effects : bool
+        Forward model an instrument.
+    uvws : numpy.ndarray
+        Array containing the (u(t), v(t), w(t)) coordinates of the instrument
+        model with shape (nt, nbls, 3).
+    redundancy : numpy.ndarray
+        Array containing the number of redundant baselines at each
+        (u(t), v(t), w(t)) in the instrument model with shape (nt, nbls, 1).
+    phasor : numpy.ndarray
+        Array with shape (ndata,) that contains the phasor term used to phase
+        visibilities after performing the nuDFT from HEALPix (l, m, f) to
+        instrumentally sampled, unphased (u, v, f).  Defaults to None, i.e.
+        modelling unphased visibilities.
+    beam_type : str
+        Path to a pyuvdata-compatible beam file or one of 'uniform',
+        'gaussian', 'airy', 'gausscosine', or 'taperairy'.
+    beam_center : list of float
+        Beam center offsets from the phase center in right ascension and
+        declination in degrees.
+    achromatic_beam : bool
+        Force the beam to be achromatic.
+    beam_peak_amplitude : float
+        Peak amplitude of the beam.
+    fwhm_deg : float
+        Full width at half maximum of beam in degrees.
+    antenna_diameter : float
+        Antenna (aperture) diameter in meters.
+    cosfreq : float
+        Cosine frequency if using a 'gausscosine' beam.
+    beam_ref_freq : float
+        Beam reference frequency in MHz.
     full : bool, optional
-        Run the full setup.  Sets `preproc_data`, `build_k_cube`,
-        `build_matrices`, and `make_output_dir` to True.  Defaults to False.
-    preproc_data : bool, optional
+        Run the full setup.  Sets `setup_data_vec`, `setup_k_cube`,
+        `setup_matrices`, and `make_output_dir` to True.  Defaults to False.
+    setup_data_vec : bool, optional
         Load and/or preprocess visibility data. The instrument model will be
         loaded or created as part of this process. Noise visibilities will also
         be generated if noise is to be added to the data. Defaults to False.
-    data_path : :class:`pathlib.Path` or str, optional
+    data_path : pathlib.Path or str, optional
         Path to either a pyuvdata-compatible file containing visibilities or
         a numpy-compatible file containing a preprocessed visibility vector.
         Defaults to None.
@@ -156,7 +286,7 @@ def run_setup(
         Frequency channel width in Hertz if not a Quantity. Defaults to None.
         Overwritten by the frequency channel width in the UVData object if
         `data_path` points to a pyuvdata-compatible file containing
-        visibilities and `preproc_data` is True.
+        visibilities and `setup_data_vec` is True.
     jd_idx_min : int, optional
         Minimum time index to keep in the data vector. Defaults to None (keep
         all times).
@@ -171,7 +301,7 @@ def run_setup(
         Integration time in seconds of not a Quantity. Defaults to None.
         Overwritten by the integration time in the UVData object if `data_path`
         points to a pyuvdata-compatible file containing visibilities and
-        `preproc_data` is True.
+        `setup_data_vec` is True.
     form_pI : bool, optional
         Form pseudo-Stokes I visibilities. Otherwise, use the polarization
         specified by `pol`. Defaults to True.
@@ -204,272 +334,166 @@ def run_setup(
         Write instrument model (antenna pairs, (u, v, w) sampling, and
         redundancy model) to disk in `save_dir`. If `phase` is True, also save
         the phasor vector. Defaults to False.
-    save_dir : :class:`pathlib.Path` or str, optional
+    save_dir : pathlib.Path or str, optional
         Output directory if `save_vis` or `save_model` is True. Defaults to
-        './'.
+        ``Path(output_dir) / file_root``.
     clobber : bool, optional
         Clobber files on disk if they exist.  Defaults to False.
     sigma : float, optional
-        Standard deviation of the visibility noise. Only used if `preproc_data`
-        is True and `noise_path` is None. Defaults to None.
+        Standard deviation of the visibility noise. Only used if `setup_data_vec`
+        is True and `noise_data_path` is None. Defaults to None.
     random_seed : int, optional
         Used to seed `np.random` when generating the noise vector. Defaults to
         None.
-    noise_path : :class:`pathlib.Path` or str, optional
+    noise_data_path : pathlib.Path or str, optional
         Path to a numpy-compatible file containing a preprocessed noise vector.
         Defaults to None.
-    inst_model : :class:`pathlib.Path` or str, optional
+    inst_model : pathlib.Path or str, optional
         Path to directory containing instrument model files (`uvw_array.npy`,
         `redundancy_model.npy`, and optionally `phasor_vector.npy`). Defaults
         to False.
-    build_k_cube : bool, optional
+    setup_k_cube : bool, optional
         Build the model k cube. Defaults to False.
     save_k_vals : bool, optional
         Save k bin files (means, edges, and number of voxels in each bin).
         Defaults to False.
-    build_matrices : bool, optional
+    telescope_name : str, optional
+        Telescope identifier string. Defaults to ''.
+    telescope_latlonalt : tuple of float
+        The latitude, longitude, and altitude of the telescope in degrees,
+        degrees, and meters, respectively.
+    setup_matrices : bool, optional
         Build and/or load the matrix stack. Defaults to False.
+    array_dir_prefix : pathlib.Path or str, optional
+        Array directory prefix. Defaults to './matrices/'.
+    use_sparse_matrices : bool
+        Use sparse arrays. Defaults to True.
+    build_Finv_and_Fprime : bool
+        If True (default), construct the matrix product Finv_Fprime in place
+        from the dense matrices comprising Finv and Fprime to minimize the
+        memory and time required to build the matrix stack.  In this case,
+        only the matrix product Finv_Fprime is written to disk.  Otherwise,
+        construct Finv and Fprime independently and save both matrices to disk.
     make_output_dir : bool, optional
         Make the output directory for sampler output.
-    output_dir : :class:`pathlib.Path` or str, optional
+    output_dir : pathlib.Path or str, optional
         Parent directory for sampler output. Defaults to './'.
     file_root : str, optional
         Sampler output directory name. If None (default), start a new analysis.
         Otherwise, resume analysis from `file_root`.
+    setup_posterior : bool
+        Build the power spectrum posterior class. Defaults to False.
+    priors : list of list of floats
+        Prior [min, max] for each k bin as a list, e.g. [[min1, max1],
+        [min2, max2], ...].
     log_priors : bool, optional
         Assume priors on power spectrum coefficients are in log_10 units.
         Defaults to False.
+    uprior_inds : numpy.ndarray
+        Boolean 1D array that is True for any k bins using a uniform prior.
+        False entries use a log-uniform prior.
     dimensionless_PS : bool, optional
         Fit for the dimensionless power spectrum, :math:`\\Delta^2(k)` (True,
         default), or the power spectrum, :math:`P(k)` (False).
     inverse_LW_power : float, optional
         Prior on the inverse power of the large spectral scale model
         coefficients.
+    use_gpu : bool, optional
+        Use GPUs (True, default) or CPUs (False).
+    use_intrinsic_noise_fitting : bool, optional
+        Fit for the noise level. Defaults to False.
+    use_LWM_Gaussian_prior : bool, optional
+        Use a Gaussian prior (True) or a uniform prior (False, default) on the
+        large spectral scale model. This option is currently not implemented
+        but will be reimplemented in the future.
     use_EoR_cube : bool, optional
         Use internally simulated data generated from a EoR cube. This
         functionality is not currently supported but will be implemented in
         the future.
     use_Multinest : bool, optional
         Use MultiNest sampler (True, default) or Polychord (False).
-    use_shg : bool, optional
-        Use the subharmonic grid. Defaults to False.
-    nu_sh : int, optional
-        Number of pixels on a side for the u-axis in the subharmonic grid
-        model uv-plane. Defaults to None.
-    nv_sh : int, optional
-        Number of pixels on a side for the v-axis in the subharmonic grid
-        model uv-plane. Defaults to None.
-    nq_sh : int, optional
-        Number of large spectral scale model quadratic basis vectors for the
-        subharmonic grid. Defaults to None.
-    npl_sh : int, optional
-        Number of large spectral scale model power law basis vectors for the
-        subharmonic grid. Defaults to None.
-    fit_for_shg_amps : bool, optional
-        Fit for the amplitudes of the subharmonic grid pixels. Defaults to
+    return_vis : bool, optional
+        Return a dictionary with value (key) pairs of: the visibility vector
+        ('vis'), the noise ('noise'), noisy visibilities if `noise_data_path`
+        is None and `sigma` is not None ('vis_noisy'), a dictionary containing
+        the array index mapping of conjugated baselines in the visibility 
+        vector ('bl_conj_pairs_map'), the instrumentally sampled (u, v, w)
+        ('uvws'), the number of redundant baselines averaged in each (u, v, w)
+        ('redundancy'), the frequency channel width ('df'), the integration
+        time ('dt'), and the phasor vector ('phasor') if `phase` is True.
+        Defaults to False.
+    return_ks : bool, optional
+        Return the mean of each k bin and a list of sublists containing the
+        flattened indices of all voxels included in each k bin. Defaults to
         False.
+    return_bm : bool, optional
+        Return the matrix building class instance used to construct the matrix
+        stack. Defaults to False.
     verbose : bool, optional
         Print statements useful for debugging. Defaults to False.
     rank : int, optional
         MPI rank. Defaults to 0.
+    **kwargs : :class:`bayeseor.params.BayesEoRParser` attributes
+        Catch-all for auxiliary BayesEoRParser attributes so the function may
+        be called using the arguments parsed by a BayesEoRParser instance via
+        e.g. `run_setup(**args)`.
+
+    Returns
+    -------
+    pspp : :class:`bayeseor.posterior.PowerSpectrumPosteriorProbability`
+        Posterior probability class instance.
+    vis_dict : dict
+        Dictionary with value (key) pairs of: the visibility vector ('vis'),
+        the noise ('noise'), noisy visibilities if `noise_data_path` is None
+        and `sigma` is not None ('vis_noisy'), a dictionary containing the
+        array index mapping of conjugated baselines in the visibility vector
+        ('bl_conj_pairs_map'), the instrumentally sampled (u, v, w) ('uvws'),
+        the number of redundant baselines averaged in each (u, v, w)
+        ('redundancy'), the frequency channel width ('df'), the integration
+        time ('dt'), and the phasor vector ('phasor') if `phase` is True.
+        Returned only if `return_vis` is True.
+    k_vals : numpy.ndarray
+        Mean of each k bin. Returned only if `return_ks` is True.
+    k_cube_voxels_in_bin : list
+        List of sublists containing the flattened 3D k-space cube index of all
+        |k| that fall within a given k bin. Returned only if `return_ks` is
+        True.
+    bm : :class:`bayeseor.matrices.BuildMatrices`
+        Matrix building class instance. Returned only if `return_bm` is True.
 
     """
-    
-    """
-    Required steps:
-    1.  [vis.read_data] Read visibility data (load directly via pyuvdata)
-    2.  [..model.instrument] Load instrument model
-    3.  [..utils.?] Create output directory
-    4.  [..matrices.build_matrices] Build matrices
-    5.  [..model.k_cube] Create model k cube
-    #.  [driver?] Load T and T_Ninv_T (used where? why loaded here?)
-    6.  [vis.mock_data_*] Create mock data (requires matrix stack for Finv)
-    7.  [..model.noise] Add synthetic noise to data (optional)
-    #.  [?] Apply taper matrix (leave this in?  it's not documented as working)
-    8.  [vis.?] Hermitian data checks
-    9.  [driver?] Calculate dbar and d_Ninv_d (why here? requires matrix stack)
-    10. [..posterior] Set up priors
-    11. [..posterior] Create posterior class (change name, too long)
-    12. [driver?] Estimate posterior calculation time
-    13. [DELETE] Write MAP dict
-    14. [..run?] Define likelihood function for MultiNest/PolyChord
-    15. [..run] Run analysis
-    """
-    if full:
-        preproc_data = True
-        build_k_cube = True
-        build_matrices = True
-        make_output_dir = True
-    if not np.any([preproc_data, build_k_cube, build_matrices, make_output_dir]):
-        return {}
-    
-    if build_k_cube and save_k_vals and not make_output_dir:
-        make_output_dir = True
+    # print_rank will only trigger print if verbose is True and rank == 0
+    print_rank = 1 - (verbose and rank==0)
 
-    if sigma is None and preproc_data and noise_path is None:
+    if use_LWM_Gaussian_prior:
+        raise NotImplementedError(
+            "use_LWM_Gaussian_prior is not currently implemented. It will be "
+            "reimplemented in the future. For now, please set "
+            "use_LWM_Gaussian_prior to False."
+        )
+
+    if sigma is None and noise_data_path is None:
         raise ValueError(
-            "sigma cannot be None if preproc_data is True "
-            "and noise_path is None"
+            "sigma cannot be None if setup_data_vec is True "
+            "and noise_data_path is None"
         )
 
     if beta is not None:
         npl = len(beta)
     else:
         npl = 0
-
-    out_dict = {}
     
-    if preproc_data:
-        if data_path is not None:
-            if not isinstance(data_path, Path):
-                data_path = Path(data_path)
-            if not data_path.exists():
-                raise FileNotFoundError(f"{data_path} does not exist")
-            if data_path.suffix == ".npy":
-                vis = load_numpy_dict(data_path)
+    # Setup output directory for sampler output
+    if output_dir is None:
+        raise ValueError("output_dir cannot be None")
+    if not isinstance(output_dir, Path):
+        output_dir = Path(output_dir)
 
-                if channel_width_MHz is None:
-                    raise ValueError(
-                        "channel_width_MHz must be specified if loading a preprocessed data "
-                        "vector (data_path has .npy suffix)"
-                    )
-                if integration_time_seconds is None:
-                    raise ValueError(
-                        "integration_time_seconds must be specified if loading a preprocessed data "
-                        "vector (data_path has .npy suffix)"
-                    )
-
-                if inst_model is None:
-                    raise ValueError(
-                        "inst_model cannot be None if loading a "
-                        "preprocessed data vector (data_path has .npy suffix)"
-                    )
-                else:
-                    if not isinstance(inst_model, Path):
-                        inst_model = Path(inst_model)
-                    required_files = ["uvw_model.npy", "redundancy_model.npy"]
-                    required_files_exist = np.all(
-                        [(inst_model / f).exists() for f in required_files]
-                    )
-                    if not required_files_exist:
-                        raise ValueError(
-                            "inst_model must point to a directory with "
-                            "uvw_model.npy and redundancy_model.npy"
-                        )
-                    uvws = load_numpy_dict(
-                        inst_model / "uvw_model.npy"
-                    )
-                    redundancy = load_numpy_dict(
-                        inst_model / "redundancy_model.npy"
-                    )
-                    if phase:
-                        phasor = load_numpy_dict(
-                            inst_model / "phasor_vector.npy"
-                        )
-
-                if noise_path is not None:
-                    if not isinstance(noise_path, Path):
-                        noise_path = Path(noise_path)
-                    if not noise_path.exists():
-                        raise FileNotFoundError(f"{noise_path} does not exist")
-                    noise = load_numpy_dict(noise_path)
-                else:
-                    noise = None
-
-            elif data_path.suffix in [".uvh5", ".uvfits", ".ms"]:
-                vis, antpairs, uvws, redundancy, phasor, noise, uvd = \
-                    preprocess_uvdata(
-                        data_path,
-                        ant_str=ant_str,
-                        bl_cutoff=bl_cutoff,
-                        freq_idx_min=freq_idx_min,
-                        freq_min=nu_min_MHz,
-                        freq_center=freq_center,
-                        Nfreqs=nf,
-                        jd_idx_min=jd_idx_min,
-                        jd_min=jd_min,
-                        jd_center=central_jd,
-                        Ntimes=nt,
-                        form_pI=form_pI,
-                        pI_norm=pI_norm,
-                        pol=pol,
-                        redundant_avg=redundant_avg,
-                        uniform_redundancy=uniform_redundancy,
-                        phase=phase,
-                        phase_time=phase_time,
-                        calc_noise=calc_noise,
-                        return_uvd=True,
-                        save_vis=save_vis,
-                        save_model=save_model,
-                        save_dir=save_dir,
-                        clobber=clobber,
-                        verbose=verbose,
-                        rank=rank
-                    )
-                try:
-                    # The future_array_shapes attribute is a legacy attribute that has
-                    # been removed as of pyuvdata 3.2, but this check should remain for
-                    # backwards compatibility.
-                    future_array_shapes = uvd.__getattribute__(
-                        "_future_array_shapes"
-                    )
-                    future_array_shapes = future_array_shapes.value
-                except:
-                    future_array_shapes = False
-                freqs = uvd.freq_array
-                if not future_array_shapes:
-                    freqs = freqs[0]
-                channel_width_MHz = freqs[1] - freqs[0]  # Hz
-
-                jds = Time(np.unique(uvd.time_array), format="jd")
-                integration_time_seconds = (jds[1] - jds[0]).to("s").value
-
-            if noise is not None:
-                vis_noisy = vis + noise
-            else:
-                vis_noisy, noise, bl_conj_pairs_map = \
-                    generate_data_and_noise_vector_instrumental(
-                        sigma,
-                        vis,
-                        nf,
-                        nt,
-                        uvws[0],
-                        redundancy[0],
-                        random_seed=random_seed,
-                        rank=rank
-                    )
-            vis_dict = {
-                "vis": vis,
-                "vis_noisy": vis_noisy,
-                "noise": noise,
-                "bl_conj_pairs_map": bl_conj_pairs_map,
-                "uvws": uvws,
-                "redundancy": redundancy
-            }
-            if phase:
-                vis_dict["phasor"] = phasor
-            out_dict["vis"] = vis_dict
-        else:
-            # FIXME
-            raise NotImplementedError(
-                "data_path must not be None. Internal simulated data will be "
-                "added in the future."
-            )
-
-    if make_output_dir:
-        if output_dir is None:
-            raise ValueError(
-                "If make_output_dir is True, output_dir cannot be None"
-            )
-        if not isinstance(output_dir, Path):
-            output_dir = Path(output_dir)
-        output_dir.mkdir(exist_ok=True, parents=True)
-
-    if file_root is None and build_matrices:
-        # We store the Slurm job ID in the file_root directory when building
-        # the matrix stack, if running in a Slurm environment, so we need to
-        # first make the file_root directory a valid, writable directory if
-        # it doesn't already exist.
+    if file_root is None:
+        # We store the Slurm job ID in the file_root directory when
+        # building the matrix stack, if running in a Slurm environment, so
+        # we need to first make the file_root directory a valid, writable
+        # directory if it doesn't already exist.
         file_root = generate_file_root(
             output_dir,
             nu,
@@ -491,39 +515,193 @@ def run_setup(
             npl_sh=npl_sh,
             fit_for_shg_amps=fit_for_shg_amps
         )
-        (output_dir / file_root).mkdir(exist_ok=True, parents=True)
-        out_dict["file_root"] = file_root
 
-    if build_k_cube:
-        mod_k, _, _, _, _, _, _ = generate_k_cube_in_physical_coordinates(
-            nu,
-            nv,
-            neta,
-            ps_box_size_ra_Mpc,
-            ps_box_size_dec_Mpc,
-            ps_box_size_para_Mpc
-        )
-        mod_k_vo = mask_k_cube(mod_k)
-        k_cube_voxels_in_bin, modkbins_containing_voxels = \
-            generate_k_cube_model_spherical_binning(
-                mod_k_vo, ps_box_size_para_Mpc
-            )
-        k_vals = calc_mean_binned_k_vals(
-            mod_k_vo,
-            k_cube_voxels_in_bin,
-            save_k_vals=save_k_vals,
-            k_vals_dir=output_dir,
-            clobber=clobber,
-            rank=rank
-        )
-        k_dict = {
-            "k_vals": k_vals,
-            "k_cube_voxels_in_bin": k_cube_voxels_in_bin,
-            "modkbins_containing_voxels": modkbins_containing_voxels
-        }
-        out_dict["ks"] = k_dict
+    output_dir /= file_root
+    output_dir.mkdir(exist_ok=True, parents=True)
 
-    return out_dict
+    if save_vis or save_model and save_dir is None:
+        save_dir = output_dir
+
+    mpiprint("\n", Panel("Data and Noise"), rank=print_rank)
+    vis_dict = get_vis_data(
+        data_path=data_path,
+        ant_str=ant_str,
+        bl_cutoff=bl_cutoff,
+        freq_idx_min=freq_idx_min,
+        nu_min_MHz=nu_min_MHz,
+        freq_center=freq_center,
+        nf=nf,
+        channel_width_MHz=channel_width_MHz,
+        jd_idx_min=jd_idx_min,
+        jd_min=jd_min,
+        central_jd=central_jd,
+        nt=nt,
+        integration_time_seconds=integration_time_seconds,
+        form_pI=form_pI,
+        pI_norm=pI_norm,
+        pol=pol,
+        redundant_avg=redundant_avg,
+        uniform_redundancy=uniform_redundancy,
+        phase=phase,
+        phase_time=phase_time,
+        calc_noise=calc_noise,
+        sigma=sigma,
+        random_seed=random_seed,
+        save_vis=save_vis,
+        save_model=save_model,
+        save_dir=save_dir,
+        clobber=clobber,
+        noise_data_path=noise_data_path,
+        inst_model=inst_model,
+        verbose=verbose,
+        rank=rank,
+    )
+    if "vis_noisy" in vis_dict:
+        vis = vis_dict["vis"]
+        vis_noisy = vis_dict["vis_noisy"]
+    else:
+        # Input visibilities contain noise
+        vis = None
+        vis_noisy = vis_dict["vis"]
+    noise = vis_dict["noise"]
+    bl_conj_pairs_map = vis_dict["bl_conj_pairs_map"]
+    uvws = vis_dict["uvws"]
+    redundancy = vis_dict["redundancy"]
+    channel_width_MHz = vis_dict["df"]
+    integration_time_seconds = vis_dict["dt"]
+    if "phasor" in vis_dict:
+        phasor = vis_dict["phasor"]
+
+    mpiprint("\n", Panel("Model k cube"), rank=print_rank)
+    k_vals, k_cube_voxels_in_bin = build_k_cube(
+        nu=nu,
+        nv=nv,
+        neta=neta,
+        ps_box_size_ra_Mpc=ps_box_size_ra_Mpc,
+        ps_box_size_dec_Mpc=ps_box_size_dec_Mpc,
+        ps_box_size_para_Mpc=ps_box_size_para_Mpc,
+        save_k_vals=save_k_vals,
+        output_dir=output_dir,
+        clobber=clobber,
+        verbose=verbose,
+        rank=rank
+    )
+
+    mpiprint("\n", Panel("Matrices"), rank=print_rank)
+    bm = build_matrices(
+        nu=nu,
+        du_eor=du_eor,
+        nv=nv,
+        dv_eor=dv_eor,
+        nu_fg=nu_fg,
+        du_fg=du_fg,
+        nv_fg=nv_fg,
+        dv_fg=dv_fg,
+        nf=nf,
+        neta=neta,
+        deta=deta,
+        fit_for_monopole=fit_for_monopole,
+        use_shg=use_shg,
+        nu_sh=nu_sh,
+        nv_sh=nv_sh,
+        nq_sh=nq_sh,
+        npl_sh=npl_sh,
+        fit_for_shg_amps=fit_for_shg_amps,
+        nu_min_MHz=nu_min_MHz,
+        channel_width_MHz=channel_width_MHz,
+        nq=nq,
+        npl=npl,
+        beta=beta,
+        sigma=sigma,
+        nside=nside,
+        fov_ra_eor=fov_ra_eor,
+        fov_dec_eor=fov_dec_eor,
+        fov_ra_fg=fov_ra_fg,
+        fov_dec_fg=fov_dec_fg,
+        simple_za_filter=simple_za_filter,
+        telescope_name=telescope_name,
+        telescope_latlonalt=telescope_latlonalt,
+        uvws=uvws,
+        redundancy=redundancy,
+        phasor=phasor,
+        nt=nt,
+        central_jd=central_jd,
+        integration_time_seconds=integration_time_seconds,
+        beam_type=beam_type,
+        beam_center=beam_center,
+        achromatic_beam=achromatic_beam,
+        beam_peak_amplitude=beam_peak_amplitude,
+        fwhm_deg=fwhm_deg,
+        antenna_diameter=antenna_diameter,
+        cosfreq=cosfreq,
+        beam_ref_freq=beam_ref_freq,
+        drift_scan=drift_scan,
+        taper_func=taper_func,
+        include_instrumental_effects=include_instrumental_effects,
+        noise_data_path=noise_data_path,
+        prefix=array_dir_prefix,
+        mkdir=True,
+        use_sparse_matrices=use_sparse_matrices,
+        build_Finv_and_Fprime=build_Finv_and_Fprime,
+        noise=noise,
+        clobber=clobber,
+        verbose=verbose,
+        rank=rank
+    )
+
+    mpiprint("\n", Panel("Posterior"), rank=print_rank)
+    Ninv = bm.read_data("Ninv")
+    T = bm.read_data("T")
+    Ninv_d = bm.dot_product(Ninv, vis_noisy)
+    dbar = bm.dot_product(T.conj().T, Ninv_d)
+    d_Ninv_d = np.dot(vis_noisy.conj(), Ninv_d)
+    T_Ninv_T = bm.read_data("T_Ninv_T")
+    if include_instrumental_effects:
+        block_T_Ninv_T = []
+    else:
+        block_T_Ninv_T = bm.read_data("block_T_Ninv_T")
+
+    cosmo = Cosmology()
+    redshift = cosmo.f2z(bm.freqs_hertz.mean())
+
+    pspp = build_posterior(
+        k_vals=k_vals,
+        k_cube_voxels_in_bin=k_cube_voxels_in_bin,
+        nuv=(nu*nv - 1),
+        neta=neta,
+        nf=nf,
+        nq=nq,
+        redshift=redshift,
+        Ninv=Ninv,
+        dbar=dbar,
+        d_Ninv_d=d_Ninv_d,
+        T_Ninv_T=T_Ninv_T,
+        ps_box_size_ra_Mpc=ps_box_size_ra_Mpc,
+        ps_box_size_dec_Mpc=ps_box_size_dec_Mpc,
+        ps_box_size_para_Mpc=ps_box_size_para_Mpc,
+        include_instrumental_effects=include_instrumental_effects,
+        log_priors=log_priors,
+        inverse_LW_power=inverse_LW_power,
+        dimensionless_PS=dimensionless_PS,
+        block_T_Ninv_T=block_T_Ninv_T,
+        use_shg=use_shg,
+        use_gpu=use_gpu,
+        priors=priors,
+        uprior_inds=uprior_inds,
+        use_intrinsic_noise_fitting=use_intrinsic_noise_fitting,
+        use_LWM_Gaussian_prior=use_LWM_Gaussian_prior,
+        verbose=verbose,
+        rank=rank
+    )
+
+    return_vals = (pspp,)
+    if return_vis:
+        return_vals += (vis_dict,)
+    if return_ks:
+        return_vals += (k_vals, k_cube_voxels_in_bin)
+    if return_bm:
+        return_vals += (bm,)
+    return return_vals
 
 def generate_file_root(
     output_dir,
@@ -551,7 +729,7 @@ def generate_file_root(
 
     Parameters
     ----------
-    output_dir : :class:`pathlib.Path` or str
+    output_dir : pathlib.Path or str
         Parent directory for sampler output.
     nu : int
         Number of pixels on a side for the u-axis in the EoR model uv-plane.
@@ -662,7 +840,881 @@ def generate_file_root(
 
     return file_root
 
-def get_array_dir_name(
+def get_vis_data(
+    data_path=None,
+    ant_str="cross",
+    bl_cutoff=None,
+    freq_idx_min=None,
+    nu_min_MHz=None,
+    freq_center=None,
+    nf=None,
+    channel_width_MHz=None,
+    jd_idx_min=None,
+    jd_min=None,
+    central_jd=None,
+    nt=None,
+    integration_time_seconds=None,
+    form_pI=True,
+    pI_norm=1.0,
+    pol="xx",
+    redundant_avg=True,
+    uniform_redundancy=False,
+    phase=False,
+    phase_time=None,
+    calc_noise=False,
+    sigma=None,
+    random_seed=None,
+    save_vis=False,
+    save_model=False,
+    save_dir="./",
+    clobber=False,
+    noise_data_path=None,
+    inst_model=None,
+    verbose=False,
+    rank=0,
+    **kwargs
+):
+    """
+    Load or generate a one-dimensional visibility vector.
+
+    Parameters
+    ----------
+    data_path : pathlib.Path or str, optional
+        Path to either a pyuvdata-compatible file containing visibilities or
+        a numpy-compatible file containing a preprocessed visibility vector.
+        Defaults to None.
+    ant_str : str, optional
+        Antenna downselect string. This determines what baselines to keep in
+        the data vector. Please see `pyuvdata.UVData.select` for more details.
+        Defaults to 'cross' (cross-correlation baselines only).
+    bl_cutoff : :class:`astropy.Quantity` or float, optional
+        Baseline length cutoff in meters if not a Quantity. Defaults to None
+        (keep all baselines).
+    freq_idx_min : int, optional
+        Minimum frequency channel index to keep in the data vector. Defaults
+        to None (keep all frequencies).
+    nu_min_MHz : :class:`astropy.Quantity` or float, optional
+        Minimum frequency to keep in the data vector in Hertz if not a
+        Quantity. All frequencies greater than or equal to `nu_min_MHz` will be
+        kept, unless `nf` is specified. Defaults to None (keep all
+        frequencies).
+    freq_center : :class:`astropy.Quantity` or float, optional
+        Central frequency, in Hertz if not a Quantity, around which `nf`
+        frequencies will be kept in the data vector. `nf` must also be
+        passed, otherwise an error is raised. Defaults to None (keep all
+        frequencies).
+    nf : int
+        Number of frequency channels. If `setup_data_vec` is True, sets the
+        number of frequencies to keep starting from `freq_idx_min`, the
+        channel corresponding to `nu_min_MHz`, or around `freq_center`. Defaults
+        to None (keep all frequencies).
+    channel_width_MHz : :class:`astropy.Quantity` or float, optional
+        Frequency channel width in Hertz if not a Quantity. Defaults to None.
+        Overwritten by the frequency channel width in the UVData object if
+        `data_path` points to a pyuvdata-compatible file containing
+        visibilities and `setup_data_vec` is True.
+    jd_idx_min : int, optional
+        Minimum time index to keep in the data vector. Defaults to None (keep
+        all times).
+    jd_min : :class:`astropy.Time` or float, optional
+        Minimum time to keep in the data vector as a Julian date if not a Time.
+        Defaults to None (keep all times).
+    central_jd : :class:`astropy.Time` or float, optional
+        Central time, as a Julian date if not a Time, around which `nt`
+        times will be kept in the data vector. `nt` must also be passed,
+        otherwise an error is raised. Defaults to None (keep all times).
+    nt : int
+        Number of times. If `setup_data_vec` is True, sets the number of times
+        to keep starting from `jd_idx_min`, the time corresponding to `jd_min`
+        or around `central_jd`. Defaults to None (keep all times).
+    integration_time_seconds : :class:`astropy.Quantity` or float, optional
+        Integration time in seconds of not a Quantity. Defaults to None.
+        Overwritten by the integration time in the UVData object if `data_path`
+        points to a pyuvdata-compatible file containing visibilities and
+        `setup_data_vec` is True.
+    form_pI : bool, optional
+        Form pseudo-Stokes I visibilities. Otherwise, use the polarization
+        specified by `pol`. Defaults to True.
+    pI_norm : float, optional
+        Normalization, ``N``, used in forming pseudo-Stokes I from XX and YY
+        via ``pI = N * (XX + YY)``. Defaults to 1.0.
+    pol : str, optional
+        Case-insensitive polarization string. Used only if `form_pI` is False.
+        Defaults to 'xx'.
+    redundant_avg : bool, optional
+        Redundantly average the data.  Defaults to True.
+    uniform_redundancy : bool, optional
+        Force the redundancy model to be uniform. Defaults to False.
+    phase : bool, optional
+        Create a "phasor vector" which can be used to phase each visibility
+        in the data vector as a function of baseline, time, and frequency via
+        element-wise multiplication. Defaults to False.
+    phase_time : :class:`astropy.Time` or float, optional
+        The time to which the visibilities will be phased as a Julian date if
+        not a Time. If `phase` is True and `phase_time` is None, `phase_time`
+        will be automatically set to the central time in the data. Defaults to
+        None.
+    calc_noise : bool, optional
+        Calculate a noise estimate from the visibilities via differencing
+        adjacent times per baseline and frequency. Defaults to False.
+    sigma : float
+        Standard deviation of the visibility noise.
+    random_seed : int, optional
+        Used to seed `np.random` when generating the noise vector. Defaults to
+        None.
+    save_vis : bool, optional
+        Write visibility vector to disk in `save_dir`. If `calc_noise` is True,
+        also save the noise vector. Defaults to False.
+    save_model : bool, optional
+        Write instrument model (antenna pairs, (u, v, w) sampling, and
+        redundancy model) to disk in `save_dir`. If `phase` is True, also save
+        the phasor vector. Defaults to False.
+    save_dir : pathlib.Path or str, optional
+        Output directory if `save_vis` or `save_model` is True. Defaults to
+        './'.
+    clobber : bool, optional
+        Clobber files on disk if they exist.  Defaults to False.
+    noise_data_path : pathlib.Path or str, optional
+        Path to a numpy-compatible file containing a preprocessed noise vector.
+        Defaults to None.
+    inst_model : pathlib.Path or str, optional
+        Path to directory containing instrument model files (`uvw_array.npy`,
+        `redundancy_model.npy`, and optionally `phasor_vector.npy`). Defaults
+        to False.
+    verbose : bool, optional
+        Print statements useful for debugging. Defaults to False.
+    rank : int, optional
+        MPI rank. Defaults to 0.
+    **kwargs : :class:`bayeseor.params.BayesEoRParser` attributes
+        Catch-all for auxiliary BayesEoRParser attributes so the function may
+        be called using the arguments parsed by a BayesEoRParser instance via
+        e.g. `get_vis_data(**args)`.
+
+    Returns
+    -------
+    vis_dict : dict
+        Dictionary with the following key: value pairs
+        - vis: visibility vector with shape (nf*nbls*nt,)
+        - noise: noise vector with shape (nf*nbls*nt,)
+        - vis_noisy: visibility + noise vector
+        - bl_conj_pairs_map: array index mapping of conjugate baseline pairs
+        - uvws: instrumentally sampled (u, v, w) coordinates with shape
+          (nt, nbls, 3)
+        - redundancy: number of redundantly averaged baselines per (u, v, w)
+          with shape (nt, nbls, 1)
+        - df: frequency channel width in Hz
+        - dt: integration time in seconds
+        - phasor: optional phasor vector if `phased` is True with shape
+          (nf*nbls*nt,)
+
+    """
+    # print_rank will only trigger print if verbose is True and rank == 0
+    print_rank = 1 - (verbose and rank==0)
+
+    if data_path is not None:
+        if not isinstance(data_path, Path):
+            data_path = Path(data_path)
+        if not data_path.exists():
+            raise FileNotFoundError(f"{data_path} does not exist")
+        mpiprint(
+            "\nUsing data at {}".format(data_path), rank=print_rank
+        )
+        if data_path.suffix == ".npy":
+            vis = load_numpy_dict(data_path)
+
+            if channel_width_MHz is None:
+                raise ValueError(
+                    "channel_width_MHz must be specified if loading a "
+                    "preprocessed data vector (data_path has .npy suffix)"
+                )
+            if integration_time_seconds is None:
+                raise ValueError(
+                    "integration_time_seconds must be specified if "
+                    "loading a preprocessed data vector (data_path has "
+                    ".npy suffix)"
+                )
+
+            if inst_model is None:
+                raise ValueError(
+                    "inst_model cannot be None if loading a "
+                    "preprocessed data vector (data_path has .npy suffix)"
+                )
+            else:
+                if not isinstance(inst_model, Path):
+                    inst_model = Path(inst_model)
+                required_files = ["uvw_model.npy", "redundancy_model.npy"]
+                required_files_exist = np.all(
+                    [(inst_model / f).exists() for f in required_files]
+                )
+                if not required_files_exist:
+                    raise ValueError(
+                        "inst_model must point to a directory with "
+                        "uvw_model.npy and redundancy_model.npy"
+                    )
+                uvws, redundancy, phasor = load_inst_model(inst_model)
+
+            if noise_data_path is not None:
+                if not isinstance(noise_data_path, Path):
+                    noise_data_path = Path(noise_data_path)
+                if not noise_data_path.exists():
+                    raise FileNotFoundError(
+                        f"{noise_data_path} does not exist"
+                    )
+                noise = load_numpy_dict(noise_data_path)
+            else:
+                noise = None
+
+        elif data_path.suffix in [".uvh5", ".uvfits", ".ms"]:
+            vis, _, uvws, redundancy, phasor, noise, uvd = \
+                preprocess_uvdata(
+                    data_path,
+                    ant_str=ant_str,
+                    bl_cutoff=bl_cutoff,
+                    freq_idx_min=freq_idx_min,
+                    freq_min=nu_min_MHz,
+                    freq_center=freq_center,
+                    Nfreqs=nf,
+                    jd_idx_min=jd_idx_min,
+                    jd_min=jd_min,
+                    jd_center=central_jd,
+                    Ntimes=nt,
+                    form_pI=form_pI,
+                    pI_norm=pI_norm,
+                    pol=pol,
+                    redundant_avg=redundant_avg,
+                    uniform_redundancy=uniform_redundancy,
+                    phase=phase,
+                    phase_time=phase_time,
+                    calc_noise=calc_noise,
+                    return_uvd=True,
+                    save_vis=save_vis,
+                    save_model=save_model,
+                    save_dir=save_dir,
+                    clobber=clobber,
+                    verbose=verbose,
+                    rank=rank
+                )
+            try:
+                # The future_array_shapes attribute is a legacy attribute
+                # that has been removed as of pyuvdata 3.2, but this check
+                # should remain for backwards compatibility.
+                future_array_shapes = uvd.__getattribute__(
+                    "_future_array_shapes"
+                )
+                future_array_shapes = future_array_shapes.value
+            except:
+                future_array_shapes = False
+            freqs = uvd.freq_array
+            if not future_array_shapes:
+                freqs = freqs[0]
+            channel_width_MHz = freqs[1] - freqs[0]  # Hz
+
+            jds = Time(np.unique(uvd.time_array), format="jd")
+            integration_time_seconds = (jds[1] - jds[0]).to("s").value
+
+        if noise is not None:
+            vis_noisy = vis + noise
+        elif sigma is not None:
+            vis_noisy, noise, bl_conj_pairs_map = \
+                generate_data_and_noise_vector_instrumental(
+                    sigma,
+                    vis,
+                    nf,
+                    nt,
+                    uvws[0],
+                    redundancy[0],
+                    random_seed=random_seed,
+                    rank=print_rank
+                )
+        else:
+            # Input visibilities contain noise
+            vis_noisy = None
+
+        vis_dict = {
+            "vis": vis,
+            "noise": noise,
+            "bl_conj_pairs_map": bl_conj_pairs_map,
+            "uvws": uvws,
+            "redundancy": redundancy,
+            "df": channel_width_MHz,
+            "dt": integration_time_seconds
+        }
+        if vis_noisy is not None:
+            vis_dict["vis_noisy"] = vis_noisy
+        if phase:
+            vis_dict["phasor"] = phasor
+    else:
+        # FIXME
+        raise NotImplementedError(
+            "data_path must not be None. Internal simulated data will be "
+            "implemented in the future."
+        )
+
+    return vis_dict
+
+def build_k_cube(
+    nu=None,
+    nv=None,
+    neta=None,
+    ps_box_size_ra_Mpc=None,
+    ps_box_size_dec_Mpc=None,
+    ps_box_size_para_Mpc=None,
+    save_k_vals=False,
+    output_dir="./",
+    clobber=False,
+    verbose=False,
+    rank=0,
+    **kwargs
+):
+    """
+    Build the model k cube.
+
+    Parameters
+    ----------
+    nu : int
+        Number of pixels on a side for the u-axis in the EoR model uv-plane.
+    nv : int
+        Number of pixels on a side for the v-axis in the EoR model uv-plane.
+    neta : int
+        Number of Line of Sight (LoS, frequency axis) Fourier modes.
+    ps_box_size_ra_Mpc : float
+        Right Ascension (RA) axis extent of the cosmological volume in Mpc from
+        which the power spectrum is estimated.
+    ps_box_size_dec_Mpc : float
+        Declination (DEC) axis extent of the cosmological volume in Mpc from
+        which the power spectrum is estimated.
+    ps_box_size_para_Mpc : float
+        LoS extent of the cosmological volume in Mpc from which the power
+        spectrum is estimated.
+    save_k_vals : bool, optional
+        Save k bin files (means, edges, and number of voxels in each bin).
+        Defaults to False.
+    output_dir : pathlib.Path or str, optional
+        Output directory if `save_k_vals` is True.
+    clobber : bool, optional
+        Clobber files on disk if they exist.  Defaults to False.
+    verbose : bool, optional
+        Print statements useful for debugging. Defaults to False.
+    rank : int, optional
+        MPI rank. Defaults to 0.
+    **kwargs : :class:`bayeseor.params.BayesEoRParser` attributes
+        Catch-all for auxiliary BayesEoRParser attributes so the function may
+        be called using the arguments parsed by a BayesEoRParser instance via
+        e.g. `build_k_cube(**args)`.
+
+    Returns
+    -------
+    k_vals : numpy.ndarray
+        Mean of each k bin.
+    k_cube_voxels_in_bin : list
+        List containing sublists for each k bin.  Each sublist contains the
+        flattened 3D k-space cube index of all |k| that fall within a given
+        k bin.
+
+    """
+    required_kwargs = [
+        nu,
+        nv,
+        neta,
+        ps_box_size_ra_Mpc,
+        ps_box_size_dec_Mpc,
+        ps_box_size_para_Mpc
+    ]
+    if not np.all([arg is not None for arg in required_kwargs]):
+        raise ValueError(
+            "nu, nv, neta, ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, "
+            "and ps_box_size_para_Mpc must all not be None"
+        )
+
+    # print_rank will only trigger print if verbose is True and rank == 0
+    print_rank = 1 - (verbose and rank==0)
+    mod_k, _, _, _, _, _, _ = generate_k_cube_in_physical_coordinates(
+        nu,
+        nv,
+        neta,
+        ps_box_size_ra_Mpc,
+        ps_box_size_dec_Mpc,
+        ps_box_size_para_Mpc
+    )
+    mod_k_vo = mask_k_cube(mod_k)
+    k_cube_voxels_in_bin, modkbins_containing_voxels = \
+        generate_k_cube_model_spherical_binning(
+            mod_k_vo, ps_box_size_para_Mpc
+        )
+    k_vals = calc_mean_binned_k_vals(
+        mod_k_vo,
+        k_cube_voxels_in_bin,
+        save_k_vals=save_k_vals,
+        k_vals_dir=output_dir,
+        clobber=clobber,
+        rank=print_rank
+    )
+
+    return k_vals, k_cube_voxels_in_bin
+
+def build_matrices(
+    nu=None,
+    du_eor=None,
+    nv=None,
+    dv_eor=None,
+    nu_fg=None,
+    du_fg=None,
+    nv_fg=None,
+    dv_fg=None,
+    nf=None,
+    neta=None,
+    deta=None,
+    fit_for_monopole=False,
+    use_shg=False,
+    nu_sh=None,
+    nv_sh=None,
+    nq_sh=None,
+    npl_sh=None,
+    fit_for_shg_amps=False,
+    nu_min_MHz=None,
+    channel_width_MHz=None,
+    nq=None,
+    npl=None,
+    beta=None,
+    sigma=None,
+    nside=None,
+    fov_ra_eor=None,
+    fov_dec_eor=None,
+    fov_ra_fg=None,
+    fov_dec_fg=None,
+    simple_za_filter=None,
+    telescope_name=None,
+    telescope_latlonalt=(0, 0, 0),
+    uvws=None,
+    redundancy=None,
+    phasor=None,
+    nt=None,
+    central_jd=None,
+    integration_time_seconds=None,
+    beam_type=None,
+    beam_center=None,
+    achromatic_beam=None,
+    beam_peak_amplitude=None,
+    fwhm_deg=None,
+    antenna_diameter=None,
+    cosfreq=None,
+    beam_ref_freq=None,
+    drift_scan=True,
+    taper_func=None,
+    include_instrumental_effects=True,
+    noise_data_path=None,
+    prefix=Path("./matrices/"),
+    mkdir=True,
+    use_sparse_matrices=True,
+    build_Finv_and_Fprime=True,
+    noise=None,
+    clobber=False,
+    verbose=False,
+    rank=0,
+    **kwargs
+):
+    """
+    Create a directory for and build the BayesEoR matrix stack.
+
+    Parameters
+    ----------
+    nu : int
+        Number of pixels on a side for the u-axis in the EoR model uv-plane.
+    du_eor : float
+        Fourier mode spacing along the u axis in inverse radians of the
+        EoR model uv-plane.
+    nv : int
+        Number of pixels on a side for the v-axis in the EoR model uv-plane.
+    dv_eor : float
+        Fourier mode spacing along the v axis in inverse radians of the
+        EoR model uv-plane.
+    nu_fg : int
+        Number of pixels on a side for the u-axis in the foreground model
+        uv-plane.
+    du_fg : float
+        Fourier mode spacing along the u axis in inverse radians of the
+        FG model uv-plane.
+    nv_fg : int
+        Number of pixels on a side for the v-axis in the foreground model
+        uv-plane.
+    dv_fg : float
+        Fourier mode spacing along the v axis in inverse radians of the
+        FG model uv-plane.
+    nf : int
+        Number of frequency channels.
+    neta : int
+        Number of Line of Sight (LoS, frequency axis) Fourier modes.
+    deta : float
+        Fourier mode spacing along the eta (line of sight, frequency) axis in
+        inverse Hz.
+    fit_for_monopole : bool
+        Fit for the (u, v) = (0, 0) pixel in the model uv-plane.
+    use_shg : bool, optional
+        Use the subharmonic grid. Defaults to False.
+    nu_sh : int, optional
+        Number of pixels on a side for the u-axis in the subharmonic grid
+        model uv-plane. Defaults to None.
+    nv_sh : int, optional
+        Number of pixels on a side for the v-axis in the subharmonic grid
+        model uv-plane. Defaults to None.
+    nq_sh : int, optional
+        Number of large spectral scale model quadratic basis vectors for the
+        subharmonic grid. Defaults to None.
+    npl_sh : int, optional
+        Number of large spectral scale model power law basis vectors for the
+        subharmonic grid. Defaults to None.
+    fit_for_shg_amps : bool, optional
+        Fit for the amplitudes of the subharmonic grid pixels. Defaults to
+        False.
+    nu_min_MHz : float
+        Minimum frequency in MHz.
+    channel_width_MHz : float
+        Frequency channel width in MHz.
+    nq : int
+        Number of large spectral scale model quadratic basis vectors.
+    npl : int
+        Number of large spectral scale model power law basis vectors.
+    beta : list of float
+        Brightness temperature power law spectral index/indices used in the
+        large spectral scale model.
+    sigma : float
+        Standard deviation of the visibility noise.
+    nside : int
+        HEALPix nside parameter.
+    fov_ra_eor : float
+        Field of view of the Right Ascension axis of the EoR sky model in
+        degrees.
+    fov_dec_eor : float
+        Field of view of the Declination axis of the EoR sky model in degrees.
+    fov_ra_fg : float
+        Field of view of the Right Ascension axis of the foreground sky model
+        in degrees.
+    fov_dec_fg : float
+        Field of view of the Declination axis of the foreground sky model in
+        degrees.
+    simple_za_filter : bool
+        Filter pixels in the sky model by zenith angle only.
+    telescope_name : str, optional
+        Telescope identifier string. Defaults to ''.
+    telescope_latlonalt : tuple of floats
+        Telescope location tuple as (latitude in degrees, longitude in degrees,
+        altitude in meters). Defaults to (0, 0, 0).
+    uvws : numpy.ndarray
+        Array containing the (u(t), v(t), w(t)) coordinates of the instrument
+        model with shape (nt, nbls, 3).
+    redundancy : numpy.ndarray
+        Array containing the number of redundant baselines at each
+        (u(t), v(t), w(t)) in the instrument model with shape (nt, nbls, 1).
+    phasor : numpy.ndarray
+        Array with shape (ndata,) that contains the phasor term used to phase
+        visibilities after performing the nuDFT from HEALPix (l, m, f) to
+        instrumentally sampled, unphased (u, v, f).  Defaults to None, i.e.
+        modelling unphased visibilities.
+    nt : float
+        Number of times.
+    central_jd : float
+        Central time as a Julian date.
+    integration_time_seconds : float
+        Integration time in seconds.
+    beam_type : str
+        Path to a pyuvdata-compatible beam file or one of 'uniform',
+        'gaussian', 'airy', 'gausscosine', or 'taperairy'.
+    beam_center : list of float
+        Beam center offsets from the phase center in right ascension and
+        declination in degrees.
+    achromatic_beam : bool
+        Force the beam to be achromatic.
+    beam_peak_amplitude : float
+        Peak amplitude of the beam.
+    fwhm_deg : float
+        Full width at half maximum of beam in degrees.
+    antenna_diameter : float
+        Antenna (aperture) diameter in meters.
+    cosfreq : float
+        Cosine frequency if using a 'gausscosine' beam.
+    beam_ref_freq : float
+        Beam reference frequency in MHz.
+    drift_scan : bool
+        Model drift scan (True, default) or phased (False) visibilities.
+    taper_func : str
+        Taper function applied to the frequency axis of the visibilities.
+        Can be any valid argument to `scipy.signal.windows.get_window`.
+    include_instrumental_effects : bool
+        Forward model an instrument.
+    noise_data_path : pathlib.Path or str
+        Path to a numpy-compatible file containing a preprocessed noise vector.
+    prefix : pathlib.Path or str, optional
+        Array directory prefix. Defaults to './matrices/'.
+    mkdir : bool, optional
+        Make array directory (including parents). Defaults to False.
+    use_sparse_matrices : bool
+        Use sparse arrays. Defaults to True.parse_matrices
+    build_Finv_and_Fprime : bool
+        If True (default), construct the matrix product Finv_Fprime in place
+        from the dense matrices comprising Finv and Fprime to minimize the
+        memory and time required to build the matrix stack.  In this case,
+        only the matrix product Finv_Fprime is written to disk.  Otherwise,
+        construct Finv and Fprime independently and save both matrices to disk.
+    noise : numpy.ndarray
+        Noise vector with shape (nt*nf*nbls,).
+    clobber : bool, optional
+        Clobber files on disk if they exist.  Defaults to False.
+    verbose : bool, optional
+        Print statements useful for debugging. Defaults to False.
+    rank : int, optional
+        MPI rank. Defaults to 0.
+    **kwargs : :class:`bayeseor.params.BayesEoRParser` attributes
+        Catch-all for auxiliary BayesEoRParser attributes so the function may
+        be called using the arguments parsed by a BayesEoRParser instance via
+        e.g. `build_matrices(**args)`.
+
+    Returns
+    -------
+    bm : :class:`bayeseor.matrices.build.BuildMatrices`
+        BuildMatrices class instance used to construct the matrix stack.
+
+    """
+    # print_rank will only trigger print if verbose is True and rank == 0
+    print_rank = 1 - (verbose and rank==0)
+
+    if uvws is not None:
+        nbls = len(uvws[0])
+        uvws_vec = uvws.copy().reshape(-1, 3)
+        n_vis = len(uvws_vec)
+    else:
+        nbls = None
+        uvws_vec = None
+        n_vis = None
+    
+    if redundancy is not None:
+        redundancy_vec = redundancy.copy().reshape(-1, 1).flatten()
+
+    array_dir = generate_array_dir(
+        nu=nu,
+        nv=nv,
+        nu_fg=nu_fg,
+        nv_fg=nv_fg,
+        neta=neta,
+        fit_for_monopole=fit_for_monopole,
+        use_shg=use_shg,
+        nu_sh=nu_sh,
+        nv_sh=nv_sh,
+        nq_sh=nq_sh,
+        npl_sh=npl_sh,
+        fit_for_shg_amps=fit_for_shg_amps,
+        nu_min_MHz=nu_min_MHz,
+        channel_width_MHz=channel_width_MHz,
+        nq=nq,
+        npl=npl,
+        beta=beta,
+        sigma=sigma,
+        nside=nside,
+        fov_ra_eor=fov_ra_eor,
+        fov_dec_eor=fov_dec_eor,
+        fov_ra_fg=fov_ra_fg,
+        fov_dec_fg=fov_dec_fg,
+        simple_za_filter=simple_za_filter,
+        telescope_name=telescope_name,
+        nbls=nbls,
+        nt=nt,
+        integration_time_seconds=integration_time_seconds,
+        beam_type=beam_type,
+        beam_center=beam_center,
+        drift_scan=drift_scan,
+        taper_func=taper_func,
+        include_instrumental_effects=include_instrumental_effects,
+        achromatic_beam=achromatic_beam,
+        beam_peak_amplitude=beam_peak_amplitude,
+        fwhm_deg=fwhm_deg,
+        antenna_diameter=antenna_diameter,
+        cosfreq=cosfreq,
+        beam_ref_freq=beam_ref_freq,
+        noise_data_path=noise_data_path,
+        prefix=prefix,
+        mkdir=mkdir
+    )
+    mpiprint(
+        f"[bold]Array save directory:[/bold] {array_dir}", rank=print_rank
+    )
+    
+    bm = BuildMatrices(
+        array_dir,
+        include_instrumental_effects,
+        use_sparse_matrices,
+        nu,
+        nv,
+        nbls,
+        neta,
+        nf,
+        nu_min_MHz,
+        channel_width_MHz,
+        nq,
+        nt,
+        integration_time_seconds,
+        sigma,
+        fit_for_monopole,
+        Finv_Fprime=np.logical_not(build_Finv_and_Fprime),
+        nside=nside,
+        central_jd=central_jd,
+        telescope_latlonalt=telescope_latlonalt,
+        drift_scan_pb=drift_scan,
+        beam_type=beam_type,
+        beam_peak_amplitude=beam_peak_amplitude,
+        beam_center=beam_center,
+        fwhm_deg=fwhm_deg,
+        antenna_diameter=antenna_diameter,
+        cosfreq=cosfreq,
+        achromatic_beam=achromatic_beam,
+        beam_ref_freq=beam_ref_freq,
+        du_eor=du_eor,
+        dv_eor=dv_eor,
+        du_fg=du_fg,
+        dv_fg=dv_fg,
+        deta=deta,
+        fov_ra_eor=fov_ra_eor,
+        fov_dec_eor=fov_dec_eor,
+        nu_fg=nu_fg,
+        nv_fg=nv_fg,
+        npl=npl,
+        beta=beta,
+        fov_ra_fg=fov_ra_fg,
+        fov_dec_fg=fov_dec_fg,
+        simple_za_filter=simple_za_filter,
+        uvw_array_m=uvws,
+        bl_red_array=redundancy,
+        bl_red_array_vec=redundancy_vec,
+        phasor_vec=phasor,
+        use_shg=use_shg,
+        fit_for_shg_amps=fit_for_shg_amps,
+        nu_sh=nu_sh,
+        nv_sh=nv_sh,
+        nq_sh=nq_sh,
+        npl_sh=npl_sh,
+        effective_noise=noise,
+        taper_func=taper_func
+    )
+    if clobber:
+        mpiprint(
+            "\nWARNING: Overwriting matrix stack\n", rank=print_rank,
+            style="bold red", justify="center"
+        )
+    bm.build_minimum_sufficient_matrix_stack(
+        clobber_matrices=clobber, force_clobber=clobber
+    )
+
+    return bm
+
+def build_posterior(
+    k_vals=None,
+    k_cube_voxels_in_bin=None,
+    nuv=None,
+    neta=None,
+    nf=None,
+    nq=None,
+    redshift=None,
+    Ninv=None,
+    dbar=None,
+    d_Ninv_d=None,
+    T_Ninv_T=None,
+    ps_box_size_ra_Mpc=None,
+    ps_box_size_dec_Mpc=None,
+    ps_box_size_para_Mpc=None,
+    include_instrumental_effects=True,
+    log_priors=False,
+    inverse_LW_power=1e-16,
+    dimensionless_PS=True,
+    block_T_Ninv_T=[],
+    use_shg=False,
+    use_gpu=True,
+    priors=None,
+    uprior_inds=None,
+    use_intrinsic_noise_fitting=False,
+    use_LWM_Gaussian_prior=False,
+    verbose=False,
+    rank=0,
+    **kwargs
+):
+    # print_rank will only trigger print if verbose is True and rank == 0
+    print_rank = 1 - (verbose and rank==0)
+
+    mpiprint("\n", Panel("Posterior"), rank=print_rank)
+    if use_LWM_Gaussian_prior:
+        mpiprint(
+            "WARNING: use_LWM_Gaussian_prior is not currently implemented."
+            " Results might be inaccurate.",
+            style="bold red",
+            justify="center",
+            rank=rank
+        )
+        # Set minimum LW model priors using LW power spectrum in fit to
+        # white noise (i.e the prior min should incorporate knowledge of
+        # signal-removal in iterative pre-subtraction)
+        fg_log_priors_min = np.log10(1.e5)
+        # Set minimum LW model prior max using numerical stability
+        # constraint at the given signal-to-noise in the data.
+        fg_log_priors_max = 6.0
+        # priors[0] = [fg_log_priors_min, 8.0] # Set
+        # Calibrate LW model priors using white noise fitting
+        priors[0] = [fg_log_priors_min, fg_log_priors_max]
+        priors[1] = [fg_log_priors_min, fg_log_priors_max]
+        priors[2] = [fg_log_priors_min, fg_log_priors_max]
+        if use_intrinsic_noise_fitting:
+            priors[1] = priors[0]
+            priors[2] = priors[1]
+            priors[3] = priors[2]
+            priors[0] = [1.0, 2.0]  # Linear alpha_prime range
+    else:
+        if use_intrinsic_noise_fitting:
+            priors[0] = [1.0, 2.0]  # Linear alpha_prime range
+
+
+    mpiprint("priors = {}".format(priors), rank=print_rank)
+    prior_c = PriorC(priors)
+
+    # TODO: THIS NEEDS TO GO IN THE DRIVER SCRIPT, I THINK.
+    # # Assign uniform priors to any bins specified by uprior_bins
+    # if uprior_bins != "":
+    #     uprior_inds = parse_uprior_inds(uprior_bins, nDims)
+    #     mpiprint(
+    #         f"\nUniform prior k-bin indices: {np.where(uprior_inds)[0]}\n",
+    #         rank=mpi_rank
+    #     )
+    # else:
+    #     uprior_inds = None
+    
+    mpiprint(
+        "\nInstantiating posterior class:", style="bold", rank=print_rank
+    )
+    pspp = PowerSpectrumPosteriorProbability(   
+        T_Ninv_T,
+        dbar,
+        k_vals,
+        k_cube_voxels_in_bin,
+        nuv,
+        neta,
+        nf,
+        nq,
+        Ninv,
+        d_Ninv_d,
+        redshift,
+        ps_box_size_ra_Mpc,
+        ps_box_size_dec_Mpc,
+        ps_box_size_para_Mpc,
+        include_instrumental_effects=include_instrumental_effects,
+        log_priors=log_priors,
+        uprior_inds=uprior_inds,
+        inverse_LW_power=inverse_LW_power,
+        dimensionless_PS=dimensionless_PS,
+        block_T_Ninv_T=block_T_Ninv_T,
+        intrinsic_noise_fitting=use_intrinsic_noise_fitting,
+        use_shg=use_shg,
+        rank=rank,
+        use_gpu=use_gpu,
+        print=(verbose and rank==0)
+    )
+    return pspp
+
+def generate_array_dir(
     nu=None,
     nv=None,
     nu_fg=None,
@@ -687,20 +1739,24 @@ def get_array_dir_name(
     fov_ra_fg=None,
     fov_dec_fg=None,
     simple_za_filter=False,
-    beam_center=None,
-    drift_scan=True,
+    telescope_name=None,
+    nbls=None,
+    nt=None,
+    integration_time_seconds=None,
     taper_func=None,
+    drift_scan=True,
     include_instrumental_effects=True,
     beam_type=None,
+    beam_center=None,
     achromatic_beam=False,
     beam_peak_amplitude=None,
     fwhm_deg=None,
     antenna_diameter=None,
     cosfreq=None,
     beam_ref_freq=None,
-    inst_model=None,
     noise_data_path=None,
-    prefix=Path("./matrices/")
+    prefix=Path("./matrices/"),
+    mkdir=False
 ):
     """
     Generate the output path for BayesEoR matrices based on analysis params.
@@ -776,19 +1832,31 @@ def get_array_dir_name(
         Field of view of the Declination axis of the foreground sky model in
         degrees.
     simple_za_filter : bool
-        Filter pixels in teh sky model by zenith angle only.
-    beam_center : list of float
-        Beam center offsets from the phase center in right ascension and
-        declination in degrees.
-    drift_scan : bool
-        Model drift scan (True) or phased (False) visibilities.
+        Filter pixels in the sky model by zenith angle only.
+    telescope_name : str, optional
+        Telescope identifier string. Defaults to ''.
+    nbls : int
+        Number of baselines being modelled. Used if `telescope_name` is ''.
+    nt : float
+        Number of times. Used if `telescope_name` is ''.
+    integration_time_seconds : float
+        Integration time in seconds. Used if `telescope_name` is ''.
     taper_func : str
         Taper function applied to the frequency axis of the visibilities.
+        Can be any valid argument to `scipy.signal.windows.get_window`.
+    drift_scan : bool
+        Model drift scan (True, default) or phased (False) visibilities.
     include_instrumental_effects : bool
         Forward model an instrument.
+    uvws : numpy.ndarray
+        Array containing the (u(t), v(t), w(t)) coordinates of the instrument
+        model with shape (nt, nbls, 3).
     beam_type : str
         Path to a pyuvdata-compatible beam file or one of 'uniform',
         'gaussian', 'airy', 'gausscosine', or 'taperairy'.
+    beam_center : list of float
+        Beam center offsets from the phase center in right ascension and
+        declination in degrees.
     achromatic_beam : bool
         Force the beam to be achromatic.
     beam_peak_amplitude : float
@@ -801,12 +1869,12 @@ def get_array_dir_name(
         Cosine frequency if using a 'gausscosine' beam.
     beam_ref_freq : float
         Beam reference frequency in MHz.
-    inst_model : :class:`pathlib.Path` or str
-        To be replaced by telescope_name (see # FIXME).
-    noise_data_path : :class:`pathlib.Path` or str
+    noise_data_path : pathlib.Path or str
         Path to a numpy-compatible file containing a preprocessed noise vector.
-    prefix : :class:`pathlib.Path` or str, optional
-        Array directory prefix.  Defaults to './matrices/'.
+    prefix : pathlib.Path or str, optional
+        Array directory prefix. Defaults to './matrices/'.
+    mkdir : bool, optional
+        Make array directory (including parents). Defaults to False.
 
     Returns
     -------
@@ -822,123 +1890,108 @@ def get_array_dir_name(
     else:
         matrices_path = Path("./")
 
-    # Root matrix dir
-    analysis_dir = (
-        f"nu-{nu}-nv-{nv}-neta-{neta}"
-        + f"-fmin-{nu_min_MHz:.2f}MHz"
-        + f"-df-{channel_width_MHz*1e3:.2f}kHz"
-        + f"-sigma-{sigma:.2E}-nside-{nside}"
-    )
+    model_str = f"nu{nu}-nv{nv}-neta{neta}-nq{nq}"
+    if not (nu == nu_fg and nv == nv_fg):
+        model_str += f"-nufg{nu_fg}-nvfg{nv_fg}"
+    if fit_for_monopole:
+        model_str += "-ffm"
+    if use_shg:
+        shg_str = "shg"
+        if nu_sh > 0:
+            shg_str += f"-nush{nu_sh}"
+        if nv_sh > 0 and nu_sh != nv_sh:
+            shg_str += f"-nvsh{nv_sh}"
+        if nq_sh > 0:
+            shg_str += f"-nqsh{nq_sh}"
+        if fit_for_shg_amps:
+            shg_str += "-ffsa"
+        model_str += f"-{shg_str}"
+    matrices_path /= model_str
+
+    freq_str = f"fmin{nu_min_MHz:.2f}MHz-df{channel_width_MHz*1e3:.2f}kHz"
+    if nq > 0 and beta is not None:
+        beta_str = "-".join([f"b{i+1}{beta[i]:.2f}" for i in range(len(beta))])
+    freq_str += f"-{beta_str}"
+    matrices_path /= freq_str
 
     fovs_match = (
         fov_ra_eor == fov_ra_fg
         and fov_dec_eor == fov_dec_fg
     )
-    fov_str = "-fov-deg"
+    img_str = "fov"
     if not fovs_match:
-        fov_str += "-eor"
+        img_str += "-eor"
     if not fov_ra_eor == fov_dec_eor and not simple_za_filter:
-        fov_str += f"-ra-{fov_ra_eor:.1f}-dec-{fov_dec_eor:.1f}"
+        img_str += f"-ra{fov_ra_eor:.1f}d-dec{fov_dec_eor:.1f}d"
     else:
-        fov_str += f"-{fov_ra_eor:.1f}"
+        img_str += f"{fov_ra_eor:.1f}d"
     if not fovs_match:
-        fov_str += "-fg"
+        img_str += "-fg"
         if fov_ra_fg != fov_dec_fg and not simple_za_filter:
-            fov_str += f"-ra-{fov_ra_fg:.1f}-dec-{fov_dec_fg:.1f}"
+            img_str += f"-ra{fov_ra_fg:.1f}d-dec{fov_dec_fg:.1f}d"
         else:
-            fov_str += f"-{fov_ra_fg:.1f}"
-    if simple_za_filter:
-        fov_str += "-za-filter"
-    analysis_dir += fov_str
-
-    nu_nv_match = (
-        nu == nu_fg and nv == nv_fg
-    )
-    if not nu_nv_match:
-        analysis_dir += f"-nufg-{nu_fg}-nvfg-{nv_fg}"
+            img_str += f"{fov_ra_fg:.1f}d"
+    if not simple_za_filter:
+        img_str += "-rect"
+    img_str += f"-nside{nside}"
+    matrices_path /= img_str
     
-    analysis_dir += f"-nq-{nq}"
-    if nq > 0:
-        if npl == 1:
-            analysis_dir += f"-beta-{beta[0]:.2f}"
-        else:
-            for i in range(npl):
-                analysis_dir += f"-b{i+1}-{beta[i]:.2f}"
-    if fit_for_monopole:
-        analysis_dir += "-ffm"
-
-    if use_shg:
-        shg_str = "-shg"
-        if nu_sh > 0:
-            shg_str += f"-nush-{nu_sh}"
-        if nv_sh > 0:
-            shg_str += f"-nvsh-{nv_sh}"
-        if nq_sh > 0:
-            shg_str += f"-nqsh-{nq_sh}"
-        if npl_sh > 0:
-            shg_str += f"-nplsh-{npl_sh}"
-        if fit_for_shg_amps:
-            shg_str += "-ffsa"
-        analysis_dir += shg_str
-    
-    if beam_center is not None:
-        beam_center_signs = [
-            "+" if beam_center[i] >= 0 else "" for i in range(2)
-        ]
-        beam_center_str = "-beam-center-RA0{}{:.2f}-DEC0{}{:.2f}".format(
-                beam_center_signs[0],
-                beam_center[0],
-                beam_center_signs[1],
-                beam_center[1]
-        )
-        analysis_dir += beam_center_str
-    
-    if not drift_scan:
-        analysis_dir += "-phased"
-    
-    if taper_func:
-        analysis_dir += f"-{taper_func}"
-    
-    matrices_path /= analysis_dir
-    
+    inst_dir = ""
+    if telescope_name != "":
+        inst_dir += f"{telescope_name}-"
+    elif np.all([x is not None for x in [nbls, nt, integration_time_seconds]]):
+        inst_dir += f"nbls{nbls}-nt{nt}-dt{integration_time_seconds:.2f}s"
     if include_instrumental_effects:
         beam_info_str = ""
         if not "." in beam_type:
-            beam_info_str = f"{beam_type}-beam"
+            beam_info_str = f"{beam_type}"
             if achromatic_beam:
                 beam_info_str = "achromatic-" + beam_info_str
             if (not beam_peak_amplitude == 1
                 and beam_type in ["uniform", "gaussian", "gausscosine"]):
-                beam_info_str += f"-peak-amp-{beam_peak_amplitude}"
+                beam_info_str += f"-peak{beam_peak_amplitude}"
             
             if beam_type in ["gaussian", "gausscosine"]:
                 if fwhm_deg is not None:
-                    beam_info_str += f"-fwhm-{fwhm_deg:.4f}deg"
+                    beam_info_str += f"-fwhm{fwhm_deg:.4f}d"
                 elif antenna_diameter is not None:
                     beam_info_str += (
-                        f"-antenna-diameter-{antenna_diameter}m"
+                        f"-antdiam{antenna_diameter}m"
                     )
                 if beam_type == "gausscosine":
-                    beam_info_str += f"-cosfreq-{cosfreq:.2f}wls"
+                    beam_info_str += f"-cosfreq{cosfreq:.2f}wls"
             elif beam_type in ["airy", "taperairy"]:
-                beam_info_str += f"-antenna-diameter-{antenna_diameter}m"
+                beam_info_str += f"-antdiam{antenna_diameter}m"
                 if beam_type == "taperairy":
-                    beam_info_str += f"-fwhm-{fwhm_deg}deg"
+                    beam_info_str += f"-fwhm{fwhm_deg}d"
             if achromatic_beam:
-                beam_info_str += f"-ref-freq-{beam_ref_freq:.2f}MHz"
+                beam_info_str += f"-fref{beam_ref_freq:.2f}MHz"
         else:
             beam_info_str = Path(beam_type).stem
+        inst_dir += f"-{beam_info_str}"
 
-        # FIXME: inst_model isn't useful anymore, could potentially add a new
-        # kwarg like e.g. telescope_name.
-        inst_dir = "-".join((Path(inst_model).name, beam_info_str))
-        if drift_scan:
-            inst_dir += "-dspb"
-        if noise_data_path is not None:
-            inst_dir += "-noise-vec"
-
-        matrices_path /= inst_dir
+        if beam_center is not None:
+            beam_center_signs = [
+                "+" if beam_center[i] >= 0 else "" for i in range(2)
+            ]
+            beam_center_str = "bmctr-RA0{}{:.2f}-DEC0{}{:.2f}".format(
+                    beam_center_signs[0],
+                    beam_center[0],
+                    beam_center_signs[1],
+                    beam_center[1]
+            )
+            inst_dir += f"-{beam_center_str}"
+        if not drift_scan:
+            inst_dir += "-phased"
+    inst_dir += f"-sigma{sigma:.2e}"
+    if noise_data_path is not None:
+        inst_dir += "-noisevec"
+    matrices_path /= inst_dir
     
-    matrices_path.mkdir(exist_ok=True, parents=True)
+    if taper_func:
+        matrices_path /= f"{taper_func}"
+    
+    if mkdir:
+        matrices_path.mkdir(exist_ok=True, parents=True)
 
-    return str(matrices_path) + "/", fov_str
+    return str(matrices_path) + "/"
