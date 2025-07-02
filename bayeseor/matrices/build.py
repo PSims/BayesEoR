@@ -1626,7 +1626,7 @@ class BuildMatrices(BuildMatrixTree):
         Notes
         -----
         * `Fz` has shape ((nuv_eor + nuv_fg)*nf,
-           nuv_eor*(neta \- 1) + nuv_fg*(1 + nq)
+           nuv_eor*(neta - 1) + nuv_fg*(1 + nq)
            + fit_for_monopole*(neta + nq)).
 
         """
