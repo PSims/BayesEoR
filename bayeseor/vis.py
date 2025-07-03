@@ -26,7 +26,7 @@ def preprocess_uvdata(
     form_pI=True,
     pI_norm=1.0,
     pol="xx",
-    redundant_avg=True,
+    redundant_avg=False,
     uniform_redundancy=False,
     phase=False,
     phase_time=False,
@@ -112,7 +112,7 @@ def preprocess_uvdata(
         Case-insensitive polarization string. Used only if `form_pI` is False.
         Defaults to 'xx'.
     redundant_avg : bool, optional
-        Redundantly average the data.  Defaults to True.
+        Redundantly average the data.  Defaults to False.
     uniform_redundancy : bool, optional
         Force the redundancy model to be uniform. Defaults to False.
     phase : bool, optional
@@ -193,14 +193,6 @@ def preprocess_uvdata(
             red_path = save_dir / "redundancy_model.npy"
             if phase:
                 phasor_path = save_dir / "phasor_vector.npy"
-
-    if redundant_avg and not uniform_redundancy:
-        # If the data are noisy and being redundantly averaged, the noise
-        # estimate derived from the redundantly-averaged visibilities will
-        # automatically account for the number of baselines in each
-        # redundant group. To avoid double counting, we exclude the number
-        # of baselines in each redundant group from the redundancy model.
-        uniform_redundancy = True
 
     # print_rank will only trigger print if verbose is True and rank == 0
     print_rank = 1 - (verbose and rank==0)
