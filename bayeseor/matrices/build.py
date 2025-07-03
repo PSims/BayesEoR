@@ -252,19 +252,18 @@ class BuildMatrixTree(object):
         print('Time taken: {}'.format(time.time() - start))
         return 0
 
-    def read_data_s2d(self, file_path, dataset_name):
+    def read_data_s2d(self, matrix_name):
         """
         Read matrix from disk and, if necessary, convert to dense matrix.
 
         Parameters
         ----------
-        file_path : str
-            Path to array file.
-        dataset_name : str
-            If reading an hdf5 file, the key used to access the dataset.
+        matrix_name : str
+            Matrix name. For example, to load Finv from disk, `matrix_name`
+            would be 'Finv'.
 
         """
-        data = self.read_data(file_path, dataset_name)
+        data = self.read_data(matrix_name)
         data = self.convert_sparse_matrix_to_dense_numpy_array(data)
         return data
     
@@ -760,12 +759,8 @@ class BuildMatrices(BuildMatrixTree):
                     file_extension = '.npz'
                 else:
                     file_extension = '.h5'
-                file_path = (self.array_save_directory
-                             + child_matrix
-                             + file_extension)
-                dataset_name = child_matrix
                 start = time.time()
-                data = self.read_data(file_path, dataset_name)
+                data = self.read_data(child_matrix)
                 prerequisite_matrices_dictionary[child_matrix] = data
                 print('Time taken: {}'.format(time.time() - start))
 
