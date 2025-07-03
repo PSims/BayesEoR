@@ -875,7 +875,6 @@ class BayesEoRParser(ArgumentParser):
         self.add_argument(
             "--redundant-avg",
             action="store_true",
-            default=True,
             help="Redundantly average the data when forming the data vector."
         )
         self.add_argument(
