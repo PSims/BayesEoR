@@ -4,6 +4,7 @@ import numpy as np
 from astropy.time import Time
 from pathlib import Path
 from rich.panel import Panel
+import warnings
 
 from .matrices.build import BuildMatrices
 from .model.instrument import load_inst_model
@@ -87,7 +88,7 @@ def run_setup(
     save_dir=None,
     clobber=False,
     sigma=None,
-    random_seed=None,
+    noise_seed=None,
     noise_data_path=None,
     inst_model=None,
     save_k_vals=False,
@@ -329,7 +330,7 @@ def run_setup(
     sigma : float, optional
         Standard deviation of the visibility noise. Only used if `setup_data_vec`
         is True and `noise_data_path` is None. Defaults to None.
-    random_seed : int, optional
+    noise_seed : int, optional
         Used to seed `np.random` when generating the noise vector. Defaults to
         None.
     noise_data_path : pathlib.Path or str, optional
@@ -525,7 +526,7 @@ def run_setup(
         phase_time=phase_time,
         calc_noise=calc_noise,
         sigma=sigma,
-        random_seed=random_seed,
+        noise_seed=noise_seed,
         save_vis=save_vis,
         save_model=save_model,
         save_dir=save_dir,
@@ -646,7 +647,8 @@ def run_setup(
     pspp = build_posterior(
         k_vals=k_vals,
         k_cube_voxels_in_bin=k_cube_voxels_in_bin,
-        nuv=(nu*nv - 1),
+        nu=nu,
+        nv=nv,
         neta=neta,
         nf=nf,
         nq=nq,
@@ -847,7 +849,7 @@ def get_vis_data(
     phase_time=None,
     calc_noise=False,
     sigma=None,
-    random_seed=None,
+    noise_seed=None,
     save_vis=False,
     save_model=False,
     save_dir="./",
@@ -943,7 +945,7 @@ def get_vis_data(
         adjacent times per baseline and frequency. Defaults to False.
     sigma : float
         Standard deviation of the visibility noise.
-    random_seed : int, optional
+    noise_seed : int, optional
         Used to seed `np.random` when generating the noise vector. Defaults to
         None.
     save_vis : bool, optional
@@ -1105,6 +1107,10 @@ def get_vis_data(
         if noise is not None:
             vis_noisy = vis + noise
         elif sigma is not None:
+            mpiprint(
+                f"Generating noise vector with std. dev. = {sigma:.2e}",
+                rank=print_rank
+            )
             vis_noisy, noise, bl_conj_pairs_map = \
                 generate_data_and_noise_vector_instrumental(
                     sigma,
@@ -1113,7 +1119,7 @@ def get_vis_data(
                     nt,
                     uvws[0],
                     redundancy[0],
-                    random_seed=random_seed,
+                    random_seed=noise_seed,
                     rank=print_rank
                 )
         else:
@@ -1453,38 +1459,43 @@ def generate_array_dir(
     img_str += f"-nside{nside}"
     matrices_path /= img_str
     
-    inst_dir = ""
+    inst_str = ""
     if telescope_name != "":
-        inst_dir += f"{telescope_name}-"
-    inst_dir += f"nbls{nbls}-nt{nt}-dt{integration_time_seconds:.2f}s-"
+        inst_str += f"{telescope_name}-"
     if include_instrumental_effects:
-        beam_info_str = ""
+        if nbls is not None:
+            inst_str += f"nbls{nbls}-"
+        inst_str += f"nt{nt}-dt{integration_time_seconds:.2f}s"
+        if not drift_scan:
+            inst_str += "-phased"
+        matrices_path /= inst_str
+    
+        beam_str = ""
         if not "." in beam_type:
-            beam_info_str = f"{beam_type}"
+            beam_str = f"{beam_type}"
             if achromatic_beam:
-                beam_info_str = "achromatic-" + beam_info_str
+                beam_str = "achromatic-" + beam_str
             if (not beam_peak_amplitude == 1
                 and beam_type in ["uniform", "gaussian", "gausscosine"]):
-                beam_info_str += f"-peak{beam_peak_amplitude}"
+                beam_str += f"-peak{beam_peak_amplitude}"
             
             if beam_type in ["gaussian", "gausscosine"]:
                 if fwhm_deg is not None:
-                    beam_info_str += f"-fwhm{fwhm_deg:.4f}d"
+                    beam_str += f"-fwhm{fwhm_deg:.4f}d"
                 elif antenna_diameter is not None:
-                    beam_info_str += (
-                        f"-antdiam{antenna_diameter}m"
+                    beam_str += (
+                        f"-diam{antenna_diameter}m"
                     )
                 if beam_type == "gausscosine":
-                    beam_info_str += f"-cosfreq{cosfreq:.2f}wls"
+                    beam_str += f"-cosfreq{cosfreq:.2f}wls"
             elif beam_type in ["airy", "taperairy"]:
-                beam_info_str += f"-antdiam{antenna_diameter}m"
+                beam_str += f"-diam{antenna_diameter}m"
                 if beam_type == "taperairy":
-                    beam_info_str += f"-fwhm{fwhm_deg}d"
+                    beam_str += f"-fwhm{fwhm_deg}d"
             if achromatic_beam:
-                beam_info_str += f"-fref{beam_ref_freq:.2f}MHz"
+                beam_str += f"-fref{beam_ref_freq:.2f}MHz"
         else:
-            beam_info_str = Path(beam_type).stem
-        inst_dir += f"{beam_info_str}"
+            beam_str = Path(beam_type).stem
 
         if beam_center is not None:
             beam_center_signs = [
@@ -1496,13 +1507,14 @@ def generate_array_dir(
                     beam_center_signs[1],
                     beam_center[1]
             )
-            inst_dir += f"-{beam_center_str}"
-        if not drift_scan:
-            inst_dir += "-phased"
-    inst_dir += f"-sigma{sigma:.2e}"
+            beam_str += f"-{beam_center_str}"
+
+        matrices_path /= f"{beam_str}"
+
+    noise_str = f"sigma{sigma:.2e}"
     if noise_data_path is not None:
-        inst_dir += "-noisevec"
-    matrices_path /= inst_dir
+        noise_str += "-noisevec"
+    matrices_path /= noise_str
     
     if taper_func:
         matrices_path /= f"{taper_func}"
@@ -1657,19 +1669,6 @@ def build_matrices(
     telescope_latlonalt : tuple of floats
         Telescope location tuple as (latitude in degrees, longitude in degrees,
         altitude in meters). Defaults to (0, 0, 0).
-    telescope_name : str, optional
-        Telescope identifier string. Defaults to ''.
-    uvws : numpy.ndarray
-        Array containing the (u(t), v(t), w(t)) coordinates of the instrument
-        model with shape (nt, nbls, 3).
-    redundancy : numpy.ndarray
-        Array containing the number of redundant baselines at each
-        (u(t), v(t), w(t)) in the instrument model with shape (nt, nbls, 1).
-    phasor : numpy.ndarray
-        Array with shape (ndata,) that contains the phasor term used to phase
-        visibilities after performing the nuDFT from HEALPix (l, m, f) to
-        instrumentally sampled, unphased (u, v, f).  Defaults to None, i.e.
-        modelling unphased visibilities.
     nt : float
         Number of times.
     central_jd : float
@@ -1703,10 +1702,6 @@ def build_matrices(
         Forward model an instrument.
     noise_data_path : pathlib.Path or str
         Path to a numpy-compatible file containing a preprocessed noise vector.
-    array_dir_prefix : pathlib.Path or str, optional
-        Array directory prefix. Defaults to './matrices/'.
-    mkdir : bool, optional
-        Make array directory (including parents). Defaults to False.
     use_sparse_matrices : bool
         Use sparse arrays. Defaults to True.parse_matrices
     build_Finv_and_Fprime : bool
@@ -1715,8 +1710,25 @@ def build_matrices(
         memory and time required to build the matrix stack.  In this case,
         only the matrix product Finv_Fprime is written to disk.  Otherwise,
         construct Finv and Fprime independently and save both matrices to disk.
+    array_dir_prefix : pathlib.Path or str, optional
+        Array directory prefix. Defaults to './matrices/'.
+    telescope_name : str, optional
+        Telescope identifier string. Defaults to ''.
+    uvws : numpy.ndarray
+        Array containing the (u(t), v(t), w(t)) coordinates of the instrument
+        model with shape (nt, nbls, 3).
+    redundancy : numpy.ndarray
+        Array containing the number of redundant baselines at each
+        (u(t), v(t), w(t)) in the instrument model with shape (nt, nbls, 1).
     noise : numpy.ndarray
         Noise vector with shape (nt*nf*nbls,).
+    phasor : numpy.ndarray
+        Array with shape (nt*nf*nbls,) that contains the phasor term used to
+        phase visibilities after performing the nuDFT from HEALPix (l, m, f) to
+        instrumentally sampled, unphased (u, v, f).  Defaults to None, i.e.
+        modelling unphased visibilities.
+    mkdir : bool, optional
+        Make array directory (including parents). Defaults to False.
     build_stack : bool, optional
         Build the matrix stack (True, default) or instantiate the BuildMatrices
         class only (False).
@@ -1733,6 +1745,14 @@ def build_matrices(
         BuildMatrices class instance used to construct the matrix stack.
 
     """
+    if noise is not None:
+        warnings.warn(
+            "There is a known issue when `noise` is not None (please see "
+            "BayesEoR issue #55 for more details.  For now, `noise` will "
+            "be forced to None."
+        )
+        noise = None
+
     # print_rank will only trigger print if verbose is True and rank == 0
     print_rank = 1 - (verbose and rank==0)
 
@@ -1802,7 +1822,7 @@ def build_matrices(
         use_sparse_matrices,
         nu,
         nv,
-        nbls,
+        n_vis,
         neta,
         nf,
         nu_min_MHz,
@@ -1849,7 +1869,7 @@ def build_matrices(
         nv_sh=nv_sh,
         nq_sh=nq_sh,
         npl_sh=npl_sh,
-        effective_noise=noise,
+        effective_noise=None,
         taper_func=taper_func
     )
 
@@ -1868,7 +1888,8 @@ def build_matrices(
 def build_posterior(
     k_vals=None,
     k_cube_voxels_in_bin=None,
-    nuv=None,
+    nu=None,
+    nv=None,
     neta=None,
     nf=None,
     nq=None,
@@ -1905,10 +1926,10 @@ def build_posterior(
         List containing sublists for each k bin.  Each sublist contains the
         flattened 3D k-space cube index of all |k| that fall within a given
         k bin.
-    nuv : int
-        Number of EoR model uv-plane (u, v) pixels per frequency. Computed as
-        nu*nv - 1 (the (u, v) = (0, 0) monopole pixel is part of the 
-        foreground model).
+    nu : int
+        Number of pixels on a side for the u-axis in the EoR model uv-plane.
+    nv : int
+        Number of pixels on a side for the v-axis in the EoR model uv-plane.
     neta : int
         Number of Line of Sight (LoS, frequency axis) Fourier modes.
     nf : int
@@ -1988,6 +2009,10 @@ def build_posterior(
 
     # print_rank will only trigger print if verbose is True and rank == 0
     print_rank = 1 - (verbose and rank==0)
+
+    # The EoR model uv-plane excludes the (u, v) = (0, 0) pixel, so the number
+    # of EoR model uv-plane pixels is nu*nv - 1
+    nuv = nu*nv - 1
 
     mpiprint("\n", Panel("Posterior"), rank=print_rank)
     if use_LWM_Gaussian_prior:
