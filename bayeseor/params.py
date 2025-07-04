@@ -1068,7 +1068,8 @@ class BayesEoRParser(ArgumentParser):
         * '1:4': equivalent to `slice(1, 4)`
         * '1,3,4': equivalent to indexing with `[1, 3, 4]`
         * '3' or '-3'
-        * 'all'
+        * 'all': all bins use a uniform prior
+        * '': no bins use a uniform prior
     
         Parameters
         ----------
@@ -1084,17 +1085,18 @@ class BayesEoRParser(ArgumentParser):
             False entries use a log-uniform prior.
     
         """
-        if upriors_str.lower() == 'all':
+        if upriors_str.lower() == "all":
             uprior_inds = np.ones(nkbins, dtype=bool)
         else:
             uprior_inds = np.zeros(nkbins, dtype=bool)
-            if ':' in upriors_str:
-                bounds = list(map(int, upriors_str.split(':')))
-                uprior_inds[slice(*bounds)] = True
-            elif ',' in upriors_str:
-                up_inds = list(map(int, upriors_str.split(',')))
-                uprior_inds[up_inds] = True
-            else:
-                uprior_inds[int(upriors_str)] = True
+            if upriors_str != "":
+                if ":" in upriors_str:
+                    bounds = list(map(int, upriors_str.split(":")))
+                    uprior_inds[slice(*bounds)] = True
+                elif "," in upriors_str:
+                    up_inds = list(map(int, upriors_str.split(",")))
+                    uprior_inds[up_inds] = True
+                else:
+                    uprior_inds[int(upriors_str)] = True
     
         return uprior_inds
