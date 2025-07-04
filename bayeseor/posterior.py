@@ -656,7 +656,7 @@ class PowerSpectrumPosteriorProbability(object):
             self.gpu.magma_finalize()
             if self.print:
                 mpiprint(
-                    '\t\tCholesky decomposition time: {time.time() - start}',
+                    f'\t\tCholesky decomposition time: {time.time() - start}',
                     rank=self.rank
                 )
             # Note: After wrapmzpotrf, Sigma is actually
