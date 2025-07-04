@@ -1988,6 +1988,11 @@ class BuildMatrices(BuildMatrixTree):
                             + 0j*np.ones(s_size)*sigma_redundancy**2
                         )
                 else:
+                    # FIXME: see BayesEoR issue #55
+                    # The docstring for `effective_noise` suggests it stores
+                    # the noise visibilities, but this code assumes it instead
+                    # stores an estimate for the standard deviation of the
+                    # noise
                     sigma_squared_array = (
                             np.abs(self.effective_noise)**2
                             + 0j*np.abs(self.effective_noise)**2
