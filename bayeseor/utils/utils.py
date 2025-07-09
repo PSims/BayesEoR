@@ -4,10 +4,12 @@ from pathlib import Path
 from copy import deepcopy
 
 from rich.console import Console
-cns = Console()
 
 from ..model.healpix import Healpix
 from .. import __version__
+
+cns = Console()
+cns.is_jupyter = False
 
 def mpiprint(*args, rank=0, highlight=False, soft_wrap=True, **kwargs):
     """
