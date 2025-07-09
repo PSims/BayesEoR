@@ -57,12 +57,14 @@ class BuildMatrixTree(object):
         sampling and the primary beam.
     use_sparse_matrices : bool
         If True, use sparse matrices in place of numpy arrays.
-    Finv_Fprime : bool
+    Finv_Fprime : bool, optional
         If True (default), construct the matrix product Finv_Fprime in place
         from the dense matrices comprising Finv and Fprime to minimize the
         memory and time required to build the matrix stack.  In this case,
         only the matrix product Finv_Fprime is written to disk.  Otherwise,
         construct Finv and Fprime independently and save both matrices to disk.
+    verbose : bool, optional
+        Verbose output. Defaults to False.
 
     """
     def __init__(
@@ -71,14 +73,18 @@ class BuildMatrixTree(object):
         include_instrumental_effects,
         use_sparse_matrices,
         Finv_Fprime=True,
-        **kwargs
+        verbose=False
     ):
         self.array_save_directory = array_save_directory
         self.include_instrumental_effects = include_instrumental_effects
         self.use_sparse_matrices = use_sparse_matrices
         self.Finv_Fprime = Finv_Fprime
+        self.verbose = verbose
 
-        self.matrix_prerequisites_dictionary = {
+        # Dictionary with keys for each parent matrix required to build the
+        # full matrix stack and values of list containing names of child
+        # matrices required to build each parent matrix
+        self.matrix_prereqs = {
             'Finv': ['multi_chan_nudft', 'multi_chan_beam'],
             'Fprime': ['multi_chan_nuidft', 'multi_chan_nuidft_fg'],
             'multi_chan_nuidft': ['nuidft_array'],
@@ -95,25 +101,40 @@ class BuildMatrixTree(object):
             'block_T_Ninv_T': ['T_Ninv_T'],
         }
         if Finv_Fprime:
-            self.matrix_prerequisites_dictionary.update(
+            self.matrix_prereqs.update(
                 {'T': ['Finv_Fprime', 'Fz'],}
             )
         else:
-            self.matrix_prerequisites_dictionary.update(
+            self.matrix_prereqs.update(
                 {
                     'Fprime_Fz': ['Fprime', 'Fz'],
                     'T': ['Finv', 'Fprime_Fz']
                 }
             )
 
-        if self.include_instrumental_effects:
-            self.beam_center = None
-
     def check_for_prerequisites(self, parent_matrix):
+        """
+        Check if `parent_matrix` requires any child matrices to be built.
+
+        Parameters
+        ----------
+        parent_matrix : str
+            Name of matrix.
+
+        Returns
+        -------
+        prerequisites_status : dict
+            Dictionary containing any required child matrices as keys and
+            integers as values specifying whether each child matrix has been
+            constructed (1 for dense, 2 for sparse) or not (0). If no child
+            matrices are required to build `parent_matrix`,
+            `prerequisites_status` is returned as an empty dictionary.
+
+        """
         prerequisites_status = {}
-        if parent_matrix in self.matrix_prerequisites_dictionary.keys():
+        if parent_matrix in self.matrix_prereqs.keys():
             for child_matrix\
-                    in self.matrix_prerequisites_dictionary[parent_matrix]:
+                    in self.matrix_prereqs[parent_matrix]:
                 matrix_available = self.check_if_matrix_exists(child_matrix)
                 prerequisites_status[child_matrix] = matrix_available
         return prerequisites_status
@@ -144,10 +165,12 @@ class BuildMatrixTree(object):
             if npz_matrix_available:
                 matrix_available = 2
                 if not self.use_sparse_matrices:
-                    print('Only the sparse matrix'
-                          ' representation is available.')
-                    print('Using sparse representation and'
-                          ' setting self.use_sparse_matrices=True')
+                    if self.verbose:
+                        print(
+                            'Only the sparse matrix representation is '
+                            'available.\nUsing sparse representation and '
+                            'setting self.use_sparse_matrices=True.'
+                        )
                     self.use_sparse_matrices = True
             else:
                 matrix_available = 0
@@ -164,13 +187,15 @@ class BuildMatrixTree(object):
 
         """
         if not os.path.exists(directory):
-            print('Directory not found:\n\n' + directory + "\n")
-            print('Creating required directory structure..')
+            if self.verbose:
+                print('Directory not found:\n\n' + directory + "\n")
+                print('Creating required directory structure..')
             os.makedirs(directory)
         return 0
 
     def output_data(
-            self, output_array, output_directory, file_name, dataset_name):
+        self, output_array, output_directory, file_name, dataset_name
+    ):
         """
         Write matrix to disk.
 
@@ -199,7 +224,8 @@ class BuildMatrixTree(object):
         return 0
 
     def output_to_hdf5(
-            self, output_array, output_directory, file_name, dataset_name):
+        self, output_array, output_directory, file_name, dataset_name
+    ):
         """
         Write matrix to HDF5 file.
 
@@ -215,17 +241,21 @@ class BuildMatrixTree(object):
             Key used to access `output_array`.
 
         """
-        start = time.time()
+        if self.verbose:
+            start = time.time()
         self.create_directory(output_directory)
         output_path = Path(output_directory) / file_name
-        print('Writing data to', output_path)
+        if self.verbose:
+            print('Writing data to', output_path)
         with h5py.File(output_path, 'w') as hf:
             hf.create_dataset(dataset_name, data=output_array)
-        print('Time taken: {}'.format(time.time() - start))
+        if self.verbose:
+            print('Time taken: {}'.format(time.time() - start))
         return 0
 
     def output_sparse_matrix_to_npz(
-            self, output_array, output_directory, file_name):
+        self, output_array, output_directory, file_name
+    ):
         """
         Write sparse matrix to npz file.
 
@@ -244,12 +274,15 @@ class BuildMatrixTree(object):
           than `numpy.savez`.
 
         """
-        start = time.time()
+        if self.verbose:
+            start = time.time()
         self.create_directory(output_directory)
         output_path = Path(output_directory) / file_name
-        print('Writing data to', output_path)
+        if self.verbose:
+            print('Writing data to', output_path)
         sparse.save_npz(output_path, output_array.tocsr())
-        print('Time taken: {}'.format(time.time() - start))
+        if self.verbose:
+            print('Time taken: {}'.format(time.time() - start))
         return 0
 
     def read_data_s2d(self, matrix_name):
@@ -397,7 +430,7 @@ class BuildMatrices(BuildMatrixTree):
         Reshaped `bl_red_array` with shape
         (nt * nbls, 1).  Each set of nbls entries contain the redundancy of
         each (u, v, w) for a single integration.
-    phasor_vec : :class:`numpy.ndarray`
+    phasor : :class:`numpy.ndarray`
         Array with shape (ndata,) that contains the phasor term used to phase
         visibilities after performing the nuDFT from HEALPix (l, m, f) to
         instrumentally sampled, unphased (u, v, f).  Defaults to None, i.e.
@@ -423,7 +456,7 @@ class BuildMatrices(BuildMatrixTree):
         Central time step of the observation in JD2000 format.
     dt : float
         Time cadence of observations in seconds.
-    drift_scan_pb : bool
+    drift_scan : bool
         If True, model a drift scan primary beam, i.e. the beam center drifts
         across the image space model with time.
     beam_type : string
@@ -498,38 +531,138 @@ class BuildMatrices(BuildMatrixTree):
         Number of pixels on a side for the u-axis in the FG model uv-plane.
     nv_fg : int
         Number of pixels on a side for the v-axis in the FG model uv-plane.
+    verbose : bool, optional
+        Verbose output. Defaults to False.
 
     """
     def __init__(
         self,
-        array_save_directory,
-        include_instrumental_effects,
-        use_sparse_matrices,
-        nu,
-        nv,
-        n_vis,
-        neta,
-        nf,
-        f_min,
-        df,
-        nq,
-        nt,
-        dt,
-        sigma,
-        fit_for_monopole,
+        nu=None,  # required
+        du_eor=None,  # required
+        nv=None,  # required
+        dv_eor=None,  # required
+        nu_fg=None,  # required
+        du_fg=None,  # required
+        nv_fg=None,  # required
+        dv_fg=None,  # required
+        nf=None,   # required
+        neta=None,   # required
+        deta=None,  # required
+        fit_for_monopole=False,
+        use_shg=False,
+        nu_sh=0,
+        nv_sh=0,
+        nq_sh=0,
+        npl_sh=0,
+        fit_for_shg_amps=False,
+        f_min=None,  # required
+        df=None,  # required
+        nq=0,
+        npl=0,
+        beta=None,
+        sigma=None,  # required
+        nside=None,
+        fov_ra_eor=None,
+        fov_dec_eor=None,
+        fov_ra_fg=None,
+        fov_dec_fg=None,
+        simple_za_filter=True,
+        include_instrumental_effects=True,
+        telescope_latlonalt=(0, 0, 0),
+        nt=None,
+        central_jd=None,
+        dt=None,
+        beam_type=None,
+        beam_center=None,
+        achromatic_beam=False,
+        beam_peak_amplitude=None,
+        fwhm_deg=None,
+        antenna_diameter=None,
+        cosfreq=None,
+        beam_ref_freq=None,
+        drift_scan=True,
+        n_vis=None,  # required
+        array_save_directory="./matrices/",
+        use_sparse_matrices=True,
+        uvw_array_m=None,
+        bl_red_array=None,
+        bl_red_array_vec=None,
+        phasor=None,
+        effective_noise=None,
+        taper_func=None,
         Finv_Fprime=True,
-        **kwargs
+        verbose=False,
     ):
-        super(BuildMatrices, self).__init__(
-            array_save_directory,
-            include_instrumental_effects,
-            use_sparse_matrices,
-            Finv_Fprime=Finv_Fprime
-        )
+        # TODO: it would be nice to come up with some way to check that the
+        # required kwargs have been passed, but the list of required kwargs
+        # depends on e.g. include_instrumental_effects, use_shg.
+        required_kwargs = [
+            nu,
+            nv,
+            nu_fg,
+            nv_fg,
+            n_vis,
+            neta,
+            nf,
+            f_min,
+            df,
+            sigma,
+            deta,
+            du_eor,
+            dv_eor,
+            du_fg,
+            dv_fg
+        ]
+        if not np.all([arg is not None for arg in required_kwargs]):
+            raise ValueError(
+                "The following kwargs are required and cannot be None: "
+                "nu, nv, nu_fg, nv_fg, n_vis, neta, nf, f_min, df, sigma, "
+                "deta, du_eor, dv_eor, du_fg, dv_fg"
+            )
+
+        # TODO: merge the BuildMatrixTree and BuildMatrices classes into one.
+        # There's no need to have them separated as BuildMatrixTree was never
+        # used independently and BuildMatrices inherits directly from it with
+        # no modifications of the parent class's functions or attributes.
+        """BuildMatrixTree.__init__"""
+        # self.array_save_directory = array_save_directory
+        # self.include_instrumental_effects = include_instrumental_effects
+        # self.use_sparse_matrices = use_sparse_matrices
+        # self.Finv_Fprime = Finv_Fprime
+        # self.verbose = verbose
+
+        # # Dictionary with keys for each parent matrix required to build the
+        # # full matrix stack and values of list containing names of child
+        # # matrices required to build each parent matrix
+        # self.matrix_prereqs = {
+        #     'Finv': ['multi_chan_nudft', 'multi_chan_beam'],
+        #     'Fprime': ['multi_chan_nuidft', 'multi_chan_nuidft_fg'],
+        #     'multi_chan_nuidft': ['nuidft_array'],
+        #     'multi_vis_idft_array_1d': ['idft_array_1d'],
+        #     'gridding_matrix_co2vo': ['gridding_matrix_vo2co'],
+        #     'Fz': [
+        #         'gridding_matrix_vo2co',
+        #         'multi_vis_idft_array_1d',
+        #         'gridding_matrix_vo2co_fg',
+        #         'idft_array_1d_fg'
+        #     ],
+        #     'Ninv_T': ['Ninv', 'T'],
+        #     'T_Ninv_T': ['T', 'Ninv_T'],
+        #     'block_T_Ninv_T': ['T_Ninv_T'],
+        # }
+        # if Finv_Fprime:
+        #     self.matrix_prereqs.update({'T': ['Finv_Fprime', 'Fz']})
+        # else:
+        #     self.matrix_prereqs.update(
+        #         {'Fprime_Fz': ['Fprime', 'Fz'], 'T': ['Finv', 'Fprime_Fz']}
+        #     )
+        """BuildMatrixTree.__init__"""
 
         # Required params
         self.nu = nu
         self.nv = nv
+        self.nu_fg = nu_fg
+        self.nv_fg = nv_fg
         self.n_vis = n_vis
         self.neta = neta
         self.nf = nf
@@ -544,32 +677,37 @@ class BuildMatrices(BuildMatrixTree):
         self.freqs_hertz = (self.f_min + np.arange(self.nf)*self.df) * 1e6
 
         if self.include_instrumental_effects:
-            self.uvw_array_m = kwargs.pop('uvw_array_m')
-            self.nbls = self.uvw_array_m.shape[1]
-            self.bl_red_array = kwargs.pop('bl_red_array')
-            self.bl_red_array_vec = kwargs.pop('bl_red_array_vec')
-            self.phasor_vec = kwargs.pop('phasor_vec', None)
-            self.fov_ra_eor = kwargs.pop('fov_ra_eor')
-            self.fov_dec_eor = kwargs.pop(
-                'fov_dec_eor', self.fov_ra_eor
-            )
-            self.fov_ra_fg = kwargs.pop('fov_ra_fg')
-            self.fov_dec_fg = kwargs.pop(
-                'fov_dec_fg', self.fov_ra_fg
-            )
-            self.simple_za_filter = kwargs.pop('simple_za_filter', False)
-            self.nside = kwargs.pop('nside')
-            self.central_jd = kwargs.pop('central_jd')
-            self.telescope_latlonalt = kwargs.pop('telescope_latlonalt')
-            self.beam_type = kwargs.pop('beam_type')
-            self.beam_peak_amplitude = kwargs.pop('beam_peak_amplitude')
-            self.beam_center = kwargs.pop('beam_center', None)
-            self.fwhm_deg = kwargs.pop('fwhm_deg', None)
-            self.antenna_diameter = kwargs.pop('antenna_diameter', None)
-            self.cosfreq = kwargs.pop('cosfreq', None)
-            self.achromatic_beam = kwargs.pop('achromatic_beam', False)
-            self.beam_ref_freq = kwargs.pop('beam_ref_freq', None)
-            self.effective_noise = kwargs.pop('effective_noise', None)
+            self.uvw_array_m = uvw_array_m
+            self.nbls = uvw_array_m.shape[1]
+            self.bl_red_array = bl_red_array
+            self.bl_red_array_vec = bl_red_array_vec
+            self.phasor = phasor
+            self.fov_ra_eor = fov_ra_eor
+            if fov_dec_eor is None:
+                self.fov_dec_eor = self.fov_ra_eor
+            else:
+                self.fov_dec_eor = fov_dec_eor
+            if fov_ra_fg is None:
+                self.fov_ra_fg = fov_ra_eor
+            else:
+                self.fov_ra_fg = fov_ra_fg
+            if fov_dec_fg is None:
+                self.fov_dec_fg = self.fov_ra_fg
+            else:
+                self.fov_dec_fg = fov_dec_fg
+            self.simple_za_filter = simple_za_filter
+            self.nside = nside
+            self.central_jd = central_jd
+            self.telescope_latlonalt = telescope_latlonalt
+            self.beam_type = beam_type
+            self.beam_peak_amplitude = beam_peak_amplitude
+            self.beam_center = beam_center
+            self.fwhm_deg = fwhm_deg
+            self.antenna_diameter = antenna_diameter
+            self.cosfreq = cosfreq
+            self.achromatic_beam = achromatic_beam
+            self.beam_ref_freq = beam_ref_freq
+            self.effective_noise = effective_noise
 
             self.hpx = Healpix(
                 fov_ra_eor=self.fov_ra_eor,
@@ -589,131 +727,99 @@ class BuildMatrices(BuildMatrixTree):
                 cosfreq=self.cosfreq
             )
 
-            self.drift_scan_pb = kwargs.pop('drift_scan_pb', True)
+            self.drift_scan = drift_scan
 
         # FG model params
-        self.nu_fg = kwargs.pop('nu_fg')
-        self.nv_fg = kwargs.pop('nv_fg')
         self.nuv_fg = self.nu_fg*self.nv_fg - (not self.fit_for_monopole)
-        self.du_fg = kwargs.pop('du_fg')
-        self.dv_fg = kwargs.pop('dv_fg')
-        self.npl = kwargs.pop('npl', 0)
-        self.beta = kwargs.pop('beta', None)
+        self.npl = npl
+        self.beta = beta
 
         # SHG params
-        self.use_shg = kwargs.pop('use_shg', False)
-        self.fit_for_shg_amps = kwargs.pop('fit_for_shg_amps', False)
-        self.nu_sh = kwargs.pop('nu_sh', 0)
-        self.nv_sh = kwargs.pop('nv_sh', 0)
-        self.nq_sh = kwargs.pop('nq_sh', 0)
-        self.npl_sh = kwargs.pop('npl_sh', 0)
+        self.use_shg = use_shg
+        self.fit_for_shg_amps = fit_for_shg_amps
+        self.nu_sh = nu_sh
+        self.nv_sh = nv_sh
+        self.nq_sh = nq_sh
+        self.npl_sh = npl_sh
 
         # Taper function
-        self.taper_func = kwargs.pop('taper_func', None)
+        self.taper_func = taper_func
 
         # Fz normalization
-        self.deta = kwargs.pop('deta')
+        self.deta = deta
         self.Fz_normalization = self.deta
 
         # Fprime normalization
-        self.du_eor = kwargs.pop('du_eor')
-        self.dv_eor = kwargs.pop('dv_eor')
+        self.du_eor = du_eor
+        self.dv_eor = dv_eor
         self.Fprime_normalization_eor = (
             self.nu * self.nv * self.du_eor * self.dv_eor
         )
+        self.du_fg = du_fg
+        self.dv_fg = dv_fg
         self.Fprime_normalization_fg = (
             self.nu_fg * self.nv_fg * self.du_fg * self.dv_fg
         )
 
         # Finv normalization
+        # FIXME: this will error if include_instrumental_effects is False.
         self.Finv_normalisation = self.hpx.pixel_area_sr
 
-        self.matrix_construction_methods_dictionary = {
-            'idft_array_1d':
-                self.build_idft_array_1d,
-            'multi_vis_idft_array_1d':
-                self.build_multi_vis_idft_array_1d,
-            'gridding_matrix_vo2co':
-                self.build_gridding_matrix_vo2co,
-            'gridding_matrix_co2vo':
-                self.build_gridding_matrix_co2vo,
-            'idft_array_1d_fg':
-                self.build_idft_array_1d_fg,
-            'gridding_matrix_vo2co_fg':
-                self.build_gridding_matrix_vo2co_fg,
-            'Fz':
-                self.build_Fz,
-            'nuidft_array':
-                self.build_nuidft_array,
-            'multi_chan_nuidft':
-                self.build_multi_chan_nuidft,
-            'multi_chan_nuidft_fg':
-                self.build_multi_chan_nuidft_fg,
-            'Fprime':
-                self.build_Fprime,
-            'multi_chan_nudft':
-                self.build_multi_chan_nudft,
-            'multi_chan_beam':
-                self.build_multi_chan_beam,
-            'Finv':
-                self.build_Finv,
-            'Fprime_Fz':
-                self.build_Fprime_Fz,
-            'Finv_Fprime':
-                self.build_Finv_Fprime,
-            'T':
-                self.build_T,
-            'N':
-                self.build_N,
-            'Ninv':
-                self.build_Ninv,
-            'Ninv_T':
-                self.build_Ninv_T,
-            'T_Ninv_T':
-                self.build_T_Ninv_T,
-            'block_T_Ninv_T':
-                self.build_block_T_Ninv_T,
+        self.matrix_methods = {
+            'idft_array_1d': self.build_idft_array_1d,
+            'multi_vis_idft_array_1d': self.build_multi_vis_idft_array_1d,
+            'gridding_matrix_vo2co': self.build_gridding_matrix_vo2co,
+            'gridding_matrix_co2vo': self.build_gridding_matrix_co2vo,
+            'idft_array_1d_fg': self.build_idft_array_1d_fg,
+            'gridding_matrix_vo2co_fg': self.build_gridding_matrix_vo2co_fg,
+            'Fz': self.build_Fz,
+            'nuidft_array': self.build_nuidft_array,
+            'multi_chan_nuidft': self.build_multi_chan_nuidft,
+            'multi_chan_nuidft_fg': self.build_multi_chan_nuidft_fg,
+            'Fprime': self.build_Fprime,
+            'multi_chan_nudft': self.build_multi_chan_nudft,
+            'multi_chan_beam': self.build_multi_chan_beam,
+            'Finv': self.build_Finv,
+            'Fprime_Fz': self.build_Fprime_Fz,
+            'Finv_Fprime': self.build_Finv_Fprime,
+            'T': self.build_T,
+            'N': self.build_N,
+            'Ninv': self.build_Ninv,
+            'Ninv_T': self.build_Ninv_T,
+            'T_Ninv_T': self.build_T_Ninv_T,
+            'block_T_Ninv_T': self.build_block_T_Ninv_T,
         }
         
-        if self.phasor_vec is not None:
-            self.matrix_prerequisites_dictionary.update({
-                'Finv': (
-                    ['phasor_matrix'] 
-                    + self.matrix_prerequisites_dictionary['Finv']
-                )
-            })
-            self.matrix_construction_methods_dictionary.update({
-                'phasor_matrix': self.build_phasor_matrix
-            })
+        if self.phasor is not None:
+            self.matrix_prereqs.update(
+                {'Finv': ['phasor_matrix'] + self.matrix_prereqs['Finv']}
+            )
+            self.matrix_methods.update(
+                {'phasor_matrix': self.build_phasor_matrix}
+            )
 
         if self.use_shg:
-            # Add SHG matrices to matrix calculations
-            self.matrix_prerequisites_dictionary.update({
-                'multi_vis_idft_array_1d': [
-                    'idft_array_1d',
-                    'idft_array_1d_sh'
-                ],
-                'Fprime': [
-                    'multi_chan_nuidft',
-                    'multi_chan_nuidft_fg',
-                    'nuidft_array_sh'
-                ]
-            })
-            self.matrix_construction_methods_dictionary.update({
-                'idft_array_1d_sh': self.build_idft_array_1d_sh,
-                'nuidft_array_sh': self.build_nuidft_array_sh
-            })
+            self.matrix_prereqs.update(
+                {
+                    'multi_vis_idft_array_1d': ['idft_array_1d',
+                                                'idft_array_1d_sh'],
+                    'Fprime': ['multi_chan_nuidft',
+                               'multi_chan_nuidft_fg',
+                               'nuidft_array_sh']
+                }
+            )
+            self.matrix_methods.update(
+                {'idft_array_1d_sh': self.build_idft_array_1d_sh,
+                 'nuidft_array_sh': self.build_nuidft_array_sh}
+            )
 
         if self.taper_func is not None:
-            self.matrix_prerequisites_dictionary.update({
-                'Finv': (
-                    ['taper_matrix']
-                    + self.matrix_prerequisites_dictionary['Finv']
-                )
-            })
-            self.matrix_construction_methods_dictionary.update({
-                'taper_matrix': self.build_taper_matrix
-            })
+            self.matrix_prereqs.update(
+                {'Finv': ['taper_matrix'] + self.matrix_prereqs['Finv']}
+            )
+            self.matrix_methods.update(
+                {'taper_matrix': self.build_taper_matrix}
+            )
 
     def load_prerequisites(self, matrix_name):
         """
@@ -743,7 +849,7 @@ class BuildMatrices(BuildMatrixTree):
                     print(child_matrix, 'is available. Loading...')
                 else:
                     print(child_matrix, 'is not available. Building...')
-                    self.matrix_construction_methods_dictionary[child_matrix]()
+                    self.matrix_methods[child_matrix]()
                     # Re-check that that the matrix now exists and
                     # whether it is dense (hdf5; matrix_available=1)
                     # or sparse (npz; matrix_available=2)
@@ -989,9 +1095,9 @@ class BuildMatrices(BuildMatrixTree):
         start = time.time()
         print('Performing matrix algebra')
         if self.use_sparse_matrices:
-            phasor_matrix = sparse.diags(self.phasor_vec)
+            phasor_matrix = sparse.diags(self.phasor)
         else:
-            phasor_matrix = np.diag(self.phasor_vec)
+            phasor_matrix = np.diag(self.phasor)
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
         self.output_data(
@@ -1030,8 +1136,8 @@ class BuildMatrices(BuildMatrixTree):
             sampled_uvw_coords_m / (c.to('m/s').value / freq)
             for freq in self.freqs_hertz
         ])
-        if not self.drift_scan_pb:
-            # Used if self.drift_scan_pb = False
+        if not self.drift_scan:
+            # Used if self.drift_scan = False
             # Get (l, m, n) coordinates from Healpix object
             ls_rad, ms_rad, ns_rad = self.hpx.calc_lmn_from_radec(
                 self.hpx.jds[self.nt//2],
@@ -1051,7 +1157,7 @@ class BuildMatrices(BuildMatrixTree):
             ])
         else:
             # This will be used if a drift scan primary beam is included in
-            # the data model (i.e. self.drift_scan_pb=True)
+            # the data model (i.e. self.drift_scan=True)
             multi_chan_nudft = self.sd_block_diag([
                 self.sd_block_diag([
                     nuDFT_Array_DFT_2D_v2d0(
@@ -1106,7 +1212,7 @@ class BuildMatrices(BuildMatrixTree):
             freq_array *= 1e6  # MHz --> Hz
         else:
             freq_array = self.freqs_hertz
-        if not self.drift_scan_pb:
+        if not self.drift_scan:
             multi_chan_beam = self.sd_block_diag([
                 np.diag(
                     self.hpx.get_beam_vals(
@@ -1175,7 +1281,7 @@ class BuildMatrices(BuildMatrixTree):
         Finv = self.dot_product(
             pmd['multi_chan_nudft'], pmd['multi_chan_beam']
         )
-        if self.phasor_vec is not None:
+        if self.phasor is not None:
             Finv = self.dot_product(pmd['phasor_matrix'], Finv)
         print('Time taken: {}'.format(time.time() - start))
         # Save matrix to HDF5 or sparse matrix to npz
@@ -1817,7 +1923,7 @@ class BuildMatrices(BuildMatrixTree):
                     i_t*self.nf*self.nbls + (i_f + 1)*self.nbls
                 )
 
-                if self.drift_scan_pb:
+                if self.drift_scan:
                     # For a drift scan observation, the beam drifts across the
                     # modelled patch of sky, so the (l, m, n) coordinates for
                     # a given HEALPix pixel change with time.
@@ -1947,7 +2053,7 @@ class BuildMatrices(BuildMatrixTree):
         start = time.time()
         print('Performing matrix algebra')
         if self.include_instrumental_effects:
-            if not self.drift_scan_pb:
+            if not self.drift_scan:
                 # This array is channel_ordered and the covariance
                 # matrix assumes a channel_ordered data set
                 # (this vector should be re-ordered if
@@ -2032,7 +2138,7 @@ class BuildMatrices(BuildMatrixTree):
         start = time.time()
         print('Performing matrix algebra')
         if self.include_instrumental_effects:
-            if not self.drift_scan_pb:
+            if not self.drift_scan:
                 # This array is channel_ordered and the covariance
                 # matrix assumes a channel_ordered data set
                 # (this vector should be re-ordered if
@@ -2262,7 +2368,7 @@ class BuildMatrices(BuildMatrixTree):
         """
         matrix_available = self.check_if_matrix_exists(matrix_name)
         if not matrix_available:
-            self.matrix_construction_methods_dictionary[matrix_name]()
+            self.matrix_methods[matrix_name]()
 
     def prepare_matrix_stack_for_deletion(
             self, src, clobber_matrices):
