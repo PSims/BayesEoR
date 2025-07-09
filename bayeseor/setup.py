@@ -475,13 +475,12 @@ def run_setup(
         # we need to first make the file_root directory a valid, writable
         # directory if it doesn't already exist.
         file_root = generate_file_root(
-            output_dir,
-            nu,
-            nv,
-            neta,
-            nq,
-            npl,
-            sigma,
+            nu=nu,
+            nv=nv,
+            neta=neta,
+            nq=nq,
+            npl=npl,
+            sigma=sigma,
             beta=beta,
             log_priors=log_priors,
             dimensionless_PS=dimensionless_PS,
@@ -493,7 +492,8 @@ def run_setup(
             nv_sh=nv_sh,
             nq_sh=nq_sh,
             npl_sh=npl_sh,
-            fit_for_shg_amps=fit_for_shg_amps
+            fit_for_shg_amps=fit_for_shg_amps,
+            output_dir=output_dir,
         )
 
     output_dir /= file_root
@@ -856,6 +856,7 @@ def get_vis_data(
     clobber=False,
     noise_data_path=None,
     inst_model=None,
+    return_uvd=False,
     verbose=False,
     rank=0,
     **kwargs
@@ -967,6 +968,9 @@ def get_vis_data(
         Path to directory containing instrument model files (`uvw_array.npy`,
         `redundancy_model.npy`, and optionally `phasor_vector.npy`). Defaults
         to False.
+    return_uvd : bool, optional
+        Return the UVData object if `data_path` points to a pyuvdata-compatible
+        file. Defaults to False.
     verbose : bool, optional
         Print statements useful for debugging. Defaults to False.
     rank : int, optional
@@ -993,6 +997,8 @@ def get_vis_data(
         - phasor: optional phasor vector if `phased` is True with shape
           (nf*nbls*nt,)
         - tele_name: optional telescope name if `data_path` points to a
+          pyuvdata-compatible file with a valid telescope name attribute
+        - uvd: optional UVData object if `data_path` points to a
           pyuvdata-compatible file with a valid telescope name attribute
 
     """
@@ -1053,6 +1059,7 @@ def get_vis_data(
                 noise = None
             
             tele_name = None
+            uvd = None
 
         elif data_path.suffix in [".uvh5", ".uvfits", ".ms"]:
             vis, _, uvws, redundancy, phasor, noise, uvd = \
@@ -1141,6 +1148,8 @@ def get_vis_data(
             vis_dict["phasor"] = phasor
         if tele_name is not None:
             vis_dict["tele_name"] = tele_name
+        if uvd is not None:
+            vis_dict["uvd"] = uvd
     else:
         # FIXME
         raise NotImplementedError(
@@ -1264,7 +1273,7 @@ def generate_array_dir(
     fit_for_shg_amps=False,
     nu_min_MHz=None,
     channel_width_MHz=None,
-    nq=None,
+    nq=0,
     beta=None,
     sigma=None,
     nside=None,
@@ -1273,13 +1282,12 @@ def generate_array_dir(
     fov_ra_fg=None,
     fov_dec_fg=None,
     simple_za_filter=True,
+    include_instrumental_effects=True,
     telescope_name="",
     nbls=None,
     nt=None,
     integration_time_seconds=None,
-    taper_func=None,
     drift_scan=True,
-    include_instrumental_effects=True,
     beam_type=None,
     beam_center=None,
     achromatic_beam=False,
@@ -1289,6 +1297,7 @@ def generate_array_dir(
     cosfreq=None,
     beam_ref_freq=None,
     noise_data_path=None,
+    taper_func=None,
     array_dir_prefix=Path("./matrices/"),
     mkdir=False,
     **kwargs
@@ -1296,99 +1305,118 @@ def generate_array_dir(
     """
     Generate the directory for BayesEoR matrices based on analysis params.
 
-    Parameters  # TODO: add ", optional" for optional kwargs
+    Parameters
     ----------
     nu : int
         Number of pixels on a side for the u-axis in the EoR model uv-plane.
+        Defaults to None.
     nv : int
         Number of pixels on a side for the v-axis in the EoR model uv-plane.
+        Defaults to None.
     nu_fg : int
         Number of pixels on a side for the u-axis in the foreground model
-        uv-plane.
+        uv-plane. Defaults to None.
     nv_fg : int
         Number of pixels on a side for the v-axis in the foreground model
-        uv-plane.
+        uv-plane. Defaults to None.
     neta : int
-        Number of Line of Sight (LoS, frequency axis) Fourier modes.
-    fit_for_monopole : bool
-        Fit for the (u, v) = (0, 0) pixel in the model uv-plane.
-    use_shg : bool
-        Use the subharmonic grid.
-    nu_sh : int
+        Number of Line of Sight (LoS, frequency axis) Fourier modes. Defaults
+        to None.
+    fit_for_monopole : bool, optional
+        Fit for the (u, v) = (0, 0) pixel in the model uv-plane. Defaults to
+        False.
+    use_shg : bool, optional
+        Use the subharmonic grid. Defaults to False.
+    nu_sh : int, optional
         Number of pixels on a side for the u-axis in the subharmonic grid
         model uv-plane. Defaults to None.
-    nv_sh : int
+    nv_sh : int, optional
         Number of pixels on a side for the v-axis in the subharmonic grid
         model uv-plane. Defaults to None.
-    nq_sh : int
+    nq_sh : int, optional
         Number of large spectral scale model quadratic basis vectors for the
         subharmonic grid. Defaults to None.
-    fit_for_shg_amps : bool
+    fit_for_shg_amps : bool, optional
         Fit for the amplitudes of the subharmonic grid pixels. Defaults to
         False.
     nu_min_MHz : float
-        Minimum frequency in MHz.
+        Minimum frequency in MHz. Defaults to None.
     channel_width_MHz : float
-        Frequency channel width in MHz.
-    nq : int
-    beta : list of float
+        Frequency channel width in MHz. Defaults to None.
+    nq : int, optional
+        Number of large spectral scale model quadratic basis vectors. Defaults
+        to 0.
+    beta : list of float, optional
         Brightness temperature power law spectral index/indices used in the
-        large spectral scale model.
+        large spectral scale model. Defaults to None.
     sigma : float
-        Standard deviation of the visibility noise.
+        Standard deviation of the visibility noise. Defaults to None.
     nside : int
-        HEALPix nside parameter.
+        HEALPix nside parameter. Defaults to None.
     fov_ra_eor : float
         Field of view of the Right Ascension axis of the EoR sky model in
-        degrees.
+        degrees. Defaults to None.
     fov_dec_eor : float
         Field of view of the Declination axis of the EoR sky model in degrees.
+        Defaults to None.
     fov_ra_fg : float
         Field of view of the Right Ascension axis of the foreground sky model
-        in degrees.
+        in degrees. Defaults to None.
     fov_dec_fg : float
         Field of view of the Declination axis of the foreground sky model in
-        degrees.
-    simple_za_filter : bool
-        Filter pixels in the sky model by zenith angle only.
+        degrees. Defaults to None.
+    simple_za_filter : bool, optional
+        Filter pixels in the sky model by zenith angle only. Defaults to True.
+    include_instrumental_effects : bool, optional
+        Forward model an instrument. Defaults to True.
     telescope_name : str, optional
-        Telescope identifier string. Defaults to ''.
-    nbls : int
-        Number of baselines being modelled. Used if `telescope_name` is ''.
-    nt : float
-        Number of times. Used if `telescope_name` is ''.
-    integration_time_seconds : float
-        Integration time in seconds. Used if `telescope_name` is ''.
-    taper_func : str
+        Telescope identifier string. Used only if
+        `include_instrumental_effects` is True. Defaults to ''.
+    nbls : int, optional
+        Number of baselines being modelled. Used only if
+        `include_instrumental_effects` is True. Defaults to None.
+    nt : float, optional
+        Number of times. Used only if `include_instrumental_effects` is True.
+        Defaults to None.
+    integration_time_seconds : float, optional
+        Integration time in seconds. Used only if
+        `include_instrumental_effects` is True. Defaults to None.
+    drift_scan : bool, optional
+        Model drift scan (True, default) or phased (False) visibilities. Used
+        only if `include_instrumental_effects` is True. Defaults to True.
+    beam_type : str, optional
+        Path to a pyuvdata-compatible beam file or one of 'uniform',
+        'gaussian', 'airy', 'gausscosine', or 'taperairy'. Used only if
+        `include_instrumental_effects` is True. Defaults to None.
+    beam_center : list of float, optional
+        Beam center offsets from the phase center in right ascension and
+        declination in degrees. Used only if `include_instrumental_effects` is
+        True. Defaults to None.
+    achromatic_beam : bool, optional
+        Force the beam to be achromatic. Used only if
+        `include_instrumental_effects` is True. Defaults to False.
+    beam_peak_amplitude : float, optional
+        Peak amplitude of the beam. Used only if `include_instrumental_effects`
+        is True. Defaults to None.
+    fwhm_deg : float, optional
+        Full width at half maximum of beam in degrees. Used only if
+        `include_instrumental_effects` is True. Defaults to None.
+    antenna_diameter : float, optional
+        Antenna (aperture) diameter in meters. Used only if
+        `include_instrumental_effects` is True. Defaults to None.
+    cosfreq : float, optional
+        Cosine frequency if using a 'gausscosine' beam. Used only if
+        `include_instrumental_effects` is True. Defaults to None.
+    beam_ref_freq : float, optional
+        Beam reference frequency in MHz. Used only if
+        `include_instrumental_effects` is True. Defaults to None.
+    noise_data_path : pathlib.Path or str, optional
+        Path to a numpy-compatible file containing a preprocessed noise vector.
+        Defaults to None.
+    taper_func : str, optional
         Taper function applied to the frequency axis of the visibilities.
         Can be any valid argument to `scipy.signal.windows.get_window`.
-    drift_scan : bool
-        Model drift scan (True, default) or phased (False) visibilities.
-    include_instrumental_effects : bool
-        Forward model an instrument.
-    uvws : numpy.ndarray
-        Array containing the (u(t), v(t), w(t)) coordinates of the instrument
-        model with shape (nt, nbls, 3).
-    beam_type : str
-        Path to a pyuvdata-compatible beam file or one of 'uniform',
-        'gaussian', 'airy', 'gausscosine', or 'taperairy'.
-    beam_center : list of float
-        Beam center offsets from the phase center in right ascension and
-        declination in degrees.
-    achromatic_beam : bool
-        Force the beam to be achromatic.
-    beam_peak_amplitude : float
-        Peak amplitude of the beam.
-    fwhm_deg : float
-        Full width at half maximum of beam in degrees.
-    antenna_diameter : float
-        Antenna (aperture) diameter in meters.
-    cosfreq : float
-        Cosine frequency if using a 'gausscosine' beam.
-    beam_ref_freq : float
-        Beam reference frequency in MHz.
-    noise_data_path : pathlib.Path or str
-        Path to a numpy-compatible file containing a preprocessed noise vector.
+        Defaults to None.
     array_dir_prefix : pathlib.Path or str, optional
         Array directory prefix. Defaults to './matrices/'.
     mkdir : bool, optional
@@ -1400,7 +1428,7 @@ def generate_array_dir(
 
     Returns
     -------
-    matrices_path : Path
+    matrices_path : str
         Path containing the uniquely identifying info for each analysis, i.e.
         model parameters and the instrument model.
 
@@ -1459,10 +1487,10 @@ def generate_array_dir(
     img_str += f"-nside{nside}"
     matrices_path /= img_str
     
-    inst_str = ""
-    if telescope_name != "":
-        inst_str += f"{telescope_name}-"
     if include_instrumental_effects:
+        inst_str = ""
+        if telescope_name != "":
+            inst_str += f"{telescope_name}-"
         if nbls is not None:
             inst_str += f"nbls{nbls}-"
         inst_str += f"nt{nt}-dt{integration_time_seconds:.2f}s"
@@ -2048,7 +2076,9 @@ def build_posterior(
     mpiprint("priors = {}".format(priors), rank=print_rank)
     prior_c = PriorC(priors)
 
-    # TODO: THIS NEEDS TO GO IN THE DRIVER SCRIPT, I THINK.
+    # TODO: Where does this belong?  You need to know how many k bins you have
+    # for the parse_uprior_inds function, which is now a BayesEoRParser
+    # function, to work properly.  I don't think there's a way around this.
     # # Assign uniform priors to any bins specified by uprior_bins
     # if uprior_bins != "":
     #     uprior_inds = parse_uprior_inds(uprior_bins, nDims)
