@@ -1583,6 +1583,7 @@ def build_matrices(
     fov_ra_fg=None,
     fov_dec_fg=None,
     simple_za_filter=True,
+    include_instrumental_effects=True,
     telescope_latlonalt=(0, 0, 0),
     nt=None,
     central_jd=None,
@@ -1596,17 +1597,16 @@ def build_matrices(
     cosfreq=None,
     beam_ref_freq=None,
     drift_scan=True,
-    taper_func=None,
-    include_instrumental_effects=True,
-    noise_data_path=None,
-    use_sparse_matrices=True,
-    build_Finv_and_Fprime=True,
-    array_dir_prefix=Path("./matrices/"),
     telescope_name="",
     uvws=None,
     redundancy=None,
     noise=None,
     phasor=None,
+    taper_func=None,
+    noise_data_path=None,
+    use_sparse_matrices=True,
+    build_Finv_and_Fprime=True,
+    array_dir_prefix=Path("./matrices/"),
     mkdir=True,
     build_stack=True,
     clobber=False,
@@ -1694,6 +1694,8 @@ def build_matrices(
         degrees.
     simple_za_filter : bool
         Filter pixels in the sky model by zenith angle only.
+    include_instrumental_effects : bool
+        Forward model an instrument.
     telescope_latlonalt : tuple of floats
         Telescope location tuple as (latitude in degrees, longitude in degrees,
         altitude in meters). Defaults to (0, 0, 0).
@@ -1723,23 +1725,6 @@ def build_matrices(
         Beam reference frequency in MHz.
     drift_scan : bool
         Model drift scan (True, default) or phased (False) visibilities.
-    taper_func : str
-        Taper function applied to the frequency axis of the visibilities.
-        Can be any valid argument to `scipy.signal.windows.get_window`.
-    include_instrumental_effects : bool
-        Forward model an instrument.
-    noise_data_path : pathlib.Path or str
-        Path to a numpy-compatible file containing a preprocessed noise vector.
-    use_sparse_matrices : bool
-        Use sparse arrays. Defaults to True.parse_matrices
-    build_Finv_and_Fprime : bool
-        If True (default), construct the matrix product Finv_Fprime in place
-        from the dense matrices comprising Finv and Fprime to minimize the
-        memory and time required to build the matrix stack.  In this case,
-        only the matrix product Finv_Fprime is written to disk.  Otherwise,
-        construct Finv and Fprime independently and save both matrices to disk.
-    array_dir_prefix : pathlib.Path or str, optional
-        Array directory prefix. Defaults to './matrices/'.
     telescope_name : str, optional
         Telescope identifier string. Defaults to ''.
     uvws : numpy.ndarray
@@ -1755,6 +1740,21 @@ def build_matrices(
         phase visibilities after performing the nuDFT from HEALPix (l, m, f) to
         instrumentally sampled, unphased (u, v, f).  Defaults to None, i.e.
         modelling unphased visibilities.
+    taper_func : str
+        Taper function applied to the frequency axis of the visibilities.
+        Can be any valid argument to `scipy.signal.windows.get_window`.
+    noise_data_path : pathlib.Path or str
+        Path to a numpy-compatible file containing a preprocessed noise vector.
+    use_sparse_matrices : bool
+        Use sparse arrays. Defaults to True.parse_matrices
+    build_Finv_and_Fprime : bool
+        If True (default), construct the matrix product Finv_Fprime in place
+        from the dense matrices comprising Finv and Fprime to minimize the
+        memory and time required to build the matrix stack.  In this case,
+        only the matrix product Finv_Fprime is written to disk.  Otherwise,
+        construct Finv and Fprime independently and save both matrices to disk.
+    array_dir_prefix : pathlib.Path or str, optional
+        Array directory prefix. Defaults to './matrices/'.
     mkdir : bool, optional
         Make array directory (including parents). Defaults to False.
     build_stack : bool, optional
@@ -1844,6 +1844,7 @@ def build_matrices(
         f"[bold]Array save directory:[/bold] {array_dir}", rank=print_rank
     )
     
+    # TODO: update init call with from changes in matrices/build.py
     bm = BuildMatrices(
         array_dir,
         include_instrumental_effects,
@@ -1864,7 +1865,7 @@ def build_matrices(
         nside=nside,
         central_jd=central_jd,
         telescope_latlonalt=telescope_latlonalt,
-        drift_scan_pb=drift_scan,
+        drift_scan=drift_scan,
         beam_type=beam_type,
         beam_peak_amplitude=beam_peak_amplitude,
         beam_center=beam_center,
@@ -1890,7 +1891,7 @@ def build_matrices(
         uvw_array_m=uvws,
         bl_red_array=redundancy,
         bl_red_array_vec=redundancy.reshape(-1, 1).flatten(),
-        phasor_vec=phasor,
+        phasor=phasor,
         use_shg=use_shg,
         fit_for_shg_amps=fit_for_shg_amps,
         nu_sh=nu_sh,
