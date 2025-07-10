@@ -23,14 +23,6 @@ from ..model.healpix import Healpix
 from .. import __version__
 
 
-"""
-    NOTE:
-    A (960*38)*(960*38) array requires ~10.75 GB of memory
-    (960*38*969*38*(64./8)/1.e9 GB precisely for a numpy.float64 double
-    precision array). With 128 GB of memory per node 11 matrices of this
-    size to be held in memory simultaneously.
-"""
-
 SECS_PER_HOUR = 60 * 60
 SECS_PER_DAY = SECS_PER_HOUR * 24
 DAYS_PER_SEC = 1.0 / SECS_PER_DAY
@@ -44,42 +36,383 @@ except:
     NTHREADS = 1
 
 
-class BuildMatrixTree(object):
+class BuildMatrices():
     """
-    Class for building and manipulating BayesEoR matrices.
+    Class for handling matrix construction and arithmetic.
 
     Parameters
     ----------
-    array_save_directory : str
-        Path to the directory where arrays will be saved.
-    include_instrumental_effects : bool
-        If True, include instrumental effects like frequency dependent (u, v)
-        sampling and the primary beam.
-    use_sparse_matrices : bool
-        If True, use sparse matrices in place of numpy arrays.
+    nu : int
+        Number of pixels on a side for the u axis in the model uv-plane.
+        Defaults to None.
+    du_eor : float
+        Fourier mode spacing along the u axis in inverse radians of the
+        EoR model uv-plane. Defaults to None.
+    nv : int
+        Number of pixels on a side for the v axis in the model uv-plane.
+        Defaults to None.
+    dv_eor : float
+        Fourier mode spacing along the v axis in inverse radians of the
+        EoR model uv-plane. Defaults to None.
+    nu_fg : int
+        Number of pixels on a side for the u-axis in the FG model uv-plane.
+        Defaults to None.
+    du_fg : float
+        Fourier mode spacing along the u axis in inverse radians of the
+        FG model uv-plane. Defaults to None.
+    nv_fg : int
+        Number of pixels on a side for the v-axis in the FG model uv-plane.
+        Defaults to None.
+    dv_fg : float
+        Fourier mode spacing along the v axis in inverse radians of the
+        FG model uv-plane. Defaults to None.
+    nf : int
+        Number of frequency channels. Defaults to None.
+    neta : int
+        Number of Line of Sight (LoS) Fourier modes. Defaults to None.
+    deta : float
+        Fourier mode spacing along the eta (line of sight, frequency) axis in
+        inverse Hz. Defaults to None.
+    fit_for_monopole : bool, optional
+        Fit for (u, v) = (0, 0) (True) or exclude it from the fit (False).
+        Defaults to False.
+    use_shg : bool, optional
+        Use the SubHarmonic Grid (SHG) in the model uv-plane. Defaults to
+        False.
+    nu_sh : int, optional
+        Number of pixels on a side for the u-axis in the subharmonic model
+        uv-plane. Defaults to None.
+    nv_sh : int, optional
+        Number of pixels on a side for the v-axis in the subharmonic model
+        uv-plane. Defaults to None.
+    nq_sh : int, optional
+        Number of large spectral scale modes for each pixel in the subharmonic
+        grid. Defaults to None.
+    npl_sh : int, optional
+        Number of power law coefficients used in the large spectral scale model
+        for each pixel in the subharmonic grid. Defaults to None.
+    fit_for_shg_amps : bool, optional
+        Fit for the amplitudes of the individual SHG pixels per frequency.
+        Defaults to False.
+    f_min : float
+        Minimum frequency in megahertz. Defaults to None.
+    df : float
+        Frequency channel width in megahertz. Defaults to None.
+    nq : int, optional
+        Number of quadratic modes in the Large Spectral Scale Model (LSSM).
+        Defaults to 0.
+    npl : int, optional
+        Number of power law coefficients which replace quadratic modes in
+        the LSSM. Defaults to 0.
+    beta : list of float, optional
+        Brightness temperature power law spectral index/indices used in the
+        large spectral scale model. Can be a single spectral index, e.g.
+        [2.63], or multiple spectral indices, e.g. [2.63, 2.82]. Defaults to
+        [2.63, 2.82]. Defaults to None.
+    sigma : float
+        Standard deviation of the visibility noise. Defaults to None.
+    nside : int
+        HEALPix nside parameter. Defaults to None.
+    fov_ra_eor : float
+        Field of view in degrees of the RA axis of the EoR sky model.
+        Defaults to None.
+    fov_dec_eor : float
+        Field of view in degrees of the DEC axis of the EoR sky model.
+        Defaults to None.
+    fov_ra_fg : float
+        Field of view in degrees of the RA axis of the FG sky model.
+        Defaults to None.
+    fov_dec_fg : float
+        Field of view in degrees of the DEC axis of the FG sky model.
+        Defaults to None.
+    simple_za_filter : bool, optional
+        Filter pixels in the sky model by zenith angle only (circular
+        FoV) independently along the RA and DEC axes (rectangular FoV).
+        This will be deprecated in a future version. Defaults to True.
+    include_instrumental_effects : bool, optional
+        Include instrumental effects like frequency dependent (u, v) sampling
+        and the primary beam. Defaults to True.
+    telescope_latlonalt : tuple, optional
+        The latitude, longitude, and altitude of the telescope in degrees,
+        degrees, and meters, respectively. Defaults to (0, 0, 0).
+    nt : int
+        Number of times. Defaults to None.
+    central_jd : float
+        Central time step of the observation in JD2000 format. Defaults to
+        None.
+    dt : float
+        Time cadence of observations in seconds. Defaults to None.
+    beam_type : string
+        Beam type to use.  Can be 'uniform', 'gaussian', 'airy', 'taperairy',
+        or 'gausscosine'. Defaults to None.
+    beam_center : tuple of floats
+        Beam center in (RA, DEC) coordinates and units of degrees.  Assumed to
+        be an tuple of offsets along the RA and DEC axes relative to the
+        pointing center of the sky model determined from the instrument model
+        parameters `telescope_latlonalt` and `central_jd`. Defaults to None.
+    achromatic_beam : bool, optional
+        Force the beam to be achromatic using `beam_ref_freq` as the reference
+        frequency. Defaults to False.
+    beam_peak_amplitude : float, optional
+        Peak amplitude of the beam. Defaults to 1.
+    fwhm_deg : float
+        Full Width at Half Maximum (FWHM) of the beam if using a Gaussian beam,
+        or the effective FWHM of the main lobe of an Airy beam from which the
+        diameter of the aperture is calculated. Defaults to None.
+    antenna_diameter : float
+        Antenna (aperture) diameter in meters.  Used in the calculation of an
+        Airy beam pattern or when using a Gaussian beam with a FWHM that varies
+        as a function of frequency.  The FWHM evolves according to the
+        effective FWHM of the main lobe of an Airy beam. Defaults to None.
+    cosfreq : float
+        Cosine frequency in radians if using a 'gausscosine' beam. Defaults to
+        None.
+    beam_ref_freq : float, optional
+        Beam reference frequency in MHz.  Used to fix the beam to be
+        achromatic. Defaults to None.
+    drift_scan : bool, optional
+        If True, model a drift scan primary beam, i.e. the beam center drifts
+        across the image space model with time. Defaults to True.
+    uvw_array_m : numpy.ndarray
+        Array containing the (u(t), v(t), w(t)) coordinates of the instrument
+        model with shape (nt, nbls, 3). Defaults to None.
+    bl_red_array : numpy.ndarray
+        Array containing the number of redundant baselines at each
+        (u(t), v(t), w(t)) in the instrument model with shape (nt, nbls, 1).
+        Defaults to None.
+    bl_red_array_vec : numpy.ndarray
+        Reshaped `bl_red_array` with shape
+        (nt * nbls, 1).  Each set of nbls entries contain the redundancy of
+        each (u, v, w) for a single integration. Defaults to None.
+    n_vis : int
+        Number of visibilities per channel, i.e. number of redundant
+        baselines * number of time steps. Defaults to None.
+    phasor : numpy.ndarray, optional
+        Array with shape (ndata,) that contains the phasor term used to phase
+        visibilities after performing the nuDFT from HEALPix (l, m, f) to
+        instrumentally sampled, unphased (u, v, f).  Defaults to None, i.e.
+        modelling unphased visibilities. Defaults to None.
+    effective_noise : numpy.ndarray
+        If the data vector being analyzed contains signal + noise, the
+        effective_noise vector contains the estimate of the noise in the data
+        vector.  Must have the shape and ordering of the data vector,
+        i.e. (ndata,). Defaults to None.
+    taper_func : str, optional
+        Tapering function to apply to the frequency axis of the model
+        visibilities.  Can be any valid argument to
+        `scipy.signal.windows.get_window`. Defaults to None.
+    array_save_directory : str, optional
+        Path to the directory where arrays will be saved. Defaults to
+        './matrices/'.
+    use_sparse_matrices : bool, optional
+        Use sparse matrices in place of numpy arrays where possible for memory
+        efficiency. Defaults to True.
     Finv_Fprime : bool, optional
-        If True (default), construct the matrix product Finv_Fprime in place
-        from the dense matrices comprising Finv and Fprime to minimize the
-        memory and time required to build the matrix stack.  In this case,
-        only the matrix product Finv_Fprime is written to disk.  Otherwise,
+        Construct the matrix product Finv_Fprime in place from the dense
+        matrices comprising Finv and Fprime to minimize the memory and time
+        required to build the matrix stack (True). In this case, only the
+        matrix product Finv_Fprime is written to disk. Otherwise (False),
         construct Finv and Fprime independently and save both matrices to disk.
+        Defaults to True.
     verbose : bool, optional
         Verbose output. Defaults to False.
 
     """
     def __init__(
         self,
-        array_save_directory,
-        include_instrumental_effects,
-        use_sparse_matrices,
+        nu=None,  # required
+        du_eor=None,  # required
+        nv=None,  # required
+        dv_eor=None,  # required
+        nu_fg=None,  # required
+        du_fg=None,  # required
+        nv_fg=None,  # required
+        dv_fg=None,  # required
+        nf=None,   # required
+        neta=None,   # required
+        deta=None,  # required
+        fit_for_monopole=False,
+        use_shg=False,
+        nu_sh=None,
+        nv_sh=None,
+        nq_sh=None,
+        npl_sh=None,
+        fit_for_shg_amps=False,
+        f_min=None,  # required
+        df=None,  # required
+        nq=0,
+        npl=0,
+        beta=None,
+        sigma=None,  # required
+        nside=None,
+        fov_ra_eor=None,
+        fov_dec_eor=None,
+        fov_ra_fg=None,
+        fov_dec_fg=None,
+        simple_za_filter=True,
+        include_instrumental_effects=True,  # TODO: remove kwarg
+        telescope_latlonalt=(0, 0, 0),
+        nt=None,
+        central_jd=None,
+        dt=None,
+        beam_type=None,
+        beam_center=None,
+        achromatic_beam=False,
+        beam_peak_amplitude=1,
+        fwhm_deg=None,
+        antenna_diameter=None,
+        cosfreq=None,
+        beam_ref_freq=None,
+        drift_scan=True,
+        uvw_array_m=None,
+        bl_red_array=None,
+        bl_red_array_vec=None,  # TODO: remove kwarg, calculate from bl_red_array
+        n_vis=None,  # TODO: remove kwarg, calculate from uvw_array_m
+        phasor=None,
+        effective_noise=None,
+        taper_func=None,
+        array_save_directory="./matrices/",
+        use_sparse_matrices=True,
         Finv_Fprime=True,
-        verbose=False
+        verbose=False,
     ):
+        # TODO: it would be nice to come up with some way to check that the
+        # required kwargs have been passed, but the list of required kwargs
+        # depends on e.g. include_instrumental_effects, use_shg.
+        required_kwargs = [
+            nu,
+            nv,
+            nu_fg,
+            nv_fg,
+            n_vis,
+            neta,
+            nf,
+            f_min,
+            df,
+            sigma,
+            deta,
+            du_eor,
+            dv_eor,
+            du_fg,
+            dv_fg
+        ]
+        if not np.all([arg is not None for arg in required_kwargs]):
+            raise ValueError(
+                "The following kwargs are required and cannot be None: "
+                "nu, nv, nu_fg, nv_fg, n_vis, neta, nf, f_min, df, sigma, "
+                "deta, du_eor, dv_eor, du_fg, dv_fg"
+            )
+        self.nu = nu
+        self.nv = nv
+        self.nu_fg = nu_fg
+        self.nv_fg = nv_fg
+        self.n_vis = n_vis
+        self.neta = neta
+        self.nf = nf
+        self.f_min = f_min
+        self.df = df
+        self.nq = nq
+        self.nt = nt
+        self.dt = dt
+        self.sigma = sigma
+        self.fit_for_monopole = fit_for_monopole
+
+        self.freqs_hertz = (self.f_min + np.arange(self.nf)*self.df) * 1e6
+
         self.array_save_directory = array_save_directory
         self.include_instrumental_effects = include_instrumental_effects
         self.use_sparse_matrices = use_sparse_matrices
         self.Finv_Fprime = Finv_Fprime
         self.verbose = verbose
+
+        if self.include_instrumental_effects:
+            self.uvw_array_m = uvw_array_m
+            self.nbls = uvw_array_m.shape[1]
+            self.bl_red_array = bl_red_array
+            self.bl_red_array_vec = bl_red_array_vec
+            self.phasor = phasor
+            self.fov_ra_eor = fov_ra_eor
+            if fov_dec_eor is None:
+                self.fov_dec_eor = self.fov_ra_eor
+            else:
+                self.fov_dec_eor = fov_dec_eor
+            if fov_ra_fg is None:
+                self.fov_ra_fg = fov_ra_eor
+            else:
+                self.fov_ra_fg = fov_ra_fg
+            if fov_dec_fg is None:
+                self.fov_dec_fg = self.fov_ra_fg
+            else:
+                self.fov_dec_fg = fov_dec_fg
+            self.simple_za_filter = simple_za_filter
+            self.nside = nside
+            self.central_jd = central_jd
+            self.telescope_latlonalt = telescope_latlonalt
+            self.beam_type = beam_type
+            self.beam_peak_amplitude = beam_peak_amplitude
+            self.beam_center = beam_center
+            self.fwhm_deg = fwhm_deg
+            self.antenna_diameter = antenna_diameter
+            self.cosfreq = cosfreq
+            self.achromatic_beam = achromatic_beam
+            self.beam_ref_freq = beam_ref_freq
+            self.effective_noise = effective_noise
+
+            self.hpx = Healpix(
+                fov_ra_eor=self.fov_ra_eor,
+                fov_dec_eor=self.fov_dec_eor,
+                fov_ra_fg=self.fov_ra_fg,
+                fov_dec_fg=self.fov_dec_fg,
+                simple_za_filter=self.simple_za_filter,
+                nside=self.nside,
+                telescope_latlonalt=self.telescope_latlonalt,
+                central_jd=self.central_jd,
+                nt=self.nt,
+                int_time=self.dt,
+                beam_type=self.beam_type,
+                peak_amp=self.beam_peak_amplitude,
+                fwhm_deg=self.fwhm_deg,
+                diam=self.antenna_diameter,
+                cosfreq=self.cosfreq
+            )
+
+            self.drift_scan = drift_scan
+
+        # FG model params
+        self.nuv_fg = self.nu_fg*self.nv_fg - (not self.fit_for_monopole)
+        self.npl = npl
+        self.beta = beta
+
+        # SHG params
+        self.use_shg = use_shg
+        self.fit_for_shg_amps = fit_for_shg_amps
+        self.nu_sh = nu_sh
+        self.nv_sh = nv_sh
+        self.nq_sh = nq_sh
+        self.npl_sh = npl_sh
+
+        # Taper function
+        self.taper_func = taper_func
+
+        # Fz normalization
+        self.deta = deta
+        self.Fz_normalization = self.deta
+
+        # Fprime normalization
+        self.du_eor = du_eor
+        self.dv_eor = dv_eor
+        self.Fprime_normalization_eor = (
+            self.nu * self.nv * self.du_eor * self.dv_eor
+        )
+        self.du_fg = du_fg
+        self.dv_fg = dv_fg
+        self.Fprime_normalization_fg = (
+            self.nu_fg * self.nv_fg * self.du_fg * self.dv_fg
+        )
+
+        # Finv normalization
+        # FIXME: this will error if include_instrumental_effects is False.
+        self.Finv_normalisation = self.hpx.pixel_area_sr
 
         # Dictionary with keys for each parent matrix required to build the
         # full matrix stack and values of list containing names of child
@@ -100,17 +433,65 @@ class BuildMatrixTree(object):
             'T_Ninv_T': ['T', 'Ninv_T'],
             'block_T_Ninv_T': ['T_Ninv_T'],
         }
-        if Finv_Fprime:
-            self.matrix_prereqs.update(
-                {'T': ['Finv_Fprime', 'Fz'],}
-            )
+        if self.Finv_Fprime:
+            self.matrix_prereqs.update({'T': ['Finv_Fprime', 'Fz']})
         else:
             self.matrix_prereqs.update(
+                {'Fprime_Fz': ['Fprime', 'Fz'], 'T': ['Finv', 'Fprime_Fz']}
+            )
+        if self.phasor is not None:
+            self.matrix_prereqs.update(
+                {'Finv': ['phasor_matrix'] + self.matrix_prereqs['Finv']}
+            )
+            self.matrix_methods.update(
+                {'phasor_matrix': self.build_phasor_matrix}
+            )
+        if self.use_shg:
+            self.matrix_prereqs.update(
                 {
-                    'Fprime_Fz': ['Fprime', 'Fz'],
-                    'T': ['Finv', 'Fprime_Fz']
+                    'multi_vis_idft_array_1d': ['idft_array_1d',
+                                                'idft_array_1d_sh'],
+                    'Fprime': ['multi_chan_nuidft',
+                               'multi_chan_nuidft_fg',
+                               'nuidft_array_sh']
                 }
             )
+            self.matrix_methods.update(
+                {'idft_array_1d_sh': self.build_idft_array_1d_sh,
+                 'nuidft_array_sh': self.build_nuidft_array_sh}
+            )
+        if self.taper_func is not None:
+            self.matrix_prereqs.update(
+                {'Finv': ['taper_matrix'] + self.matrix_prereqs['Finv']}
+            )
+            self.matrix_methods.update(
+                {'taper_matrix': self.build_taper_matrix}
+            )
+
+        self.matrix_methods = {
+            'idft_array_1d': self.build_idft_array_1d,
+            'multi_vis_idft_array_1d': self.build_multi_vis_idft_array_1d,
+            'gridding_matrix_vo2co': self.build_gridding_matrix_vo2co,
+            'gridding_matrix_co2vo': self.build_gridding_matrix_co2vo,
+            'idft_array_1d_fg': self.build_idft_array_1d_fg,
+            'gridding_matrix_vo2co_fg': self.build_gridding_matrix_vo2co_fg,
+            'Fz': self.build_Fz,
+            'nuidft_array': self.build_nuidft_array,
+            'multi_chan_nuidft': self.build_multi_chan_nuidft,
+            'multi_chan_nuidft_fg': self.build_multi_chan_nuidft_fg,
+            'Fprime': self.build_Fprime,
+            'multi_chan_nudft': self.build_multi_chan_nudft,
+            'multi_chan_beam': self.build_multi_chan_beam,
+            'Finv': self.build_Finv,
+            'Fprime_Fz': self.build_Fprime_Fz,
+            'Finv_Fprime': self.build_Finv_Fprime,
+            'T': self.build_T,
+            'N': self.build_N,
+            'Ninv': self.build_Ninv,
+            'Ninv_T': self.build_Ninv_T,
+            'T_Ninv_T': self.build_T_Ninv_T,
+            'block_T_Ninv_T': self.build_block_T_Ninv_T,
+        }
 
     def check_for_prerequisites(self, parent_matrix):
         """
@@ -318,7 +699,7 @@ class BuildMatrixTree(object):
 
         Returns
         -------
-        data : :class:`numpy.ndarray` or :class:`scipy.sparse`
+        data : numpy.ndarray or scipy.sparse
             Loaded matrix as a dense or sparse array.
 
         """
@@ -369,457 +750,6 @@ class BuildMatrixTree(object):
         """
         data = sparse.load_npz(file_path).tocsr()
         return data
-
-
-class BuildMatrices(BuildMatrixTree):
-    """
-    Class for handling matrix construction and arithmetic.
-
-    Parameters
-    ----------
-    array_save_directory : str
-        Path to the directory where arrays will be saved.
-    include_instrumental_effects : bool
-        If True, include instrumental effects like frequency dependent (u, v)
-        sampling and the primary beam.
-    use_sparse_matrices : bool
-        If True, use sparse matrices in place of numpy arrays.
-    nu : int
-        Number of pixels on a side for the u axis in the model uv-plane.
-    nv : int
-        Number of pixels on a side for the v axis in the model uv-plane.
-    n_vis : int
-        Number of visibilities per channel, i.e. number of redundant
-        baselines * number of time steps.
-    neta : int
-        Number of Line of Sight (LoS) Fourier modes.
-    nf : int
-        Number of frequency channels.
-    f_min : float
-        Minimum frequency in megahertz.
-    df : float
-        Frequency channel width in megahertz.
-    nt : int
-        Number of times.
-    nq : int
-        Number of quadratic modes in the Large Spectral Scale Model (LSSM).
-    sigma : float
-        Expected noise amplitude in the data vector = signal + noise.
-    fit_for_monopole : bool
-        If True, fit for (u, v) = (0, 0).  Otherwise, exclude it from the fit.
-    Finv_Fprime : bool
-        If True (default), construct the matrix product Finv_Fprime in place
-        from the dense matrices comprising Finv and Fprime to minimize the
-        memory and time required to build the matrix stack.  In this case,
-        only the matrix product Finv_Fprime is written to disk.  Otherwise,
-        construct Finv and Fprime independently and save both matrices to disk.
-    npl : int
-        Number of power law coefficients which replace quadratic modes in
-        the LSSM.
-    uvw_array_m : :class:`numpy.ndarray`
-        Array containing the (u(t), v(t), w(t)) coordinates of the instrument
-        model with shape (nt, nbls, 3).
-    uvw_array_m_vec : :class:`numpy.ndarray`
-        Reshaped `uvw_array_m` with shape (nt * nbls, 3).
-        Each set of nbls entries contain the (u, v, w) coordinates for a
-        single integration.
-    bl_red_array : :class:`numpy.ndarray`
-        Array containing the number of redundant baselines at each
-        (u(t), v(t), w(t)) in the instrument model with shape (nt, nbls, 1).
-    bl_red_array_vec : :class:`numpy.ndarray`
-        Reshaped `bl_red_array` with shape
-        (nt * nbls, 1).  Each set of nbls entries contain the redundancy of
-        each (u, v, w) for a single integration.
-    phasor : :class:`numpy.ndarray`
-        Array with shape (ndata,) that contains the phasor term used to phase
-        visibilities after performing the nuDFT from HEALPix (l, m, f) to
-        instrumentally sampled, unphased (u, v, f).  Defaults to None, i.e.
-        modelling unphased visibilities.
-    fov_ra_eor : float
-        Field of view in degrees of the RA axis of the EoR sky model.
-    fov_dec_eor : float
-        Field of view in degrees of the DEC axis of the EoR sky model.
-    fov_ra_fg : float
-        Field of view in degrees of the RA axis of the FG sky model.
-    fov_dec_fg : float
-        Field of view in degrees of the DEC axis of the FG sky model.
-    simple_za_filter : bool
-        If passed, filter pixels in the sky model by zenith angle only.
-        Otherwise, filter pixels in a rectangular region set by the FoV
-        values along the RA and DEC axes (default).
-    nside : int
-        HEALPix nside parameter.
-    telescope_latlonalt : tuple
-        The latitude, longitude, and altitude of the telescope in degrees,
-        degrees, and meters, respectively.
-    central_jd : float
-        Central time step of the observation in JD2000 format.
-    dt : float
-        Time cadence of observations in seconds.
-    drift_scan : bool
-        If True, model a drift scan primary beam, i.e. the beam center drifts
-        across the image space model with time.
-    beam_type : string
-        Beam type to use.  Can be 'uniform', 'gaussian', 'airy', 'taperairy',
-        or 'gausscosine'.
-    beam_peak_amplitude : float
-        Peak amplitude of the beam.
-    beam_center : tuple of floats
-        Beam center in (RA, DEC) coordinates and units of degrees.  Assumed to
-        be an tuple of offsets along the RA and DEC axes relative to the
-        pointing center of the sky model determined from the instrument model
-        parameters `telescope_latlonalt` and `central_jd`.
-    fwhm_deg : float
-        Full Width at Half Maximum (FWHM) of the beam if using a Gaussian beam,
-        or the effective FWHM of the main lobe of an Airy beam from which the
-        diameter of the aperture is calculated.
-    antenna_diameter : float
-        Antenna (aperture) diameter in meters.  Used in the calculation of an
-        Airy beam pattern or when using a Gaussian beam with a FWHM that varies
-        as a function of frequency.  The FWHM evolves according to the
-        effective FWHM of the main lobe of an Airy beam.
-    cosfreq : float
-        Cosine frequency in radians if using a 'gausscosine' beam.
-    achromatic_beam : bool, optional
-        If True, force the beam to be achromatic using `beam_ref_freq` as the
-        reference frequency.
-    beam_ref_freq : float, optional
-        Beam reference frequency in MHz.  Used to fix the beam to be
-        achromatic.
-    effective_noise : :class:`numpy.ndarray`
-        If the data vector being analyzed contains signal + noise, the
-        effective_noise vector contains the estimate of the noise in the data
-        vector.  Must have the shape and ordering of the data vector,
-        i.e. (ndata,).
-    deta : float
-        Fourier mode spacing along the eta (line of sight, frequency) axis in
-        inverse Hz.
-    du_eor : float
-        Fourier mode spacing along the u axis in inverse radians of the
-        EoR model uv-plane.
-    dv_eor : float
-        Fourier mode spacing along the v axis in inverse radians of the
-        EoR model uv-plane.
-    du_fg : float
-        Fourier mode spacing along the u axis in inverse radians of the
-        FG model uv-plane.
-    dv_fg : float
-        Fourier mode spacing along the v axis in inverse radians of the
-        FG model uv-plane.
-    use_shg : bool, optional
-        If `True`, use the SubHarmonic Grid (SHG) in the model uv-plane.
-    fit_for_shg_amps : bool, optional
-        if `True`, fit explicitly for the amplitudes of the individual SHG
-        pixels per frequency.
-    nu_sh : int, optional
-        Number of pixels on a side for the u-axis in the subharmonic model
-        uv-plane.
-    nv_sh : int, optional
-        Number of pixels on a side for the v-axis in the subharmonic model
-        uv-plane.
-    nq_sh : int, optional
-        Number of large spectral scale modes for each pixel in the subharmonic
-        grid.
-    npl_sh : int, optional
-        Number of power law coefficients used in the large spectral scale model
-        for each pixel in the subharmonic grid.
-    taper_func : str, optional
-        Tapering function to apply to the frequency axis of the model
-        visibilities.  Can be any valid argument to
-        `scipy.signal.windows.get_window`.
-    nu_fg : int
-        Number of pixels on a side for the u-axis in the FG model uv-plane.
-    nv_fg : int
-        Number of pixels on a side for the v-axis in the FG model uv-plane.
-    verbose : bool, optional
-        Verbose output. Defaults to False.
-
-    """
-    def __init__(
-        self,
-        nu=None,  # required
-        du_eor=None,  # required
-        nv=None,  # required
-        dv_eor=None,  # required
-        nu_fg=None,  # required
-        du_fg=None,  # required
-        nv_fg=None,  # required
-        dv_fg=None,  # required
-        nf=None,   # required
-        neta=None,   # required
-        deta=None,  # required
-        fit_for_monopole=False,
-        use_shg=False,
-        nu_sh=0,
-        nv_sh=0,
-        nq_sh=0,
-        npl_sh=0,
-        fit_for_shg_amps=False,
-        f_min=None,  # required
-        df=None,  # required
-        nq=0,
-        npl=0,
-        beta=None,
-        sigma=None,  # required
-        nside=None,
-        fov_ra_eor=None,
-        fov_dec_eor=None,
-        fov_ra_fg=None,
-        fov_dec_fg=None,
-        simple_za_filter=True,
-        include_instrumental_effects=True,
-        telescope_latlonalt=(0, 0, 0),
-        nt=None,
-        central_jd=None,
-        dt=None,
-        beam_type=None,
-        beam_center=None,
-        achromatic_beam=False,
-        beam_peak_amplitude=None,
-        fwhm_deg=None,
-        antenna_diameter=None,
-        cosfreq=None,
-        beam_ref_freq=None,
-        drift_scan=True,
-        n_vis=None,  # required
-        array_save_directory="./matrices/",
-        use_sparse_matrices=True,
-        uvw_array_m=None,
-        bl_red_array=None,
-        bl_red_array_vec=None,
-        phasor=None,
-        effective_noise=None,
-        taper_func=None,
-        Finv_Fprime=True,
-        verbose=False,
-    ):
-        # TODO: it would be nice to come up with some way to check that the
-        # required kwargs have been passed, but the list of required kwargs
-        # depends on e.g. include_instrumental_effects, use_shg.
-        required_kwargs = [
-            nu,
-            nv,
-            nu_fg,
-            nv_fg,
-            n_vis,
-            neta,
-            nf,
-            f_min,
-            df,
-            sigma,
-            deta,
-            du_eor,
-            dv_eor,
-            du_fg,
-            dv_fg
-        ]
-        if not np.all([arg is not None for arg in required_kwargs]):
-            raise ValueError(
-                "The following kwargs are required and cannot be None: "
-                "nu, nv, nu_fg, nv_fg, n_vis, neta, nf, f_min, df, sigma, "
-                "deta, du_eor, dv_eor, du_fg, dv_fg"
-            )
-
-        # TODO: merge the BuildMatrixTree and BuildMatrices classes into one.
-        # There's no need to have them separated as BuildMatrixTree was never
-        # used independently and BuildMatrices inherits directly from it with
-        # no modifications of the parent class's functions or attributes.
-        """BuildMatrixTree.__init__"""
-        # self.array_save_directory = array_save_directory
-        # self.include_instrumental_effects = include_instrumental_effects
-        # self.use_sparse_matrices = use_sparse_matrices
-        # self.Finv_Fprime = Finv_Fprime
-        # self.verbose = verbose
-
-        # # Dictionary with keys for each parent matrix required to build the
-        # # full matrix stack and values of list containing names of child
-        # # matrices required to build each parent matrix
-        # self.matrix_prereqs = {
-        #     'Finv': ['multi_chan_nudft', 'multi_chan_beam'],
-        #     'Fprime': ['multi_chan_nuidft', 'multi_chan_nuidft_fg'],
-        #     'multi_chan_nuidft': ['nuidft_array'],
-        #     'multi_vis_idft_array_1d': ['idft_array_1d'],
-        #     'gridding_matrix_co2vo': ['gridding_matrix_vo2co'],
-        #     'Fz': [
-        #         'gridding_matrix_vo2co',
-        #         'multi_vis_idft_array_1d',
-        #         'gridding_matrix_vo2co_fg',
-        #         'idft_array_1d_fg'
-        #     ],
-        #     'Ninv_T': ['Ninv', 'T'],
-        #     'T_Ninv_T': ['T', 'Ninv_T'],
-        #     'block_T_Ninv_T': ['T_Ninv_T'],
-        # }
-        # if Finv_Fprime:
-        #     self.matrix_prereqs.update({'T': ['Finv_Fprime', 'Fz']})
-        # else:
-        #     self.matrix_prereqs.update(
-        #         {'Fprime_Fz': ['Fprime', 'Fz'], 'T': ['Finv', 'Fprime_Fz']}
-        #     )
-        """BuildMatrixTree.__init__"""
-
-        # Required params
-        self.nu = nu
-        self.nv = nv
-        self.nu_fg = nu_fg
-        self.nv_fg = nv_fg
-        self.n_vis = n_vis
-        self.neta = neta
-        self.nf = nf
-        self.f_min = f_min
-        self.df = df
-        self.nq = nq
-        self.nt = nt
-        self.dt = dt
-        self.sigma = sigma
-        self.fit_for_monopole = fit_for_monopole
-
-        self.freqs_hertz = (self.f_min + np.arange(self.nf)*self.df) * 1e6
-
-        if self.include_instrumental_effects:
-            self.uvw_array_m = uvw_array_m
-            self.nbls = uvw_array_m.shape[1]
-            self.bl_red_array = bl_red_array
-            self.bl_red_array_vec = bl_red_array_vec
-            self.phasor = phasor
-            self.fov_ra_eor = fov_ra_eor
-            if fov_dec_eor is None:
-                self.fov_dec_eor = self.fov_ra_eor
-            else:
-                self.fov_dec_eor = fov_dec_eor
-            if fov_ra_fg is None:
-                self.fov_ra_fg = fov_ra_eor
-            else:
-                self.fov_ra_fg = fov_ra_fg
-            if fov_dec_fg is None:
-                self.fov_dec_fg = self.fov_ra_fg
-            else:
-                self.fov_dec_fg = fov_dec_fg
-            self.simple_za_filter = simple_za_filter
-            self.nside = nside
-            self.central_jd = central_jd
-            self.telescope_latlonalt = telescope_latlonalt
-            self.beam_type = beam_type
-            self.beam_peak_amplitude = beam_peak_amplitude
-            self.beam_center = beam_center
-            self.fwhm_deg = fwhm_deg
-            self.antenna_diameter = antenna_diameter
-            self.cosfreq = cosfreq
-            self.achromatic_beam = achromatic_beam
-            self.beam_ref_freq = beam_ref_freq
-            self.effective_noise = effective_noise
-
-            self.hpx = Healpix(
-                fov_ra_eor=self.fov_ra_eor,
-                fov_dec_eor=self.fov_dec_eor,
-                fov_ra_fg=self.fov_ra_fg,
-                fov_dec_fg=self.fov_dec_fg,
-                simple_za_filter=self.simple_za_filter,
-                nside=self.nside,
-                telescope_latlonalt=self.telescope_latlonalt,
-                central_jd=self.central_jd,
-                nt=self.nt,
-                int_time=self.dt,
-                beam_type=self.beam_type,
-                peak_amp=self.beam_peak_amplitude,
-                fwhm_deg=self.fwhm_deg,
-                diam=self.antenna_diameter,
-                cosfreq=self.cosfreq
-            )
-
-            self.drift_scan = drift_scan
-
-        # FG model params
-        self.nuv_fg = self.nu_fg*self.nv_fg - (not self.fit_for_monopole)
-        self.npl = npl
-        self.beta = beta
-
-        # SHG params
-        self.use_shg = use_shg
-        self.fit_for_shg_amps = fit_for_shg_amps
-        self.nu_sh = nu_sh
-        self.nv_sh = nv_sh
-        self.nq_sh = nq_sh
-        self.npl_sh = npl_sh
-
-        # Taper function
-        self.taper_func = taper_func
-
-        # Fz normalization
-        self.deta = deta
-        self.Fz_normalization = self.deta
-
-        # Fprime normalization
-        self.du_eor = du_eor
-        self.dv_eor = dv_eor
-        self.Fprime_normalization_eor = (
-            self.nu * self.nv * self.du_eor * self.dv_eor
-        )
-        self.du_fg = du_fg
-        self.dv_fg = dv_fg
-        self.Fprime_normalization_fg = (
-            self.nu_fg * self.nv_fg * self.du_fg * self.dv_fg
-        )
-
-        # Finv normalization
-        # FIXME: this will error if include_instrumental_effects is False.
-        self.Finv_normalisation = self.hpx.pixel_area_sr
-
-        self.matrix_methods = {
-            'idft_array_1d': self.build_idft_array_1d,
-            'multi_vis_idft_array_1d': self.build_multi_vis_idft_array_1d,
-            'gridding_matrix_vo2co': self.build_gridding_matrix_vo2co,
-            'gridding_matrix_co2vo': self.build_gridding_matrix_co2vo,
-            'idft_array_1d_fg': self.build_idft_array_1d_fg,
-            'gridding_matrix_vo2co_fg': self.build_gridding_matrix_vo2co_fg,
-            'Fz': self.build_Fz,
-            'nuidft_array': self.build_nuidft_array,
-            'multi_chan_nuidft': self.build_multi_chan_nuidft,
-            'multi_chan_nuidft_fg': self.build_multi_chan_nuidft_fg,
-            'Fprime': self.build_Fprime,
-            'multi_chan_nudft': self.build_multi_chan_nudft,
-            'multi_chan_beam': self.build_multi_chan_beam,
-            'Finv': self.build_Finv,
-            'Fprime_Fz': self.build_Fprime_Fz,
-            'Finv_Fprime': self.build_Finv_Fprime,
-            'T': self.build_T,
-            'N': self.build_N,
-            'Ninv': self.build_Ninv,
-            'Ninv_T': self.build_Ninv_T,
-            'T_Ninv_T': self.build_T_Ninv_T,
-            'block_T_Ninv_T': self.build_block_T_Ninv_T,
-        }
-        
-        if self.phasor is not None:
-            self.matrix_prereqs.update(
-                {'Finv': ['phasor_matrix'] + self.matrix_prereqs['Finv']}
-            )
-            self.matrix_methods.update(
-                {'phasor_matrix': self.build_phasor_matrix}
-            )
-
-        if self.use_shg:
-            self.matrix_prereqs.update(
-                {
-                    'multi_vis_idft_array_1d': ['idft_array_1d',
-                                                'idft_array_1d_sh'],
-                    'Fprime': ['multi_chan_nuidft',
-                               'multi_chan_nuidft_fg',
-                               'nuidft_array_sh']
-                }
-            )
-            self.matrix_methods.update(
-                {'idft_array_1d_sh': self.build_idft_array_1d_sh,
-                 'nuidft_array_sh': self.build_nuidft_array_sh}
-            )
-
-        if self.taper_func is not None:
-            self.matrix_prereqs.update(
-                {'Finv': ['taper_matrix'] + self.matrix_prereqs['Finv']}
-            )
-            self.matrix_methods.update(
-                {'taper_matrix': self.build_taper_matrix}
-            )
 
     def load_prerequisites(self, matrix_name):
         """
@@ -941,7 +871,7 @@ class BuildMatrices(BuildMatrixTree):
 
         Returns
         -------
-        matrix_a_dense_np_array : :class:`numpy.ndarray`
+        matrix_a_dense_np_array : numpy.ndarray
             Dense representation of `matrix_a`.
 
         """
