@@ -304,7 +304,8 @@ def nuidft_matrix_2d(nu, nv, du, dv, l_vec, m_vec, exclude_mean=True):
 
     return nudft_array_2d
 
-
+# FIXME: IDFT_Array_IDFT_2D_ZM_SH needs to be updated to support the
+# subharmonic grid (see BayesEoR issue #50)
 def IDFT_Array_IDFT_2D_ZM_SH(
         nu_sh, nv_sh, sampled_lm_coords_radians, spacing='linear'):
     """
