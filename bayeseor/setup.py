@@ -1,7 +1,9 @@
 """ Convenience functions for setting up a BayesEoR analysis. """
 
 import numpy as np
+from collections.abc import Sequence
 from astropy.time import Time
+from astropy.units import Quantity
 from pathlib import Path
 from rich.panel import Panel
 import warnings
@@ -20,100 +22,98 @@ from .vis import preprocess_uvdata
 from .utils import mpiprint, Cosmology, load_numpy_dict
 
 def run_setup(
-    nf=None,
-    neta=None,
-    deta=None,
-    nq=None,
-    beta=[2.63, 2.82],
-    nt=None,
-    nu=None,
-    nv=None,
-    nu_fg=None,
-    nv_fg=None,
-    fit_for_monopole=False,
-    du_eor=None,
-    dv_eor=None,
-    du_fg=None,
-    dv_fg=None,
-    use_shg=False,
-    nu_sh=None,
-    nv_sh=None,
-    nq_sh=None,
-    npl_sh=None,
-    fit_for_shg_amps=False,
-    ps_box_size_ra_Mpc=None,
-    ps_box_size_dec_Mpc=None,
-    ps_box_size_para_Mpc=None,
-    nside=None,
-    fov_ra_eor=None,
-    fov_dec_eor=None,
-    fov_ra_fg=None,
-    fov_dec_fg=None,
-    simple_za_filter=True,
-    taper_func=None,
-    drift_scan=True,
-    include_instrumental_effects=True,
-    uvws=None,
-    redundancy=None,
-    phasor=None,
-    beam_type="",
-    beam_center=None,
-    achromatic_beam=False,
-    beam_peak_amplitude=1.0,
-    fwhm_deg=None,
-    antenna_diameter=None,
-    cosfreq=None,
-    beam_ref_freq=None,
-    data_path=None,
-    ant_str="cross",
-    bl_cutoff=None,
-    freq_idx_min=None,
-    nu_min_MHz=None,
-    freq_center=None,
-    channel_width_MHz=None,
-    jd_idx_min=None,
-    jd_min=None,
-    central_jd=None,
-    integration_time_seconds=None,
-    form_pI=True,
-    pI_norm=1.0,
-    pol="xx",
-    redundant_avg=False,
-    uniform_redundancy=False,
-    phase=False,
-    phase_time=False,
-    calc_noise=False,
-    save_vis=False,
-    save_model=False,
-    save_dir=None,
-    clobber=False,
-    sigma=None,
-    noise_seed=None,
-    noise_data_path=None,
-    inst_model=None,
-    save_k_vals=False,
-    telescope_name="",
-    telescope_latlonalt=(0, 0, 0),
-    array_dir_prefix="./matrices/",
-    use_sparse_matrices=True,
-    build_Finv_and_Fprime=True,
-    output_dir="./",
-    file_root=None,
-    priors=None,
-    log_priors=False,
-    uprior_inds=None,
-    dimensionless_PS=True,
-    inverse_LW_power=1e-16,
-    use_gpu=True,
-    use_intrinsic_noise_fitting=False,
-    use_LWM_Gaussian_prior=False,
-    use_EoR_cube=False,
-    use_Multinest=True,
-    return_vis=False,
-    return_ks=False,
-    return_bm=False,
-    verbose=False,
-    rank=0,
+    *,
+    nf : int,
+    neta : int,
+    deta : float,
+    nq : int = 0,
+    beta : list[float] = [2.63, 2.82],
+    nt : int,
+    nu : int,
+    nv : int,
+    nu_fg : int,
+    nv_fg : int,
+    fit_for_monopole : bool = False,
+    du_eor : float,
+    dv_eor : float,
+    du_fg : float,
+    dv_fg : float,
+    use_shg : bool = False,
+    nu_sh : int | None = None,
+    nv_sh : int | None = None,
+    nq_sh : int | None = None,
+    npl_sh : int | None = None,
+    fit_for_shg_amps : bool = False,
+    ps_box_size_ra_Mpc : float,
+    ps_box_size_dec_Mpc : float,
+    ps_box_size_para_Mpc : float,
+    nside : int,
+    fov_ra_eor : float,
+    fov_dec_eor : float,
+    fov_ra_fg : float,
+    fov_dec_fg : float,
+    simple_za_filter : bool = True,
+    taper_func : str | None = None,
+    drift_scan : bool = True,
+    include_instrumental_effects : bool = True,
+    beam_type : str,
+    beam_center : list[float, float] | None = None,
+    achromatic_beam : bool = False,
+    beam_peak_amplitude : float = 1.0,
+    fwhm_deg : float | None = None,
+    antenna_diameter : float | None = None,
+    cosfreq : float | None = None,
+    beam_ref_freq : float | None = None,
+    data_path : Path | str,
+    ant_str : str = "cross",
+    bl_cutoff : Quantity | float | None = None,
+    freq_idx_min : int | None = None,
+    nu_min_MHz : Quantity | float | None = None,
+    freq_center : Quantity | float | None = None,
+    channel_width_MHz : Quantity | float | None = None,
+    jd_idx_min : int | None = None,
+    jd_min : Time | float | None = None,
+    central_jd : Time | float | None = None,
+    integration_time_seconds : Quantity | float | None = None,
+    form_pI : bool = True,
+    pI_norm : float = 1.0,
+    pol : str = "xx",
+    redundant_avg : bool = False,
+    uniform_redundancy : bool = False,
+    phase : bool = False,
+    phase_time : Time | float | None = None,
+    calc_noise : bool = False,
+    save_vis : bool = False,
+    save_model : bool = False,
+    save_dir : Path | str | None = None,
+    clobber : bool = False,
+    sigma : float | None = None,
+    noise_seed : int = 742123,
+    noise_data_path : Path | str | None = None,
+    inst_model : Path | str | None = None,
+    save_k_vals : bool = True,
+    telescope_name : str = "",
+    telescope_latlonalt : Sequence[float] = (0, 0, 0),
+    array_dir_prefix : Path | str = "./matrices/",
+    use_sparse_matrices : bool = True,
+    build_Finv_and_Fprime : bool = True,
+    output_dir : Path | str = "./",
+    file_root : str | None = None,
+    priors : Sequence[float],
+    log_priors : bool = False,
+    uprior_inds : np.ndarray | None = None,
+    dimensionless_PS : bool = True,
+    inverse_LW_power : float = 1e-16,
+    use_gpu : bool = True,
+    use_intrinsic_noise_fitting : bool = False,
+    use_LWM_Gaussian_prior : bool = False,
+    use_EoR_cube : bool = False,
+    use_Multinest : bool = True,
+    return_vis : bool = False,
+    return_ks : bool = False,
+    return_bm : bool = False,
+    verbose : bool = False,
+    rank : bool = 0,
     **kwargs
 ):
     """
@@ -155,7 +155,7 @@ def run_setup(
     nv_fg : int
         Number of pixels on a side for the v-axis in the foreground model
         uv-plane.
-    fit_for_monopole : bool
+    fit_for_monopole : bool, optional
         Fit for the (u, v) = (0, 0) pixel in the model uv-plane.
     du_eor : float
         Fourier mode spacing along the u axis in inverse radians of the
@@ -208,48 +208,40 @@ def run_setup(
     fov_dec_fg : float
         Field of view of the Declination axis of the foreground sky model in
         degrees.
-    simple_za_filter : bool
-        Filter pixels in the sky model by zenith angle only.
-    taper_func : str
+    simple_za_filter : bool, optional
+        Filter pixels in the sky model by zenith angle only. Defaults to True.
+    taper_func : str, optional
         Taper function applied to the frequency axis of the visibilities.
         Can be any valid argument to `scipy.signal.windows.get_window`.
-    drift_scan : bool
-        Model drift scan (True, default) or phased (False) visibilities.
-    include_instrumental_effects : bool
-        Forward model an instrument.
-    uvws : numpy.ndarray
-        Array containing the (u(t), v(t), w(t)) coordinates of the instrument
-        model with shape (nt, nbls, 3).
-    redundancy : numpy.ndarray
-        Array containing the number of redundant baselines at each
-        (u(t), v(t), w(t)) in the instrument model with shape (nt, nbls, 1).
-    phasor : numpy.ndarray
-        Array with shape (ndata,) that contains the phasor term used to phase
-        visibilities after performing the nuDFT from HEALPix (l, m, f) to
-        instrumentally sampled, unphased (u, v, f).  Defaults to None, i.e.
-        modelling unphased visibilities.
+        Defaults to None.
+    drift_scan : bool, optional
+        Model drift scan (True) or phased (False) visibilities. Defaults to
+        True.
+    include_instrumental_effects : bool, optional
+        Forward model an instrument. Defaults to True.
     beam_type : str
         Path to a pyuvdata-compatible beam file or one of 'uniform',
         'gaussian', 'airy', 'gausscosine', or 'taperairy'.
-    beam_center : list of float
+    beam_center : list of float, optional
         Beam center offsets from the phase center in right ascension and
-        declination in degrees.
-    achromatic_beam : bool
-        Force the beam to be achromatic.
-    beam_peak_amplitude : float
-        Peak amplitude of the beam.
-    fwhm_deg : float
-        Full width at half maximum of beam in degrees.
-    antenna_diameter : float
-        Antenna (aperture) diameter in meters.
-    cosfreq : float
-        Cosine frequency if using a 'gausscosine' beam.
-    beam_ref_freq : float
-        Beam reference frequency in MHz.
-    data_path : pathlib.Path or str, optional
+        declination in degrees. Defaults to None.
+    achromatic_beam : bool, optional
+        Force the beam to be achromatic. Defaults to False.
+    beam_peak_amplitude : float, optional
+        Peak amplitude of the beam. Defaults to 1.0.
+    fwhm_deg : float, optional
+        Full width at half maximum of beam in degrees. Used only if `beam_type`
+        is 'airy', 'gaussian', or 'gausscosine'. Defaults to None.
+    antenna_diameter : float, optional
+        Antenna (aperture) diameter in meters. Used only if `beam_type` is
+        'airy', 'gaussian', or 'gausscosine'. Defaults to None.
+    cosfreq : float, optional
+        Cosine frequency if using a 'gausscosine' beam. Defaults to None.
+    beam_ref_freq : float, optional
+        Beam reference frequency in MHz. Defaults to None.
+    data_path : pathlib.Path or str
         Path to either a pyuvdata-compatible file containing visibilities or
         a numpy-compatible file containing a preprocessed visibility vector.
-        Defaults to None.
     ant_str : str, optional
         Antenna downselect string. This determines what baselines to keep in
         the data vector. Please see `pyuvdata.UVData.select` for more details.
@@ -328,36 +320,37 @@ def run_setup(
     clobber : bool, optional
         Clobber files on disk if they exist.  Defaults to False.
     sigma : float, optional
-        Standard deviation of the visibility noise. Only used if `setup_data_vec`
-        is True and `noise_data_path` is None. Defaults to None.
+        Standard deviation of the visibility noise. Only used if
+        `setup_data_vec` is True and `noise_data_path` is None. Defaults to
+        None.
     noise_seed : int, optional
         Used to seed `np.random` when generating the noise vector. Defaults to
-        None.
+        742123.
     noise_data_path : pathlib.Path or str, optional
         Path to a numpy-compatible file containing a preprocessed noise vector.
         Defaults to None.
     inst_model : pathlib.Path or str, optional
         Path to directory containing instrument model files (`uvw_array.npy`,
         `redundancy_model.npy`, and optionally `phasor_vector.npy`). Defaults
-        to False.
+        to None.
     save_k_vals : bool, optional
         Save k bin files (means, edges, and number of voxels in each bin).
-        Defaults to False.
+        Defaults to True.
     telescope_name : str, optional
         Telescope identifier string. Defaults to ''.
-    telescope_latlonalt : tuple of float
+    telescope_latlonalt : tuple of float, optional
         The latitude, longitude, and altitude of the telescope in degrees,
         degrees, and meters, respectively.
     array_dir_prefix : pathlib.Path or str, optional
         Array directory prefix. Defaults to './matrices/'.
-    use_sparse_matrices : bool
+    use_sparse_matrices : bool, optional
         Use sparse arrays. Defaults to True.
     build_Finv_and_Fprime : bool
-        If True (default), construct the matrix product Finv_Fprime in place
-        from the dense matrices comprising Finv and Fprime to minimize the
-        memory and time required to build the matrix stack.  In this case,
-        only the matrix product Finv_Fprime is written to disk.  Otherwise,
-        construct Finv and Fprime independently and save both matrices to disk.
+        If True, construct the matrix product Finv_Fprime in place from the
+        dense matrices comprising Finv and Fprime to minimize the memory and
+        time required to build the matrix stack. In this case, only the matrix
+        product Finv_Fprime is written to disk. Otherwise, construct Finv and
+        Fprime independently and save both matrices to disk.
     output_dir : pathlib.Path or str, optional
         Parent directory for sampler output. Defaults to './'.
     file_root : str, optional
@@ -369,29 +362,31 @@ def run_setup(
     log_priors : bool, optional
         Assume priors on power spectrum coefficients are in log_10 units.
         Defaults to False.
-    uprior_inds : numpy.ndarray
+    uprior_inds : numpy.ndarray, optional
         Boolean 1D array that is True for any k bins using a uniform prior.
-        False entries use a log-uniform prior.
+        False entries use a log-uniform prior. Defaults to None (all k bins
+        use a log-uniform prior).
     dimensionless_PS : bool, optional
-        Fit for the dimensionless power spectrum, :math:`\\Delta^2(k)` (True,
-        default), or the power spectrum, :math:`P(k)` (False).
+        Fit for the dimensionless power spectrum, :math:`\\Delta^2(k)` (True),
+        or the power spectrum, :math:`P(k)` (False). Defaults to True.
     inverse_LW_power : float, optional
         Prior on the inverse power of the large spectral scale model
-        coefficients.
+        coefficients. Defaults to 1e-16.
     use_gpu : bool, optional
-        Use GPUs (True, default) or CPUs (False).
+        Use GPUs (True) or CPUs (False). Defaults to True.
     use_intrinsic_noise_fitting : bool, optional
         Fit for the noise level. Defaults to False.
     use_LWM_Gaussian_prior : bool, optional
-        Use a Gaussian prior (True) or a uniform prior (False, default) on the
-        large spectral scale model. This option is currently not implemented
-        but will be reimplemented in the future.
+        Use a Gaussian prior (True) or a uniform prior (False) on the large
+        spectral scale model. This option is currently not implemented bu
+        will be reimplemented in the future. Defaults to False.
     use_EoR_cube : bool, optional
         Use internally simulated data generated from a EoR cube. This
         functionality is not currently supported but will be implemented in
-        the future.
+        the future. Defaults to False.
     use_Multinest : bool, optional
-        Use MultiNest sampler (True, default) or Polychord (False).
+        Use MultiNest sampler (True) or PolyChord (False). Support for
+        PolyChord will be added in the future. Defaults to True.
     return_vis : bool, optional
         Return a dictionary with value (key) pairs of: the visibility vector
         ('vis'), the noise ('noise'), noisy visibilities if `noise_data_path`
@@ -644,6 +639,7 @@ def run_setup(
     cosmo = Cosmology()
     redshift = cosmo.f2z(bm.freqs_hertz.mean())
 
+    mpiprint("\nInstantiating posterior class:", style="bold", rank=print_rank)
     pspp = build_posterior(
         k_vals=k_vals,
         k_cube_voxels_in_bin=k_cube_voxels_in_bin,
@@ -2127,4 +2123,5 @@ def build_posterior(
         use_gpu=use_gpu,
         print=(verbose and rank==0)
     )
+
     return pspp
