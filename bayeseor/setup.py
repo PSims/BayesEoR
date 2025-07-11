@@ -443,7 +443,7 @@ def run_setup(
 
     """
     # print_rank will only trigger print if verbose is True and rank == 0
-    print_rank = 1 - (verbose and rank==0)
+    print_rank = 1 - (verbose and rank == 0)
 
     if use_LWM_Gaussian_prior:
         raise NotImplementedError(
@@ -1003,7 +1003,7 @@ def get_vis_data(
 
     """
     # print_rank will only trigger print if verbose is True and rank == 0
-    print_rank = 1 - (verbose and rank==0)
+    print_rank = 1 - (verbose and rank == 0)
 
     if data_path is not None:
         if not isinstance(data_path, Path):
@@ -1234,7 +1234,7 @@ def build_k_cube(
         )
 
     # print_rank will only trigger print if verbose is True and rank == 0
-    print_rank = 1 - (verbose and rank==0)
+    print_rank = 1 - (verbose and rank == 0)
     mod_k, _, _, _, _, _, _ = generate_k_cube_in_physical_coordinates(
         nu,
         nv,
@@ -1299,11 +1299,10 @@ def generate_array_dir(
     noise_data_path=None,
     taper_func=None,
     array_dir_prefix=Path("./matrices/"),
-    mkdir=False,
     **kwargs
 ):
     """
-    Generate the directory for BayesEoR matrices based on analysis params.
+    Generate the directory name for BayesEoR matrices based on analysis params.
 
     Parameters
     ----------
@@ -1419,8 +1418,6 @@ def generate_array_dir(
         Defaults to None.
     array_dir_prefix : pathlib.Path or str, optional
         Array directory prefix. Defaults to './matrices/'.
-    mkdir : bool, optional
-        Make array directory (including parents). Defaults to False.
     **kwargs : :class:`bayeseor.params.BayesEoRParser` attributes
         Catch-all for auxiliary BayesEoRParser attributes so the function may
         be called using the arguments parsed by a BayesEoRParser instance via
@@ -1546,9 +1543,6 @@ def generate_array_dir(
     
     if taper_func:
         matrices_path /= f"{taper_func}"
-    
-    if mkdir:
-        matrices_path.mkdir(exist_ok=True, parents=True)
 
     return str(matrices_path) + "/"
 
@@ -1782,7 +1776,7 @@ def build_matrices(
         noise = None
 
     # print_rank will only trigger print if verbose is True and rank == 0
-    print_rank = 1 - (verbose and rank==0)
+    print_rank = 1 - (verbose and rank == 0)
 
     if uvws is not None:
         nbls = len(uvws[0])
@@ -1843,6 +1837,18 @@ def build_matrices(
     mpiprint(
         f"[bold]Array save directory:[/bold] {array_dir}", rank=print_rank
     )
+
+    if not Path(array_dir).exists() and build_stack and rank > 0:
+        # We currently do not support MPI when building the matrix stack.
+        # This process must be run on a single process to avoid parallel
+        # processes trying to write the the same file simultaneously.
+        # This check should hopefully catch cases where the matrix stack
+        # is being built my >= 1 parallel processes and only proceed
+        # with matrix construction on the root process with rank == 0.
+        raise RuntimeError(
+            f"The matrix stack cannot be built using MPI. Matrix construction "
+            f"will only proceed on rank 0. Error raised on rank {rank}."
+        )
     
     # TODO: update init call with from changes in matrices/build.py
     bm = BuildMatrices(
@@ -1900,7 +1906,7 @@ def build_matrices(
         array_save_directory=array_dir,
         use_sparse_matrices=use_sparse_matrices,
         Finv_Fprime=np.logical_not(build_Finv_and_Fprime),
-        verbose=print_rank
+        verbose=(verbose and rank == 0)
     )
 
     if build_stack:
@@ -2038,7 +2044,7 @@ def build_posterior(
         )
 
     # print_rank will only trigger print if verbose is True and rank == 0
-    print_rank = 1 - (verbose and rank==0)
+    print_rank = 1 - (verbose and rank == 0)
 
     # The EoR model uv-plane excludes the (u, v) = (0, 0) pixel, so the number
     # of EoR model uv-plane pixels is nu*nv - 1

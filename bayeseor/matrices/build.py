@@ -31,7 +31,7 @@ DEGREES_PER_SEC = DEGREES_PER_HOUR * 1 / SECS_PER_HOUR
 DEGREES_PER_MIN = DEGREES_PER_SEC * 60
 try:
     from threadpoolctl import threadpool_info
-    NTHREADS = threadpool_info()[0]['num_threads']
+    NTHREADS = threadpool_info()[0]["num_threads"]
 except:
     NTHREADS = 1
 
@@ -274,7 +274,7 @@ class BuildMatrices():
         array_save_directory="./matrices/",
         use_sparse_matrices=True,
         Finv_Fprime=True,
-        verbose=False,
+        verbose=False
     ):
         # TODO: it would be nice to come up with some way to check that the
         # required kwargs have been passed, but the list of required kwargs
@@ -319,7 +319,7 @@ class BuildMatrices():
 
         self.freqs_hertz = (self.f_min + np.arange(self.nf)*self.df) * 1e6
 
-        self.array_save_directory = array_save_directory
+        self.array_dir = array_save_directory
         self.include_instrumental_effects = include_instrumental_effects
         self.use_sparse_matrices = use_sparse_matrices
         self.Finv_Fprime = Finv_Fprime
@@ -418,79 +418,79 @@ class BuildMatrices():
         # full matrix stack and values of list containing names of child
         # matrices required to build each parent matrix
         self.matrix_prereqs = {
-            'Finv': ['multi_chan_nudft', 'multi_chan_beam'],
-            'Fprime': ['multi_chan_nuidft', 'multi_chan_nuidft_fg'],
-            'multi_chan_nuidft': ['nuidft_array'],
-            'multi_vis_idft_array_1d': ['idft_array_1d'],
-            'gridding_matrix_co2vo': ['gridding_matrix_vo2co'],
-            'Fz': [
-                'gridding_matrix_vo2co',
-                'multi_vis_idft_array_1d',
-                'gridding_matrix_vo2co_fg',
-                'idft_array_1d_fg'
+            "Finv": ["multi_chan_nudft", "multi_chan_beam"],
+            "Fprime": ["multi_chan_nuidft", "multi_chan_nuidft_fg"],
+            "multi_chan_nuidft": ["nuidft_array"],
+            "multi_vis_idft_array_1d": ["idft_array_1d"],
+            "gridding_matrix_co2vo": ["gridding_matrix_vo2co"],
+            "Fz": [
+                "gridding_matrix_vo2co",
+                "multi_vis_idft_array_1d",
+                "gridding_matrix_vo2co_fg",
+                "idft_array_1d_fg"
             ],
-            'Ninv_T': ['Ninv', 'T'],
-            'T_Ninv_T': ['T', 'Ninv_T'],
-            'block_T_Ninv_T': ['T_Ninv_T'],
+            "Ninv_T": ["Ninv", "T"],
+            "T_Ninv_T": ["T", "Ninv_T"],
+            "block_T_Ninv_T": ["T_Ninv_T"],
         }
         if self.Finv_Fprime:
-            self.matrix_prereqs.update({'T': ['Finv_Fprime', 'Fz']})
+            self.matrix_prereqs.update({"T": ["Finv_Fprime", "Fz"]})
         else:
             self.matrix_prereqs.update(
-                {'Fprime_Fz': ['Fprime', 'Fz'], 'T': ['Finv', 'Fprime_Fz']}
+                {"Fprime_Fz": ["Fprime", "Fz"], "T": ["Finv", "Fprime_Fz"]}
             )
         if self.phasor is not None:
             self.matrix_prereqs.update(
-                {'Finv': ['phasor_matrix'] + self.matrix_prereqs['Finv']}
+                {"Finv": ["phasor_matrix"] + self.matrix_prereqs["Finv"]}
             )
             self.matrix_methods.update(
-                {'phasor_matrix': self.build_phasor_matrix}
+                {"phasor_matrix": self.build_phasor_matrix}
             )
         if self.use_shg:
             self.matrix_prereqs.update(
                 {
-                    'multi_vis_idft_array_1d': ['idft_array_1d',
-                                                'idft_array_1d_sh'],
-                    'Fprime': ['multi_chan_nuidft',
-                               'multi_chan_nuidft_fg',
-                               'nuidft_array_sh']
+                    "multi_vis_idft_array_1d": ["idft_array_1d",
+                                                "idft_array_1d_sh"],
+                    "Fprime": ["multi_chan_nuidft",
+                               "multi_chan_nuidft_fg",
+                               "nuidft_array_sh"]
                 }
             )
             self.matrix_methods.update(
-                {'idft_array_1d_sh': self.build_idft_array_1d_sh,
-                 'nuidft_array_sh': self.build_nuidft_array_sh}
+                {"idft_array_1d_sh": self.build_idft_array_1d_sh,
+                 "nuidft_array_sh": self.build_nuidft_array_sh}
             )
         if self.taper_func is not None:
             self.matrix_prereqs.update(
-                {'Finv': ['taper_matrix'] + self.matrix_prereqs['Finv']}
+                {"Finv": ["taper_matrix"] + self.matrix_prereqs["Finv"]}
             )
             self.matrix_methods.update(
-                {'taper_matrix': self.build_taper_matrix}
+                {"taper_matrix": self.build_taper_matrix}
             )
 
         self.matrix_methods = {
-            'idft_array_1d': self.build_idft_array_1d,
-            'multi_vis_idft_array_1d': self.build_multi_vis_idft_array_1d,
-            'gridding_matrix_vo2co': self.build_gridding_matrix_vo2co,
-            'gridding_matrix_co2vo': self.build_gridding_matrix_co2vo,
-            'idft_array_1d_fg': self.build_idft_array_1d_fg,
-            'gridding_matrix_vo2co_fg': self.build_gridding_matrix_vo2co_fg,
-            'Fz': self.build_Fz,
-            'nuidft_array': self.build_nuidft_array,
-            'multi_chan_nuidft': self.build_multi_chan_nuidft,
-            'multi_chan_nuidft_fg': self.build_multi_chan_nuidft_fg,
-            'Fprime': self.build_Fprime,
-            'multi_chan_nudft': self.build_multi_chan_nudft,
-            'multi_chan_beam': self.build_multi_chan_beam,
-            'Finv': self.build_Finv,
-            'Fprime_Fz': self.build_Fprime_Fz,
-            'Finv_Fprime': self.build_Finv_Fprime,
-            'T': self.build_T,
-            'N': self.build_N,
-            'Ninv': self.build_Ninv,
-            'Ninv_T': self.build_Ninv_T,
-            'T_Ninv_T': self.build_T_Ninv_T,
-            'block_T_Ninv_T': self.build_block_T_Ninv_T,
+            "idft_array_1d": self.build_idft_array_1d,
+            "multi_vis_idft_array_1d": self.build_multi_vis_idft_array_1d,
+            "gridding_matrix_vo2co": self.build_gridding_matrix_vo2co,
+            "gridding_matrix_co2vo": self.build_gridding_matrix_co2vo,
+            "idft_array_1d_fg": self.build_idft_array_1d_fg,
+            "gridding_matrix_vo2co_fg": self.build_gridding_matrix_vo2co_fg,
+            "Fz": self.build_Fz,
+            "nuidft_array": self.build_nuidft_array,
+            "multi_chan_nuidft": self.build_multi_chan_nuidft,
+            "multi_chan_nuidft_fg": self.build_multi_chan_nuidft_fg,
+            "Fprime": self.build_Fprime,
+            "multi_chan_nudft": self.build_multi_chan_nudft,
+            "multi_chan_beam": self.build_multi_chan_beam,
+            "Finv": self.build_Finv,
+            "Fprime_Fz": self.build_Fprime_Fz,
+            "Finv_Fprime": self.build_Finv_Fprime,
+            "T": self.build_T,
+            "N": self.build_N,
+            "Ninv": self.build_Ninv,
+            "Ninv_T": self.build_Ninv_T,
+            "T_Ninv_T": self.build_T_Ninv_T,
+            "block_T_Ninv_T": self.build_block_T_Ninv_T,
         }
 
     def check_for_prerequisites(self, parent_matrix):
@@ -514,8 +514,7 @@ class BuildMatrices():
         """
         prerequisites_status = {}
         if parent_matrix in self.matrix_prereqs.keys():
-            for child_matrix\
-                    in self.matrix_prereqs[parent_matrix]:
+            for child_matrix in self.matrix_prereqs[parent_matrix]:
                 matrix_available = self.check_if_matrix_exists(child_matrix)
                 prerequisites_status[child_matrix] = matrix_available
         return prerequisites_status
@@ -537,45 +536,29 @@ class BuildMatrices():
 
         """
         hdf5_matrix_available = os.path.exists(
-            self.array_save_directory+matrix_name+'.h5')
+            self.array_dir + matrix_name + ".h5"
+        )
         if hdf5_matrix_available:
             matrix_available = 1
         else:
             npz_matrix_available = os.path.exists(
-                self.array_save_directory+matrix_name+'.npz')
+                self.array_dir + matrix_name + ".npz"
+            )
             if npz_matrix_available:
                 matrix_available = 2
                 if not self.use_sparse_matrices:
-                    if self.verbose:
-                        print(
-                            'Only the sparse matrix representation is '
-                            'available.\nUsing sparse representation and '
-                            'setting self.use_sparse_matrices=True.'
-                        )
+                    print(
+                        "Only the sparse matrix representation is available."
+                        "\nUsing sparse representation and setting "
+                        "self.use_sparse_matrices=True."
+                    )
                     self.use_sparse_matrices = True
             else:
                 matrix_available = 0
         return matrix_available
 
-    def create_directory(self, directory):
-        """
-        Create output directory if it doesn't already exist.
-
-        Parameters
-        ----------
-        directory : str
-            Name of directory.
-
-        """
-        if not os.path.exists(directory):
-            if self.verbose:
-                print('Directory not found:\n\n' + directory + "\n")
-                print('Creating required directory structure..')
-            os.makedirs(directory)
-        return 0
-
     def output_data(
-        self, output_array, output_directory, file_name, dataset_name
+        self, arr, arr_name, out_dir=None, dataset_name=None
     ):
         """
         Write matrix to disk.
@@ -585,86 +568,43 @@ class BuildMatrices():
 
         Parameters
         ----------
-        output_array : array
+        arr : array_like or scipy.sparse
             Array to be written to disk.
-        output_directory : str
-            Directory in which to write `output_array`.
-        file_name : str
-            Filename to use for `output_array`.
-        dataset_name : str
-            If saving as hdf5, the key used to access `output_array`.
+        arr_name : str
+            Filename for `arr`.
+        out_dir : pathlib.Path or str, optional
+            Directory in which to write `arr`. Defaults to `self.array_dir`.
+        dataset_name : str, optional
+            If saving as hdf5, the key used to access `arr`. Defaults to
+            `arr_name`.
 
         """
-        output_array_is_sparse = sparse.issparse(output_array)
-        if output_array_is_sparse:
-            self.output_sparse_matrix_to_npz(
-                output_array, output_directory, file_name+'.npz')
+        if out_dir is None:
+            out_dir = Path(self.array_dir)
+        elif not isinstance(out_dir, Path):
+            out_dir = Path(out_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        if self.verbose:
+            start = time.time()
+
+        arr_is_sparse = sparse.issparse(arr)
+        if arr_is_sparse:
+            out_path = out_dir / f"{arr_name}.npz"
+            if self.verbose:
+                print(f"Writing data to {out_path.absolute()}")
+            sparse.save_npz(out_path, arr.tocsr())
         else:
-            self.output_to_hdf5(
-                output_array, output_directory, file_name+'.h5', dataset_name)
-        return 0
+            if dataset_name is None:
+                dataset_name = arr_name
+            out_path = out_dir / f"{arr_name}.h5"
+            if self.verbose:
+                print(f"Writing data to {out_path.absolute()}")
+            with h5py.File(out_path, "w") as hf:
+                hf.create_dataset(dataset_name, data=arr)
 
-    def output_to_hdf5(
-        self, output_array, output_directory, file_name, dataset_name
-    ):
-        """
-        Write matrix to HDF5 file.
-
-        Parameters
-        ----------
-        output_array : array
-            Array to be written to disk.
-        output_directory : str
-            Directory in which to write `output_array`.
-        file_name : str
-            Filename to use for `output_array`.
-        dataset_name : str
-            Key used to access `output_array`.
-
-        """
         if self.verbose:
-            start = time.time()
-        self.create_directory(output_directory)
-        output_path = Path(output_directory) / file_name
-        if self.verbose:
-            print('Writing data to', output_path)
-        with h5py.File(output_path, 'w') as hf:
-            hf.create_dataset(dataset_name, data=output_array)
-        if self.verbose:
-            print('Time taken: {}'.format(time.time() - start))
-        return 0
-
-    def output_sparse_matrix_to_npz(
-        self, output_array, output_directory, file_name
-    ):
-        """
-        Write sparse matrix to npz file.
-
-        Parameters
-        ----------
-        output_array : array
-            Array to be written to disk.
-        output_directory : str
-            Directory in which to write `output_array`.
-        file_name : str
-            Filename to use for `output_array`.
-
-        Notes
-        -----
-        * To maintain sparse matrix attributes, use `sparse.save_npz` rather
-          than `numpy.savez`.
-
-        """
-        if self.verbose:
-            start = time.time()
-        self.create_directory(output_directory)
-        output_path = Path(output_directory) / file_name
-        if self.verbose:
-            print('Writing data to', output_path)
-        sparse.save_npz(output_path, output_array.tocsr())
-        if self.verbose:
-            print('Time taken: {}'.format(time.time() - start))
-        return 0
+            print(f"Time taken: {time.time() - start}")
 
     def read_data_s2d(self, matrix_name):
         """
@@ -678,16 +618,16 @@ class BuildMatrices():
 
         """
         data = self.read_data(matrix_name)
-        data = self.convert_sparse_matrix_to_dense_numpy_array(data)
+        data = self.sparse2ndarray(data)
         return data
     
     def read_data(self, matrix_name):
         """
         Read matrix from disk as dense or sparse matrix.
 
-        This function searches `self.array_save_directory` for a file with a
-        prefix matching `matrix_name`. It first searches for a sparse matrix,
-        i.e. ``matrix_name + '.npz'``, and then searches for a dense matrix if
+        This function searches `self.array_dir` for a file with a prefix
+        matching `matrix_name`. It first searches for a sparse matrix, i.e.
+        ``matrix_name + '.npz'``, and then searches for a dense matrix if
         a sparse matrix is not found, i.e. ``matrix_name + '.h5'``. If no
         valid file is found, an error is raised.
 
@@ -703,7 +643,7 @@ class BuildMatrices():
             Loaded matrix as a dense or sparse array.
 
         """
-        array_dir = Path(self.array_save_directory)
+        array_dir = Path(self.array_dir)
         if (array_dir / f"{matrix_name}.npz").exists():
             data = self.read_data_from_npz(array_dir / f"{matrix_name}.npz")
         elif (array_dir / f"{matrix_name}.h5").exists():
@@ -712,8 +652,7 @@ class BuildMatrices():
             )
         else:
             raise FileNotFoundError(
-                f"File prefix {matrix_name} not found in "
-                "self.array_save_directory"
+                f"File prefix {matrix_name} not found in self.array_dir"
             )
         return data
 
@@ -729,7 +668,7 @@ class BuildMatrices():
             If reading an hdf5 file, the key used to access the dataset.
 
         """
-        with h5py.File(file_path, 'r') as hf:
+        with h5py.File(file_path, "r") as hf:
             data = hf[dataset_name][:]
         return data
 
@@ -767,38 +706,45 @@ class BuildMatrices():
 
         """
         prerequisite_matrices_dictionary = {}
-        print('About to check and load any prerequisites for', matrix_name)
-        print('Checking for prerequisites')
+        if self.verbose:
+            print("About to check and load any prerequisites for", matrix_name)
+            print("Checking for prerequisites")
         prerequisites_status = self.check_for_prerequisites(matrix_name)
         if prerequisites_status == {}:
-            print(matrix_name, 'has no prerequisites. Continuing...')
+            if self.verbose:
+                print(matrix_name, "has no prerequisites. Continuing...")
         else:
-            for child_matrix, matrix_available\
-                    in prerequisites_status.items():
+            for child_matrix, matrix_available in prerequisites_status.items():
                 if matrix_available:
-                    print(child_matrix, 'is available. Loading...')
+                    if self.verbose:
+                        print(child_matrix, "is available. Loading...")
                 else:
-                    print(child_matrix, 'is not available. Building...')
+                    if self.verbose:
+                        print(child_matrix, "is not available. Building...")
                     self.matrix_methods[child_matrix]()
                     # Re-check that that the matrix now exists and
                     # whether it is dense (hdf5; matrix_available=1)
                     # or sparse (npz; matrix_available=2)
-                    matrix_available =\
-                        self.check_if_matrix_exists(child_matrix)
-                    print(child_matrix, 'is now available. Loading...')
+                    matrix_available = self.check_if_matrix_exists(
+                        child_matrix
+                    )
+                    if self.verbose:
+                        print(child_matrix, "is now available. Loading...")
 
                 # Load prerequisite matrix into
                 # prerequisite_matrices_dictionary
                 if matrix_available == 1:
-                    file_extension = '.h5'
+                    file_extension = ".h5"
                 elif matrix_available == 2:
-                    file_extension = '.npz'
+                    file_extension = ".npz"
                 else:
-                    file_extension = '.h5'
-                start = time.time()
+                    file_extension = ".h5"
+                if self.verbose:
+                    start = time.time()
                 data = self.read_data(child_matrix)
                 prerequisite_matrices_dictionary[child_matrix] = data
-                print('Time taken: {}'.format(time.time() - start))
+                if self.verbose:
+                    print(f"Time taken: {time.time() - start}")
 
         return prerequisite_matrices_dictionary
 
@@ -830,54 +776,34 @@ class BuildMatrices():
         """
         matrix_a_is_sparse = sparse.issparse(matrix_a)
         matrix_b_is_sparse = sparse.issparse(matrix_b)
-        print(matrix_a.shape)
-        print(matrix_b.shape)
+        if self.verbose:
+            print(f"{matrix_a.shape = }")
+            print(f"{matrix_b.shape = }")
         if not (matrix_a_is_sparse or matrix_b_is_sparse):
             ab = np.dot(matrix_a, matrix_b)
         else:
             ab = matrix_a * matrix_b
         return ab
 
-    def convert_sparse_to_dense_matrix(self, matrix_a):
+    def sparse2ndarray(self, arr):
         """
-        Convert scipy.sparse matrix to dense matrix.
+        Convert scipy.sparse matrix to dense numpy.ndarray.
 
         Parameters
         ----------
-        matrix_a : :class:`scipy.sparse`
+        arr : scipy.sparse
             Sparse matrix.
 
         Returns
         -------
-        matrix_a_dense : :class:`numpy.matrix`
-            Dense representation of `matrix_a`.
+        arr_ndarray : numpy.ndarray
+            Dense representation of `arr`.
 
         """
-        matrix_a_is_sparse = sparse.issparse(matrix_a)
-        if matrix_a_is_sparse:
-            matrix_a_dense = matrix_a.todense()
-        else:
-            matrix_a_dense = matrix_a
-        return matrix_a_dense
-
-    def convert_sparse_matrix_to_dense_numpy_array(self, matrix_a):
-        """
-        Convert scipy.sparse matrix to dense numpy array.
-
-        Parameters
-        ----------
-        matrix_a : :class:`scipy.sparse`
-            Sparse matrix.
-
-        Returns
-        -------
-        matrix_a_dense_np_array : numpy.ndarray
-            Dense representation of `matrix_a`.
-
-        """
-        matrix_a_dense = self.convert_sparse_to_dense_matrix(matrix_a)
-        matrix_a_dense_np_array = np.array(matrix_a_dense)
-        return matrix_a_dense_np_array
+        if sparse.issparse(arr):
+            arr = arr.todense()
+        arr_ndarray = np.array(arr)
+        return arr_ndarray
 
     def sd_block_diag(self, block_matrices_list):
         """
@@ -982,24 +908,21 @@ class BuildMatrices():
         * This function assumes that `use_nvis_nchan_nt_ordering = True`.
 
         """
-        matrix_name = 'taper_matrix'
-        start = time.time()
-        print('Performing matrix algebra')
+        matrix_name = "taper_matrix"
+        if self.verbose:
+            start = time.time()
+            print("Performing matrix algebra")
         taper = windows.get_window(self.taper_func, self.nf)
         nbls = self.uvw_array_m.shape[1]
-        taper = np.repeat(taper[None, :], nbls, axis=0).flatten(order='F')
+        taper = np.repeat(taper[None, :], nbls, axis=0).flatten(order="F")
         taper = np.tile(taper, self.nt)
         if self.use_sparse_matrices:
             taper_matrix = sparse.diags(taper)
         else:
             taper_matrix = np.diag(taper)
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(
-            taper_matrix,
-            self.array_save_directory,
-            matrix_name,
-            matrix_name)
+        if self.verbose:
+            print(f"Time taken: {time.time() - start}")
+        self.output_data(taper_matrix, matrix_name)
 
     def build_phasor_matrix(self):
         """
@@ -1020,21 +943,18 @@ class BuildMatrices():
         * This function assumes that `use_nvis_nchan_nt_ordering = True`.
 
         """
-        matrix_name = 'phasor_matrix'
-        pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
+        matrix_name = "phasor_matrix"
+        pmd = self.load_prerequisites(matrix_name)  # TODO: remove unused pmd
+        if self.verbose:
+            start = time.time()
+            print("Performing matrix algebra")
         if self.use_sparse_matrices:
             phasor_matrix = sparse.diags(self.phasor)
         else:
             phasor_matrix = np.diag(self.phasor)
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(
-            phasor_matrix,
-            self.array_save_directory,
-            matrix_name,
-            matrix_name)
+        if self.verbose:
+            print(f"Time taken: {time.time() - start}")
+        self.output_data(phasor_matrix, matrix_name)
 
     def build_multi_chan_nudft(self):
         """
@@ -1056,14 +976,15 @@ class BuildMatrices():
         * `multi_chan_nudft` has shape (ndata, npix * nf * nt).
 
         """
-        matrix_name = 'multi_chan_nudft'
+        matrix_name = "multi_chan_nudft"
         pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
+        if self.verbose:
+            start = time.time()
+            print("Performing matrix algebra")
         sampled_uvw_coords_m = self.uvw_array_m.copy()
         # Convert uv-coordinates from meters to wavelengths per frequency
         sampled_uvw_coords_wavelengths = np.array([
-            sampled_uvw_coords_m / (c.to('m/s').value / freq)
+            sampled_uvw_coords_m / (c.to("m/s").value / freq)
             for freq in self.freqs_hertz
         ])
         if not self.drift_scan:
@@ -1080,10 +1001,9 @@ class BuildMatrices():
             multi_chan_nudft = self.sd_block_diag([
                 nuDFT_Array_DFT_2D_v2d0(
                     sampled_lmn_coords_radians,
-                    sampled_uvw_coords_wavelengths[
-                        freq_i, 0, :, :
-                    ].reshape(-1, 3))
-                for freq_i in range(self.nf)
+                    sampled_uvw_coords_wavelengths[i_f, 0].reshape(-1, 3)
+                )
+                for i_f in range(self.nf)
             ])
         else:
             # This will be used if a drift scan primary beam is included in
@@ -1093,30 +1013,26 @@ class BuildMatrices():
                     nuDFT_Array_DFT_2D_v2d0(
                         np.vstack(
                             self.hpx.calc_lmn_from_radec(
-                                self.hpx.jds[time_i],
+                                self.hpx.jds[i_t],
                                 self.hpx.ra_fg,
                                 self.hpx.dec_fg,
                                 radec_offset=self.beam_center
                             )
                         ).T,
-                        sampled_uvw_coords_wavelengths[
-                            freq_i, time_i, :, :
-                        ].reshape(-1, 3))
-                    for freq_i in range(self.nf)
+                        sampled_uvw_coords_wavelengths[i_f, i_t].reshape(-1, 3)
+                    )
+                    for i_f in range(self.nf)
                 ])
-                for time_i in range(self.nt)
+                for i_t in range(self.nt)
             ])
 
         # Multiply by sky model pixel area to get the units of the
         # model visibilities correct
         multi_chan_nudft *= self.Finv_normalisation
 
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(multi_chan_nudft,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
+        if self.verbose:
+            print(f"Time taken: {time.time() - start}")
+        self.output_data(multi_chan_nudft, matrix_name)
 
     def build_multi_chan_beam(self):
         """
@@ -1133,10 +1049,11 @@ class BuildMatrices():
         * `multi_chan_beam` has shape (npix * nf * nt, npix * nf).
 
         """
-        matrix_name = 'multi_chan_beam'
+        matrix_name = "multi_chan_beam"
         pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
+        if self.verbose:
+            start = time.time()
+            print("Performing matrix algebra")
         if self.achromatic_beam:
             freq_array = np.ones_like(self.freqs_hertz) * self.beam_ref_freq
             freq_array *= 1e6  # MHz --> Hz
@@ -1152,11 +1069,12 @@ class BuildMatrices():
                             self.hpx.dec_fg,
                             radec_offset=self.beam_center,
                             return_azza=True,
-                            )[3:],  # Only need az, za
+                        )[3:],  # Only need az, za
                         freq=freq
-                        )
                     )
-                for freq in freq_array])
+                )
+                for freq in freq_array
+            ])
         else:
             # Model the time dependence of the primary beam pointing
             # for a drift scan (i.e. change in zenith angle with time
@@ -1166,24 +1084,23 @@ class BuildMatrices():
                     self.sd_diags(
                         self.hpx.get_beam_vals(
                             *self.hpx.calc_lmn_from_radec(
-                                self.hpx.jds[time_i],
+                                self.hpx.jds[i_t],
                                 self.hpx.ra_fg,
                                 self.hpx.dec_fg,
                                 radec_offset=self.beam_center,
                                 return_azza=True
-                                )[3:],  # Only need az, za
+                            )[3:],  # Only need az, za
                             freq=freq
-                            )
                         )
-                    for freq in freq_array])
-                for time_i in range(self.nt)])
+                    )
+                    for freq in freq_array
+                ])
+                for i_t in range(self.nt)
+            ])
 
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(multi_chan_beam,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
+        if self.verbose:
+            print(f"Time taken: {time.time() - start}")
+        self.output_data(multi_chan_beam, matrix_name)
 
     def build_Finv(self):
         """
@@ -1204,21 +1121,19 @@ class BuildMatrices():
         * `Finv` has shape (ndata, npix * nf).
 
         """
-        matrix_name = 'Finv'
+        matrix_name = "Finv"
         pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
+        if self.verbose:
+            start = time.time()
+            print("Performing matrix algebra")
         Finv = self.dot_product(
-            pmd['multi_chan_nudft'], pmd['multi_chan_beam']
+            pmd["multi_chan_nudft"], pmd["multi_chan_beam"]
         )
         if self.phasor is not None:
-            Finv = self.dot_product(pmd['phasor_matrix'], Finv)
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(Finv,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
+            Finv = self.dot_product(pmd["phasor_matrix"], Finv)
+        if self.verbose:
+            print(f"Time taken: {time.time() - start}")
+        self.output_data(Finv, matrix_name)
 
     # Fprime functions
     def build_nuidft_array(self):
@@ -1242,10 +1157,11 @@ class BuildMatrices():
           in image-space.
 
         """
-        matrix_name = 'nuidft_array'
+        matrix_name = "nuidft_array"
         pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
+        if self.verbose:
+            start = time.time()
+            print("Performing matrix algebra")
         # Get (l, m) coordinates from Healpix object
         ls_rad, ms_rad, _ = self.hpx.calc_lmn_from_radec(
             self.hpx.jds[self.nt//2],
@@ -1264,12 +1180,9 @@ class BuildMatrices():
             )
             nuidft_array = nuidft_array_fg_pix
         nuidft_array *= self.Fprime_normalization_eor
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(nuidft_array,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
+        if self.verbose:
+            print(f"Time taken: {time.time() - start}")
+        self.output_data(nuidft_array, matrix_name)
 
     def build_multi_chan_nuidft(self):
         """
@@ -1286,19 +1199,17 @@ class BuildMatrices():
         * `multi_chan_nuidft` has shape (npix_eor * nf, nuv_eor * nf).
 
         """
-        matrix_name = 'multi_chan_nuidft'
+        matrix_name = "multi_chan_nuidft"
         pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
+        if self.verbose:
+            start = time.time()
+            print("Performing matrix algebra")
         multi_chan_nuidft = self.sd_block_diag(
-            [pmd['nuidft_array'] for i in range(self.nf)]
+            [pmd["nuidft_array"] for _ in range(self.nf)]
         )
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(multi_chan_nuidft,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
+        if self.verbose:
+            print(f"Time taken: {time.time() - start}")
+        self.output_data(multi_chan_nuidft, matrix_name)
 
     def build_multi_chan_nuidft_fg(self):
         """
@@ -1315,10 +1226,11 @@ class BuildMatrices():
           (npix_fg * nf, nuv_fg * nf)
 
         """
-        matrix_name = 'multi_chan_nuidft_fg'
+        matrix_name = "multi_chan_nuidft_fg"
         pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
+        if self.verbose:
+            start = time.time()
+            print("Performing matrix algebra")
         ls_rad, ms_rad, _ = self.hpx.calc_lmn_from_radec(
             self.hpx.jds[self.nt//2],
             self.hpx.ra_fg,
@@ -1335,14 +1247,11 @@ class BuildMatrices():
         if self.fit_for_monopole:
             nuidft_array = np.hstack((nuidft_array, mp_col))
         multi_chan_nuidft_fg = self.sd_block_diag(
-            [nuidft_array for i in range(self.nf)]
+            [nuidft_array for _ in range(self.nf)]
         )
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(multi_chan_nuidft_fg,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
+        if self.verbose:
+            print(f"Time taken: {time.time() - start}")
+        self.output_data(multi_chan_nuidft_fg, matrix_name)
 
     def build_nuidft_array_sh(self):
         """
@@ -1359,10 +1268,11 @@ class BuildMatrices():
           (npix*nf, nuv_sh*fit_for_shg_amps + nuv_sh*nq_sh).
 
         """
-        matrix_name = 'nuidft_array_sh'
+        matrix_name = "nuidft_array_sh"
         pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
+        if self.verbose:
+            start = time.time()
+            print("Performing matrix algebra")
         # Get (l, m) coordinates from Healpix object
         ls_rad, ms_rad, _ = self.hpx.calc_lmn_from_radec(
             self.hpx.jds[self.nt//2]
@@ -1371,17 +1281,15 @@ class BuildMatrices():
 
         nuidft_array_sh_block = IDFT_Array_IDFT_2D_ZM_SH(
             self.nu_sh, self.nv_sh,
-            sampled_lm_coords_radians)
+            sampled_lm_coords_radians
+        )
         nuidft_array_sh_block *= self.Fprime_normalization / (self.nu*self.nv)
         nuidft_array_sh = self.sd_block_diag(
             [nuidft_array_sh_block for i in range(self.nf)]
         )
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(nuidft_array_sh,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
+        if self.verbose:
+            print(f"Time taken: {time.time() - start}")
+        self.output_data(nuidft_array_sh, matrix_name)
 
     def build_Fprime(self):
         """
@@ -1398,21 +1306,19 @@ class BuildMatrices():
           ((npix_eor + npix_fg) * nf, (nuv_eor + nuv_fg) * nf).
 
         """
-        matrix_name = 'Fprime'
+        matrix_name = "Fprime"
         pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
-        Fprime = self.sd_hstack([
-            pmd['multi_chan_nuidft'], pmd['multi_chan_nuidft_fg']
-        ])
+        if self.verbose:
+            start = time.time()
+            print("Performing matrix algebra")
+        Fprime = self.sd_hstack(
+            [pmd["multi_chan_nuidft"], pmd["multi_chan_nuidft_fg"]]
+        )
         if self.use_shg:
-            Fprime = self.sd_hstack([Fprime, pmd['nuidft_array_sh']])
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(Fprime,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
+            Fprime = self.sd_hstack([Fprime, pmd["nuidft_array_sh"]])
+        if self.verbose:
+            print(f"Time taken: {time.time() - start}")
+        self.output_data(Fprime, matrix_name)
 
     # Fz functions
     def build_idft_array_1d_sh(self):
@@ -1428,10 +1334,11 @@ class BuildMatrices():
         * Used for the SHG model in `Fz`.
 
         """
-        matrix_name = 'idft_array_1d_sh'
+        matrix_name = "idft_array_1d_sh"
         pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
+        if self.verbose:
+            start = time.time()
+            print("Performing matrix algebra")
         idft_array_1d_sh_block = idft_array_idft_1d_sh(
             self.nf,
             self.neta,
@@ -1440,18 +1347,16 @@ class BuildMatrices():
             fit_for_shg_amps=self.fit_for_shg_amps,
             nu_min_MHz=self.f_min,
             channel_width_MHz=self.df,
-            beta=self.beta)
+            beta=self.beta
+        )
         idft_array_1d_sh_block *= self.Fz_normalization * self.neta
         nuv_sh = self.nu_sh*self.nv_sh - 1
         idft_array_1d_sh = self.sd_block_diag(
-            [idft_array_1d_sh_block for i in range(nuv_sh)]
+            [idft_array_1d_sh_block for _ in range(nuv_sh)]
         )
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(idft_array_1d_sh,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
+        if self.verbose:
+            print(f"Time taken: {time.time() - start}")
+        self.output_data(idft_array_1d_sh, matrix_name)
 
     def build_idft_array_1d(self):
         """
@@ -1466,21 +1371,19 @@ class BuildMatrices():
         * Excludes eta=0 which belongs to the FG model.
 
         """
-        matrix_name = 'idft_array_1d'
-        start = time.time()
-        print('Performing matrix algebra')
+        matrix_name = "idft_array_1d"
+        if self.verbose:
+            start = time.time()
+            print("Performing matrix algebra")
         idft_array_1d = idft_matrix_1d(
             self.nf,
             self.neta,
             include_eta0=False
         )
         idft_array_1d *= self.Fz_normalization
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(idft_array_1d,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
+        if self.verbose:
+            print(f"Time taken: {time.time() - start}")
+        self.output_data(idft_array_1d, matrix_name)
 
     def build_multi_vis_idft_array_1d(self):
         """
@@ -1493,23 +1396,21 @@ class BuildMatrices():
           (nuv_eor * nf, nuv_eor * (neta - 1)).
 
         """
-        matrix_name = 'multi_vis_idft_array_1d'
+        matrix_name = "multi_vis_idft_array_1d"
         pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
+        if self.verbose:
+            start = time.time()
+            print("Performing matrix algebra")
         multi_vis_idft_array_1d = self.sd_block_diag(
-            [pmd['idft_array_1d'] for i in range(self.nu*self.nv - 1)]
+            [pmd["idft_array_1d"] for _ in range(self.nu*self.nv - 1)]
         )
         if self.use_shg:
             multi_vis_idft_array_1d = self.sd_block_diag(
-                [multi_vis_idft_array_1d, pmd['idft_array_1d_sh']]
+                [multi_vis_idft_array_1d, pmd["idft_array_1d_sh"]]
             )
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(multi_vis_idft_array_1d,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
+        if self.verbose:
+            print(f"Time taken: {time.time() - start}")
+        self.output_data(multi_vis_idft_array_1d, matrix_name)
 
     def build_idft_array_1d_fg(self):
         """
@@ -1522,28 +1423,29 @@ class BuildMatrices():
           nuv_fg*(1 + nq) + fit_for_monopole*(neta + nq)).
 
         """
-        matrix_name = 'idft_array_1d_fg'
-        start = time.time()
-        print('Performing matrix algebra')
+        matrix_name = "idft_array_1d_fg"
+        if self.verbose:
+            start = time.time()
+            print("Performing matrix algebra")
         eta0_to_frequency = np.ones((self.nf, 1), dtype=complex)
         eta0_to_frequency *= self.deta * self.neta
         neta0_blocks = self.nuv_fg - self.fit_for_monopole
-        idft_array_1d_eta0 = self.sd_block_diag([
-            eta0_to_frequency for _ in range(neta0_blocks)
-        ])
+        idft_array_1d_eta0 = self.sd_block_diag(
+            [eta0_to_frequency for _ in range(neta0_blocks)]
+        )
         idft_array_1d_fg = idft_array_1d_eta0
         if self.nq > 0:
             lssm_basis_vecs = build_lssm_basis_vectors(
                 self.nf, nq=self.nq, npl=self.npl, f_min=self.f_min,
-                df=self.df, beta=self.beta
+                df=self.df, beta=self.beta, verbose=self.verbose
             )
             lssm_basis_vecs *= self.deta * self.neta
-            lssm_array = self.sd_block_diag([
-                lssm_basis_vecs for _ in range(neta0_blocks)
-            ])
-            idft_array_1d_fg = self.sd_hstack([
-                idft_array_1d_fg, lssm_array
-            ])
+            lssm_array = self.sd_block_diag(
+                [lssm_basis_vecs for _ in range(neta0_blocks)]
+            )
+            idft_array_1d_fg = self.sd_hstack(
+                [idft_array_1d_fg, lssm_array]
+            )
         if self.fit_for_monopole:
             idft_array_1d_mp = idft_matrix_1d(
                 self.nf, self.neta, nq=self.nq, npl=self.npl,
@@ -1552,14 +1454,12 @@ class BuildMatrices():
             idft_array_1d_mp *= self.deta
             idft_array_1d_mp[:, self.neta//2] *= self.neta
             idft_array_1d_mp[:, self.neta:] *= self.neta
-            idft_array_1d_fg = self.sd_block_diag([
-                idft_array_1d_fg, idft_array_1d_mp
-            ])
-        print('Time taken: {}'.format(time.time() - start))
-        self.output_data(idft_array_1d_fg,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
+            idft_array_1d_fg = self.sd_block_diag(
+                [idft_array_1d_fg, idft_array_1d_mp]
+            )
+        if self.verbose:
+            print(f"Time taken: {time.time() - start}")
+        self.output_data(idft_array_1d_fg, matrix_name)
 
     def build_gridding_matrix_vo2co(self):
         """
@@ -1584,10 +1484,11 @@ class BuildMatrices():
         * `gridding_matrix_vo2co` has shape (nuv*nf, nuv*nf).
 
         """
-        matrix_name = 'gridding_matrix_vo2co'
+        matrix_name = "gridding_matrix_vo2co"
         pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
+        if self.verbose:
+            start = time.time()
+            print("Performing matrix algebra")
         gridding_matrix = generate_gridding_matrix_vo2co(
             self.nu, self.nv, self.nf, use_sparse=self.use_sparse_matrices
         )
@@ -1599,12 +1500,9 @@ class BuildMatrices():
             gridding_matrix = self.sd_block_diag(
                 [gridding_matrix, gridding_matrix_vo_to_co_sh]
             )
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(gridding_matrix,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
+        if self.verbose:
+            print(f"Time taken: {time.time() - start}")
+        self.output_data(gridding_matrix, matrix_name)
     
     def build_gridding_matrix_vo2co_fg(self):
         """
@@ -1630,21 +1528,19 @@ class BuildMatrices():
           (nuv_fg - (not fit_for_monopole)) * nf.
 
         """
-        matrix_name = 'gridding_matrix_vo2co_fg'
+        matrix_name = "gridding_matrix_vo2co_fg"
         pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
+        if self.verbose:
+            start = time.time()
+            print("Performing matrix algebra")
         gridding_matrix = generate_gridding_matrix_vo2co(
             self.nu_fg, self.nv_fg, self.nf,
             exclude_mean=(not self.fit_for_monopole),
             use_sparse=self.use_sparse_matrices
         )
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(gridding_matrix,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
+        if self.verbose:
+            print(f"Time taken: {time.time() - start}")
+        self.output_data(gridding_matrix, matrix_name)
 
     def build_Fz(self):
         """
@@ -1661,25 +1557,21 @@ class BuildMatrices():
            + fit_for_monopole*(neta + nq)).
 
         """
-        matrix_name = 'Fz'
+        matrix_name = "Fz"
         pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
+        if self.verbose:
+            start = time.time()
+            print("Performing matrix algebra")
         Fz_eor = self.dot_product(
-            pmd['gridding_matrix_vo2co'],
-            pmd['multi_vis_idft_array_1d']
+            pmd["gridding_matrix_vo2co"], pmd["multi_vis_idft_array_1d"]
         )
         Fz_fg = self.dot_product(
-            pmd['gridding_matrix_vo2co_fg'],
-            pmd['idft_array_1d_fg']
+            pmd["gridding_matrix_vo2co_fg"], pmd["idft_array_1d_fg"]
         )
         Fz = self.sd_block_diag((Fz_eor, Fz_fg))
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(Fz,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
+        if self.verbose:
+            print(f"Time taken: {time.time() - start}")
+        self.output_data(Fz, matrix_name)
 
     def build_Finv_Fprime(self):
         """
@@ -1752,7 +1644,7 @@ class BuildMatrices():
         inst_uvw_m = self.uvw_array_m.copy()
         # Convert from meters to inverse radians per frequency
         inst_uvw_irad = [
-            inst_uvw_m / (c.to('m/s').value / freq)
+            inst_uvw_m / (c.to("m/s").value / freq)
             for freq in self.freqs_hertz
         ]
         # Shape (nf, nt, nbls, 3)
@@ -1823,14 +1715,15 @@ class BuildMatrices():
         # Instantiate empty containers for matrices
         Finv_Fprime = sparse.lil_matrix(Finv_Fprime_shape, dtype=complex)
         
-        matrix_name = 'Finv_Fprime'
+        matrix_name = "Finv_Fprime"
         # FIXME: for now, there are no prerequisites for this matrix.  But,
         # this might change in the future if we add a kwarg for writing out
         # intermediate matrices to disk (e.g. the dense blocks that comprise
         # Fprime).
         pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
+        if self.verbose:
+            start = time.time()
+            print("Performing matrix algebra")
         
         for i_f in range(self.nf):
             uv_Fprime_inds_eor = slice(
@@ -1899,12 +1792,9 @@ class BuildMatrices():
                 # if self.use_shg:
                 #     Finv_Fprime[vis_inds, uv_Fprime_inds_shg] = ?
 
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(Finv_Fprime,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
+        if self.verbose:
+            print(f"Time taken: {time.time() - start}")
+        self.output_data(Finv_Fprime, matrix_name)
 
     def build_Fprime_Fz(self):
         """
@@ -1917,22 +1807,19 @@ class BuildMatrices():
            + fit_for_monopole * (neta + nq)).
 
         """
-        matrix_name = 'Fprime_Fz'
+        matrix_name = "Fprime_Fz"
         pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
-        if self.use_shg and sparse.issparse(pmd['Fprime']):
-            pmd['Fprime'] = pmd['Fprime'].toarray()
-        Fprime_Fz = self.dot_product(pmd['Fprime'], pmd['Fz'])
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5
-        # Read, write, and dot product times are all shorter for Fprime_Fz
-        # as a dense matrix
-        self.output_data(
-            Fprime_Fz.toarray(),
-            self.array_save_directory,
-            matrix_name,
-            matrix_name)
+        if self.verbose:
+            start = time.time()
+            print("Performing matrix algebra")
+        if self.use_shg and sparse.issparse(pmd["Fprime"]):
+            pmd["Fprime"] = pmd["Fprime"].toarray()
+        Fprime_Fz = self.dot_product(pmd["Fprime"], pmd["Fz"])
+        if self.verbose:
+            print(f"Time taken: {time.time() - start}")
+        # Save matrix to HDF5. Read, write, and dot product times
+        # are all shorter for Fprime_Fz as a dense matrix.
+        self.output_data(Fprime_Fz.toarray(), matrix_name)
 
     def build_gridding_matrix_co2vo(self):
         """
@@ -1946,10 +1833,11 @@ class BuildMatrices():
           (nuv * (neta + nq), nuv * (neta + nq)).
 
         """
-        matrix_name = 'gridding_matrix_co2vo'
+        matrix_name = "gridding_matrix_co2vo"
         pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
+        if self.verbose:
+            start = time.time()
+            print("Performing matrix algebra")
         # NOTE: taking the transpose reverses the gridding. This is what
         # happens in dbar where Fz.conjugate().T is multiplied by d and
         # the gridding_matrix_vo2co.conjugate().T
@@ -1957,13 +1845,10 @@ class BuildMatrices():
         # vis-ordered.
         # NOTE: conjugate does nothing to the gridding matrix component
         # of Fz, which is real, it only transforms the 1D IDFT to a DFT)
-        gridding_matrix_co2vo = pmd['gridding_matrix_vo2co'].T
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(gridding_matrix_co2vo,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
+        gridding_matrix_co2vo = pmd["gridding_matrix_vo2co"].T
+        if self.verbose:
+            print(f"Time taken: {time.time() - start}")
+        self.output_data(gridding_matrix_co2vo, matrix_name)
 
     # Covariance matrix functions
     def build_Ninv(self):
@@ -1978,10 +1863,11 @@ class BuildMatrices():
         * `Ninv` has shape (ndata, ndata).
 
         """
-        matrix_name = 'Ninv'
+        matrix_name = "Ninv"
         pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
+        if self.verbose:
+            start = time.time()
+            print("Performing matrix algebra")
         if self.include_instrumental_effects:
             if not self.drift_scan:
                 # This array is channel_ordered and the covariance
@@ -1997,59 +1883,47 @@ class BuildMatrices():
                 # RMS drops as the square root of
                 # the number of redundant samples
                 sigma_redundancy = (
-                        self.sigma
-                        / multifreq_baseline_redundancy_array**0.5)
-
+                    self.sigma / multifreq_baseline_redundancy_array**0.5
+                )
                 sigma_squared_array = (
-                        np.ones(s_size) * sigma_redundancy**2
-                        + 0j*np.ones(s_size)*sigma_redundancy**2
-                    )
+                    np.ones(s_size)*sigma_redundancy**2 + 0j
+                )
             else:
                 if self.effective_noise is None:
                     red_array_time_vis_shaped = self.bl_red_array
                     baseline_redundancy_array_time_freq_vis = np.array([
                         [red_array_vis for i in range(self.nf)]
                         for red_array_vis in red_array_time_vis_shaped
-                        ]).flatten()
+                    ]).flatten()
                     s_size = self.n_vis * self.nf
 
                     # RMS drops as the square root of
                     # the number of redundant samples
                     sigma_redundancy = (
-                            self.sigma
-                            / baseline_redundancy_array_time_freq_vis**0.5)
-
+                        self.sigma
+                        / baseline_redundancy_array_time_freq_vis**0.5
+                    )
                     sigma_squared_array = (
-                            np.ones(s_size) * sigma_redundancy**2
-                            + 0j*np.ones(s_size)*sigma_redundancy**2
-                        )
+                        np.ones(s_size)*sigma_redundancy**2 + 0j
+                    )
                 else:
                     # FIXME: see BayesEoR issue #55
                     # The docstring for `effective_noise` suggests it stores
                     # the noise visibilities, but this code assumes it instead
                     # stores an estimate for the standard deviation of the
                     # noise
-                    sigma_squared_array = (
-                            np.abs(self.effective_noise)**2
-                            + 0j*np.abs(self.effective_noise)**2
-                        )
+                    sigma_squared_array = np.abs(self.effective_noise)**2 + 0j
         else:
             s_size = (self.nu*self.nv - 1) * self.nf
-            sigma_squared_array = (
-                    np.ones(s_size)*self.sigma**2
-                    + 0j*np.ones(s_size)*self.sigma**2
-                )
+            sigma_squared_array = np.ones(s_size)*self.sigma**2 + 0j
 
         if self.use_sparse_matrices:
-            Ninv = sparse.diags(1./sigma_squared_array)
+            Ninv = sparse.diags(1 / sigma_squared_array)
         else:
-            Ninv = np.diag(1./sigma_squared_array)
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(Ninv,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
+            Ninv = np.diag(1 / sigma_squared_array)
+        if self.verbose:
+            print(f"Time taken: {time.time() - start}")
+        self.output_data(Ninv, matrix_name)
 
     def build_N(self):
         """
@@ -2063,10 +1937,11 @@ class BuildMatrices():
         * `N` has shape (ndata, ndata).
 
         """
-        matrix_name = 'N'
+        matrix_name = "N"
         pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
+        if self.verbose:
+            start = time.time()
+            print("Performing matrix algebra")
         if self.include_instrumental_effects:
             if not self.drift_scan:
                 # This array is channel_ordered and the covariance
@@ -2077,59 +1952,52 @@ class BuildMatrices():
                 s_size = self.n_vis * self.nf
                 multifreq_baseline_redundancy_array = np.array(
                     [baseline_redundancy_array for i in range(self.nf)]
-                    ).flatten()
+                ).flatten()
 
                 # RMS drops as the square root of
                 # the number of redundant samples
                 sigma_redundancy = (
-                        self.sigma
-                        / multifreq_baseline_redundancy_array ** 0.5)
+                    self.sigma / multifreq_baseline_redundancy_array ** 0.5
+                )
 
-                sigma_squared_array = (
-                        np.ones(s_size) * sigma_redundancy ** 2
-                        + 0j * np.ones(s_size) * sigma_redundancy ** 2
-                    )
+                sigma_squared_array = np.ones(s_size)*sigma_redundancy**2 + 0j
             else:
                 if self.effective_noise is None:
                     red_array_time_vis_shaped = self.bl_red_array
                     baseline_redundancy_array_time_freq_vis = np.array([
                         [red_array_vis for i in range(self.nf)]
                         for red_array_vis in red_array_time_vis_shaped
-                        ]).flatten()
+                    ]).flatten()
                     s_size = self.n_vis * self.nf
 
                     # RMS drops as the square root of
                     # the number of redundant samples
                     sigma_redundancy = (
-                            self.sigma
-                            / baseline_redundancy_array_time_freq_vis ** 0.5)
+                        self.sigma
+                        / baseline_redundancy_array_time_freq_vis ** 0.5
+                    )
 
                     sigma_squared_array = (
-                            np.ones(s_size) * sigma_redundancy ** 2
-                            + 0j * np.ones(s_size) * sigma_redundancy ** 2
-                        )
+                        np.ones(s_size)*sigma_redundancy**2 + 0j
+                    )
                 else:
-                    sigma_squared_array = (
-                            np.abs(self.effective_noise) ** 2
-                            + 0j * np.abs(self.effective_noise) ** 2
-                        )
+                    # FIXME: see BayesEoR issue #55
+                    # The docstring for `effective_noise` suggests it stores
+                    # the noise visibilities, but this code assumes it instead
+                    # stores an estimate for the standard deviation of the
+                    # noise
+                    sigma_squared_array = np.abs(self.effective_noise)**2 + 0j
         else:
             s_size = (self.nu * self.nv - 1) * self.nf
-            sigma_squared_array = (
-                    np.ones(s_size) * self.sigma ** 2
-                    + 0j * np.ones(s_size) * self.sigma ** 2
-                )
+            sigma_squared_array = np.ones(s_size)*self.sigma**2 + 0j
 
         if self.use_sparse_matrices:
             N = sparse.diags(sigma_squared_array)
         else:
             N = np.diag(sigma_squared_array)
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(N,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
+        if self.verbose:
+            print(f"Time taken: {time.time() - start}")
+        self.output_data(N, matrix_name)
 
     # T functions
     def build_T(self):
@@ -2148,19 +2016,22 @@ class BuildMatrices():
         * `T` has shape (ndata, nuv * (neta + nq)).
 
         """
-        matrix_name = 'T'
+        matrix_name = "T"
         pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
+        if self.verbose:
+            start = time.time()
+            print("Performing matrix algebra")
         if self.Finv_Fprime:
-            print('Constructing T = Finv_Fprime * Fz')
+            if self.verbose:
+                print("Constructing T = Finv_Fprime * Fz")
             # Fz is mostly sparse (<3% of the entries are non-zero).
             # This matrix product Finv_Fprime * Fz is quick to compute
             # even using Fz as a sparse matrix which only usese a
             # single thread for matrix multiplications.
-            T = self.dot_product(pmd['Finv_Fprime'], pmd['Fz']).todense()
+            T = self.dot_product(pmd["Finv_Fprime"], pmd["Fz"]).todense()
         else:
-            print('Constructing T = Finv * Fprime_Fz')
+            if self.verbose:
+                print("Constructing T = Finv * Fprime_Fz")
             # Finv is a stack of block diagonal matrices.  Each
             # component of the stack encodes the sky --> visibilities
             # transformation at a single time.  If we treat Finv as a
@@ -2175,10 +2046,10 @@ class BuildMatrices():
             # block diagonals of Finv times the corresponding
             # components in Fprime_Fz.
             if NTHREADS == 1:
-                T = self.dot_product(pmd['Finv'], pmd['Fprime_Fz'])
+                T = self.dot_product(pmd["Finv"], pmd["Fprime_Fz"])
             else:
                 T = np.zeros(
-                    (pmd['Finv'].shape[0], pmd['Fprime_Fz'].shape[1]),
+                    (pmd["Finv"].shape[0], pmd["Fprime_Fz"].shape[1]),
                     dtype=complex
                 )
                 for i_t in range(self.nt):
@@ -2188,21 +2059,16 @@ class BuildMatrices():
                     for i_f in range(self.nf):
                         vis_inds = slice(i_f*self.nbls, (i_f + 1)*self.nbls)
                         sky_inds = slice(
-                            i_f*self.hpx.npix_fov,
-                            (i_f + 1)*self.hpx.npix_fov
+                            i_f*self.hpx.npix_fov, (i_f + 1)*self.hpx.npix_fov
                         )
                         inds = [vis_inds, sky_inds]
                         T[time_inds][vis_inds] = np.dot(
-                            pmd['Finv'][time_inds][*inds].toarray(),
-                            pmd['Fprime_Fz'][sky_inds]
+                            pmd["Finv"][time_inds][*inds].toarray(),
+                            pmd["Fprime_Fz"][sky_inds]
                         )
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(
-            T,
-            self.array_save_directory,
-            matrix_name,
-            matrix_name)
+        if self.verbose:
+            print(f"Time taken: {time.time() - start}")
+        self.output_data(T, matrix_name)
 
     def build_Ninv_T(self):
         """
@@ -2216,19 +2082,15 @@ class BuildMatrices():
         * `Ninv_T` has shape (ndata, nuv * (neta + nq)).
 
         """
-        matrix_name = 'Ninv_T'
+        matrix_name = "Ninv_T"
         pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
-        Ninv_T = self.dot_product(pmd['Ninv'],
-                                  pmd['T'])
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(
-            Ninv_T,
-            self.array_save_directory,
-            matrix_name,
-            matrix_name)
+        if self.verbose:
+            start = time.time()
+            print("Performing matrix algebra")
+        Ninv_T = self.dot_product(pmd["Ninv"], pmd["T"])
+        if self.verbose:
+            print(f"Time taken: {time.time() - start}")
+        self.output_data(Ninv_T, matrix_name)
 
     def build_T_Ninv_T(self):
         """
@@ -2239,48 +2101,41 @@ class BuildMatrices():
         * `T_Ninv_T` has shape (nuv * (neta + nq), nuv * (neta + nq)).
 
         """
-        matrix_name = 'T_Ninv_T'
+        matrix_name = "T_Ninv_T"
         pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
-        T_Ninv_T = self.dot_product(
-            pmd['T'].conjugate().T,
-            pmd['Ninv_T']
-            )
+        if self.verbose:
+            start = time.time()
+            print("Performing matrix algebra")
+        T_Ninv_T = self.dot_product(pmd["T"].conjugate().T, pmd["Ninv_T"])
         # T_Ninv_T needs to be dense to pass to the GPU (note: if
         # T_Ninv_T is already a dense / a numpy array it will be
         # returned unchanged)
-        T_Ninv_T = self.convert_sparse_matrix_to_dense_numpy_array(T_Ninv_T)
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(T_Ninv_T,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
+        T_Ninv_T = self.sparse2ndarray(T_Ninv_T)
+        if self.verbose:
+            print(f"Time taken: {time.time() - start}")
+        self.output_data(T_Ninv_T, matrix_name)
 
     def build_block_T_Ninv_T(self):
         """
         Constructs a block diagonal representation of `T_Ninv_T`.  Only used
         if ``self.use_instrumental_effects = False``.
         """
-        matrix_name = 'block_T_Ninv_T'
+        matrix_name = "block_T_Ninv_T"
         pmd = self.load_prerequisites(matrix_name)
-        start = time.time()
-        print('Performing matrix algebra')
+        if self.verbose:
+            start = time.time()
+            print("Performing matrix algebra")
         if self.fit_for_monopole:
             self.nuv = (self.nu*self.nv)
         else:
             self.nuv = (self.nu*self.nv - 1)
         block_T_Ninv_T = np.array(
             [np.hsplit(block, self.nuv)
-             for block in np.vsplit(pmd['T_Ninv_T'], self.nuv)]
-            )
-        print('Time taken: {}'.format(time.time() - start))
-        # Save matrix to HDF5 or sparse matrix to npz
-        self.output_data(block_T_Ninv_T,
-                         self.array_save_directory,
-                         matrix_name,
-                         matrix_name)
+             for block in np.vsplit(pmd["T_Ninv_T"], self.nuv)]
+        )
+        if self.verbose:
+            print(f"Time taken: {time.time() - start}")
+        self.output_data(block_T_Ninv_T, matrix_name)
 
     def build_matrix_if_it_doesnt_already_exist(self, matrix_name):
         """
@@ -2300,8 +2155,7 @@ class BuildMatrices():
         if not matrix_available:
             self.matrix_methods[matrix_name]()
 
-    def prepare_matrix_stack_for_deletion(
-            self, src, clobber_matrices):
+    def prepare_matrix_stack_for_deletion(self, src, clobber_matrices):
         """
         Archive an existing matrix stack on disk by prepending 'delete_'
         to the child directory.
@@ -2316,29 +2170,30 @@ class BuildMatrices():
         Returns
         -------
         dst : str
-            If ``clobber_matrices = True``, path to matrix
-            stack directory to be deleted.
+            If `clobber_matrices` is True, path to matrix stack directory to
+            be deleted.
 
         """
         if clobber_matrices:
-            if src[-1] == '/':
+            if src[-1] == "/":
                 src = src[:-1]
             head, tail = os.path.split(src)
-            dst = os.path.join(head, 'delete_'+tail)
-            print('Archiving existing matrix stack to:', dst)
+            dst = os.path.join(head, "delete_"+tail)
+            print("Archiving existing matrix stack to:", dst)
             try:
                 shutil.move(src, dst)
             except Exception:
-                print('Archive path already existed. '
-                      'Deleting the previous archive.')
-                self.delete_old_matrix_stack(dst, 'y')
+                print("Archive path already existed. "
+                      "Deleting the previous archive.")
+                self.delete_old_matrix_stack(dst, "y")
                 self.prepare_matrix_stack_for_deletion(
-                    self.array_save_directory,
-                    self.clobber_matrices)
+                    self.array_dir, self.clobber_matrices
+                )
             return dst
 
     def delete_old_matrix_stack(
-            self, path_to_old_matrix_stack, confirm_deletion):
+        self, path_to_old_matrix_stack, confirm_deletion
+    ):
         """
         Delete or archive an existing matrix stack.
 
@@ -2351,26 +2206,25 @@ class BuildMatrices():
             matrix stack.
 
         """
-        if confirm_deletion.lower() in ['y', 'yes']:
+        if confirm_deletion.lower() in ["y", "yes"]:
             shutil.rmtree(path_to_old_matrix_stack)
         else:
-            print('Prior matrix tree archived but not deleted.'
-                  ' \nPath to archive:', path_to_old_matrix_stack)
+            print("Prior matrix tree archived but not deleted."
+                  " \nPath to archive:", path_to_old_matrix_stack)
     
     def write_version_info(self):
         """
         Write version info to disk.
 
         """
-        fp = Path(self.array_save_directory) / 'version.txt'
+        fp = Path(self.array_dir) / "version.txt"
         if not fp.exists():
-            with open(fp, 'w') as f:
-                f.write(f'{__version__}\n')
+            with open(fp, "w") as f:
+                f.write(f"{__version__}\n")
 
     def build_minimum_sufficient_matrix_stack(
-            self,
-            clobber_matrices=False,
-            force_clobber=False):
+        self, clobber_matrices=False, force_clobber=False
+    ):
         """
         Construct a minimum sufficient matrix stack needed to run BayesEoR.
 
@@ -2388,25 +2242,25 @@ class BuildMatrices():
         self.force_clobber = force_clobber
 
         # Prepare matrix directory
-        matrix_stack_dir_exists = os.path.exists(self.array_save_directory)
+        matrix_stack_dir_exists = Path(self.array_dir).exists()
         if matrix_stack_dir_exists:
             dst = self.prepare_matrix_stack_for_deletion(
-                self.array_save_directory,
-                self.clobber_matrices)
+                self.array_dir, self.clobber_matrices
+            )
         # Build matrices
-        self.build_matrix_if_it_doesnt_already_exist('T_Ninv_T')
+        self.build_matrix_if_it_doesnt_already_exist("T_Ninv_T")
         if not self.include_instrumental_effects:
-            self.build_matrix_if_it_doesnt_already_exist('block_T_Ninv_T')
-        self.build_matrix_if_it_doesnt_already_exist('N')
+            self.build_matrix_if_it_doesnt_already_exist("block_T_Ninv_T")
+        self.build_matrix_if_it_doesnt_already_exist("N")
         if matrix_stack_dir_exists and self.clobber_matrices:
             if not self.force_clobber:
                 confirm_deletion = input(
-                    'Confirm deletion of archived matrix stack? (y/n)\n')
+                    "Confirm deletion of archived matrix stack? (y/n)\n")
             else:
-                print('Deletion of archived matrix stack has '
-                      'been pre-confirmed. Continuing...')
-                confirm_deletion = 'y'
+                print("Deletion of archived matrix stack has "
+                      "been pre-confirmed. Continuing...")
+                confirm_deletion = "y"
             self.delete_old_matrix_stack(dst, confirm_deletion)
 
         self.write_version_info()
-        print('Matrix stack complete')
+        print("Matrix stack complete")

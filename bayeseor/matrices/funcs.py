@@ -385,7 +385,8 @@ def IDFT_Array_IDFT_2D_ZM_SH(
 
 # Fz functions
 def build_lssm_basis_vectors(
-        nf, nq=2, npl=0, f_min=159.0, df=0.2, beta=2.63):
+    nf, nq=2, npl=0, f_min=159.0, df=0.2, beta=2.63, verbose=False
+):
     """
     Construct the Large Spectral Scale Model (LSSM) basis vectors.
 
@@ -408,6 +409,8 @@ def build_lssm_basis_vectors(
     beta : array-like of floats
         Polynomial powers when replacing the default quadratic
         modes with terms of the form `(nu / f_min)**-beta[i]`.
+    verbose : bool, optional
+        Verbose output. Defaults to False.
 
     Returns
     -------
@@ -426,10 +429,11 @@ def build_lssm_basis_vectors(
                  for i_f in range(len(freq_array))]
                 )
             basis_vectors[0] = m_pl
-            print('\nLinear LW mode replaced with power-law model')
-            print('f_min = ', f_min)
-            print('df = ', df)
-            print('beta = ', beta, '\n')
+            if verbose:
+                print('\nLinear LW mode replaced with power-law model')
+                print('f_min = ', f_min)
+                print('df = ', df)
+                print('beta = ', beta, '\n')
 
     if nq == 2:
         x = np.arange(nf) - nf/2.
@@ -441,27 +445,30 @@ def build_lssm_basis_vectors(
                  for i_f in range(len(freq_array))]
                 )
             basis_vectors[1] = m_pl
-            print('\nQuadratic LW mode replaced with power-law model')
-            print('f_min = ', f_min)
-            print('df = ', df)
-            print('beta = ', beta, '\n')
+            if verbose:
+                print('\nQuadratic LW mode replaced with power-law model')
+                print('f_min = ', f_min)
+                print('df = ', df)
+                print('beta = ', beta, '\n')
         if npl == 2:
             m_pl1 = np.array(
                 [(freq_array[i_f] / f_min)**-beta[0]
                  for i_f in range(len(freq_array))]
                 )
             basis_vectors[0] = m_pl1
-            print('\nLinear LW mode replaced with power-law model')
-            print('beta1 = ', beta[0], '\n')
+            if verbose:
+                print('\nLinear LW mode replaced with power-law model')
+                print('beta1 = ', beta[0], '\n')
             m_pl2 = np.array(
                 [(freq_array[i_f] / f_min)**-beta[1]
                  for i_f in range(len(freq_array))]
                 )
             basis_vectors[1] = m_pl2
-            print('\nQuadratic LW mode replaced with power-law model')
-            print('f_min = ', f_min)
-            print('df = ', df)
-            print('beta2 = ', beta[1], '\n')
+            if verbose:
+                print('\nQuadratic LW mode replaced with power-law model')
+                print('f_min = ', f_min)
+                print('df = ', df)
+                print('beta2 = ', beta[1], '\n')
 
     if nq == 3:
         x = np.arange(nf) - nf/2.
@@ -474,10 +481,11 @@ def build_lssm_basis_vectors(
                  for i_f in range(len(freq_array))]
                 )
             basis_vectors[1] = m_pl
-            print('\nQuadratic LW mode replaced with power-law model')
-            print('f_min = ', f_min)
-            print('df = ', df)
-            print('beta = ', beta, '\n')
+            if verbose:
+                print('\nQuadratic LW mode replaced with power-law model')
+                print('f_min = ', f_min)
+                print('df = ', df)
+                print('beta = ', beta, '\n')
 
         if npl == 2:
             m_pl1 = np.array(
@@ -485,17 +493,19 @@ def build_lssm_basis_vectors(
                  for i_f in range(len(freq_array))]
                 )
             basis_vectors[0] = m_pl1
-            print('\nLinear LW mode replaced with power-law model')
-            print('beta1 = ', beta[0], '\n')
+            if verbose:
+                print('\nLinear LW mode replaced with power-law model')
+                print('beta1 = ', beta[0], '\n')
             m_pl2 = np.array(
                 [(freq_array[i_f] / f_min)**-beta[1]
                  for i_f in range(len(freq_array))]
                 )
             basis_vectors[1] = m_pl2
-            print('\nQuadratic LW mode replaced with power-law model')
-            print('f_min = ', f_min)
-            print('df = ', df)
-            print('beta2 = ', beta[1], '\n')
+            if verbose:
+                print('\nQuadratic LW mode replaced with power-law model')
+                print('f_min = ', f_min)
+                print('df = ', df)
+                print('beta2 = ', beta[1], '\n')
 
         if npl == 3:
             m_pl1 = np.array(
@@ -503,8 +513,9 @@ def build_lssm_basis_vectors(
                  for i_f in range(len(freq_array))]
                 )
             basis_vectors[0] = m_pl1
-            print('\nLinear LW mode replaced with power-law model')
-            print('beta1 = ', beta[0], '\n')
+            if verbose:
+                print('\nLinear LW mode replaced with power-law model')
+                print('beta1 = ', beta[0], '\n')
             m_pl2 = np.array(
                 [(freq_array[i_f] / f_min)**-beta[1]
                  for i_f in range(len(freq_array))]
@@ -512,17 +523,19 @@ def build_lssm_basis_vectors(
             # Potential bug if passing len(beta) == 3
             # Should this call beta[2] instead of beta[1]?
             basis_vectors[1] = m_pl2
-            print('\nQuadratic LW mode replaced with power-law model')
-            print('beta2 = ', beta[1], '\n')
+            if verbose:
+                print('\nQuadratic LW mode replaced with power-law model')
+                print('beta2 = ', beta[1], '\n')
             m_pl3 = np.array(
                 [(freq_array[i_f] / f_min)**-beta[1]
                  for i_f in range(len(freq_array))]
                 )
             basis_vectors[2] = m_pl3
-            print('\nCubic LW mode replaced with power-law model')
-            print('f_min = ', f_min)
-            print('df = ', df)
-            print('beta3 = ', beta[2], '\n')
+            if verbose:
+                print('\nCubic LW mode replaced with power-law model')
+                print('f_min = ', f_min)
+                print('df = ', df)
+                print('beta3 = ', beta[2], '\n')
 
     if nq == 4:
         basis_vectors[0] = np.arange(nf)
