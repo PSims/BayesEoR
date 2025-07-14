@@ -79,7 +79,7 @@ class PowerSpectrumPosteriorProbability(object):
     log_priors : bool, optional
         Assume priors on power spectrum coefficients are in log_10 units.
         Defaults to False.
-    uprior_inds : array, optional
+    uprior_inds : numpy.ndarray, optional
         Boolean 1D array that is True for any k bins using a uniform prior.
         False entries use a log-uniform prior. Defaults to None (all k bins
         use a log-uniform prior).
