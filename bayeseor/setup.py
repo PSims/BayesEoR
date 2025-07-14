@@ -18,9 +18,9 @@ from .model.k_cube import (
     generate_k_cube_model_spherical_binning,
     calc_mean_binned_k_vals
 )
-from .posterior import PriorC, PowerSpectrumPosteriorProbability
+from .posterior import PowerSpectrumPosteriorProbability
 from .vis import preprocess_uvdata
-from .utils import mpiprint, Cosmology, load_numpy_dict
+from .utils import mpiprint, Cosmology, load_numpy_dict, parse_uprior_inds
 
 def run_setup(
     *,
@@ -102,6 +102,7 @@ def run_setup(
     file_root : str | None = None,
     priors : Sequence[float],
     log_priors : bool = False,
+    uprior_bins : str = "",
     uprior_inds : np.ndarray | None = None,
     dimensionless_PS : bool = True,
     inverse_LW_power : float = 1e-16,
@@ -339,7 +340,7 @@ def run_setup(
         Defaults to True.
     telescope_name : str, optional
         Telescope identifier string. Defaults to ''.
-    telescope_latlonalt : tuple of float, optional
+    telescope_latlonalt : sequence of float, optional
         The latitude, longitude, and altitude of the telescope in degrees,
         degrees, and meters, respectively.
     array_dir_prefix : pathlib.Path or str, optional
@@ -357,16 +358,22 @@ def run_setup(
     file_root : str, optional
         Sampler output directory name. If None (default), start a new analysis.
         Otherwise, resume analysis from `file_root`.
-    priors : list of list of floats
-        Prior [min, max] for each k bin as a list, e.g. [[min1, max1],
+    priors : sequence of float
+        Prior [min, max] for each k bin as a a sequence, e.g. [[min1, max1],
         [min2, max2], ...].
     log_priors : bool, optional
         Assume priors on power spectrum coefficients are in log_10 units.
         Defaults to False.
+    uprior_bins : str, optional
+        Array indicees of k bins using a uniform prior. Follows python slicing
+        syntax. Can pass a range via '1:4' (non-inclusive high end), a list of
+        indices via '1,4,6' (no spaces between commas), a single index '3' or
+        '-3', or 'all'. Defaults to "" (all k bins use log-uniform priors).
     uprior_inds : numpy.ndarray, optional
         Boolean 1D array that is True for any k bins using a uniform prior.
-        False entries use a log-uniform prior. Defaults to None (all k bins
-        use a log-uniform prior).
+        False entries use a log-uniform prior. If both `uprior_str` and
+        `uprior_inds` are passed, `uprior_inds` will take precedence. Defaults
+        to None (all k bins use a log-uniform prior).
     dimensionless_PS : bool, optional
         Fit for the dimensionless power spectrum, :math:`\\Delta^2(k)` (True),
         or the power spectrum, :math:`P(k)` (False). Defaults to True.
@@ -641,6 +648,17 @@ def run_setup(
 
     cosmo = Cosmology()
     redshift = cosmo.f2z(bm.freqs_hertz.mean())
+
+    if uprior_inds is not None:
+        assert uprior_inds.size == k_vals.size, (
+            "uprior_inds must have size equal to the number of k bins, "
+            "k_vals.size"
+        )
+        assert uprior_inds.dtype == bool, "uprior_inds must have dtype bool"
+    elif uprior_inds != "":
+        uprior_inds = parse_uprior_inds(uprior_bins, k_vals.size)
+    else:
+        uprior_inds = None
 
     mpiprint("\nInstantiating posterior class:", style="bold", rank=print_rank)
     pspp = build_posterior(
@@ -1555,7 +1573,7 @@ def build_matrices(
     fov_dec_fg : float,
     simple_za_filter : bool = True,
     include_instrumental_effects : bool = True,
-    telescope_latlonalt : tuple[float] = (0, 0, 0),
+    telescope_latlonalt : Sequence[float] = (0, 0, 0),
     nt : int,
     central_jd : float,
     integration_time_seconds : float,
@@ -1669,7 +1687,7 @@ def build_matrices(
         Filter pixels in the sky model by zenith angle only. Defaults to True.
     include_instrumental_effects : bool, optional
         Forward model an instrument. Defaults to True.
-    telescope_latlonalt : tuple of floats, optional
+    telescope_latlonalt : sequence of floats, optional
         Telescope location tuple as (latitude in degrees, longitude in degrees,
         altitude in meters). Defaults to (0, 0, 0).
     nt : float
@@ -1832,8 +1850,7 @@ def build_matrices(
             f"The matrix stack cannot be built using MPI. Matrix construction "
             f"will only proceed on rank 0. Error raised on rank {rank}."
         )
-    
-    # TODO: update init call with from changes in matrices/build.py
+
     bm = BuildMatrices(
         nu=nu,
         du_eor=du_eor,
@@ -1865,7 +1882,7 @@ def build_matrices(
         fov_ra_fg=fov_ra_fg,
         fov_dec_fg=fov_dec_fg,
         simple_za_filter=simple_za_filter,
-        include_instrumental_effects=include_instrumental_effects,  # TODO: remove
+        include_instrumental_effects=include_instrumental_effects,
         telescope_latlonalt=telescope_latlonalt,
         nt=nt,
         central_jd=central_jd,
@@ -1922,7 +1939,7 @@ def build_posterior(
     ps_box_size_dec_Mpc : float,
     ps_box_size_para_Mpc : float,
     include_instrumental_effects : bool = True,
-    priors : list,
+    priors : Sequence[float],
     log_priors : bool = False,
     uprior_inds : np.ndarray | None = None,
     dimensionless_PS : bool = True,
@@ -1980,8 +1997,8 @@ def build_posterior(
         spectrum is estimated.
     include_instrumental_effects : bool, optional
         Forward model an instrument. Defaults to True.
-    priors : list of list of floats
-        Prior [min, max] for each k bin as a list, e.g. [[min1, max1],
+    priors : sequence of float
+        Prior [min, max] for each k bin as a a sequence, e.g. [[min1, max1],
         [min2, max2], ...].
     log_priors : bool, optional
         Assume priors on power spectrum coefficients are in log_10 units.
@@ -2072,23 +2089,7 @@ def build_posterior(
     else:
         if use_intrinsic_noise_fitting:
             priors[0] = [1.0, 2.0]  # Linear alpha_prime range
-
-
     mpiprint("priors = {}".format(priors), rank=print_rank)
-    prior_c = PriorC(priors)
-
-    # TODO: Where does this belong?  You need to know how many k bins you have
-    # for the parse_uprior_inds function, which is now a BayesEoRParser
-    # function, to work properly.  I don't think there's a way around this.
-    # # Assign uniform priors to any bins specified by uprior_bins
-    # if uprior_bins != "":
-    #     uprior_inds = parse_uprior_inds(uprior_bins, nDims)
-    #     mpiprint(
-    #         f"\nUniform prior k-bin indices: {np.where(uprior_inds)[0]}\n",
-    #         rank=mpi_rank
-    #     )
-    # else:
-    #     uprior_inds = None
     
     mpiprint(
         "\nInstantiating posterior class:", style="bold", rank=print_rank
