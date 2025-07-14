@@ -406,7 +406,7 @@ def run_setup(
         Return the matrix building class instance used to construct the matrix
         stack. Defaults to False.
     verbose : bool, optional
-        Print statements useful for debugging. Defaults to False.
+        Verbose output. Defaults to False.
     rank : int, optional
         MPI rank. Defaults to 0.
     **kwargs : :class:`.params.BayesEoRParser` attributes
@@ -547,6 +547,8 @@ def run_setup(
     integration_time_seconds = vis_dict["dt"]
     if "phasor" in vis_dict:
         phasor = vis_dict["phasor"]
+    else:
+        phasor = None
 
     mpiprint("\n", Panel("Model k cube"), rank=print_rank)
     k_vals, k_cube_voxels_in_bin = build_k_cube(
@@ -949,7 +951,7 @@ def get_vis_data(
         Return the UVData object if `data_path` points to a pyuvdata-compatible
         file. Defaults to False.
     verbose : bool, optional
-        Print statements useful for debugging. Defaults to False.
+        Verbose output. Defaults to False.
     rank : int, optional
         MPI rank. Defaults to 0.
     **kwargs : :class:`.params.BayesEoRParser` attributes
@@ -1179,7 +1181,7 @@ def build_k_cube(
     clobber : bool, optional
         Clobber files on disk if they exist.  Defaults to False.
     verbose : bool, optional
-        Print statements useful for debugging. Defaults to False.
+        Verbose output. Defaults to False.
     rank : int, optional
         MPI rank. Defaults to 0.
     **kwargs : :class:`.params.BayesEoRParser` attributes
@@ -1738,7 +1740,7 @@ def build_matrices(
     clobber : bool, optional
         Clobber files on disk if they exist.  Defaults to False.
     verbose : bool, optional
-        Print statements useful for debugging. Defaults to False.
+        Verbose output. Defaults to False.
     rank : int, optional
         MPI rank. Defaults to 0.
 
@@ -2009,7 +2011,7 @@ def build_posterior(
         spectral scale model. This option is currently not implemented but
         will be reimplemented in the future. Defaults to False.
     verbose : bool, optional
-        Print statements useful for debugging. Defaults to False.
+        Verbose output. Defaults to False.
     rank : int, optional
         MPI rank. Defaults to 0.
     
@@ -2116,7 +2118,7 @@ def build_posterior(
         use_shg=use_shg,
         rank=rank,
         use_gpu=use_gpu,
-        print=(verbose and rank==0)
+        verbose=verbose
     )
 
     return pspp
