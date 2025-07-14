@@ -22,7 +22,7 @@ class GPUInterface(object):
     def __init__(self, base_dir=None, rank=0, verbose=True):
         if base_dir is None:
             # Look for MAGMA .so files in environment's lib directory
-            self.base_dir = Path(get_paths()['stdlib']).parent
+            self.base_dir = Path(get_paths()["stdlib"]).parent
         else:
             self.base_dir = Path(base_dir)
         self.rank = rank
@@ -34,12 +34,12 @@ class GPUInterface(object):
             import ctypes
             from numpy import ctypeslib
 
-            so_path = self.base_dir / 'libmagma.so'
+            so_path = self.base_dir / "libmagma.so"
             if self.verbose:
                 mpiprint(
-                    f'Loading shared library from {so_path}',
+                    f"Loading shared library from {so_path}",
                     rank=self.rank,
-                    end='\n\n'
+                    end="\n\n"
                 )
             # libmagma.so contains functions from the Matrix Algebra for
             # GPU and Multicore Architectures (MAGMA) library.  We use
@@ -64,24 +64,21 @@ class GPUInterface(object):
             self.magma_zpotrf.argtypes = [
                 ctypes.c_int,
                 ctypes.c_int,
-                ctypeslib.ndpointer(np.complex128, ndim=2, flags='C'),
+                ctypeslib.ndpointer(np.complex128, ndim=2, flags="C"),
                 ctypes.c_int,
-                ctypeslib.ndpointer(int, ndim=1, flags='C')
+                ctypeslib.ndpointer(int, ndim=1, flags="C")
             ]
             if self.verbose:
-                mpiprint(f'Computing on GPU(s)', rank=self.rank)
+                mpiprint(f"Computing on GPU(s)", rank=self.rank)
                 Ngpus = cuda.Device.count()
                 print(
-                    f'Rank {self.rank}: {cuda.Device.count()} GPUs ('
-                    + ', '.join([cuda.Device(i).name() for i in range(Ngpus)])
-                    + ')',
+                    f"Rank {self.rank}: {cuda.Device.count()} GPUs ("
+                    + ", ".join([cuda.Device(i).name() for i in range(Ngpus)])
+                    + ")"
                 )
             self.gpu_initialized = True
 
         except Exception as e:
             self.gpu_initialized = False
-            if self.verbose:
-                mpiprint(
-                    '\nException loading GPU encountered...', rank=self.rank
-                )
-                mpiprint(repr(e), rank=self.rank)
+            print(f"\nException loading GPU encountered on rank {rank}...")
+            print(repr(e), rank=self.rank)
