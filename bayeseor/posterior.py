@@ -3,7 +3,6 @@ import numpy as np
 import scipy
 from pdb import set_trace as brk
 import h5py
-from pathlib import Path
 
 from .gpu import GPUInterface
 from .utils import Cosmology, mpiprint
@@ -32,101 +31,102 @@ class PriorC(object):
         return theta
 
 class PowerSpectrumPosteriorProbability(object):
-    """
+    r"""
     Class containing posterior calculation functions.
 
     Parameters
     ----------
-    T_Ninv_T : np.ndarray
-        Complex matrix product `T.conjugate().T * Ninv * T`.  Used to construct
-        `Sigma` which is used to solve for the ML 3D Fourier space vector and
-        LSSM amplitudes.  `T_Ninv_T` must be a Hermitian, positive-definite
-        matrix.
-    dbar : np.ndarray
+    T_Ninv_T : numpy.ndarray
+        Complex matrix product
+        :math:`\mathbf{T}^\dagger\mathbf{N}^{-1}\mathbf{T}`. Used to construct
+        `Sigma` which is used to solve for the maximum a posteriori 3D Fourier
+        space vector and large spectral scale model amplitudes. `T_Ninv_T`
+        must be a Hermitian, positive-definite matrix.
+    dbar : numpy.ndarray
         Noise weighted representation of the data vector (signal + noise) of
-        visibilities in model (u, v, eta) space.
-    k_vals : np.ndarray of floats
-        Array containing the mean k for each k bin.
+        visibilities in model (u, v, eta) space computed as
+        :math:`\bar{\boldsymbol{d}}=\mathbf{T}^\dagger\mathbf{N}^{-1}\mathbf{d}`.
+    k_vals : numpy.ndarray
+        Mean of each k bin.
     k_cube_voxels_in_bin : list
-        List of sublists containing the flattened 3D k-space cube index of all
-        k that fall within a given k bin.
+        List containing sublists for each k bin.  Each sublist contains the
+        flattened 3D k-space cube index of all |k| that fall within a given
+        k bin.
     nuv : int
-        Number of model uv-plane points per frequency channel.
+        Number of model uv-plane pixels per frequency channel in the EoR model.
     neta : int
-        Number of Line of Sight (LoS, frequency axis) Fourier modes.
+        Number of line-of-sight (frequency axis) Fourier modes.
     nf : int
         Number of frequency channels.
     nq : int
-        Number of quadratic modes in the Larse Spectral Scale Model (LSSM).
-    Ninv : np.ndarray
-        Covariance matrix of the data (signal + noise) vector of visibilities.
-    d_Ninv_d : np.ndarray
-        Single complex number computed as `d.conjugate() * Ninv * d`.
+        Number of quadratic modes in the large spectral scale model.
+    Ninv : numpy.ndarray
+        Noise covariance matrix.
+    d_Ninv_d : numpy.ndarray
+        Matrix-vector product
+        :math:`\boldsymbol{d}^\dagger\mathbf{N}^{-1}\boldsymbol{d}`.
     ps_box_size_ra_Mpc : float
-        Right ascension (RA) axis extent of the cosmological volume in Mpc from
+        Right ascension axis extent of the cosmological volume in Mpc from
         which the power spectrum is estimated.
     ps_box_size_dec_Mpc : float
-        Declination (DEC) axis extent of the cosmological volume in Mpc from
-        which the power spectrum is estimated.
+        Declination axis extent of the cosmological volume in Mpc from which
+        the power spectrum is estimated.
     ps_box_size_para_Mpc : float
-        LoS extent of the cosmological volume in Mpc from which the power
-        spectrum is estimated.
-    include_instrumental_effects : bool
-        If True, include instrumental effects like frequency dependent (u, v)
-        sampling and the primary beam.  Defaults to `True`.
-    log_priors : boolean
-        If `True`, power spectrum k bin amplitudes are assumed to be in log
-        units, otherwise they will be treated using linear units.
-    uprior_inds : array
-        Boolean array with shape `len(k_vals)`.  If True (False), k bin uses a
-        uniform (log-uniform) prior.
-    masked_power_spectral_modes : np.ndarray
-        Boolean array used to mask additional (u, v, eta) amplitudes from
-        being included in the posterior calculations.  Defaults to using all
-        EoR model modes.
-    use_LWM_Gaussian_prior : bool
-        If True, use a Gaussian prior on the LSSM (NOT IMPLEMENTED).
-        Otherwise, use a uniform prior (default).
-    inverse_LW_power : float
-        Prior over the long wavelength modes in the LSSM.  Defaults to 0.0.
-    dimensionless_PS : boolean
-        If `True`, use a dimensionless power spectrum normalization
-        `Delta**2 ~ mK**2`, otherwise use a dimensionful power spectrum
-        normalization `P(k) ~ mK**2 Mpc**3`.
-    block_T_Ninv_T : list
-        Block diagonal representation of `T_Ninv_T`.  Only used if ignoring
-        instrumental effects.  Defaults to `[]`.
-    intrinsic_noise_fitting : boolean
-        If `True`, fit for the amplitude of the noise in the data instead of
-        using the covariance estimate as is in `Ninv`.  Defaults to `False`.
-    fit_for_spectral_model_parameters : boolean
-        If `True`, fit for the LSSM parameter values.  Defaults to `False`.
-    pl_max : float
+        Line-of-sight extent of the cosmological volume in Mpc from which the
+        power spectrum is estimated.
+    include_instrumental_effects : bool, optional
+        Forward model an instrument. Defaults to True.
+    log_priors : bool, optional
+        Assume priors on power spectrum coefficients are in log_10 units.
+        Defaults to False.
+    uprior_inds : array, optional
+        Boolean 1D array that is True for any k bins using a uniform prior.
+        False entries use a log-uniform prior. Defaults to None (all k bins
+        use a log-uniform prior).
+    use_LWM_Gaussian_prior : bool, optional
+        Use a Gaussian prior on the large spectral scale model (NOT
+        IMPLEMENTED). Otherwise, use a uniform prior. Defaults to False.
+    inverse_LW_power : float, optional
+        Inverse prior on the large spectral scale model modes.  Defaults to
+        1e-16 (infinite variance on the large spectral scale model modes).
+    dimensionless_PS : bool, optional
+        Fit for the dimensionless power spectrum, :math:`\Delta^2(k)` (True),
+        or the power spectrum, :math:`P(k)` (False). Defaults to True.
+    block_T_Ninv_T : list, optional
+        Block diagonal representation of `T_Ninv_T`. Only used if
+        `include_instrumental_effects` is False. Defaults to None.
+    intrinsic_noise_fitting : bool, optional
+        Fit for the amplitude of the noise in the data instead of using the
+        noise covariance matrix, `Ninv`. Defaults to False.
+    fit_for_spectral_model_parameters : bool, optional
+        Fit for the large spectral scale model parameter values.  Defaults to
+        False.
+    pl_max : float, optional
         Maximum brightness temperature spectral index when fitting for the
-        optimal LSSM spectral indices.  Defaults to `None`.
-    pl_grid_spacing : float
+        optimal large spectral scale model spectral indices. Defaults to None.
+    pl_grid_spacing : float, optional
         Grid spacing for the power law spectral index axis when fitting for the
-        LSSM parameter values.  Defaults to `None`.
-    use_shg : bool
-        If `True`, use the SubHarmonic Grid (SHG) in the model uv-plane.
-    return_Sigma : boolean
-        If `True`, break and return the matrix `Sigma = T_Ninv_T + PhiI`.
-        Defaults to `False`.
-    rank : int
-        MPI rank.
-    use_gpu : bool
-        If True, try and use GPUs for Cholesky decomposition.  Otherwise, use
-        CPUs (inadvisable due to inaccuracy of CPU matrix inversion).  
+        large spectral scale model parameter values. Defaults to None.
+    use_shg : bool, optional
+        Use the subharmonic grid. Defaults to False.
+    return_Sigma : bool, optional
+        Break and return the matrix `Sigma = T_Ninv_T + PhiI`, where `PhiI` is
+        the inverse prior covariance matrix. Defaults to False.
+    rank : int, optional
+        MPI rank. Defaults to 0.
+    use_gpu : bool, optional
+        Use GPUs for the Cholesky decomposition of `Sigma`. Otherwise, use
+        CPUs (inadvisable due to potential inaccuracy of CPU matrix inversion).  
         Defaults to True.
-    print : boolean
-        If `True`, print execution time messages.  Defaults to `False`.
-    print_rate : int
-        Number of iterations between print statements.  Defaults to 100.
-    debug : boolean
-        If `True`, execute break statements for debugging.  Defaults to
-        `False`.
-    print_debug : boolean
-        If `True`, print debug related messages.  Defaults to `False`.
+    verbose : bool, optional
+        Verbose output. Defaults to False.
+    print_rate : int, optional
+        Number of iterations between print statements. Defaults to 100.
+    debug : bool, optional
+        Execute break statements for debugging. Defaults to False.
+    print_debug : bool, optional
+        Print debug related messages that are more detailed than verbose
+        output. Defaults to False.
 
     """
     def __init__(
@@ -148,11 +148,10 @@ class PowerSpectrumPosteriorProbability(object):
         include_instrumental_effects=True,
         log_priors=False,
         uprior_inds=None,
-        masked_power_spectral_modes=None,
         use_LWM_Gaussian_prior=False,
-        inverse_LW_power=0.0,
-        dimensionless_PS=False,
-        block_T_Ninv_T=[],
+        inverse_LW_power=1e-16,
+        dimensionless_PS=True,
+        block_T_Ninv_T=None,
         intrinsic_noise_fitting=False,
         fit_for_spectral_model_parameters=False,
         pl_max=None,
@@ -161,7 +160,7 @@ class PowerSpectrumPosteriorProbability(object):
         return_Sigma=False,
         rank=0,
         use_gpu=True,
-        print=False,
+        verbose=False,
         print_rate=100,
         debug=False,
         print_debug=False
@@ -187,11 +186,13 @@ class PowerSpectrumPosteriorProbability(object):
         self.include_instrumental_effects = include_instrumental_effects
         self.log_priors = log_priors
         self.uprior_inds = uprior_inds
-        self.masked_power_spectral_modes = masked_power_spectral_modes
         self.use_LWM_Gaussian_prior = use_LWM_Gaussian_prior
         self.inverse_LW_power = inverse_LW_power
         self.dimensionless_PS = dimensionless_PS
-        self.block_T_Ninv_T = block_T_Ninv_T
+        if block_T_Ninv_T is None:
+            self.block_T_Ninv_T = []
+        else:
+            self.block_T_Ninv_T = block_T_Ninv_T
         self.intrinsic_noise_fitting = intrinsic_noise_fitting
         self.fit_for_spectral_model_parameters =\
             fit_for_spectral_model_parameters
@@ -209,7 +210,7 @@ class PowerSpectrumPosteriorProbability(object):
         self.use_shg = use_shg
         self.return_Sigma = return_Sigma
         self.rank = rank
-        self.print = print
+        self.verbose = verbose
         self.print_rate = print_rate
         self.debug = debug
         self.print_debug = print_debug
@@ -232,18 +233,19 @@ class PowerSpectrumPosteriorProbability(object):
         # fitting for spectral model parameters?
         self.spectral_model_parameters_array_storage_dir = ''
 
-        if self.log_priors:
-            mpiprint('Using log-priors', rank=self.rank)
-        if self.dimensionless_PS:
-            mpiprint('Calculating dimensionless_PS', rank=self.rank)
-        mpiprint(
-            f"Setting inverse_LW_power to {self.inverse_LW_power}",
-            rank=self.rank
-        )
+        if self.verbose:
+            if self.log_priors:
+                mpiprint('Using log-priors', rank=self.rank)
+            if self.dimensionless_PS:
+                mpiprint('Calculating dimensionless_PS', rank=self.rank)
+            mpiprint(
+                f"Setting inverse_LW_power to {self.inverse_LW_power}",
+                rank=self.rank
+            )
         
         if use_gpu:
             # Initialize the GPU interface
-            self.gpu = GPUInterface(rank=self.rank)
+            self.gpu = GPUInterface(rank=self.rank, verbose=self.verbose)
             if self.gpu.gpu_initialized:
                 self.use_gpu = True
             else:
@@ -261,15 +263,15 @@ class PowerSpectrumPosteriorProbability(object):
 
         Parameters
         ----------
-        T_Ninv_T_block : np.ndarray
+        T_Ninv_T_block : numpy.ndarray
             Single block matrix from block_T_Ninv_T.
-        PhiI_block : np.ndarray
+        PhiI_block : numpy.ndarray
             Vector of the estimated inverse variance of each k voxel present
             in `T_Ninv_T_block`.
 
         Returns
         -------
-        matrix_sum : np.ndarray
+        matrix_sum : numpy.ndarray
             Sum of `T_Ninv_T_block` and a diagonal matrix constructed from
             `PhiI_block`.
 
@@ -320,7 +322,7 @@ class PowerSpectrumPosteriorProbability(object):
 
         Returns
         -------
-        PhiI : np.ndarray
+        PhiI : numpy.ndarray
             Vector with estimates of the inverse variance of each model
             (u, v, eta) voxel.
 
@@ -376,6 +378,7 @@ class PowerSpectrumPosteriorProbability(object):
             self.power_spectrum_normalisation_func =\
                 self.calc_physical_dimensionless_power_spectral_normalisation
         else:
+            # FIXME: do we want to add support for modelling P(k)?
             self.power_spectrum_normalisation_func =\
                 self.calc_Npix_physical_power_spectrum_normalisation
 
@@ -399,15 +402,15 @@ class PowerSpectrumPosteriorProbability(object):
 
         Parameters
         ----------
-        T_Ninv_T : np.ndarray
+        T_Ninv_T : numpy.ndarray
             Complex matrix product ``T.conjugate().T * Ninv * T``.
-        PhiI : np.ndarray
+        PhiI : numpy.ndarray
             Vector with estimates of the inverse variance of each model
             (u, v, eta) voxel.
 
         Returns
         -------
-        Sigma_block_diagonals : np.ndarray
+        Sigma_block_diagonals : numpy.ndarray
             Array containing a block diagonal representation of
             ``Sigma = T_Ninv_T + PhiI``.  Each block is an entry along the
             zeroth axis of `Sigma_block_diagonals`.  This allows `Sigma` to be
@@ -441,9 +444,9 @@ class PowerSpectrumPosteriorProbability(object):
         ----------
         x : array_like
             Input power spectrum amplitudes per k bin with length `nDims`.
-        T_Ninv_T : np.ndarray
+        T_Ninv_T : numpy.ndarray
             Complex matrix product ``T.conjugate().T * Ninv * T``.
-        dbar : np.ndarray
+        dbar : numpy.ndarray
             Noise weighted representation of the data (signal + noise) vector
             of visibilities in model (u, v, eta) space.
         block_T_Ninv_T : list
@@ -452,16 +455,16 @@ class PowerSpectrumPosteriorProbability(object):
 
         Returns
         -------
-        SigmaI_dbar : np.ndarray
+        SigmaI_dbar : numpy.ndarray
             Complex array of maximum a posteriori (u, v, eta) and Large
             Spectral Scale Model (LSSM) amplitudes.  Used to compute the model
             data vector via ``m = T * SigmaI_dbar``.
-        dbarSigmaIdbar : np.ndarray
+        dbarSigmaIdbar : numpy.ndarray
             Complex array product ``dbar * SigmaI_dbar``.
-        PhiI : np.ndarray
+        PhiI : numpy.ndarray
             Vector with estimates of the inverse variance of each model
             (u, v, eta) voxel.
-        logSigmaDet : np.ndarray
+        logSigmaDet : numpy.ndarray
             Natural logarithm of the determinant of
             ``Sigma = T_Ninv_T + PhiI``.
 
@@ -469,13 +472,13 @@ class PowerSpectrumPosteriorProbability(object):
         start = time.time()
         PowerI = self.calc_PowerI(x)
         PhiI = PowerI
-        if self.print:
+        if self.verbose:
             mpiprint('\tPhiI time: {}'.format(time.time()-start),
                      rank=self.rank)
 
         do_block_diagonal_inversion = len(np.shape(block_T_Ninv_T)) > 1
         if do_block_diagonal_inversion:
-            if self.print:
+            if self.verbose:
                 mpiprint('Using block-diagonal inversion', rank=self.rank)
             start = time.time()
             if self.intrinsic_noise_fitting:
@@ -485,14 +488,14 @@ class PowerSpectrumPosteriorProbability(object):
             else:
                 Sigma_block_diagonals = self.calc_Sigma_block_diagonals(
                     T_Ninv_T, PhiI)
-            if self.print:
+            if self.verbose:
                 mpiprint('Time taken: {}'.format(time.time()-start),
                          rank=self.rank)
 
             start = time.time()
             dbar_blocks = np.split(dbar, self.nuv)
             if self.use_gpu:
-                if self.print:
+                if self.verbose:
                     mpiprint('Computing block diagonal inversion on GPU',
                              rank=self.rank)
                 SigmaI_dbar_blocks_and_logdet_Sigma = np.array(
@@ -518,13 +521,13 @@ class PowerSpectrumPosteriorProbability(object):
                         )
                      for i_block in range(self.nuv)]
                     )
-            if self.print:
+            if self.verbose:
                 mpiprint('Time taken: {}'.format(time.time()-start),
                          rank=self.rank)
 
             SigmaI_dbar = SigmaI_dbar_blocks.flatten()
             dbarSigmaIdbar = np.dot(dbar.conjugate().T, SigmaI_dbar)
-            if self.print:
+            if self.verbose:
                 mpiprint('Time taken: {}'.format(time.time()-start),
                          rank=self.rank)
 
@@ -535,12 +538,12 @@ class PowerSpectrumPosteriorProbability(object):
                     [np.linalg.slogdet(Sigma_block)[1]
                      for Sigma_block in Sigma_block_diagonals]
                     )
-                if self.print:
+                if self.verbose:
                     mpiprint('Time taken: {}'.format(time.time()-start),
                              rank=self.rank)
 
         else:
-            if self.count % self.print_rate == 0 and self.print:
+            if self.count % self.print_rate == 0 and self.verbose:
                 mpiprint('Not using block-diagonal inversion', rank=self.rank)
             start = time.time()
             # Note: the following two lines can probably be speeded up
@@ -552,7 +555,7 @@ class PowerSpectrumPosteriorProbability(object):
                 Sigma = Sigma/self.alpha_prime**2.0
 
             Sigma[self.Sigma_diag_inds] += PhiI
-            if self.print:
+            if self.verbose:
                 mpiprint('\tSigma build time: {}'.format(time.time()-start),
                          rank=self.rank)
             if self.return_Sigma:
@@ -560,7 +563,7 @@ class PowerSpectrumPosteriorProbability(object):
 
             start = time.time()
             if self.use_gpu:
-                if self.print:
+                if self.verbose:
                     mpiprint('Computing matrix inversion on GPU',
                              rank=self.rank)
                 SigmaI_dbar_and_logdet_Sigma = self.calc_SigmaI_dbar(
@@ -570,7 +573,7 @@ class PowerSpectrumPosteriorProbability(object):
             else:
                 SigmaI_dbar = self.calc_SigmaI_dbar(
                     Sigma, dbar, x_for_error_checking=x)
-            if self.print:
+            if self.verbose:
                 mpiprint(
                     '\tcalc_SigmaI_dbar time: {}'.format(time.time()-start),
                     rank=self.rank
@@ -578,7 +581,7 @@ class PowerSpectrumPosteriorProbability(object):
 
             start = time.time()
             dbarSigmaIdbar = np.dot(dbar.conjugate().T, SigmaI_dbar)
-            if self.print:
+            if self.verbose:
                 mpiprint(
                     '\tdbarSigmaIdbar time: {}'.format(time.time()-start),
                     rank=self.rank
@@ -589,7 +592,7 @@ class PowerSpectrumPosteriorProbability(object):
                 logSigmaDet = logdet_Sigma
             else:
                 logSigmaDet = np.linalg.slogdet(Sigma)[1]
-            if self.print:
+            if self.verbose:
                 mpiprint(
                     '\tlogSigmaDet time: {}'.format(time.time()-start),
                     rank=self.rank
@@ -609,9 +612,9 @@ class PowerSpectrumPosteriorProbability(object):
 
         Parameters
         ----------
-        Sigma : np.ndarray
+        Sigma : numpy.ndarray
             Complex matrix ``Sigma = T_Ninv_T + PhiI``.
-        dbar : np.ndarray
+        dbar : numpy.ndarray
             Noise weighted representation of the data (signal + noise) vector
             of visibilities in model (u, v, eta) space.
         x_for_error_checking : array_like
@@ -621,11 +624,11 @@ class PowerSpectrumPosteriorProbability(object):
 
         Returns
         -------
-        SigmaI_dbar : np.ndarray
+        SigmaI_dbar : numpy.ndarray
             Complex array of maximum a posteriori (u, v, eta) and Large
             Spectral Scale Model (LSSM) amplitudes.  Used to compute the model
             data vector via ``m = T * SigmaI_dbar``.
-        logdet_Magma_Sigma : np.ndarray
+        logdet_Magma_Sigma : numpy.ndarray
             Natural logarith of the determinant of `Sigma`.  Only returned if
             `self.use_gpu` is True.
 
@@ -639,7 +642,7 @@ class PowerSpectrumPosteriorProbability(object):
 
         else:
             self.magma_info = np.array([0])
-            if self.print:
+            if self.verbose:
                 start = time.time()
             self.gpu.magma_init()
             # The MAGMA docs suggest that uplo = 121 corresponds to the
@@ -654,7 +657,7 @@ class PowerSpectrumPosteriorProbability(object):
                 self.magma_info
             )
             self.gpu.magma_finalize()
-            if self.print:
+            if self.verbose:
                 mpiprint(
                     f'\t\tCholesky decomposition time: {time.time() - start}',
                     rank=self.rank
@@ -662,10 +665,10 @@ class PowerSpectrumPosteriorProbability(object):
             # Note: After wrapmzpotrf, Sigma is actually
             # SigmaCho (i.e. L with Sigma = LL^T)
             logdet_Magma_Sigma = np.sum(np.log(np.diag(abs(Sigma)))) * 2
-            if self.print:
+            if self.verbose:
                 start = time.time()
             SigmaI_dbar = scipy.linalg.cho_solve((Sigma, True), dbar)
-            if self.print:
+            if self.verbose:
                 mpiprint(
                     '\t\tscipy cho_solve time: {}'.format(
                         time.time() - start
@@ -713,9 +716,9 @@ class PowerSpectrumPosteriorProbability(object):
         if self.fit_for_spectral_model_parameters:
             pl_params = x[:2]
             x = x[2:]
-            if self.print:
+            if self.verbose:
                 mpiprint('pl_params', pl_params, rank=self.rank)
-            if self.print:
+            if self.verbose:
                 mpiprint('pl_grid_spacing, pl_max',
                          self.pl_grid_spacing, self.pl_max,
                          rank=self.rank)
@@ -727,7 +730,7 @@ class PowerSpectrumPosteriorProbability(object):
             # Round derived pl indices to nearest self.pl_grid_spacing
             b1, b2 = (self.pl_grid_spacing
                       * np.round(np.array([b1, b2]) / self.pl_grid_spacing, 0))
-            if self.print:
+            if self.verbose:
                 mpiprint('b1, b2', b1, b2, rank=self.rank)
 
             # Load matrices associated with sampled beta params
@@ -787,19 +790,19 @@ class PowerSpectrumPosteriorProbability(object):
         start_call = time.time()
         try:
             if do_block_diagonal_inversion:
-                if self.print:
+                if self.verbose:
                     mpiprint('Using block-diagonal inversion', rank=self.rank)
                 SigmaI_dbar, dbarSigmaIdbar, PhiI, logSigmaDet =\
                     self.calc_SigmaI_dbar_wrapper(
                         x, T_Ninv_T, dbar, block_T_Ninv_T=block_T_Ninv_T)
             else:
-                if self.print:
+                if self.verbose:
                     mpiprint('Not using block-diagonal inversion',
                              rank=self.rank)
                 start = time.time()
                 SigmaI_dbar, dbarSigmaIdbar, PhiI, logSigmaDet =\
                     self.calc_SigmaI_dbar_wrapper(x, T_Ninv_T, dbar)
-                if self.print:
+                if self.verbose:
                     mpiprint(
                         'calc_SigmaI_dbar_wrapper time: {}'.format(
                             time.time() - start
@@ -814,7 +817,7 @@ class PowerSpectrumPosteriorProbability(object):
             # np.linalg.slogdet(Phi))
             start = time.time()
             logPhiDet = -1 * np.sum(np.log(PhiI)).real
-            if self.print:
+            if self.verbose:
                 mpiprint('logPhiDet time: {}'.format(time.time() - start),
                          rank=self.rank)
 
@@ -825,7 +828,7 @@ class PowerSpectrumPosteriorProbability(object):
             if self.intrinsic_noise_fitting:
                 MargLogL = MargLogL - 0.5*d_Ninv_d - 0.5*log_det_N
             MargLogL = MargLogL.real
-            if self.print:
+            if self.verbose:
                 mpiprint('MargLogL time: {}'.format(time.time() - start),
                          rank=self.rank)
             if self.print_debug:
