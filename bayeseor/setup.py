@@ -383,10 +383,11 @@ def run_setup(
     use_gpu : bool, optional
         Use GPUs (True) or CPUs (False). Defaults to True.
     use_intrinsic_noise_fitting : bool, optional
-        Fit for the noise level. Defaults to False.
+        Fit for the noise level. This option is currently not implemented but
+        will be reimplemented in the future. Defaults to False.
     use_LWM_Gaussian_prior : bool, optional
         Use a Gaussian prior (True) or a uniform prior (False) on the large
-        spectral scale model. This option is currently not implemented bu
+        spectral scale model. This option is currently not implemented but
         will be reimplemented in the future. Defaults to False.
     use_EoR_cube : bool, optional
         Use internally simulated data generated from a EoR cube. This
@@ -445,21 +446,28 @@ def run_setup(
         Matrix building class instance. Returned only if `return_bm` is True.
 
     """
-    # print_rank will only trigger print if verbose is True and rank == 0
-    print_rank = 1 - (verbose and rank == 0)
-
+    if use_intrinsic_noise_fitting:
+        # FIXME
+        raise NotImplementedError(
+            "use_intrinsic_noise_fitting is not currently implemented. It "
+            "will be reimplemented in the future. For now, please set "
+            "use_intrinsic_noise_fitting to False."
+        )
     if use_LWM_Gaussian_prior:
+        # FIXME
         raise NotImplementedError(
             "use_LWM_Gaussian_prior is not currently implemented. It will be "
             "reimplemented in the future. For now, please set "
             "use_LWM_Gaussian_prior to False."
         )
-
     if sigma is None and noise_data_path is None:
         raise ValueError(
             "sigma cannot be None if setup_data_vec is True "
             "and noise_data_path is None"
         )
+
+    # print_rank will only trigger print if verbose is True and rank == 0
+    print_rank = 1 - (verbose and rank == 0)
 
     if beta is not None:
         npl = len(beta)
@@ -645,6 +653,34 @@ def run_setup(
         block_T_Ninv_T = []
     else:
         block_T_Ninv_T = bm.read_data("block_T_Ninv_T")
+    n_dims = k_vals.size
+    
+    # This code left for when use_intrinsic_noise_fitting and
+    # use_LWM_Gaussian_prior are reimplemented
+    if use_intrinsic_noise_fitting:
+        n_dims += 1
+    if use_LWM_Gaussian_prior:
+        n_dims += 3
+    if use_LWM_Gaussian_prior:
+        # Set minimum LW model priors using LW power spectrum in fit to
+        # white noise (i.e the prior min should incorporate knowledge of
+        # signal-removal in iterative pre-subtraction)
+        fg_log_priors_min = np.log10(1.e5)
+        # Set minimum LW model prior max using numerical stability
+        # constraint at the given signal-to-noise in the data.
+        fg_log_priors_max = 6.0
+        # priors[0] = [fg_log_priors_min, 8.0] # Set
+        # Calibrate LW model priors using white noise fitting
+        priors[0] = [fg_log_priors_min, fg_log_priors_max]
+        priors[1] = [fg_log_priors_min, fg_log_priors_max]
+        priors[2] = [fg_log_priors_min, fg_log_priors_max]
+        if use_intrinsic_noise_fitting:
+            priors[1] = priors[0]
+            priors[2] = priors[1]
+            priors[3] = priors[2]
+            priors[0] = [1.0, 2.0]  # Linear alpha_prime range
+    elif use_intrinsic_noise_fitting:
+        priors[0] = [1.0, 2.0]  # Linear alpha_prime range
 
     cosmo = Cosmology()
     redshift = cosmo.f2z(bm.freqs_hertz.mean())
@@ -692,7 +728,7 @@ def run_setup(
         rank=rank
     )
 
-    return_vals = (pspp,)
+    return_vals = (pspp, output_dir)
     if return_vis:
         return_vals += (vis_dict,)
     if return_ks:
