@@ -63,16 +63,18 @@ def parse_uprior_inds(upriors_str, nkbins):
     return uprior_inds
 
 
-def write_log_files(parser, args):
+def write_log_files(parser, args, verbose=False):
     """
     Write log files containing the current version and analysis parameters.
 
     Parameters
     ----------
-    parser : BayesEoRParser
+    parser : :class:`..params.BayesEoRParser`
         BayesEoRParser instance.
     args : Namespace
         Namespace object containing command line and analysis parameters.
+    verbose : bool, optional
+        Verbose output. Defaults to False.
 
     """
     # Make log file directory if it doesn't exist
@@ -90,7 +92,8 @@ def write_log_files(parser, args):
     if not args_file.exists():
         parser.save(args, args_file, format="json", skip_none=False)
 
-    print(f"Log files written successfully to {out_dir.absolute()}")
+    if verbose:
+        print(f"Log files written successfully to {out_dir.absolute()}")
 
 
 def save_numpy_dict(fp, arr, args, version=__version__, clobber=False):
