@@ -20,6 +20,49 @@ def mpiprint(*args, rank=0, highlight=False, soft_wrap=True, **kwargs):
         cns.print(*args, highlight=highlight, soft_wrap=soft_wrap, **kwargs)
 
 
+def parse_uprior_inds(upriors_str, nkbins):
+    """
+    Parse an array indexing string.
+
+    `upriors_str` must follow standard array slicing syntax and include no
+    spaces.  Examples of valid strings:
+    * '1:4': equivalent to `slice(1, 4)`
+    * '1,3,4': equivalent to indexing with `[1, 3, 4]`
+    * '3' or '-3'
+    * 'all': all bins use a uniform prior
+    * '': no bins use a uniform prior
+
+    Parameters
+    ----------
+    upriors_str : str
+        String containing array indexes (follows array slicing syntax).
+    nkbins : int
+        Number of k-bins.
+
+    Returns
+    -------
+    uprior_inds : numpy.ndarray
+        Boolean array that is True for any k bins using a uniform prior.
+        False entries use a log-uniform prior.
+
+    """
+    if upriors_str.lower() == "all":
+        uprior_inds = np.ones(nkbins, dtype=bool)
+    else:
+        uprior_inds = np.zeros(nkbins, dtype=bool)
+        if upriors_str != "":
+            if ":" in upriors_str:
+                bounds = list(map(int, upriors_str.split(":")))
+                uprior_inds[slice(*bounds)] = True
+            elif "," in upriors_str:
+                up_inds = list(map(int, upriors_str.split(",")))
+                uprior_inds[up_inds] = True
+            else:
+                uprior_inds[int(upriors_str)] = True
+
+    return uprior_inds
+
+
 def write_log_files(parser, args):
     """
     Write log files containing the current version and analysis parameters.
