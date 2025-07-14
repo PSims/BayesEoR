@@ -2263,4 +2263,5 @@ class BuildMatrices():
             self.delete_old_matrix_stack(dst, confirm_deletion)
 
         self.write_version_info()
-        print("Matrix stack complete")
+        if self.verbose:
+            print("Matrix stack complete")
