@@ -11,6 +11,16 @@ from bayeseor.run import run
 from bayeseor.setup import run_setup
 from bayeseor.utils import mpiprint, write_log_files
 
+if __name__ == "__main__":
+    from mpi4py import MPI
+    mpi_comm = MPI.COMM_WORLD
+    rank = mpi_comm.Get_rank()
+    mpi_size = mpi_comm.Get_size()
+    mpiprint(f"\nmpi_size: {mpi_size}", rank=rank, end="\n\n")
+else:
+    # Skip mpi and other imports that can cause crashes in ipython
+    rank = 0
+
 parser = BayesEoRParser()
 cl_args = parser.parse_args(derived_params=False)
 # Calculate derived parameters from command line arguments. For now,
@@ -19,21 +29,6 @@ cl_args = parser.parse_args(derived_params=False)
 # jsonargparse.ArgumentParser.save to function properly and this
 # save function is currently used in bayeseor.utils.write_log_files.
 args = parser.calculate_derived_params(cl_args)
-
-if __name__ == "__main__":
-    from mpi4py import MPI
-    mpi_comm = MPI.COMM_WORLD
-    rank = mpi_comm.Get_rank()
-    mpi_size = mpi_comm.Get_size()
-    mpiprint(f"\nmpi_size: {mpi_size}", rank=rank, end="\n\n")
-    if args.use_Multinest:
-        from pymultinest.solve import solve
-    else:
-        import PyPolyChord.PyPolyChord as PolyChord
-else:
-    # Skip mpi and other imports that can cause crashes in ipython
-    rank = 0
-
 if rank == 0 and args.verbose:
     mpiprint(Panel("Parameters"))
     if rank == 0 and args.config:
