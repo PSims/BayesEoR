@@ -642,7 +642,7 @@ def run_setup(
         mkdir=True,
         use_sparse_matrices=use_sparse_matrices,
         build_Finv_and_Fprime=build_Finv_and_Fprime,
-        noise=noise,
+        noise=None,  # FIXME: see BayesEoR issue #55
         clobber=clobber,
         verbose=verbose,
         rank=rank
@@ -1057,10 +1057,15 @@ def get_vis_data(
             data_path = Path(data_path)
         if not data_path.exists():
             raise FileNotFoundError(f"{data_path} does not exist")
-        mpiprint(
-            "\nUsing data at {}".format(data_path), rank=print_rank
-        )
         if data_path.suffix == ".npy":
+            mpiprint(
+                "\nLoading numpy-compatible data:",
+                style="bold",
+                rank=print_rank
+            )
+            mpiprint(
+                f"\nReading data from: {data_path}", rank=print_rank
+            )
             vis = load_numpy_dict(data_path)
 
             if channel_width_MHz is None:
@@ -1109,6 +1114,11 @@ def get_vis_data(
             uvd = None
 
         elif data_path.suffix in [".uvh5", ".uvfits", ".ms"]:
+            mpiprint(
+                "\nPreprocessing pyuvdata-compatibile data:",
+                style="bold",
+                rank=print_rank
+            )
             vis, _, uvws, redundancy, phasor, noise, uvd = \
                 preprocess_uvdata(
                     data_path,
@@ -1151,7 +1161,7 @@ def get_vis_data(
             freqs = uvd.freq_array
             if not future_array_shapes:
                 freqs = freqs[0]
-            channel_width_MHz = freqs[1] - freqs[0]  # Hz
+            channel_width_MHz = (freqs[1] - freqs[0]) / 1e6
 
             jds = Time(np.unique(uvd.time_array), format="jd")
             integration_time_seconds = (jds[1] - jds[0]).to("s").value
@@ -1162,9 +1172,9 @@ def get_vis_data(
             vis_noisy = vis + noise
         elif sigma is not None:
             mpiprint(
-                f"Generating noise vector with std. dev. = {sigma:.2e}",
-                rank=print_rank
+                "\nGenerating visibility noise:", style="bold", rank=print_rank
             )
+            mpiprint(f"\nNoise std. dev. = {sigma:.2e}", rank=print_rank)
             vis_noisy, noise, bl_conj_pairs_map = \
                 generate_data_and_noise_vector_instrumental(
                     sigma,
@@ -1885,7 +1895,9 @@ def build_matrices(
         mkdir=mkdir
     )
     mpiprint(
-        f"\n[bold]Matrix stack directory:[/bold] {array_dir}", rank=print_rank
+        f"\n[bold]Matrix stack directory:[/bold] {array_dir}",
+        end="\n\n",
+        rank=print_rank
     )
 
     if not Path(array_dir).exists() and build_stack and rank > 0:
@@ -2137,7 +2149,7 @@ def build_posterior(
     else:
         if use_intrinsic_noise_fitting:
             priors[0] = [1.0, 2.0]  # Linear alpha_prime range
-    mpiprint("priors = {}".format(priors), rank=print_rank)
+    mpiprint(f"priors = {priors}", rank=print_rank)
 
     pspp = PowerSpectrumPosteriorProbability(   
         T_Ninv_T,
