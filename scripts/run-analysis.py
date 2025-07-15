@@ -5,7 +5,6 @@ from pathlib import Path
 from pprint import pprint
 from rich.panel import Panel
 import sys
-import time
 
 from bayeseor.params import BayesEoRParser
 from bayeseor.run import run
@@ -36,11 +35,12 @@ else:
     rank = 0
 
 if rank == 0 and args.verbose:
-    mpiprint(Panel("Parameters"), style="bold")
-    if args.config:
+    mpiprint(Panel("Parameters"))
+    if rank == 0 and args.config:
         mpiprint(
             f"\nConfig file: {Path(args.config[0]).absolute().as_posix()}",
-            end="\n\n"
+            end="\n\n",
+            rank=rank
         )
     pprint(args.__dict__)
 
@@ -55,7 +55,9 @@ if "SLURM_JOB_ID" in os.environ:
 if not args.run:
     mpiprint("\nSkipping sampling, exiting...", rank=rank, end="\n\n")
 else:
-    if args.use_gpu and not pspp.gpu.gpu_initialized:
+    if rank == 0 and args.verbose:
+        mpiprint("\n", Panel("Analysis"))
+    if args.useGPU and not pspp.gpu.gpu_initialized:
         mpiprint(
             f"\nERROR: GPU initialization failed on rank {rank}. Aborting.\n",
             style="bold red",
@@ -68,27 +70,9 @@ else:
             sys.exit()
     
     if rank == 0:
-        # Compute the average posterior calculation time for
-        # reference and check that this calculation returns
-        # a finite value for the posterior probability
-        start = time.time()
-        pspp_verbose = pspp.verbose
-        pspp.verbose = False
-        for iter in range(10):
-            L = pspp.posterior_probability(np.array(args.priors).mean(axis=1))
-            if not np.isfinite(L):
-                mpiprint(
-                    "WARNING: Infinite value returned in posterior calculation!",
-                    style="bold red",
-                    justify="center",
-                    rank=rank
-                )
-        avg_eval_time = (time.time() - start) / (iter + 1)
-        mpiprint(f"\nAverage evaluation time {avg_eval_time} s\n\n", rank=rank)
-
         # Write log files containing analysis parameters
         # and git version info for posterity
-        write_log_files(parser, cl_args, verbose=args.verbose)
+        write_log_files(parser, cl_args, out_dir=out_dir, verbose=args.verbose)
     
     if args.use_Multinest:
         sampler = "multinest"
@@ -97,10 +81,10 @@ else:
 
     # Run the power spectrum analysis
     run(
-        pspp,
-        args.priors,
+        pspp=pspp,
+        priors=args.priors,
+        calc_avg_eval=True,
         out_dir=out_dir,
         sampler=sampler,
-        verbose=args.verbose,
         rank=rank
     )
