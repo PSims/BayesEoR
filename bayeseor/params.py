@@ -6,7 +6,7 @@ from astropy import units
 from jsonargparse import ArgumentParser, ActionYesNo, ActionConfigFile
 from jsonargparse.typing import List, Path_fr, path_type
 
-from .utils.cosmology import Cosmology
+from .cosmology import Cosmology
 
 
 class BayesEoRParser(ArgumentParser):
@@ -46,6 +46,9 @@ class BayesEoRParser(ArgumentParser):
     useGPU : bool, optional  # DONE
         Use GPUs ('--gpu', True) or CPUs ('--cpu', False).  Defaults to True
         (use GPUs).
+    run : bool, optional
+        Run a full power spectrum analysis. To build the matrix stack only,
+        run can be omitted or set to False in the configuration yaml.
     single_node : bool, optional  # DONE
         Run an analysis on a single node or with an MPI size of 1.  Defaults to
         False (do not run an analysis if MPI size is 1).
@@ -365,6 +368,13 @@ class BayesEoRParser(ArgumentParser):
             help="Use GPUs (--gpu) or CPUs (--cpu).  Using GPUs is required for "
                 "the power spectrum analysis.  CPUs can be used to construct the "
                 "required matrices.  Defaults to True (use GPUs)."
+        )
+        self.add_argument(
+            "--run",
+            action="store_true",
+            help="Run a full power spectrum analysis. To build the matrix "
+                 "stack only, --run can be omitted or set to False in the "
+                 "configuration yaml."
         )
         self.add_argument(
             "--single-node",

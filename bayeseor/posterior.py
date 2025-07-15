@@ -4,8 +4,9 @@ import scipy
 from pdb import set_trace as brk
 import h5py
 
+from .cosmology import Cosmology
 from .gpu import GPUInterface
-from .utils import Cosmology, mpiprint
+from .utils import mpiprint
 
 
 """

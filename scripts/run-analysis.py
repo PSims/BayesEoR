@@ -52,11 +52,7 @@ if "SLURM_JOB_ID" in os.environ:
     # Create empty file named with the SLURM Job ID
     (out_dir / os.environ["SLURM_JOB_ID"]).touch()
 
-# TODO: add command line argument to toggle matrix building
-# or power spectrum estimation
-run_sampler = False
-
-if not run_sampler:
+if not args.run:
     mpiprint("\nSkipping sampling, exiting...", rank=rank, end="\n\n")
 else:
     if args.use_gpu and not pspp.gpu.gpu_initialized:

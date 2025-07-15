@@ -9,6 +9,7 @@ from rich.panel import Panel
 from scipy import sparse
 import warnings
 
+from .cosmology import Cosmology
 from .matrices.build import BuildMatrices
 from .model.instrument import load_inst_model
 from .model.noise import generate_data_and_noise_vector_instrumental
@@ -20,7 +21,7 @@ from .model.k_cube import (
 )
 from .posterior import PowerSpectrumPosteriorProbability
 from .vis import preprocess_uvdata
-from .utils import mpiprint, Cosmology, load_numpy_dict, parse_uprior_inds
+from .utils import mpiprint, load_numpy_dict, parse_uprior_inds
 
 def run_setup(
     *,
