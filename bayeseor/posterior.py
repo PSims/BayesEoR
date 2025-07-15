@@ -238,7 +238,10 @@ class PowerSpectrumPosteriorProbability(object):
             if self.log_priors:
                 mpiprint('Using log-priors', rank=self.rank)
             if self.dimensionless_PS:
-                mpiprint('Calculating dimensionless_PS', rank=self.rank)
+                mpiprint(
+                    'Calculating the dimensionless power spectrum',
+                    rank=self.rank
+                )
             mpiprint(
                 f"Setting inverse_LW_power to {self.inverse_LW_power}",
                 rank=self.rank

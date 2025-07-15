@@ -475,7 +475,7 @@ def run_setup(
     else:
         npl = 0
     
-    # Setup output directory for sampler output
+    mpiprint("\n", Panel("Output Directory"), rank=print_rank)
     if output_dir is None:
         raise ValueError("output_dir cannot be None")
     if not isinstance(output_dir, Path):
@@ -510,6 +510,7 @@ def run_setup(
 
     output_dir /= file_root
     output_dir.mkdir(exist_ok=True, parents=True)
+    mpiprint(f"\n{output_dir.absolute().as_posix()}", rank=print_rank)
 
     if save_vis or save_model and save_dir is None:
         save_dir = output_dir
@@ -566,7 +567,7 @@ def run_setup(
     else:
         phasor = None
 
-    mpiprint("\n", Panel("Model k cube"), rank=print_rank)
+    mpiprint("\n", Panel("Model k Cube"), rank=print_rank)
     k_vals, k_cube_voxels_in_bin = build_k_cube(
         nu=nu,
         nv=nv,
@@ -580,6 +581,10 @@ def run_setup(
         verbose=verbose,
         rank=rank
     )
+    mpiprint(f"\nk bins: {len(k_vals)}", rank=print_rank)
+    mpiprint(f"k bin centers: {np.round(k_vals, decimals=3)}", rank=print_rank)
+    vox_per_bin = [len(kinds[0]) for kinds in k_cube_voxels_in_bin]
+    mpiprint(f"Voxels per bin: {vox_per_bin}", rank=print_rank)
 
     mpiprint("\n", Panel("Matrices"), rank=print_rank)
     bm = build_matrices(
@@ -644,6 +649,9 @@ def run_setup(
     )
 
     mpiprint("\n", Panel("Posterior"), rank=print_rank)
+    # Temporarily suppress output from bm.dot_product
+    bm_verbose = bm.verbose
+    bm.verbose = False
     Ninv = bm.read_data("Ninv")
     T = bm.read_data("T")
     Ninv_d = bm.dot_product(Ninv, vis_noisy)
@@ -655,6 +663,7 @@ def run_setup(
     else:
         block_T_Ninv_T = bm.read_data("block_T_Ninv_T")
     n_dims = k_vals.size
+    bm.verbose = bm_verbose
     
     # This code left for when use_intrinsic_noise_fitting and
     # use_LWM_Gaussian_prior are reimplemented
@@ -697,7 +706,12 @@ def run_setup(
     else:
         uprior_inds = None
 
-    mpiprint("\nInstantiating posterior class:", style="bold", rank=print_rank)
+    mpiprint(
+        "\nInstantiating posterior class:",
+        style="bold",
+        rank=print_rank,
+        end="\n\n"
+    )
     pspp = build_posterior(
         k_vals=k_vals,
         k_cube_voxels_in_bin=k_cube_voxels_in_bin,
@@ -851,9 +865,8 @@ def generate_file_root(
         current_version = int(file_root.split("-v")[-1])
         next_version = current_version + 1
         file_root = file_root.replace(
-            f"v{version_number}", f"v{next_version}"
+            f"v{current_version}", f"v{next_version}"
         )
-        version_number = next_version
 
     file_root += "/"
 
@@ -1286,10 +1299,9 @@ def build_k_cube(
     k_vals = calc_mean_binned_k_vals(
         mod_k_vo,
         k_cube_voxels_in_bin,
-        save_k_vals=save_k_vals,
+        save_k_vals=(save_k_vals and rank == 0),
         k_vals_dir=output_dir,
-        clobber=clobber,
-        rank=print_rank
+        clobber=clobber
     )
 
     return k_vals, k_cube_voxels_in_bin
@@ -1873,7 +1885,7 @@ def build_matrices(
         mkdir=mkdir
     )
     mpiprint(
-        f"[bold]Array save directory:[/bold] {array_dir}", rank=print_rank
+        f"\n[bold]Matrix stack directory:[/bold] {array_dir}", rank=print_rank
     )
 
     if not Path(array_dir).exists() and build_stack and rank > 0:
@@ -2097,7 +2109,6 @@ def build_posterior(
     # of EoR model uv-plane pixels is nu*nv - 1
     nuv = nu*nv - 1
 
-    mpiprint("\n", Panel("Posterior"), rank=print_rank)
     if use_LWM_Gaussian_prior:
         mpiprint(
             "WARNING: use_LWM_Gaussian_prior is not currently implemented."
@@ -2127,10 +2138,7 @@ def build_posterior(
         if use_intrinsic_noise_fitting:
             priors[0] = [1.0, 2.0]  # Linear alpha_prime range
     mpiprint("priors = {}".format(priors), rank=print_rank)
-    
-    mpiprint(
-        "\nInstantiating posterior class:", style="bold", rank=print_rank
-    )
+
     pspp = PowerSpectrumPosteriorProbability(   
         T_Ninv_T,
         dbar,
