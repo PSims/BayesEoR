@@ -921,7 +921,7 @@ class BayesEoRParser(ArgumentParser):
                  "True, also save the phasor vector."
         )
 
-    def parse_args(self, args_str=None, derived_params=True):
+    def parse_args(self, args_str=None):
         """
         Parse arguments from `sys.argv` or `args`.
 
@@ -931,11 +931,6 @@ class BayesEoRParser(ArgumentParser):
             Command line arguments as a list of strings, e.g.
             '["--config", "example_config.yaml"]'.  If None (default),
             pulls from `sys.argv`.
-        derived_params : bool, optional
-            If `derived_params` is True (default), calculate the full set of
-            parameters derived from the minimum parameter set via
-            ``self.calculate_derived_params``.  Otherwise, continue with only
-            the parameters parsed from `args_str` or `sys.argv`.
 
         Returns
         -------
@@ -949,121 +944,5 @@ class BayesEoRParser(ArgumentParser):
             args.beam_type = args.beam_type.lower()
         if args.taper_func:
             args.taper_func = args.taper_func.lower()
-        if args.achromatic_beam and not args.beam_ref_freq:
-            args.beam_ref_freq = args.nu_min_MHz
 
-        if derived_params:
-            args = self.calculate_derived_params(args)
-
-        return args
-
-    def calculate_derived_params(self, args_in):
-        """
-        Calculate analysis parameters derived from command line arguments.
-    
-        Parameters
-        ----------
-        args_in : Namespace
-            Namespace object containing command line arguments from
-            `bayeseor.params.command_line_arguments.BayesEoRParser`.
-        
-        Returns
-        -------
-        args : Namespace
-            Copy of `args_in` containing derived parameters.
-    
-        """
-        args = deepcopy(args_in)
-        cosmo = Cosmology()
-    
-        # --- Frequency ---
-        args.freqs_MHz = (
-            args.nu_min_MHz + np.arange(args.nf) * args.channel_width_MHz
-        )
-        args.bandwidth_MHz = args.channel_width_MHz * args.nf
-        args.redshift = cosmo.f2z((args.freqs_MHz.mean() * units.MHz).to('Hz'))
-        if not args.neta:
-            args.neta = args.nf
-        # Spacing along the eta axis (line-of-sight Fourier dual to frequency)
-        # defined as one over the bandwidth in Hz [Hz^{-1}].
-        args.deta = 1 / (args.nf * args.channel_width_MHz * 1e6)
-        # Comoving line-of-sight size of the EoR volume [Mpc^{-1}]
-        args.ps_box_size_para_Mpc = (
-            cosmo.dL_df(args.redshift) * (args.bandwidth_MHz * 1e6)
-        )
-    
-        # --- EoR Model ---
-        if not args.nv:
-            args.nv = args.nu
-        # Number of model uv-plane pixels.  The (u, v) = (0, 0) pixel is part
-        # of the FG model only, thus we calculate nuv for the EoR model as
-        # `nuv = nu * nv - 1`.
-        args.nuv = args.nu * args.nv - 1
-        if not args.fov_dec_eor:
-            args.fov_dec_eor = args.fov_ra_eor
-        # Spacing along the u-axis of the model uv-plane [rad^{-1}]
-        args.du_eor = 1 / np.deg2rad(args.fov_ra_eor)
-        # Spacing along the v-axis of the model uv-plane [rad^{-1}]
-        args.dv_eor = 1 / np.deg2rad(args.fov_dec_eor)
-        # Comoving transverse size of the EoR volume [Mpc^{-1}]
-        args.ps_box_size_ra_Mpc = (
-            cosmo.dL_dth(args.redshift) * np.deg2rad(args.fov_ra_eor)
-        )
-        args.ps_box_size_dec_Mpc = (
-            cosmo.dL_dth(args.redshift) * np.deg2rad(args.fov_dec_eor)
-        )
-    
-        # --- FG Model ---
-        if not args.nu_fg:
-            args.nu_fg = args.nu
-            args.nv_fg = args.nv
-        elif not args.nv_fg:
-            args.nv_fg = args.nu_fg
-        # Number of model uv-plane pixels.  Exclude the (u, v) = (0, 0)
-        # (monopole) pixel if `fit_for_monopole` is False.
-        args.nuv_fg = args.nu_fg * args.nv_fg - (not args.fit_for_monopole)
-        if not args.fov_ra_fg:
-            args.fov_ra_fg = args.fov_ra_eor
-            args.fov_dec_fg = args.fov_dec_eor
-        elif not args.fov_dec_fg:
-            args.fov_dec_fg = args.fov_ra_fg
-        # Spacing along the u-axis of the model uv-plane [rad^{-1}]
-        args.du_fg = 1 / np.deg2rad(args.fov_ra_fg)
-        # Spacing along the v-axis of the model uv-plane [rad^{-1}]
-        args.dv_fg = 1 / np.deg2rad(args.fov_dec_fg)
-        # Number of power law spectral indices in the Large Spectral Scale Model
-        if args.beta:
-            args.npl = len(args.beta)  #FIXME: update if fitting for LSSM
-        else:
-            args.npl = 0
-        if args.nq > args.npl:
-            args.nq = args.npl
-        if not args.include_instrumental_effects:
-            # If not modelling instrumental effects, we will have fewer data
-            # points and need to reduce the number of model parameters to avoid
-            # an under-constrained system
-            args.neta -= args.nq
-        
-        # --- Sub-Harmonic Grid ---
-        shg_params = [args.nu_sh, args.nv_sh, args.nq_sh]
-        args.use_shg = np.any([arg is not None for arg in shg_params])
-        if args.use_shg:
-            if not args.nv_sh:
-                args.nv_sh = args.nu_sh
-            if args.beta:
-                args.npl_sh = len(args.beta)  #FIXME: update if fitting for LSSM
-            if args.nq_sh > args.npl_sh:
-                args.nq_sh = args.npl_sh
-            args.nuv_sh = args.nu_sh * args.nv_sh - 1
-        else:
-            args.npl_sh = None
-            args.nuv_sh = None
-        
-        # --- Instrument Model ---
-        if args.achromatic_beam and not args.beam_ref_freq:
-            args.beam_ref_freq = args.nu_min_MHz
-    
-        # --- Auxiliary ---
-        args.speed_of_light = constants.c.to("m/s").value
-        
         return args

@@ -52,7 +52,7 @@ if not args.run:
 else:
     if rank == 0 and args.verbose:
         mpiprint("\n", Panel("Analysis"))
-    if args.useGPU and not pspp.gpu.gpu_initialized:
+    if args.use_gpu and not pspp.gpu.gpu_initialized:
         mpiprint(
             f"\nERROR: GPU initialization failed on rank {rank}. Aborting.\n",
             style="bold red",
