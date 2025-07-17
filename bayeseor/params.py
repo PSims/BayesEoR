@@ -43,7 +43,7 @@ class BayesEoRParser(ArgumentParser):
 
     Compute
     *******
-    useGPU : bool, optional  # DONE
+    use_gpu : bool, optional  # DONE
         Use GPUs ('--gpu', True) or CPUs ('--cpu', False).  Defaults to True
         (use GPUs).
     run : bool, optional
@@ -364,7 +364,7 @@ class BayesEoRParser(ArgumentParser):
             "--gpu",
             action=ActionYesNo(yes_prefix="g", no_prefix="c"),
             default=True,
-            dest="useGPU",  #FIXME
+            dest="use_gpu",
             help="Use GPUs (--gpu) or CPUs (--cpu).  Using GPUs is required for "
                 "the power spectrum analysis.  CPUs can be used to construct the "
                 "required matrices.  Defaults to True (use GPUs)."

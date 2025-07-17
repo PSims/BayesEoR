@@ -1,5 +1,5 @@
 # Compute params
-useGPU: True
+use_gpu: True
 single_node: True
 # Frequency params
 nf: 38
