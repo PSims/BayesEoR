@@ -6,10 +6,6 @@ from pprint import pprint
 from rich.panel import Panel
 import sys
 
-import sys
-sys.path.insert(0, "/home/jburba/src/BayesEoR/")
-print(f"{sys.path = }")
-
 from bayeseor.params import BayesEoRParser
 from bayeseor.run import run
 from bayeseor.setup import run_setup
