@@ -5,13 +5,12 @@ Running BayesEoR
 
 ``run-analysis.py`` provides an example driver script for running BayesEoR.  This file contains all of the necessary steps to set up the :class:`bayeseor.posterior.PowerSpectrumPosteriorProbability` class and to run MultiNest and obtain power spectrum posteriors.
 
-There are currently three steps involved in a BayesEoR analysis
+There are currently two steps involved in a BayesEoR analysis
 
-1. Preprocess the data and generate an instrument model (uses only CPUs)
-2. Build the required matrices (uses only CPUs, no GPUs required)
-3. Run the power spectrum analysis (double precision GPUs required)
+1. Build the required matrices (CPUs only, no GPUs or MPI required)
+2. Run the power spectrum analysis (double precision GPUs recommended)
 
-Below, we provide some useful information about the required :ref:`inputs` and these :ref:`analysis-steps`.  For additional help with running BayesEoR and setting analysis parameters, please see :ref:`setting-parameters`.  More information on running BayesEoR can also be found below in :ref:`test-data`.
+Below, we provide some useful information about the required :ref:`inputs` and :ref:`analysis-steps`.  For additional help with running BayesEoR and setting analysis parameters, please see :ref:`setting-parameters`.  More information on running BayesEoR can also be found below in the :ref:`test-data` section.
 
 
 .. _inputs:
@@ -21,16 +20,43 @@ Inputs
 
 BayesEoR requires the following as inputs to run a power spectrum analysis:
 
-1. Input data
+1. Visibilities
 2. Instrument model
-3. A set of analysis and model parameters
+3. Analysis parameters
 
 More information about each of these components can be found below.
 
-Input Data
-^^^^^^^^^^
+Visibilities
+^^^^^^^^^^^^
+
+The input data are visibilities and can be read in via a ``pyuvdata``- or ``numpy``-compatible file.  The required analysis parameters differ for each input and are described below.
+
+pyuvdata-Compatible File
+""""""""""""""""""""""""
+
+Visibilities can be read via ``pyuvdata`` in ``.uvh5``, ``.uvfits``, or ``.ms`` format (measurement set funcationality in ``pyuvdata`` requires an `optional dependency <https://pyuvdata.readthedocs.io/en/latest/index.html#dependencies>`_ of ``casacore``).  This is the easiest method for specifying input visibilities as no data preprocessing step is required (more on this in the subsection below).  The data can be downselected via a suite of command line (configuration file) arguments, a subset of which is presented here:
+
+1. ``--ant-str`` (``ant_str``): antenna downselect string (please see the ``pyuvdata.UVData.select`` `documentation <https://pyuvdata.readthedocs.io/en/latest/uvdata.html#pyuvdata.UVData.select>`_ for more details)
+2. ``--bl-cutoff`` (``bl_cutoff``): maximum baseline length, :math:`b=\sqrt{u^2 + v^2}`, in meters
+3. ``--pol`` (``pol``): polarization string, e.g. 'xx', 'yy', 'pI' (please see the ``pyuvdata.UVData.select`` `documentation <https://pyuvdata.readthedocs.io/en/latest/uvdata.html#pyuvdata.UVData.select>`_ for more details)
+4. ``--form-pI`` (``form_pI``): form pseudo-Stokes I visibilities from XX and YY visibilities via `pI = N * (XX + YY)` where `N` is a user-specified normalization set via ``--pI-norm`` (``pI_norm``) which defaults to 1.0
+5. ``--redundant-avg`` (``redundant_avg``): redundantly average visibilities (please see the ``pyuvdata.UVData.compress_by_redundancy`` `documentation <https://pyuvdata.readthedocs.io/en/latest/uvdata.html#pyuvdata.UVData.compress_by_redundancy>`_ for more details)
+6. ``--freq-min`` (``freq_min``): minimum frequency to keep in the data in megahertz
+7. ``--nf`` (``nf``): number of frequencies to keep
+
+# LEFTOFFHERE
+
+For a complete list of parameters, please see :ref:`all-parameters`.
+
+
+numpy-Compatible File
+"""""""""""""""""""""
+
+Alternatively, visibilities can be read via ``numpy`` in the form of a preprocessed, one-dimensional vector.
 
 The input dataset is expected to be a `numpy`-compatible, complex, one-dimensional vector of visibilities with shape `(Nvis,)`.  Here, `Nvis = Nbls * Ntimes * Nfreqs` is the total number of visibilities and `Nbls`, `Ntimes`, and `Nfreqs` is the number of baselines, times, and frequencies in the data.  The ordering of the visibilities for each baseline, frequency, and time in this one-dimensional vector is arbitrary.  However, this order must align with the ordering of the baselines in the instrument model (more on this below in :ref:`preprocessing-the-data`).
+
+At runtime, a one-dimensional vector of visibilities is formed based on the contents of the ``pyuvdata``-compatible file and the user-specified analysis parameters.
 
 
 Instrument Model
