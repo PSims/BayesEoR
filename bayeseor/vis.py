@@ -8,7 +8,7 @@ from pyuvdata.utils import polstr2num
 import warnings
 
 from .model.healpix import Healpix
-from .utils import mpiprint
+from .utils import mpiprint, save_numpy_dict
 
 
 def preprocess_uvdata(
@@ -210,13 +210,9 @@ def preprocess_uvdata(
             f"incompatible units of {uvd.vis_units}."
         )
 
-    try:
-        # The future_array_shapes attribute is a legacy attribute that has
-        # been removed as of pyuvdata 3.2, but this check should remain for
-        # backwards compatibility.
-        future_array_shapes = uvd.__getattribute__("_future_array_shapes").value
-    except:
-        future_array_shapes = False
+    # Check if the frequency array has the Nspws axis for
+    # backwards compatibility with old versions of pyuvdata
+    trim_nspws_ax = len(uvd.freq_array.shape) > 1
 
     if bl_cutoff is not None:
         if not isinstance(bl_cutoff, Quantity):
@@ -238,7 +234,7 @@ def preprocess_uvdata(
     # Frequency downselect
     if np.any([param is not None for param in [freq_min, freq_idx_min, freq_center]]):
         freqs = Quantity(uvd.freq_array, unit="Hz")
-        if not future_array_shapes:
+        if trim_nspws_ax:
             freqs = freqs[0]
         if freq_center is not None:
             if Nfreqs is None:
@@ -467,13 +463,13 @@ def preprocess_uvdata(
     if uvd.vis_units == "K str":
         uvd.data_array *= 1e3
     else:
-        if future_array_shapes:
-            uvd.data_array[..., 0] = jy_to_ksr(
-                uvd.data_array[..., 0], uvd.freq_array, mK=True
-            )
-        else:
+        if trim_nspws_ax:
             uvd.data_array[:, 0, :, 0] = jy_to_ksr(
                 uvd.data_array[:, 0, :, 0], uvd.freq_array[0], mK=True
+            )
+        else:
+            uvd.data_array[..., 0] = jy_to_ksr(
+                uvd.data_array[..., 0], uvd.freq_array, mK=True
             )
     # WARNING: In BayesEoR, we operate with visibilities in units of 'mK sr'.
     # UVData objects have an attribute vis_units which can be one of 'Jy', 
@@ -504,7 +500,12 @@ def preprocess_uvdata(
     uvws = np.zeros((uvd.Ntimes, Nbls_vec, 3), dtype=float)
     redundancy = np.ones((uvd.Ntimes, Nbls_vec, 1), dtype=float)
     for i_bl, antpair in enumerate(antpairs):
-        uvw = uvd.uvw_array[uvd.antpair2ind(antpair)[0]]
+        uvw_ind = uvd.antpair2ind(antpair)
+        if isinstance(uvw_ind, slice):
+            uvw_ind = uvw_ind.start
+        else:
+            uvw_ind = uvw_ind[0]
+        uvw = uvd.uvw_array[uvw_ind]
         uvws[:, i_bl] = uvw
         uvws[:, Nbls+i_bl] = -1*uvw
         if redundant_avg and not uniform_redundancy:
@@ -639,13 +640,9 @@ def uvd_to_vector(
     # print_rank will only trigger print if verbose is True and rank == 0
     print_rank = 1 - (verbose and rank==0)
 
-    try:
-        # The future_array_shapes attribute is a legacy attribute that has
-        # been removed as of pyuvdata 3.2, but this check should remain for
-        # backwards compatibility.
-        future_array_shapes = uvd.__getattribute__("_future_array_shapes").value
-    except:
-        future_array_shapes = False
+    # Check if the frequency array has the Nspws axis for
+    # backwards compatibility with old versions of pyuvdata
+    trim_nspws_ax = len(uvd.freq_array.shape) > 1
 
     antpairs = uvd.get_antpairs()
 
@@ -698,10 +695,10 @@ def uvd_to_vector(
             else:
                 noise[1::2] = eo_diff
             blt_inds = uvd_noise.antpair2ind(*antpair)
-            if future_array_shapes:
-                uvd_noise.data_array[blt_inds, :, 0] = noise
-            else:
+            if trim_nspws_ax:
                 uvd_noise.data_array[blt_inds, 0, :, 0] = noise
+            else:
+                uvd_noise.data_array[blt_inds, :, 0] = noise
 
     # The data vector in BayesEoR needs to be Hermitian, so we include
     # both (u, v) and (-u, -v) in the data vector and instrument model.

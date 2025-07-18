@@ -1180,25 +1180,23 @@ def get_vis_data(
                     verbose=verbose,
                     rank=rank
                 )
-            try:
-                # The future_array_shapes attribute is a legacy attribute
-                # that has been removed as of pyuvdata 3.2, but this check
-                # should remain for backwards compatibility.
-                future_array_shapes = uvd.__getattribute__(
-                    "_future_array_shapes"
-                )
-                future_array_shapes = future_array_shapes.value
-            except:
-                future_array_shapes = False
+            # Check if the frequency array has the Nspws axis for
+            # backwards compatibility with old versions of pyuvdata
+            trim_nspws_ax = len(uvd.freq_array.shape) > 1
             freqs = uvd.freq_array
-            if not future_array_shapes:
+            if trim_nspws_ax:
                 freqs = freqs[0]
             df = freqs[1] - freqs[0]
 
             jds = Time(np.unique(uvd.time_array), format="jd")
             integration_time_seconds = (jds[1] - jds[0]).to("s").value
 
-            tele_name = uvd.telescope_name
+            try:
+                # Old versions of pyuvdata use telescope_name atribute which
+                # has been replaced by telescope.name in newer versions
+                tele_name = uvd.telescope_name
+            except:
+                tele_name = uvd.telescope.name
 
         if noise is not None:
             vis_noisy = vis + noise
