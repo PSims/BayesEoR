@@ -6,6 +6,10 @@ from pprint import pprint
 from rich.panel import Panel
 import sys
 
+import sys
+sys.path.insert(0, "/home/jburba/src/BayesEoR/")
+print(f"{sys.path = }")
+
 from bayeseor.params import BayesEoRParser
 from bayeseor.run import run
 from bayeseor.setup import run_setup
@@ -22,13 +26,7 @@ else:
     rank = 0
 
 parser = BayesEoRParser()
-cl_args = parser.parse_args(derived_params=False)
-# Calculate derived parameters from command line arguments. For now,
-# calculate_derived_params returns a new jsonargparse.Namespace instance.
-# Attributes of the Namespace must be linked to a parser argument for
-# jsonargparse.ArgumentParser.save to function properly and this
-# save function is currently used in bayeseor.utils.write_log_files.
-args = parser.calculate_derived_params(cl_args)
+args = parser.parse_args()
 if rank == 0 and args.verbose:
     mpiprint(Panel("Parameters"))
     if rank == 0 and args.config:
@@ -67,7 +65,7 @@ else:
     if rank == 0:
         # Write log files containing analysis parameters
         # and git version info for posterity
-        write_log_files(parser, cl_args, out_dir=out_dir, verbose=args.verbose)
+        write_log_files(parser, args, out_dir=out_dir, verbose=args.verbose)
     
     if args.use_Multinest:
         sampler = "multinest"
