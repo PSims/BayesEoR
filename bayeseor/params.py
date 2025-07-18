@@ -22,6 +22,8 @@ class BayesEoRParser(ArgumentParser):
     Attributes
     ----------
 
+    # FIXME: update docstring to match updated parameters
+
     General
     *******
     config : str, optional  # DONE
@@ -117,7 +119,7 @@ class BayesEoRParser(ArgumentParser):
         if `data_path` points to a pyuvdata-compatible. Defaults to None (keep
         all frequencies).
     freq_min : float  # CHECK
-        Minimum frequency in megahertz.  If `data_path` points to a
+        Minimum frequency in hertz.  If `data_path` points to a
         pyuvdata-compatible visibility file, `freq_min` sets the minimum
         frequency kept in the data vector.
     freq_center : :class:`astropy.Quantity` or float, optional  # CHECK
@@ -126,7 +128,7 @@ class BayesEoRParser(ArgumentParser):
         raised.  Used only if `data_path` points to a pyuvdata-compatible
         visibility file.  Defaults to None (keep all frequencies).
     delta_freq : float, optional  # CHECK
-        Frequency channel width in megahertz.  Required if `data_path` points
+        Frequency channel width in hertz.  Required if `data_path` points
         to a preprocessed numpy-compatible file.  Otherwise, defaults to the
         frequency channel width in the input pyuvdata-compatible visibilities.
     nq : int, optional  # DONE
@@ -156,7 +158,7 @@ class BayesEoRParser(ArgumentParser):
     nt : int  # CHECK
         Number of times/observations.
     dt : float  # CHECK
-        Time between observations in seconds.
+        Integration time in seconds.
     jd_idx_min : int, optional  # CHECK
         Minimum time index to keep in the data vector. Used only if `data_path`
         points to a pyuvdata-compatible visibility file. Defaults to None (keep
@@ -252,7 +254,7 @@ class BayesEoRParser(ArgumentParser):
         If True, force the beam to be achromatic.  The frequency at which the
         beam will be calculated is set via `beam_ref_freq`.
     beam_ref_freq : bool, optional  # DONE
-        Beam reference frequency in megahertz.  Defaults to the minimum
+        Beam reference frequency in hertz.  Defaults to the minimum
         frequency.
     beam_peak_amplitude : float, optional  # DONE
         Peak amplitude of the beam.  Defaults to 1.0.
@@ -478,7 +480,8 @@ class BayesEoRParser(ArgumentParser):
             help="Number of frequency channels. If `data_path` points to a "
                  "pyuvdata-compatible visibility file, `nf` sets the number "
                  "of frequencies kept in the data vector in conjunction with "
-                 "one of `freq_idx_min`, `freq_min`, or `freq_center`."
+                 "one of `freq_idx_min`, `freq_min`, or `freq_center`. "
+                 "Defaults to None (all frequencies kept)."
         )
         self.add_argument(
             "--neta",
@@ -495,8 +498,7 @@ class BayesEoRParser(ArgumentParser):
         self.add_argument(
             "--freq-min",
             type=float,
-            dest="nu_min_MHz",  #FIXME
-            help="Minimum frequency in megahertz. If `data_path` points to a "
+            help="Minimum frequency in hertz. If `data_path` points to a "
                  "pyuvdata-compatible visibility file, `freq_min` sets the "
                  "minimum frequency kept in the data vector."
         )
@@ -510,13 +512,12 @@ class BayesEoRParser(ArgumentParser):
                  "to None (keep all frequencies)."
         )
         self.add_argument(
-            "--delta-freq",
+            "--df",
             type=float,
-            dest="channel_width_MHz",  #FIXME
-            help="Frequency channel width in megahertz. If `data_path` points "
+            help="Frequency channel width in hertz. If `data_path` points "
                  "to a pyuvdata-compatible visibility file, `delta_freq` will "
-                 "be set automatically based on the frequency channel width "
-                 "in the UVData object."
+                 "be overwritten by the frequency channel width in the UVData "
+                 "object."
         )
         self.add_argument(
             "--nq",
@@ -567,15 +568,15 @@ class BayesEoRParser(ArgumentParser):
             help="Number of times. If `data_path` points to a pyuvdata-"
                  "compatible visibility file, `nt` sets the number of times "
                  "kept in the data vector in conjunction with one of "
-                 "`jd_idx_min`, `jd_min`, or `central_jd`."
+                 "`jd_idx_min`, `jd_min`, or `central_jd`. Defaults to None "
+                 "(all times kept)."
         )
         self.add_argument(
             "--dt",
             type=float,
-            dest="integration_time_seconds",  #FIXME
-            help="Time between observations in seconds. If `data_path` points "
-                 "to a pyuvdata-compatible visibility file, `dt` will be set "
-                 "automatically to the integration time in the UVData object."
+            help="Integration time in seconds. If `data_path` points to a "
+                 "pyuvdata-compatible visibility file, `dt` will be "
+                 "overwritten by the integration time in the UVData object."
         )
         self.add_argument(
             "--jd-idx-min",
@@ -593,7 +594,6 @@ class BayesEoRParser(ArgumentParser):
         self.add_argument(
             "--jd-center",
             type=float,
-            dest="central_jd",  #FIXME
             help="Central Julian date of the observations. If `data_path` "
                  "points to a pyuvdata-compatible visibility file, "
                  "`jd_center` sets the central Julian date around which `nt` "
@@ -764,7 +764,7 @@ class BayesEoRParser(ArgumentParser):
         self.add_argument(
             "--beam-ref-freq",
             type=float,
-            help="Beam reference frequency in megahertz.  Used for achromatic "
+            help="Beam reference frequency in hertz.  Used for achromatic "
                 "beams.  Defaults to the minimum frequency."
         )
         self.add_argument(

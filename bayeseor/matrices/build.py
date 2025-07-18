@@ -137,7 +137,7 @@ class BuildMatrices():
         degrees, and meters, respectively. Defaults to (0, 0, 0).
     nt : int
         Number of times. Defaults to None.
-    central_jd : float
+    jd_center : float
         Central time step of the observation in JD2000 format. Defaults to
         None.
     dt : float
@@ -149,7 +149,7 @@ class BuildMatrices():
         Beam center in (RA, DEC) coordinates and units of degrees.  Assumed to
         be an tuple of offsets along the RA and DEC axes relative to the
         pointing center of the sky model determined from the instrument model
-        parameters `telescope_latlonalt` and `central_jd`. Defaults to None.
+        parameters `telescope_latlonalt` and `jd_center`. Defaults to None.
     achromatic_beam : bool, optional
         Force the beam to be achromatic using `beam_ref_freq` as the reference
         frequency. Defaults to False.
@@ -168,7 +168,7 @@ class BuildMatrices():
         Cosine frequency in radians if using a 'gausscosine' beam. Defaults to
         None.
     beam_ref_freq : float, optional
-        Beam reference frequency in MHz.  Used to fix the beam to be
+        Beam reference frequency in megahertz.  Used to fix the beam to be
         achromatic. Defaults to None.
     drift_scan : bool, optional
         If True, model a drift scan primary beam, i.e. the beam center drifts
@@ -253,7 +253,7 @@ class BuildMatrices():
         include_instrumental_effects=True,  # TODO: remove kwarg
         telescope_latlonalt=(0, 0, 0),
         nt=None,
-        central_jd=None,
+        jd_center=None,
         dt=None,
         beam_type=None,
         beam_center=None,
@@ -346,7 +346,7 @@ class BuildMatrices():
                 self.fov_dec_fg = fov_dec_fg
             self.simple_za_filter = simple_za_filter
             self.nside = nside
-            self.central_jd = central_jd
+            self.jd_center = jd_center
             self.telescope_latlonalt = telescope_latlonalt
             self.beam_type = beam_type
             self.beam_peak_amplitude = beam_peak_amplitude
@@ -366,7 +366,7 @@ class BuildMatrices():
                 simple_za_filter=self.simple_za_filter,
                 nside=self.nside,
                 telescope_latlonalt=self.telescope_latlonalt,
-                central_jd=self.central_jd,
+                jd_center=self.jd_center,
                 nt=self.nt,
                 int_time=self.dt,
                 beam_type=self.beam_type,

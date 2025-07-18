@@ -24,13 +24,14 @@ from .posterior import PowerSpectrumPosteriorProbability
 from .vis import preprocess_uvdata
 from .utils import mpiprint, load_numpy_dict, parse_uprior_inds
 
+
 def run_setup(
     *,
-    nf : int,
+    nf : int | None = None,
     neta : int | None = None,
     nq : int = 0,
     beta : list[float] | None = None,
-    nt : int,
+    nt : int | None = None,
     nu : int,
     nv : int | None = None,
     nu_fg : int | None = None,
@@ -60,13 +61,13 @@ def run_setup(
     ant_str : str = "cross",
     bl_cutoff : Quantity | float | None = None,
     freq_idx_min : int | None = None,
-    nu_min_MHz : Quantity | float | None = None,
+    freq_min : Quantity | float | None = None,
     freq_center : Quantity | float | None = None,
-    channel_width_MHz : Quantity | float | None = None,
+    df : Quantity | float | None = None,
     jd_idx_min : int | None = None,
     jd_min : Time | float | None = None,
-    central_jd : Time | float | None = None,
-    integration_time_seconds : Quantity | float | None = None,
+    jd_center : Time | float | None = None,
+    dt : Quantity | float | None = None,
     form_pI : bool = True,
     pI_norm : float = 1.0,
     pol : str = "xx",
@@ -114,15 +115,16 @@ def run_setup(
 
     Parameters
     ----------
-    nf : int
-        Number of frequency channels. If `setup_data_vec` is True, sets the
+    nf : int, optional
+        Number of frequency channels. Required if `data_path` points to a
+        preprocessed data vector with a '.npy' suffix. Otherwise, sets the
         number of frequencies to keep starting from `freq_idx_min`, the
-        channel corresponding to `nu_min_MHz`, or around `freq_center`. Defaults
-        to None (keep all frequencies).
+        channel corresponding to `freq_min`, or around `freq_center`.
+        Defaults to None (keep all frequencies).
     neta : int, optional
         Number of Line of Sight (LoS, frequency axis) Fourier modes. Defaults
         to `nf`.
-    nq : int
+    nq : int, optional
         Number of large spectral scale model basis vectors. If `beta` is None,
         the basis vectors are quadratic in frequency. If `beta` is not None,
         the basis vectors are power laws with brightness temperature spectral
@@ -132,10 +134,11 @@ def run_setup(
         large spectral scale model. Can be a single spectral index, e.g.
         [2.63], or multiple spectral indices, e.g. [2.63, 2.82]. Defaults to
         [2.63, 2.82].
-    nt : int
-        Number of times. If `setup_data_vec` is True, sets the number of times
-        to keep starting from `jd_idx_min`, the time corresponding to `jd_min`
-        or around `central_jd`. Defaults to None (keep all times).
+    nt : int, optional
+        Number of times. Required if `data_path` points to a preprocessed data
+        vector with a '.npy' suffix. Otherwise, sets the number of times to
+        keep starting from `jd_idx_min`, the time corresponding to `jd_min`
+        or around `jd_center`. Defaults to None (keep all times).
     nu : int
         Number of pixels on a side for the u-axis in the EoR model uv-plane.
     nv : int, optional
@@ -203,7 +206,7 @@ def run_setup(
     cosfreq : float, optional
         Cosine frequency if using a 'gausscosine' beam. Defaults to None.
     beam_ref_freq : float, optional
-        Beam reference frequency in MHz. Defaults to None.
+        Beam reference frequency in hertz. Defaults to None.
     data_path : pathlib.Path or str
         Path to either a pyuvdata-compatible file containing visibilities or
         a numpy-compatible file containing a preprocessed visibility vector.
@@ -217,36 +220,37 @@ def run_setup(
     freq_idx_min : int, optional
         Minimum frequency channel index to keep in the data vector. Defaults
         to None (keep all frequencies).
-    nu_min_MHz : :class:`astropy.Quantity` or float, optional
-        Minimum frequency to keep in the data vector in Hertz if not a
-        Quantity. All frequencies greater than or equal to `nu_min_MHz` will be
+    freq_min : :class:`astropy.Quantity` or float, optional
+        Minimum frequency to keep in the data vector in hertz if not a
+        Quantity. All frequencies greater than or equal to `freq_min` will be
         kept, unless `nf` is specified. Defaults to None (keep all
         frequencies).
     freq_center : :class:`astropy.Quantity` or float, optional
-        Central frequency, in Hertz if not a Quantity, around which `nf`
+        Central frequency, in hertz if not a Quantity, around which `nf`
         frequencies will be kept in the data vector. `nf` must also be
         passed, otherwise an error is raised. Defaults to None (keep all
         frequencies).
-    channel_width_MHz : :class:`astropy.Quantity` or float, optional
-        Frequency channel width in Hertz if not a Quantity. Defaults to None.
+    df : :class:`astropy.Quantity` or float, optional
+        Frequency channel width in hertz if not a Quantity. Required if
+        `data_path` points to a preprocessed data vector with a '.npy' suffix.
         Overwritten by the frequency channel width in the UVData object if
         `data_path` points to a pyuvdata-compatible file containing
-        visibilities and `setup_data_vec` is True.
+        visibilities. Defaults to None.
     jd_idx_min : int, optional
         Minimum time index to keep in the data vector. Defaults to None (keep
         all times).
     jd_min : :class:`astropy.Time` or float, optional
         Minimum time to keep in the data vector as a Julian date if not a Time.
         Defaults to None (keep all times).
-    central_jd : :class:`astropy.Time` or float, optional
+    jd_center : :class:`astropy.Time` or float, optional
         Central time, as a Julian date if not a Time, around which `nt`
         times will be kept in the data vector. `nt` must also be passed,
         otherwise an error is raised. Defaults to None (keep all times).
-    integration_time_seconds : :class:`astropy.Quantity` or float, optional
-        Integration time in seconds of not a Quantity. Defaults to None.
-        Overwritten by the integration time in the UVData object if `data_path`
-        points to a pyuvdata-compatible file containing visibilities and
-        `setup_data_vec` is True.
+    dt : :class:`astropy.Quantity` or float, optional
+        Integration time in seconds of not a Quantity. Required if `data_path`
+        points to a preprocessed data vector with a '.npy' suffix. Overwritten
+        by the integration time in the UVData object if `data_path` points to
+        a pyuvdata-compatible file. Defaults to None.
     form_pI : bool, optional
         Form pseudo-Stokes I visibilities. Otherwise, use the polarization
         specified by `pol`. Defaults to True.
@@ -284,10 +288,9 @@ def run_setup(
         ``Path(output_dir) / file_root``.
     clobber : bool, optional
         Clobber files on disk if they exist.  Defaults to False.
-    sigma : float, optional
-        Standard deviation of the visibility noise. Only used if
-        `setup_data_vec` is True and `noise_data_path` is None. Defaults to
-        None.
+    sigma : float, optional  # FIXME: when should sigma be required?
+        Standard deviation of the visibility noise. Required if `calc_noise`
+        and `noise_data_path` are both None. Defaults to None.
     noise_seed : int, optional
         Used to seed `np.random` when generating the noise vector. Defaults to
         742123.
@@ -389,6 +392,8 @@ def run_setup(
     -------
     pspp : :class:`bayeseor.posterior.PowerSpectrumPosteriorProbability`
         Posterior probability class instance.
+    output_dir : pathlib.Path
+        Path to sampler output directory.
     vis_dict : dict
         Dictionary with value (key) pairs of: the visibility vector ('vis'),
         the noise ('noise'), noisy visibilities if `noise_data_path` is None
@@ -396,9 +401,13 @@ def run_setup(
         array index mapping of conjugated baselines in the visibility vector
         ('bl_conj_pairs_map'), the instrumentally sampled (u, v, w) ('uvws'),
         the number of redundant baselines averaged in each (u, v, w)
-        ('redundancy'), the frequency channel width ('df'), the integration
-        time ('dt'), and the phasor vector ('phasor') if `phase` is True.
-        Returned only if `return_vis` is True.
+        ('redundancy'), the frequencies in hertz ('freqs'), the frequency
+        channel width in hertz ('df'), the Julian dates ('jds'), the
+        integration time in seconds ('dt'), the phasor vector if `phase` is
+        True ('phasor'), the telescope name if `data_path` points to a
+        pyuvdata-compatible file with a valid telescope name attribute, and
+        the UVData object if `data_path` points to a pyuvdata-compatible file
+        and `return_uvd` is True. Returned only if `return_vis` is True.
     k_vals : numpy.ndarray
         Mean of each k bin. Returned only if `return_ks` is True.
     k_cube_voxels_in_bin : list
@@ -424,7 +433,7 @@ def run_setup(
             "use_LWM_Gaussian_prior to False."
         )
     if sigma is None and noise_data_path is None:
-        raise ValueError(
+        raise ValueError(  # FIXME: broken reference to setup_data_vec
             "sigma cannot be None if setup_data_vec is True "
             "and noise_data_path is None"
         )
@@ -512,15 +521,15 @@ def run_setup(
         ant_str=ant_str,
         bl_cutoff=bl_cutoff,
         freq_idx_min=freq_idx_min,
-        nu_min_MHz=nu_min_MHz,
+        freq_min=freq_min,
         freq_center=freq_center,
         nf=nf,
-        channel_width_MHz=channel_width_MHz,
+        df=df,
         jd_idx_min=jd_idx_min,
         jd_min=jd_min,
-        central_jd=central_jd,
+        jd_center=jd_center,
         nt=nt,
-        integration_time_seconds=integration_time_seconds,
+        dt=dt,
         form_pI=form_pI,
         pI_norm=pI_norm,
         pol=pol,
@@ -551,9 +560,12 @@ def run_setup(
     bl_conj_pairs_map = vis_dict["bl_conj_pairs_map"]
     uvws = vis_dict["uvws"]
     redundancy = vis_dict["redundancy"]
+    nf = len(vis_dict["freqs"])
     nu_min_MHz = (vis_dict["freqs"][0] * units.Hz).to("MHz").value
     channel_width_MHz = (vis_dict["df"] * units.Hz).to("MHz").value
-    integration_time_seconds = vis_dict["dt"]
+    nt = len(vis_dict["jds"])
+    jd_center = vis_dict["jds"][nt//2]
+    dt = vis_dict["dt"]
     if "phasor" in vis_dict:
         phasor = vis_dict["phasor"]
     else:
@@ -566,7 +578,7 @@ def run_setup(
     # EoR model
     # Spacing along the eta axis (line-of-sight Fourier dual to frequency)
     # defined as one over the bandwidth in Hz [1/Hz].
-    deta = 1 / (nf * channel_width_MHz * 1e6)
+    deta = 1 / bandwidth.to("Hz").value
     # Spacing along the u-axis of the EoR model uv-plane [1/rad]
     du_eor = 1 / np.deg2rad(fov_ra_eor)
     # Spacing along the v-axis of the EoR model uv-plane [1/rad]
@@ -583,8 +595,12 @@ def run_setup(
     # Spacing along the v-axis of the model uv-plane [1/rad]
     dv_fg = 1 / np.deg2rad(fov_dec_fg)
     # Beam model
-    if achromatic_beam and beam_ref_freq is None:
-        beam_ref_freq = nu_min_MHz
+    if achromatic_beam:
+        if beam_ref_freq is None:
+            beam_ref_freq = nu_min_MHz
+        else:
+            # Hz -> MHz for compatibility with BuildMatrices
+            beam_ref_freq = (beam_ref_freq * units.Hz).to("MHz").value
 
     mpiprint("\n", Panel("Model k Cube"), rank=print_rank)
     k_vals, k_cube_voxels_in_bin = build_k_cube(
@@ -645,8 +661,8 @@ def run_setup(
         redundancy=redundancy,
         phasor=phasor,
         nt=nt,
-        central_jd=central_jd,
-        integration_time_seconds=integration_time_seconds,
+        jd_center=jd_center,
+        dt=dt,
         beam_type=beam_type,
         beam_center=beam_center,
         achromatic_beam=achromatic_beam,
@@ -899,15 +915,15 @@ def get_vis_data(
     ant_str : str = "cross",
     bl_cutoff : Quantity | float | None = None,
     freq_idx_min : int | None = None,
-    nu_min_MHz : Quantity | float | None = None,
+    freq_min : Quantity | float | None = None,
     freq_center : Quantity | float | None = None,
     nf : int | None = None,
-    channel_width_MHz : Quantity | float | None = None,
+    df : Quantity | float | None = None,
     jd_idx_min : int | None = None,
     jd_min : Time | float | None = None,
-    central_jd : Time | float | None = None,
+    jd_center : Time | float | None = None,
     nt : int | None = None,
-    integration_time_seconds : Quantity | float | None = None,
+    dt : Quantity | float | None = None,
     form_pI : bool = True,
     pI_norm : float = 1.0,
     pol : str = "xx",
@@ -916,7 +932,7 @@ def get_vis_data(
     phase : bool = False,
     phase_time : Time | float | None = None,
     calc_noise : bool = False,
-    sigma : float,
+    sigma : float | None = None,
     noise_seed : int | None = 742123,
     save_vis : bool = False,
     save_model : bool = False,
@@ -948,49 +964,49 @@ def get_vis_data(
     freq_idx_min : int, optional
         Minimum frequency channel index to keep in the data vector. Defaults
         to None (keep all frequencies).
-    nu_min_MHz : :class:`astropy.Quantity` or float, optional
-        Minimum frequency to keep in the data vector in Hertz if not a
-        Quantity. All frequencies greater than or equal to `nu_min_MHz` will be
+    freq_min : :class:`astropy.Quantity` or float, optional
+        Minimum frequency to keep in the data vector in hertz if not a
+        Quantity. All frequencies greater than or equal to `freq_min` will be
         kept, unless `nf` is specified. Required if `data_path` points to a
         preprocessed data vector with a '.npy' suffix. Defaults to None (keep
         all frequencies).
     freq_center : :class:`astropy.Quantity` or float, optional
-        Central frequency, in Hertz if not a Quantity, around which `nf`
+        Central frequency, in hertz if not a Quantity, around which `nf`
         frequencies will be kept in the data vector. `nf` must also be
         passed, otherwise an error is raised. Defaults to None (keep all
         frequencies).
     nf : int, optional
-        Number of frequency channels. If `setup_data_vec` is True, sets the
+        Number of frequency channels. Required if `data_path` points to a
+        preprocessed data vector with a '.npy' suffix. Otherwise, sets the
         number of frequencies to keep starting from `freq_idx_min`, the
-        channel corresponding to `nu_min_MHz`, or around `freq_center`. 
-        Required if `data_path` points to a preprocessed data vector with a
-        '.npy' suffix. Defaults to None (keep all frequencies).
-    channel_width_MHz : :class:`astropy.Quantity` or float, optional
-        Frequency channel width in Hertz if not a Quantity. Overwritten by the
-        frequency channel width in the UVData object if `data_path` points to
-        a pyuvdata-compatible file containing visibilities and `setup_data_vec`
-        is True. Required if `data_path` points to a preprocessed data vector
-        with a '.npy' suffix. Defaults to None.
+        channel corresponding to `freq_min`, or around `freq_center`.
+        Defaults to None (keep all frequencies).
+    df : :class:`astropy.Quantity` or float, optional
+        Frequency channel width in hertz if not a Quantity. Required if
+        `data_path` points to a preprocessed data vector with a '.npy' suffix.
+        Overwritten by the frequency channel width in the UVData object if
+        `data_path` points to a pyuvdata-compatible file containing
+        visibilities. Defaults to None.
     jd_idx_min : int, optional
         Minimum time index to keep in the data vector. Defaults to None (keep
         all times).
     jd_min : :class:`astropy.Time` or float, optional
         Minimum time to keep in the data vector as a Julian date if not a Time.
         Defaults to None (keep all times).
-    central_jd : :class:`astropy.Time` or float, optional
+    jd_center : :class:`astropy.Time` or float, optional
         Central time, as a Julian date if not a Time, around which `nt`
         times will be kept in the data vector. `nt` must also be passed,
         otherwise an error is raised. Defaults to None (keep all times).
     nt : int, optional
-        Number of times. If `setup_data_vec` is True, sets the number of times
-        to keep starting from `jd_idx_min`, the time corresponding to `jd_min`
-        or around `central_jd`. Defaults to None (keep all times).
-    integration_time_seconds : :class:`astropy.Quantity` or float, optional
-        Integration time in seconds of not a Quantity. Overwritten by the
-        integration time in the UVData object if `data_path` points to a
-        pyuvdata-compatible file containing visibilities and `setup_data_vec`
-        is True. Required if `data_path` points to a preprocessed data vector
-        with a '.npy' suffix. Defaults to None.
+        Number of times. Required if `data_path` points to a preprocessed data
+        vector with a '.npy' suffix. Otherwise, sets the number of times to
+        keep starting from `jd_idx_min`, the time corresponding to `jd_min`
+        or around `jd_center`. Defaults to None (keep all times).
+    dt : :class:`astropy.Quantity` or float, optional
+        Integration time in seconds of not a Quantity. Required if `data_path`
+        points to a preprocessed data vector with a '.npy' suffix. Overwritten
+        by the integration time in the UVData object if `data_path` points to
+        a pyuvdata-compatible file. Defaults to None.
     form_pI : bool, optional
         Form pseudo-Stokes I visibilities. Otherwise, use the polarization
         specified by `pol`. Defaults to True.
@@ -1016,8 +1032,9 @@ def get_vis_data(
     calc_noise : bool, optional
         Calculate a noise estimate from the visibilities via differencing
         adjacent times per baseline and frequency. Defaults to False.
-    sigma : float
-        Standard deviation of the visibility noise.
+    sigma : float, optional
+        Standard deviation of the visibility noise. Required if `calc_noise`
+        and `noise_data_path` are both None. Defaults to None.
     noise_seed : int, optional
         Used to seed `np.random` when generating the noise vector. Defaults to
         742123.
@@ -1067,13 +1084,14 @@ def get_vis_data(
           with shape (nt, nbls, 1)
         - freqs: frequency channels in Hz
         - df: frequency channel width in Hz
+        - jds: Julian dates
         - dt: integration time in seconds
         - phasor: optional phasor vector if `phased` is True with shape
           (nf*nbls*nt,)
         - tele_name: optional telescope name if `data_path` points to a
           pyuvdata-compatible file with a valid telescope name attribute
         - uvd: optional UVData object if `data_path` points to a
-          pyuvdata-compatible file with a valid telescope name attribute
+          pyuvdata-compatible file and `return_uvd` is True
 
     """
     # print_rank will only trigger print if verbose is True and rank == 0
@@ -1085,19 +1103,32 @@ def get_vis_data(
         if not data_path.exists():
             raise FileNotFoundError(f"{data_path} does not exist")
         if data_path.suffix == ".npy":
-            required = [
-                nf,
-                nu_min_MHz,
-                channel_width_MHz,
-                inst_model,
-                integration_time_seconds
-            ]
-            if not np.all([arg is not None for arg in required]):
+            required_freq = np.all([
+                nf is not None,
+                df is not None,
+                freq_min is not None or freq_center is not None
+            ])
+            if not required_freq:
                 raise ValueError(
-                    "nf, nu_min_MHz, channel_width_MHz, inst_model, and "
-                    "integration_time_seconds are all required kwargs when "
-                    "loading a preprocessed data vector (data_path has a "
-                    ".npy suffix)"
+                    "nf, df, and one of (freq_min, freq_center) are all "
+                    "required kwargs when loading a preprocessed data vector "
+                    "(data_path has a .npy suffix)"
+                )
+            required_time = np.all([
+                nt is not None,
+                dt is not None,
+                jd_min is not None or jd_center is not None
+            ])
+            if not required_time:
+                raise ValueError(
+                    "nt, dt, and one of (jd_min, jd_center) are all "
+                    "required kwargs when loading a preprocessed data vector "
+                    "(data_path has a .npy suffix)"
+                )
+            if inst_model is None:
+                raise ValueError(
+                    "inst_model is required when loading a preprocessed data "
+                    "vector (data_path has a .npy suffix)"
                 )
 
             if not isinstance(inst_model, Path):
@@ -1139,11 +1170,14 @@ def get_vis_data(
             
             tele_name = None
             uvd = None
-            freqs = Quantity(
-                nu_min_MHz + np.arange(nf)*channel_width_MHz, unit="MHz"
-            )
-            freqs = freqs.to("Hz").value
-            df = (channel_width_MHz * units.MHz).to("Hz").value
+            if freq_min is not None:
+                freqs = freq_min + np.arange(nf)*df
+            else:
+                freqs = freq_center + np.arange(-(nf//2), nf//2 + nf%2)*df
+            if jd_min is not None:
+                jds = jd_min + np.arange(nt)*dt
+            else:
+                jds = jd_center + np.arange(-(nt//2), nt//2 + nt%2)*dt
 
         elif data_path.suffix in [".uvh5", ".uvfits", ".ms"]:
             mpiprint(
@@ -1157,12 +1191,12 @@ def get_vis_data(
                     ant_str=ant_str,
                     bl_cutoff=bl_cutoff,
                     freq_idx_min=freq_idx_min,
-                    freq_min=nu_min_MHz*1e6,
+                    freq_min=freq_min,
                     freq_center=freq_center,
                     Nfreqs=nf,
                     jd_idx_min=jd_idx_min,
                     jd_min=jd_min,
-                    jd_center=central_jd,
+                    jd_center=jd_center,
                     Ntimes=nt,
                     form_pI=form_pI,
                     pI_norm=pI_norm,
@@ -1189,7 +1223,7 @@ def get_vis_data(
             df = freqs[1] - freqs[0]
 
             jds = Time(np.unique(uvd.time_array), format="jd")
-            integration_time_seconds = (jds[1] - jds[0]).to("s").value
+            dt = (jds[1] - jds[0]).to("s").value
 
             try:
                 # Old versions of pyuvdata use telescope_name atribute which
@@ -1230,7 +1264,8 @@ def get_vis_data(
             "redundancy": redundancy,
             "freqs": freqs,
             "df": df,
-            "dt": integration_time_seconds,
+            "jds": jds,
+            "dt": dt,
         }
         if vis_noisy is not None:
             vis_dict["vis_noisy"] = vis_noisy
@@ -1377,7 +1412,7 @@ def generate_array_dir(
     telescope_name : str = "",
     nbls : int | None = None,
     nt : int | None = None,
-    integration_time_seconds : float | None = None,
+    dt : float | None = None,
     drift_scan : bool = True,
     beam_type : str | None = None,
     beam_center : list[float] | None = None,
@@ -1427,9 +1462,9 @@ def generate_array_dir(
         Fit for the amplitudes of the subharmonic grid pixels. Defaults to
         False.
     nu_min_MHz : float
-        Minimum frequency in MHz.
+        Minimum frequency in megahertz.
     channel_width_MHz : float
-        Frequency channel width in MHz.
+        Frequency channel width in megahertz.
     nq : int, optional
         Number of large spectral scale model quadratic basis vectors. Defaults
         to 0.
@@ -1464,7 +1499,7 @@ def generate_array_dir(
     nt : float, optional
         Number of times. Used only if `include_instrumental_effects` is True.
         Defaults to None.
-    integration_time_seconds : float, optional
+    dt : float, optional
         Integration time in seconds. Used only if
         `include_instrumental_effects` is True. Defaults to None.
     drift_scan : bool, optional
@@ -1493,7 +1528,7 @@ def generate_array_dir(
     cosfreq : float, optional
         Cosine frequency if using a 'gausscosine' beam. Defaults to None.
     beam_ref_freq : float, optional
-        Beam reference frequency in MHz. Used only if
+        Beam reference frequency in megahertz. Used only if
         `include_instrumental_effects` is True. Defaults to None.
     noise_data_path : pathlib.Path or str, optional
         Path to a numpy-compatible file containing a preprocessed noise vector.
@@ -1576,7 +1611,7 @@ def generate_array_dir(
             inst_str += f"{telescope_name}-"
         if nbls is not None:
             inst_str += f"nbls{nbls}-"
-        inst_str += f"nt{nt}-dt{integration_time_seconds:.2f}s"
+        inst_str += f"nt{nt}-dt{dt:.2f}s"
         if not drift_scan:
             inst_str += "-phased"
         matrices_path /= inst_str
@@ -1667,8 +1702,8 @@ def build_matrices(
     include_instrumental_effects : bool = True,
     telescope_latlonalt : Sequence[float] = (0, 0, 0),
     nt : int,
-    central_jd : float,
-    integration_time_seconds : float,
+    jd_center : float,
+    dt : float,
     beam_type : str,
     beam_center : list[float] | None = None,
     achromatic_beam : bool = False,
@@ -1748,9 +1783,9 @@ def build_matrices(
         Fit for the amplitudes of the subharmonic grid pixels. Defaults to
         False.
     nu_min_MHz : float
-        Minimum frequency in MHz.
+        Minimum frequency in megahertz.
     channel_width_MHz : float
-        Frequency channel width in MHz.
+        Frequency channel width in megahertz.
     nq : int, optional
         Number of large spectral scale model quadratic basis vectors. Defaults
         to 0.
@@ -1784,9 +1819,9 @@ def build_matrices(
         altitude in meters). Defaults to (0, 0, 0).
     nt : float
         Number of times.
-    central_jd : float
+    jd_center : float
         Central time as a Julian date.
-    integration_time_seconds : float
+    dt : float
         Integration time in seconds.
     beam_type : str
         Path to a pyuvdata-compatible beam file or one of 'uniform',
@@ -1807,7 +1842,7 @@ def build_matrices(
     cosfreq : float, optional
         Cosine frequency if using a 'gausscosine' beam. Defaults to None.
     beam_ref_freq : float, optional
-        Beam reference frequency in MHz. Defaults to None.
+        Beam reference frequency in megahertz. Defaults to None.
     drift_scan : bool, optional
         Model drift scan (True, default) or phased (False) visibilities.
     telescope_name : str, optional
@@ -1911,7 +1946,7 @@ def build_matrices(
         telescope_name=telescope_name,
         nbls=nbls,
         nt=nt,
-        integration_time_seconds=integration_time_seconds,
+        dt=dt,
         beam_type=beam_type,
         beam_center=beam_center,
         drift_scan=drift_scan,
@@ -1979,8 +2014,8 @@ def build_matrices(
         include_instrumental_effects=include_instrumental_effects,
         telescope_latlonalt=telescope_latlonalt,
         nt=nt,
-        central_jd=central_jd,
-        dt=integration_time_seconds,
+        jd_center=jd_center,
+        dt=dt,
         beam_type=beam_type,
         beam_center=beam_center,
         achromatic_beam=achromatic_beam,

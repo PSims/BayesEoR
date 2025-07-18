@@ -57,11 +57,11 @@ class Healpix(HEALPix):
         telescope in degrees, degrees, and meters, respectively.  Defaults
         to the location of the HERA telescope, i.e. (-30.72152777777791, 
         21.428305555555557, 1073.0000000093132).
-    central_jd : float
+    jd_center : float
         Central time step of the observation in JD2000 format.
     nt : int, optional
         Number of time integrations. Defaults to 1.
-    int_time : float, optional
+    dt : float, optional
         Integration time in seconds. Required if ``nt > 1``.
     beam_type : str, optional
         Can be either a path to a pyuvdata-compatible beam file or one of
@@ -101,9 +101,9 @@ class Healpix(HEALPix):
         simple_za_filter=False,
         nside=256,
         telescope_latlonalt=HERA_LAT_LON_ALT,
-        central_jd=None,
+        jd_center=None,
         nt=1,
-        int_time=None,
+        dt=None,
         beam_type=None,
         peak_amp=1.0,
         fwhm_deg=None,
@@ -156,8 +156,8 @@ class Healpix(HEALPix):
         )
 
         # Calculate field center in (RA, DEC)
-        self.central_jd = central_jd
-        t = Time(self.central_jd, scale="utc", format="jd")
+        self.jd_center = jd_center
+        t = Time(self.jd_center, scale="utc", format="jd")
         zen = AltAz(
             alt=Angle("90d"),
             az=Angle("0d"),
@@ -169,19 +169,19 @@ class Healpix(HEALPix):
 
         # Set time axis params for calculating (l(t),  m(t))
         self.nt = nt
-        self.int_time = int_time
+        self.dt = dt
         if self.nt % 2:
             self.time_inds = np.arange(-(self.nt // 2), self.nt // 2 + 1)
         else:
             self.time_inds = np.arange(-(self.nt // 2), self.nt // 2)
-        # Calculate JD per integration from `central_jd`
-        if self.int_time is not None:
+        # Calculate JD per integration from `jd_center`
+        if self.dt is not None:
             self.jds = (
-                self.central_jd
-                + self.time_inds * self.int_time * DAYS_PER_SEC
+                self.jd_center
+                + self.time_inds * self.dt * DAYS_PER_SEC
             )
         else:
-            self.jds = np.array([self.central_jd])
+            self.jds = np.array([self.jd_center])
         # Calculate pointing center per integration
         self.pointing_centers = []
         for jd in self.jds:
@@ -360,7 +360,7 @@ class Healpix(HEALPix):
         )
         if simple_za_filter:
             _, _, _, _, za = self.calc_lmn_from_radec(
-                self.central_jd, lons, lats, return_azza=True
+                self.jd_center, lons, lats, return_azza=True
             )
             max_za = np.deg2rad(fov_ra) / 2
             pix = np.where(za <= max_za)[0]
