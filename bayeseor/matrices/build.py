@@ -368,7 +368,7 @@ class BuildMatrices():
                 telescope_latlonalt=self.telescope_latlonalt,
                 jd_center=self.jd_center,
                 nt=self.nt,
-                int_time=self.dt,
+                dt=self.dt,
                 beam_type=self.beam_type,
                 peak_amp=self.beam_peak_amplitude,
                 fwhm_deg=self.fwhm_deg,
