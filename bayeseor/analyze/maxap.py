@@ -1,238 +1,131 @@
 """ Class and functions for performing maximum a posteriori calculations. """
 import numpy as np
 from pathlib import Path
-import json
-from jsonargparse import Namespace
+from pprint import pprint
 import matplotlib.pyplot as plt
 
-from ..matrices import BuildMatrixTree
-from ..model import (
-    load_inst_model,
-    generate_k_cube_in_physical_coordinates,
-    mask_k_cube,
-    generate_k_cube_model_spherical_binning,
-    calc_mean_binned_k_vals,
-    generate_data_and_noise_vector_instrumental
-)
-from ..params import calculate_derived_params, parse_uprior_inds
-from ..posterior import PowerSpectrumPosteriorProbability
-from ..utils import mpiprint, vector_is_hermitian
+from rich.panel import Panel
+
+from ..params import BayesEoRParser
+from ..setup import run_setup
+from ..utils import mpiprint
 
 class MaximumAPosteriori(object):
     """
-    Class for performing maximum a posteriori calculations with BayesEoR.
+    Class for performing maximum a posteriori calculations.
 
     Parameters
     ----------
-    data_path : str or Path
-        Path to a numpy readable visibility data file in units of mK sr.
+    config : str
+        Path to a BayesEoR yaml configuration file.
+    data_path : str
     array_dir : str or Path
         Path to a directory containing T, Ninv, and T_Ninv_T.
-    output_dir : str or Path
-        Path to a BayesEoR output directory which contains 'args.json' and
-        'k-vals.txt' files.
     verbose : bool
-        If True (default), print timing and status messages.
+        Verbose output. Defaults to False.
     
     """
     def __init__(
         self,
-        data_path,
-        array_dir,
-        output_dir,
-        verbose=True
-    ):        
-        if not isinstance(output_dir, Path):
-            output_dir = Path(output_dir)
-        with open(output_dir / "args.json", "r") as f:
-            cl_args = Namespace(**json.load(f))
-        args = calculate_derived_params(cl_args)
+        *,
+        config : Path | str,
+        data_path : str | None = None,
+        array_dir : str | None = None,
+        verbose : bool = False
+    ):
+        print_rank = 1 - verbose
 
-        # Calculate k bin values
-        mpiprint(
-            "\nSpherical k bins:", style="bold", rank=1-int(verbose)
-        )
-        mod_k = generate_k_cube_in_physical_coordinates(
-            args.nu,
-            args.nv,
-            args.neta,
-            args.ps_box_size_ra_Mpc,
-            args.ps_box_size_dec_Mpc,
-            args.ps_box_size_para_Mpc
-        )[0]
-        mod_k_vo = mask_k_cube(mod_k)
-        k_cube_voxels_in_bin = generate_k_cube_model_spherical_binning(
-            mod_k_vo,
-            args.ps_box_size_para_Mpc
-        )[0]
-        self.k_vals = calc_mean_binned_k_vals(
-            mod_k_vo,
-            k_cube_voxels_in_bin,
-            rank=1-int(verbose)
-        )
+        if not Path(config).exists():
+            raise FileNotFoundError(f"{config} does not exist")
+        parser = BayesEoRParser()
+        args = parser.parse_args(["--config", config])
+        args.verbose = verbose
+        if verbose:
+            mpiprint("\n", Panel("Parameters"))
+            pprint(args.__dict__)
 
-        # Load matrices
-        self.bm = BuildMatrixTree(
-            array_dir.as_posix(),
-            args.include_instrumental_effects,
-            args.use_sparse_matrices
-        )
-        Ninv = self.bm.read_data((array_dir / "Ninv.npz").as_posix(), "Ninv")
-        self.Ndata = Ninv.shape[0]
-        T = self.bm.read_data((array_dir / "T.h5").as_posix(), "T")
-        T_Ninv_T = self.bm.read_data(
-            (array_dir / "T_Ninv_T.h5").as_posix(), "T_Ninv_T"
-        )
-
-        data = np.load(data_path, allow_pickle=True)
-        if data.dtype.kind == "O":
-            # Data and noise vector saved in a single dictionary
-            dict_format = True
-            data = data.item()
-            if "noise" in data and "sigma" not in args:
-                gen_noise = False
-            else:
-                gen_noise = True
+        if data_path is not None or array_dir is not None:
+            # We need to recalculate dbar and d_Ninv_d if we wish to
+            # use a different dataset or matrix stack which requires
+            # both the visibilities and the matrices
+            return_vis = True
         else:
-            # Data and noise vector saved as separate arrays
-            dict_format = False
-            if "noise_data_path" in args:
-                gen_noise = False
-            else:
-                gen_noise = True
-        if gen_noise:
-            effective_noise = None
-        else:
-            if dict_format:
-                effective_noise = data["noise"]
-            else:
-                effective_noise = np.load(args.noise_data_path)
-            args.sigma = effective_noise.std()
-        if args.include_instrumental_effects:
-            uvw_array_m, bl_red_array, phasor_vec = load_inst_model(
-                args.inst_model
-            )
-            if phasor_vec is not None and args.drift_scan:
-                phasor_vec = None
-            bl_red_array = bl_red_array*0 + bl_red_array.min()
-            avg_bl_red = np.mean(bl_red_array)
-            if gen_noise:
-                args.sigma *= avg_bl_red**0.5
-            if dict_format:
-                d_eor = data["data"]
-            else:
-                d_eor = data
-            if gen_noise:
-                d, effective_noise, bl_conj_map = \
-                    generate_data_and_noise_vector_instrumental(
-                        args.sigma,
-                        d_eor,
-                        args.nf,
-                        args.nt,
-                        uvw_array_m[0],
-                        bl_red_array[0],
-                        random_seed=args.noise_seed,
-                        rank=1-int(verbose)
-                    )
-            else:
-                d = d_eor.copy()
-                _, _, bl_conj_map =\
-                    generate_data_and_noise_vector_instrumental(
-                        0,
-                        d_eor,
-                        args.nf,
-                        args.nt,
-                        uvw_array_m[0],
-                        bl_red_array[0],
-                        rank=1-int(verbose)
-                    )
-        mpiprint(
-            "\nHermitian symmetry checks:", style="bold", rank=1-int(verbose)
-        )
-        mpiprint(
-            "signal is Hermitian:",
-            vector_is_hermitian(
-                d_eor, bl_conj_map, args.nt, args.nf, uvw_array_m.shape[1]
-            ),
-            rank=1-int(verbose)
-        )
-        mpiprint(
-            "signal + noise is Hermitian:",
-            vector_is_hermitian(
-                d, bl_conj_map, args.nt, args.nf, uvw_array_m.shape[1]
-            ),
-            rank=1-int(verbose)
-        )
+            return_vis = False
 
-        mpiprint("\nSNR:", style="bold", rank=1-int(verbose))
-        mpiprint(f"Stddev(signal) = {d_eor.std():.4e}", rank=1-int(verbose))
-        effective_noise_std = effective_noise.std()
-        mpiprint(
-            f"Stddev(noise) = {effective_noise_std:.4e}",
-            rank=1-int(verbose)
-        )
-        mpiprint(
-            f"SNR = {(d_eor.std() / effective_noise_std):.4e}\n",
-            rank=1-int(verbose)
-        )
-
-        Ninv_d = Ninv * d  # Ninv is sparse, so we use * instead of np.dot
-        self.d_Ninv_d = np.dot(d.conjugate(), Ninv_d)
-        dbar = np.dot(T.conjugate().T, Ninv_d)
-        nDims = len(k_cube_voxels_in_bin)
-        if args.use_intrinsic_noise_fitting:
-            nDims += 1
-        if args.use_LWM_Gaussian_prior:
-            nDims += 3
-        if args.include_instrumental_effects:
-            block_T_Ninv_T = []
+        if data_path is not None:
+            # FIXME: should I add a similar check as I do for array_dir
+            # to compare the args and input value? There's no point in
+            # wasting compute if the args and input data paths are the same.
+            # Or is this a numerical check that should happen?
+            # Or is this too detailed for this class?
+            if not isinstance(data_path, Path):
+                data_path = Path(data_path)
+            if not Path(data_path).exists():
+                raise FileNotFoundError(f"{data_path} does not exist")
+            mpiprint("\nReplacing data_path:", style="bold", rank=print_rank)
+            mpiprint(f"{args.data_path = }", rank=print_rank)
+            mpiprint(f"{data_path      = }", rank=print_rank)
+            args.data_path = data_path
         
-        if args.uprior_bins != "":
-            args.uprior_inds = parse_uprior_inds(args.uprior_bins, nDims)
-            mpiprint(
-                "\nUniform prior k-bin indices:",
-                f"{np.where(args.uprior_inds)[0]}\n",
-                rank=1-int(verbose)
-            )
-        else:
-            args.uprior_inds = None
-
-        self.pspp = PowerSpectrumPosteriorProbability(
-            T_Ninv_T,
-            dbar,
-            self.k_vals,
-            k_cube_voxels_in_bin,
-            args.nuv,
-            args.neta,
-            args.nf,
-            args.nq,
-            Ninv,
-            self.d_Ninv_d,
-            args.redshift,
-            args.ps_box_size_ra_Mpc,
-            args.ps_box_size_dec_Mpc,
-            args.ps_box_size_para_Mpc,
-            include_instrumental_effects=args.include_instrumental_effects,
-            log_priors=args.log_priors,
-            uprior_inds=args.uprior_inds,
-            inverse_LW_power=args.inverse_LW_power,
-            dimensionless_PS=True,  # Currently only support \Delta^2(k)
-            block_T_Ninv_T=block_T_Ninv_T,
-            intrinsic_noise_fitting=args.use_intrinsic_noise_fitting,
-            use_shg=args.use_shg,
-            rank=0,
-            use_gpu=True,
-            print=args.verbose
+        if array_dir is not None:
+            if not Path(array_dir).exists():
+                raise FileNotFoundError(f"{array_dir} does not exist")
+        
+        res = run_setup(
+            **args, return_vis=return_vis, return_bm=True
         )
+        pspp = res[0]
+        # FIXME: add `mkdir` kwarg to `run_setup` to avoid creating/returning
+        # output_dir and writing empty SLURM job ID files to the output dir
+        if return_vis:
+            vis_dict = res[2]
+            bm = res[3]
+        else:
+            bm = res[2]
 
+        if array_dir is not None:
+            if array_dir != bm.array_dir:
+                mpiprint(
+                    f"\nReplacing array_dir:",
+                    style="bold",
+                    end="\n\n",
+                    rank=print_rank
+                )
+                mpiprint(f"{bm.array_dir = }", rank=print_rank)
+                mpiprint(f"{array_dir    = }", rank=print_rank)
+                bm.array_dir = array_dir
+            
+                vis_noisy = vis_dict["vis_noisy"]
+
+                bm_verbose = bm.verbose
+                bm.verbose = False
+                Ninv = bm.read_data("Ninv")
+                T = bm.read_data("T")
+                Ninv_d = bm.dot_product(Ninv, vis_noisy)
+                dbar = bm.dot_product(T.conj().T, Ninv_d)
+                d_Ninv_d = np.dot(vis_noisy.conj(), Ninv_d)
+                T_Ninv_T = bm.read_data("T_Ninv_T")
+                bm.verbose = bm_verbose
+
+                pspp.Ninv = Ninv
+                pspp.dbar = dbar
+                pspp.d_Ninv_d = d_Ninv_d
+                pspp.T_Ninv_T = T_Ninv_T
+                self.T = T
+        else:
+            T = bm.read_data("T")
+            self.T = T
+        
         self.args = args
-        self.d = d
-        self.d_eor = d_eor
-        if gen_noise:
-            self.noise = effective_noise
-        self.T = T
-        self.uvw_array_m = uvw_array_m
-        self.bl_red_array = bl_red_array
+        self.pspp = pspp
+        self.bm = bm
+        self.k_vals = pspp.k_vals
+        if return_vis:
+            if "vis" in vis_dict:
+                self.s = vis_dict["vis"]
+            if "noise" in vis_dict:
+                self.n = vis_dict["noise"]
+            self.d = vis_dict["vis_noisy"]
     
     def map_estimate(
         self,
@@ -240,33 +133,36 @@ class MaximumAPosteriori(object):
         dmps=None,
         return_prior_cov=False
     ):
-        """
+        r"""
         Calculate the maximum a posteriori (MAP) model coefficients.
 
-        Must pass one of `ps` or `dmps`.  Both cannot be none.  These variables
-        are used to calculate the prior covariance matrix.
+        Must pass one of `ps` or `dmps` which is required to calculate the
+        prior covariance matrix.
 
         Parameters
         ----------
         ps : float or array-like
-            Expected power spectrum, P(k).  Can be a single float (for a flat
-            P(k)) or an array-like with shape `(self.k_vals.size,)`.
+            Expected power spectrum, :math:`P(k)`. Can be a single float (for
+            a flat power spectrum) or an array-like with shape
+            `(self.k_vals.size,)`. Required if `dmps` is None.
         dmps : float or array-like
-            Expected dimensionless power spectrum, \Delta^2(k).  Can be a
-            single float or an array-like with shape `(self.k_vals.size,)`.
+            Expected dimensionless power spectrum, :math:`\Delta^2(k)`. Can be
+            a single float (for a flat dimensionless power spectrum) or an
+            array-like with shape `(self.k_vals.size,)`. Required if `ps` is
+            None.
         return_prior_cov : bool, optional
-            If True, return the prior covariance matrix in addition to the
-            MAP estimate.  Defaults to False.
+            Return the diagonal of the prior covariance matrix. Defaults to
+            False.
         
         Returns
         -------
-        map_coeffs : ndarray
+        map_coeffs : numpy.ndarray
             MAP coefficients of the model.
-        map_vis : ndarray
+        map_vis : numpy.ndarray
             MAP model visibilities.
         log_post : float
             Log posterior probability.
-        prior_cov : ndarray
+        prior_cov : numpy.ndarray
             Diagonal of the prior covariance matrix.  Only returned if
             `return_prior_cov` is True.
         
@@ -275,7 +171,10 @@ class MaximumAPosteriori(object):
         * This function does not currently support noise fitting
 
         """
-        dmps = self._calculate_dmps(ps=ps, dmps=dmps)
+        if ps is None and dmps is None:
+            raise ValueError("One of 'ps' or 'dmps' must not be None")
+        dmps = self.calculate_dmps(ps=ps, dmps=dmps)
+
         map_coeffs, dbar_SigmaI_dbar, prior_cov, log_det_Sigma = \
             self.pspp.calc_SigmaI_dbar_wrapper(
                 dmps,
@@ -304,17 +203,20 @@ class MaximumAPosteriori(object):
         ps=None,
         dmps=None,
     ):
-        """
-        Calculate the prior covariance matrix \Phi^{-1}.
+        r"""
+        Calculate the prior covariance matrix :math:`\Phi^{-1}`.
 
         Parameters
         ----------
-        ps : float or array-like, optional
-            Expected power spectrum, P(k).  Can be a single float (for a flat
-            P(k)) or an array-like with shape `(self.k_vals.size,)`.
-        dmps : float or array-like, optional
-            Expected dimensionless power spectrum, \Delta^2(k).  Can be a
-            single float or an array-like with shape `(self.k_vals.size,)`.
+        ps : float or array-like
+            Expected power spectrum, :math:`P(k)`. Can be a single float (for
+            a flat power spectrum) or an array-like with shape
+            `(self.k_vals.size,)`. Required if `dmps` is None.
+        dmps : float or array-like
+            Expected dimensionless power spectrum, :math:`\Delta^2(k)`. Can be
+            a single float (for a flat dimensionless power spectrum) or an
+            array-like with shape `(self.k_vals.size,)`. Required if `ps` is
+            None.
 
         Returns
         -------
@@ -323,32 +225,38 @@ class MaximumAPosteriori(object):
 
         """
         if ps is None and dmps is None:
-            raise TypeError("One of 'ps' or 'dmps' must not be None")
-        dmps = self._calculate_dmps(ps=ps, dmps=dmps)
+            raise ValueError("One of 'ps' or 'dmps' must not be None")
+        dmps = self.calculate_dmps(ps=ps, dmps=dmps)
         PhiI = self.pspp.calc_PowerI(dmps)
 
         return PhiI
     
-    def _calculate_dmps(self, ps=None, dmps=None):
-        """
+    def calculate_dmps(self, ps=None, dmps=None):
+        r"""
         Calculated the expected dimensionless power spectrum.
 
         Parameters
         ----------
-        ps : float or array-like, optional
-            Expected power spectrum, P(k).  Can be a single float (for a flat
-            P(k)) or an array-like with shape `(self.k_vals.size,)`.
-        dmps : float or array-like, optional
-            Expected dimensionless power spectrum, \Delta^2(k).  Can be a
-            single float or an array-like with shape `(self.k_vals.size,)`.
+        ps : float or array-like
+            Expected power spectrum, :math:`P(k)`. Can be a single float (for
+            a flat power spectrum) or an array-like with shape
+            `(self.k_vals.size,)`. Required if `dmps` is None.
+        dmps : float or array-like
+            Expected dimensionless power spectrum, :math:`\Delta^2(k)`. Can be
+            a single float (for a flat dimensionless power spectrum) or an
+            array-like with shape `(self.k_vals.size,)`. Required if `ps` is
+            None.
 
         Returns
         -------
-        dmps : ndarray
+        dmps : numpy.ndarray
             Array of dimensionless power spectrum amplitudes with shape
             `(self.k_vals.size,)`.
 
-        """        
+        """
+        if ps is None and dmps is None:
+            raise ValueError("One of 'ps' or 'dmps' must not be None")
+
         if ps is not None:
             if hasattr(ps, "__iter__"):
                 ps = np.array(ps)
