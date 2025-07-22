@@ -1,5 +1,7 @@
 """ Class and functions for performing maximum a posteriori calculations. """
 import numpy as np
+from astropy import units
+from astropy.time import Time
 from pathlib import Path
 from pprint import pprint
 import matplotlib.pyplot as plt
@@ -18,9 +20,15 @@ class MaximumAPosteriori(object):
     ----------
     config : str
         Path to a BayesEoR yaml configuration file.
-    data_path : str
-    array_dir : str or Path
-        Path to a directory containing T, Ninv, and T_Ninv_T.
+    data_path : str, optional
+        Path to either a pyuvdata-compatible file containing visibilities or
+        a numpy-compatible file containing a preprocessed visibility vector.
+        Supersedes the `data_path` in `config`. Defaults to None (use the
+        `data_path` in `config`).
+    array_dir : str, optional
+        Path to a directory containing T, Ninv, and T_Ninv_T. Supersedes the
+        `array_dir` created based on the parameters in `config`. Defaults to
+        None (use the `array_dir` created from the parameters in `config`).
     verbose : bool
         Verbose output. Defaults to False.
     
@@ -44,51 +52,40 @@ class MaximumAPosteriori(object):
             mpiprint("\n", Panel("Parameters"))
             pprint(args.__dict__)
 
-        if data_path is not None or array_dir is not None:
-            # We need to recalculate dbar and d_Ninv_d if we wish to
-            # use a different dataset or matrix stack which requires
-            # both the visibilities and the matrices
-            return_vis = True
-        else:
-            return_vis = False
-
         if data_path is not None:
-            # FIXME: should I add a similar check as I do for array_dir
-            # to compare the args and input value? There's no point in
-            # wasting compute if the args and input data paths are the same.
-            # Or is this a numerical check that should happen?
-            # Or is this too detailed for this class?
-            if not isinstance(data_path, Path):
-                data_path = Path(data_path)
             if not Path(data_path).exists():
                 raise FileNotFoundError(f"{data_path} does not exist")
-            mpiprint("\nReplacing data_path:", style="bold", rank=print_rank)
-            mpiprint(f"{args.data_path = }", rank=print_rank)
-            mpiprint(f"{data_path      = }", rank=print_rank)
-            args.data_path = data_path
+            data_paths_differ = (
+                Path(data_path).absolute().as_posix()
+                != Path(args.data_path).absolute().as_posix()
+            )
+            if data_paths_differ:
+                mpiprint("\nReplacing data_path:", style="bold", rank=print_rank)
+                mpiprint(f"{args.data_path = }", rank=print_rank)
+                mpiprint(f"{data_path      = }", rank=print_rank)
+                args.data_path = data_path
+            update_pspp = data_paths_differ
+        else:
+            update_pspp = False
         
         if array_dir is not None:
             if not Path(array_dir).exists():
                 raise FileNotFoundError(f"{array_dir} does not exist")
         
-        res = run_setup(
+        pspp, _, vis_dict, bm = run_setup(
             **args,
-            return_vis=return_vis,
+            return_vis=True,
             return_bm=True,
             save_k_vals=False,
             mkdir=False
         )
-        pspp = res[0]
-        # FIXME: add `mkdir` kwarg to `run_setup` to avoid creating/returning
-        # output_dir and writing empty SLURM job ID files to the output dir
-        if return_vis:
-            vis_dict = res[2]
-            bm = res[3]
-        else:
-            bm = res[2]
 
         if array_dir is not None:
-            if array_dir != bm.array_dir:
+            array_dirs_differ = (
+                Path(array_dir).absolute().as_posix()
+                != Path(bm.array_dir).absolute().as_posix()
+            )
+            if array_dirs_differ:
                 mpiprint(
                     f"\nReplacing array_dir:",
                     style="bold",
@@ -98,24 +95,27 @@ class MaximumAPosteriori(object):
                 mpiprint(f"{bm.array_dir = }", rank=print_rank)
                 mpiprint(f"{array_dir    = }", rank=print_rank)
                 bm.array_dir = array_dir
-            
-                vis_noisy = vis_dict["vis_noisy"]
+                update_pspp = True
 
-                bm_verbose = bm.verbose
-                bm.verbose = False
-                Ninv = bm.read_data("Ninv")
-                T = bm.read_data("T")
-                Ninv_d = bm.dot_product(Ninv, vis_noisy)
-                dbar = bm.dot_product(T.conj().T, Ninv_d)
-                d_Ninv_d = np.dot(vis_noisy.conj(), Ninv_d)
-                T_Ninv_T = bm.read_data("T_Ninv_T")
-                bm.verbose = bm_verbose
+        if update_pspp:
+            mpiprint("\nCalculating dbar and d_Ninv_d...", rank=print_rank)
+            vis_noisy = vis_dict["vis_noisy"]
 
-                pspp.Ninv = Ninv
-                pspp.dbar = dbar
-                pspp.d_Ninv_d = d_Ninv_d
-                pspp.T_Ninv_T = T_Ninv_T
-                self.T = T
+            bm_verbose = bm.verbose
+            bm.verbose = False
+            Ninv = bm.read_data("Ninv")
+            T = bm.read_data("T")
+            Ninv_d = bm.dot_product(Ninv, vis_noisy)
+            dbar = bm.dot_product(T.conj().T, Ninv_d)
+            d_Ninv_d = np.dot(vis_noisy.conj(), Ninv_d)
+            T_Ninv_T = bm.read_data("T_Ninv_T")
+            bm.verbose = bm_verbose
+
+            pspp.Ninv = Ninv
+            pspp.dbar = dbar
+            pspp.d_Ninv_d = d_Ninv_d
+            pspp.T_Ninv_T = T_Ninv_T
+            self.T = T
         else:
             T = bm.read_data("T")
             self.T = T
@@ -124,12 +124,17 @@ class MaximumAPosteriori(object):
         self.pspp = pspp
         self.bm = bm
         self.k_vals = pspp.k_vals
-        if return_vis:
-            if "vis" in vis_dict:
-                self.s = vis_dict["vis"]
-            if "noise" in vis_dict:
-                self.n = vis_dict["noise"]
-            self.d = vis_dict["vis_noisy"]
+        if "vis" in vis_dict:
+            self.s = vis_dict["vis"]
+        if "noise" in vis_dict:
+            self.n = vis_dict["noise"]
+        self.d = vis_dict["vis_noisy"]
+        self.freqs = vis_dict["freqs"] * units.Hz
+        self.jds = Time(vis_dict["jds"], format="jd")
+        self.uvws = vis_dict["uvws"]
+        self.redundancy = vis_dict["redundancy"]
+        if "antpairs" in vis_dict:
+            self.antpairs = vis_dict["antpairs"]
     
     def map_estimate(
         self,
