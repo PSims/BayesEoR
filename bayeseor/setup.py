@@ -91,6 +91,7 @@ def run_setup(
     use_sparse_matrices : bool = True,
     build_Finv_and_Fprime : bool = True,
     output_dir : Path | str = "./",
+    mkdir : bool = True,
     file_root : str | None = None,
     priors : Sequence[float],
     log_priors : bool = False,
@@ -321,6 +322,9 @@ def run_setup(
         Fprime independently and save both matrices to disk.
     output_dir : pathlib.Path or str, optional
         Parent directory for sampler output. Defaults to './'.
+    mkdir : bool, optional
+        Make ``Path(output_dir) / file_root`` if it doesn't exist. Defaults to
+        True.
     file_root : str, optional
         Sampler output directory name. If None (default), start a new analysis.
         Otherwise, resume analysis from `file_root`.
@@ -392,8 +396,8 @@ def run_setup(
     -------
     pspp : :class:`bayeseor.posterior.PowerSpectrumPosteriorProbability`
         Posterior probability class instance.
-    output_dir : pathlib.Path
-        Path to sampler output directory.
+    sampler_dir : pathlib.Path
+        Path to sampler output directory, ``Path(output_dir) / file_root``.
     vis_dict : dict
         Dictionary with value (key) pairs of: the visibility vector ('vis'),
         the noise ('noise'), noisy visibilities if `noise_data_path` is None
@@ -437,6 +441,8 @@ def run_setup(
             "sigma cannot be None if setup_data_vec is True "
             "and noise_data_path is None"
         )
+    if output_dir is None:
+        raise ValueError("output_dir cannot be None")
 
     # print_rank will only trigger print if verbose is True and rank == 0
     print_rank = 1 - (verbose and rank == 0)
@@ -476,8 +482,6 @@ def run_setup(
             nv_sh = nu_sh
     
     mpiprint("\n", Panel("Output Directory"), rank=print_rank)
-    if output_dir is None:
-        raise ValueError("output_dir cannot be None")
     if not isinstance(output_dir, Path):
         output_dir = Path(output_dir)
 
@@ -508,12 +512,17 @@ def run_setup(
             output_dir=output_dir,
         )
 
-    output_dir /= file_root
-    output_dir.mkdir(exist_ok=True, parents=True)
-    mpiprint(f"\n{output_dir.absolute().as_posix()}", rank=print_rank)
+    sampler_dir = output_dir / file_root
+    if mkdir:
+        sampler_dir.mkdir(exist_ok=True, parents=True)
+    mpiprint(f"\n{sampler_dir.absolute().as_posix()}", rank=print_rank)
 
-    if save_vis or save_model and save_dir is None:
-        save_dir = output_dir
+    if save_vis or save_model:
+        if save_dir is None:
+            save_dir = sampler_dir
+        elif not isinstance(save_dir, Path):
+            save_dir = Path(save_dir)
+        save_dir.mkdir(exist_ok=True, parents=True)
 
     mpiprint("\n", Panel("Data and Noise"), rank=print_rank)
     vis_dict = get_vis_data(
@@ -611,7 +620,7 @@ def run_setup(
         ps_box_size_dec_Mpc=ps_box_size_dec_Mpc,
         ps_box_size_para_Mpc=ps_box_size_para_Mpc,
         save_k_vals=save_k_vals,
-        output_dir=output_dir,
+        output_dir=sampler_dir,
         clobber=clobber,
         verbose=verbose,
         rank=rank
@@ -780,7 +789,7 @@ def run_setup(
         rank=rank
     )
 
-    return_vals = (pspp, output_dir)
+    return_vals = (pspp, sampler_dir)
     if return_vis:
         return_vals += (vis_dict,)
     if return_ks:

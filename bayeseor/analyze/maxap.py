@@ -72,7 +72,11 @@ class MaximumAPosteriori(object):
                 raise FileNotFoundError(f"{array_dir} does not exist")
         
         res = run_setup(
-            **args, return_vis=return_vis, return_bm=True
+            **args,
+            return_vis=return_vis,
+            return_bm=True,
+            save_k_vals=False,
+            mkdir=False
         )
         pspp = res[0]
         # FIXME: add `mkdir` kwarg to `run_setup` to avoid creating/returning
