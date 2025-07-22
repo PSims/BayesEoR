@@ -215,23 +215,23 @@ def run_setup(
         Antenna downselect string. This determines what baselines to keep in
         the data vector. Please see `pyuvdata.UVData.select` for more details.
         Defaults to 'cross' (cross-correlation baselines only).
-    bl_cutoff : :class:`astropy.Quantity` or float, optional
+    bl_cutoff : astropy.Quantity or float, optional
         Baseline length cutoff in meters if not a Quantity. Defaults to None
         (keep all baselines).
     freq_idx_min : int, optional
         Minimum frequency channel index to keep in the data vector. Defaults
         to None (keep all frequencies).
-    freq_min : :class:`astropy.Quantity` or float, optional
+    freq_min : astropy.Quantity or float, optional
         Minimum frequency to keep in the data vector in hertz if not a
         Quantity. All frequencies greater than or equal to `freq_min` will be
         kept, unless `nf` is specified. Defaults to None (keep all
         frequencies).
-    freq_center : :class:`astropy.Quantity` or float, optional
+    freq_center : astropy.Quantity or float, optional
         Central frequency, in hertz if not a Quantity, around which `nf`
         frequencies will be kept in the data vector. `nf` must also be
         passed, otherwise an error is raised. Defaults to None (keep all
         frequencies).
-    df : :class:`astropy.Quantity` or float, optional
+    df : astropy.Quantity or float, optional
         Frequency channel width in hertz if not a Quantity. Required if
         `data_path` points to a preprocessed data vector with a '.npy' suffix.
         Overwritten by the frequency channel width in the UVData object if
@@ -240,14 +240,14 @@ def run_setup(
     jd_idx_min : int, optional
         Minimum time index to keep in the data vector. Defaults to None (keep
         all times).
-    jd_min : :class:`astropy.Time` or float, optional
+    jd_min : astropy.Time or float, optional
         Minimum time to keep in the data vector as a Julian date if not a Time.
         Defaults to None (keep all times).
-    jd_center : :class:`astropy.Time` or float, optional
+    jd_center : astropy.Time or float, optional
         Central time, as a Julian date if not a Time, around which `nt`
         times will be kept in the data vector. `nt` must also be passed,
         otherwise an error is raised. Defaults to None (keep all times).
-    dt : :class:`astropy.Quantity` or float, optional
+    dt : astropy.Quantity or float, optional
         Integration time in seconds of not a Quantity. Required if `data_path`
         points to a preprocessed data vector with a '.npy' suffix. Overwritten
         by the integration time in the UVData object if `data_path` points to
@@ -269,7 +269,7 @@ def run_setup(
         Create a "phasor vector" which can be used to phase each visibility
         in the data vector as a function of baseline, time, and frequency via
         element-wise multiplication. Defaults to False.
-    phase_time : :class:`astropy.Time` or float, optional
+    phase_time : astropy.Time or float, optional
         The time to which the visibilities will be phased as a Julian date if
         not a Time. If `phase` is True and `phase_time` is None, `phase_time`
         will be automatically set to the central time in the data. Defaults to
@@ -394,7 +394,7 @@ def run_setup(
 
     Returns
     -------
-    pspp : :class:`bayeseor.posterior.PowerSpectrumPosteriorProbability`
+    pspp : :class:`.posterior.PowerSpectrumPosteriorProbability`
         Posterior probability class instance.
     sampler_dir : pathlib.Path
         Path to sampler output directory, ``Path(output_dir) / file_root``.
@@ -407,18 +407,21 @@ def run_setup(
         the number of redundant baselines averaged in each (u, v, w)
         ('redundancy'), the frequencies in hertz ('freqs'), the frequency
         channel width in hertz ('df'), the Julian dates ('jds'), the
-        integration time in seconds ('dt'), the phasor vector if `phase` is
-        True ('phasor'), the telescope name if `data_path` points to a
-        pyuvdata-compatible file with a valid telescope name attribute, and
-        the UVData object if `data_path` points to a pyuvdata-compatible file
-        and `return_uvd` is True. Returned only if `return_vis` is True.
+        integration time in seconds ('dt'), baseline antenna pairs for each
+        (u, v, w) ('antpairs') if `inst_model` contains a file 'antpairs.npy'
+        or if `data_path` points to a pyuvdata-compatible file, the phasor
+        vector if `phase` is True ('phasor'), the telescope name if `data_path`
+        points to a pyuvdata-compatible file with a valid telescope name
+        attribute, and the UVData object if `data_path` points to a
+        pyuvdata-compatible file and `return_uvd` is True. Returned only if
+        `return_vis` is True.
     k_vals : numpy.ndarray
         Mean of each k bin. Returned only if `return_ks` is True.
     k_cube_voxels_in_bin : list
         List of sublists containing the flattened 3D k-space cube index of all
         |k| that fall within a given k bin. Returned only if `return_ks` is
         True.
-    bm : :class:`bayeseor.matrices.BuildMatrices`
+    bm : :class:`.matrices.build.BuildMatrices`
         Matrix building class instance. Returned only if `return_bm` is True.
 
     """
@@ -967,19 +970,19 @@ def get_vis_data(
         Antenna downselect string. This determines what baselines to keep in
         the data vector. Please see `pyuvdata.UVData.select` for more details.
         Defaults to 'cross' (cross-correlation baselines only).
-    bl_cutoff : :class:`astropy.Quantity` or float, optional
+    bl_cutoff : astropy.Quantity or float, optional
         Baseline length cutoff in meters if not a Quantity. Defaults to None
         (keep all baselines).
     freq_idx_min : int, optional
         Minimum frequency channel index to keep in the data vector. Defaults
         to None (keep all frequencies).
-    freq_min : :class:`astropy.Quantity` or float, optional
+    freq_min : astropy.Quantity or float, optional
         Minimum frequency to keep in the data vector in hertz if not a
         Quantity. All frequencies greater than or equal to `freq_min` will be
         kept, unless `nf` is specified. Required if `data_path` points to a
         preprocessed data vector with a '.npy' suffix. Defaults to None (keep
         all frequencies).
-    freq_center : :class:`astropy.Quantity` or float, optional
+    freq_center : astropy.Quantity or float, optional
         Central frequency, in hertz if not a Quantity, around which `nf`
         frequencies will be kept in the data vector. `nf` must also be
         passed, otherwise an error is raised. Defaults to None (keep all
@@ -990,7 +993,7 @@ def get_vis_data(
         number of frequencies to keep starting from `freq_idx_min`, the
         channel corresponding to `freq_min`, or around `freq_center`.
         Defaults to None (keep all frequencies).
-    df : :class:`astropy.Quantity` or float, optional
+    df : astropy.Quantity or float, optional
         Frequency channel width in hertz if not a Quantity. Required if
         `data_path` points to a preprocessed data vector with a '.npy' suffix.
         Overwritten by the frequency channel width in the UVData object if
@@ -999,10 +1002,10 @@ def get_vis_data(
     jd_idx_min : int, optional
         Minimum time index to keep in the data vector. Defaults to None (keep
         all times).
-    jd_min : :class:`astropy.Time` or float, optional
+    jd_min : astropy.Time or float, optional
         Minimum time to keep in the data vector as a Julian date if not a Time.
         Defaults to None (keep all times).
-    jd_center : :class:`astropy.Time` or float, optional
+    jd_center : astropy.Time or float, optional
         Central time, as a Julian date if not a Time, around which `nt`
         times will be kept in the data vector. `nt` must also be passed,
         otherwise an error is raised. Defaults to None (keep all times).
@@ -1011,7 +1014,7 @@ def get_vis_data(
         vector with a '.npy' suffix. Otherwise, sets the number of times to
         keep starting from `jd_idx_min`, the time corresponding to `jd_min`
         or around `jd_center`. Defaults to None (keep all times).
-    dt : :class:`astropy.Quantity` or float, optional
+    dt : astropy.Quantity or float, optional
         Integration time in seconds of not a Quantity. Required if `data_path`
         points to a preprocessed data vector with a '.npy' suffix. Overwritten
         by the integration time in the UVData object if `data_path` points to
@@ -1033,7 +1036,7 @@ def get_vis_data(
         Create a "phasor vector" which can be used to phase each visibility
         in the data vector as a function of baseline, time, and frequency via
         element-wise multiplication. Defaults to False.
-    phase_time : :class:`astropy.Time` or float, optional
+    phase_time : astropy.Time or float, optional
         The time to which the visibilities will be phased as a Julian date if
         not a Time. If `phase` is True and `phase_time` is None, `phase_time`
         will be automatically set to the central time in the data. Defaults to
@@ -1095,6 +1098,9 @@ def get_vis_data(
         - df: frequency channel width in Hz
         - jds: Julian dates
         - dt: integration time in seconds
+        - antpairs: optional baseline antenna pairs for each (u, v, w) if
+          `inst_model` contains a file 'antpairs.npy' or if `data_path` points
+          to a pyuvdata-compatible file
         - phasor: optional phasor vector if `phased` is True with shape
           (nf*nbls*nt,)
         - tele_name: optional telescope name if `data_path` points to a
@@ -1164,7 +1170,7 @@ def get_vis_data(
                 f"Reading instrument model from: {inst_model}",
                 rank=print_rank
             )
-            uvws, redundancy, phasor = load_inst_model(inst_model)
+            uvws, redundancy, antpairs, phasor = load_inst_model(inst_model)
 
             if noise_data_path is not None:
                 if not isinstance(noise_data_path, Path):
@@ -1194,7 +1200,7 @@ def get_vis_data(
                 style="bold",
                 rank=print_rank
             )
-            vis, _, uvws, redundancy, phasor, noise, uvd = \
+            vis, antpairs, uvws, redundancy, phasor, noise, uvd = \
                 preprocess_uvdata(
                     data_path,
                     ant_str=ant_str,
@@ -1276,6 +1282,8 @@ def get_vis_data(
             "jds": jds,
             "dt": dt,
         }
+        if antpairs is not None:
+            vis_dict["antpairs"] = antpairs
         if vis_noisy is not None:
             vis_dict["vis_noisy"] = vis_noisy
         if phase:
@@ -1900,7 +1908,7 @@ def build_matrices(
 
     Returns
     -------
-    bm : :class:`bayeseor.matrices.build.BuildMatrices`
+    bm : :class:`.matrices.build.BuildMatrices`
         BuildMatrices class instance used to construct the matrix stack.
 
     """
@@ -2172,7 +2180,7 @@ def build_posterior(
     
     Returns
     -------
-    pspp : :class:`bayeseor.posterior.PowerSpectrumPosteriorProbability`
+    pspp : :class:`.posterior.PowerSpectrumPosteriorProbability`
         Posterior probability class instance.
 
     """
