@@ -1,5 +1,6 @@
 """ Class and functions for performing maximum a posteriori calculations. """
 import numpy as np
+from numpy.typing import ArrayLike
 from astropy import units
 from astropy.time import Time
 from pathlib import Path
@@ -138,9 +139,9 @@ class MaximumAPosteriori(object):
     
     def map_estimate(
         self,
-        ps=None,
-        dmps=None,
-        return_prior_cov=False
+        ps : float | ArrayLike | None = None,
+        dmps : float | ArrayLike | None = None,
+        return_prior_cov : bool = False
     ):
         r"""
         Calculate the maximum a posteriori (MAP) model coefficients.
@@ -150,11 +151,11 @@ class MaximumAPosteriori(object):
 
         Parameters
         ----------
-        ps : float or array-like
+        ps : float or array-like, optional
             Expected power spectrum, :math:`P(k)`. Can be a single float (for
             a flat power spectrum) or an array-like with shape
             `(self.k_vals.size,)`. Required if `dmps` is None.
-        dmps : float or array-like
+        dmps : float or array-like, optional
             Expected dimensionless power spectrum, :math:`\Delta^2(k)`. Can be
             a single float (for a flat dimensionless power spectrum) or an
             array-like with shape `(self.k_vals.size,)`. Required if `ps` is
@@ -209,19 +210,19 @@ class MaximumAPosteriori(object):
 
     def calculate_prior_covariance(
         self,
-        ps=None,
-        dmps=None,
+        ps : float | ArrayLike | None = None,
+        dmps : float | ArrayLike | None = None
     ):
         r"""
         Calculate the prior covariance matrix :math:`\Phi^{-1}`.
 
         Parameters
         ----------
-        ps : float or array-like
+        ps : float or array-like, optional
             Expected power spectrum, :math:`P(k)`. Can be a single float (for
             a flat power spectrum) or an array-like with shape
             `(self.k_vals.size,)`. Required if `dmps` is None.
-        dmps : float or array-like
+        dmps : float or array-like, optional
             Expected dimensionless power spectrum, :math:`\Delta^2(k)`. Can be
             a single float (for a flat dimensionless power spectrum) or an
             array-like with shape `(self.k_vals.size,)`. Required if `ps` is
@@ -240,17 +241,21 @@ class MaximumAPosteriori(object):
 
         return PhiI
     
-    def calculate_dmps(self, ps=None, dmps=None):
+    def calculate_dmps(
+        self,
+        ps : float | ArrayLike | None = None,
+        dmps : float | ArrayLike | None = None
+    ):
         r"""
         Calculated the expected dimensionless power spectrum.
 
         Parameters
         ----------
-        ps : float or array-like
+        ps : float or array-like, optional
             Expected power spectrum, :math:`P(k)`. Can be a single float (for
             a flat power spectrum) or an array-like with shape
             `(self.k_vals.size,)`. Required if `dmps` is None.
-        dmps : float or array-like
+        dmps : float or array-like, optional
             Expected dimensionless power spectrum, :math:`\Delta^2(k)`. Can be
             a single float (for a flat dimensionless power spectrum) or an
             array-like with shape `(self.k_vals.size,)`. Required if `ps` is
@@ -289,3 +294,53 @@ class MaximumAPosteriori(object):
                 dmps *= np.ones_like(self.k_vals)
 
         return dmps
+
+    def extract_bl_vis(self, vis_vec : np.ndarray):
+        """
+        Form a dictionary of visibility waterfalls indexed by baseline.
+
+        The input visibility vector should have shape `(nbls*nf*nt,)` where
+        `nbls` is the number of baselines, `nf` the number of frequencies, and
+        `nt` the number of times. The ordering of the visibility vector is
+        expected to follow the ordering of the visibilities in `Finv`, i.e.
+        the first `nbls` visibilities correspond to all baselines at the
+        0th frequency and 0th time, the second `nbls` visibilities
+        correspond to all baselines at the 1st frequency and 0th time, etc.
+        The baseline axis evolves most rapidly, then frequency, and then
+        time. In this ordering, a visibility waterfall for the i-th indexed
+        baseline, `i_bl`, with shape `(nt, nf)` can be obtained via
+
+        .. code_block:: python
+
+            bl_vis = vis_vec[i_bl::nbls].reshape(nt, nf)
+
+        Parameters
+        ----------
+        vis_vec : numpy.ndarray
+            Visibility vector with shape `(nbls*nf*nt,)`.
+
+        Returns
+        -------
+        bl_vis : dict
+            Dictionary with keys of either baseline index or antenna pair tuple
+            if `self.antpairs` exists.
+        """
+        nf = self.freqs.size
+        nt = self.jds.size
+        nbls = self.uvws.shape[1]
+
+        if vis_vec.shape != (nbls*nf*nt,):
+            raise ValueError(
+                f"Shape mistmatch: `vis_vec` is expected to have shape "
+                f"{(nbls*nf*nt,)} but has shape {vis_vec.shape}"
+            )
+
+        bl_vis = {}
+        for i_bl in range(nbls):
+            if hasattr(self, "antpairs"):
+                key = self.antpairs[i_bl]
+            else:
+                key = i_bl
+            bl_vis[key] = vis_vec[i_bl::nbls].reshape(nt, nf)
+
+        return bl_vis
