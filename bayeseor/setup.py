@@ -105,6 +105,7 @@ def run_setup(
     use_EoR_cube : bool = False,
     use_Multinest : bool = True,
     return_vis : bool = False,
+    return_uvd : bool = False,
     return_ks : bool = False,
     return_bm : bool = False,
     verbose : bool = False,
@@ -367,14 +368,17 @@ def run_setup(
         Use MultiNest sampler (True) or PolyChord (False). Support for
         PolyChord will be added in the future. Defaults to True.
     return_vis : bool, optional
-        Return a dictionary with value (key) pairs of: the visibility vector
-        ('vis'), the noise ('noise'), noisy visibilities if `noise_data_path`
-        is None and `sigma` is not None ('vis_noisy'), a dictionary containing
-        the array index mapping of conjugated baselines in the visibility 
-        vector ('bl_conj_pairs_map'), the instrumentally sampled (u, v, w)
-        ('uvws'), the number of redundant baselines averaged in each (u, v, w)
-        ('redundancy'), the frequency channel width ('df'), the integration
-        time ('dt'), and the phasor vector ('phasor') if `phase` is True.
+        Return a dictionary, `vis_dict`, with value (key) pairs of: the
+        visibility vector ('vis'), the noise ('noise'), noisy visibilities if
+        `noise_data_path` is None and `sigma` is not None ('vis_noisy'), a
+        dictionary containing the array index mapping of conjugated baselines
+        in the visibility vector ('bl_conj_pairs_map'), the instrumentally
+        sampled (u, v, w) ('uvws'), the number of redundant baselines averaged
+        in each (u, v, w) ('redundancy'), the frequency channel width ('df'),
+        the integration time ('dt'), and the phasor vector ('phasor') if
+        `phase` is True. Defaults to False.
+    return_uvd : bool, optional
+        Return the UVData object as part of `vis_dict` if `return_vis` is True.
         Defaults to False.
     return_ks : bool, optional
         Return the mean of each k bin and a list of sublists containing the
@@ -558,6 +562,7 @@ def run_setup(
         clobber=clobber,
         noise_data_path=noise_data_path,
         inst_model=inst_model,
+        return_uvd=return_uvd,
         verbose=verbose,
         rank=rank,
     )
@@ -1239,6 +1244,7 @@ def get_vis_data(
 
             jds = Time(np.unique(uvd.time_array), format="jd")
             dt = (jds[1] - jds[0]).to("s").value
+            jds = jds.jd
 
             try:
                 # Old versions of pyuvdata use telescope_name atribute which
