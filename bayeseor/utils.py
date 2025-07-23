@@ -98,7 +98,14 @@ def write_log_files(parser, args, out_dir=Path("./"), verbose=False):
         print(f"Log files written successfully to {out_dir.absolute()}\n")
 
 
-def save_numpy_dict(fp, arr, args, version=__version__, clobber=False):
+def save_numpy_dict(
+    fp,
+    arr,
+    args,
+    version=__version__,
+    extra=None,
+    clobber=False
+):
     """
     Save array to disk with metadata as dictionary.
 
@@ -111,9 +118,11 @@ def save_numpy_dict(fp, arr, args, version=__version__, clobber=False):
     args : dict
         Dictionary of associated metadata.
     version : str
-        Version string.  Defaults to ``__version__``.
+        Version string. Defaults to ``__version__``.
+    extra : dict
+        Dictionary of extra info. Defaults to None.
     clobber : bool, optional
-        Clobber file if it exists.  Defaults to False.
+        Clobber file if it exists. Defaults to False.
 
     """
     if not isinstance(fp, Path):
@@ -122,15 +131,23 @@ def save_numpy_dict(fp, arr, args, version=__version__, clobber=False):
         raise ValueError(
             f"clobber is false but file already exists: {fp}"
         )
+    if extra is not None:
+        if not isinstance(extra, dict):
+            raise ValueError("extra must be a dictionary")
+
     if not fp.parent.exists():
         fp.parent.mkdir(exist_ok=True, parents=True)
 
-    np.save(fp, {"data": arr, "args": args, "version": version})
+    out_dict = {"data": arr, "args": args, "version": version}
+    if extra is not None:
+        out_dict.update({"extra": extra})
+
+    np.save(fp, out_dict)
 
 
 def load_numpy_dict(fp):
     """
-    Load array from disk saved via :func:`.save_numpy_dict`.
+    Load data array from disk saved via :func:`.save_numpy_dict`.
 
     Parameters
     ----------

@@ -3,6 +3,7 @@ from astropy import units
 from astropy.units import Quantity
 from astropy.time import Time
 from pathlib import Path
+from pyuvdata import __version__ as pyuvdata_version
 from pyuvdata import UVData
 from pyuvdata.utils import polstr2num
 import warnings
@@ -548,26 +549,35 @@ def preprocess_uvdata(
             uniform_redundancy=uniform_redundancy,
             phase=phase,
             phase_time=phase_time,
-            calc_noise=calc_noise
+            calc_noise=calc_noise,
         )
+        extra = dict(pyuvdata_version=pyuvdata_version)
     if save_vis:
         mpiprint(f"\nSaving data vector(s) to disk:", rank=print_rank)
         mpiprint(f"\tVisibility vector: {vis_path}", rank=print_rank)
-        save_numpy_dict(vis_path, vis, args, clobber=clobber)
+        save_numpy_dict(vis_path, vis, args, extra=extra, clobber=clobber)
         if calc_noise:
             mpiprint(f"\tNoise vector: {noise_path}", rank=print_rank)
-            save_numpy_dict(noise_path, noise, args, clobber=clobber)
+            save_numpy_dict(
+                noise_path, noise, args, extra=extra, clobber=clobber
+            )
     if save_model:
         mpiprint(f"\nSaving instrument model to disk:", rank=print_rank)
         mpiprint(f"\tAntpairs: {ants_path}", rank=print_rank)
-        save_numpy_dict(ants_path, antpairs, args, clobber=clobber)
+        save_numpy_dict(
+            ants_path, antpairs, args, extra=extra, clobber=clobber
+        )
         mpiprint(f"\t(u, v, w) model: {uvw_path}", rank=print_rank)
-        save_numpy_dict(uvw_path, uvws, args, clobber=clobber)
+        save_numpy_dict(uvw_path, uvws, args, extra=extra, clobber=clobber)
         mpiprint(f"\tRedundancy model: {red_path}", rank=print_rank)
-        save_numpy_dict(red_path, redundancy, args, clobber=clobber)
+        save_numpy_dict(
+            red_path, redundancy, args, extra=extra, clobber=clobber
+        )
         if phase:
             mpiprint(f"\tPhasor vector: {phasor_path}", rank=print_rank)
-            save_numpy_dict(phasor_path, phasor, args, clobber=clobber)
+            save_numpy_dict(
+                phasor_path, phasor, args, extra=extra, clobber=clobber
+            )
     
     return_vals = (vis, antpairs, uvws, redundancy, phasor, noise)
     if return_uvd:
