@@ -10,16 +10,20 @@ from bayeseor.params import BayesEoRParser
 from bayeseor.run import run
 from bayeseor.setup import run_setup
 from bayeseor.utils import mpiprint, write_log_files
+from bayeseor import __version__ as bayeseor_version
 
 if __name__ == "__main__":
     from mpi4py import MPI
     mpi_comm = MPI.COMM_WORLD
     rank = mpi_comm.Get_rank()
     mpi_size = mpi_comm.Get_size()
-    mpiprint(f"\nmpi_size: {mpi_size}", rank=rank, end="\n\n")
 else:
     # Skip mpi and other imports that can cause crashes in ipython
     rank = 0
+    mpi_size = 1
+
+mpiprint(f"\nbayeseor version = {bayeseor_version}", rank=rank)
+mpiprint(f"\n{mpi_size = }", rank=rank, end="\n\n")
 
 parser = BayesEoRParser()
 args = parser.parse_args()
