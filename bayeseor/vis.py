@@ -69,18 +69,18 @@ def preprocess_uvdata(
         Antenna downselect string. This determines what baselines to keep in
         the data vector. Please see `pyuvdata.UVData.select` for more details.
         Defaults to 'cross' (cross-correlation baselines only).
-    bl_cutoff : :class:`astropy.Quantity` or float, optional
+    bl_cutoff : astropy.Quantity or float, optional
         Baseline length cutoff in meters if not a Quantity. Defaults to None
         (keep all baselines).
     freq_idx_min : int, optional
         Minimum frequency channel index to keep in the data vector. Defaults
         to None (keep all frequencies).
-    freq_min : :class:`astropy.Quantity` or float, optional
+    freq_min : astropy.Quantity or float, optional
         Minimum frequency to keep in the data vector in Hertz if not a
         Quantity. All frequencies greater than or equal to `freq_min` will be
         kept, unless `Nfreqs` is specified. Defaults to None (keep all
         frequencies).
-    freq_center : :class:`astropy.Quantity` or float, optional
+    freq_center : astropy.Quantity or float, optional
         Central frequency, in Hertz if not a Quantity, around which `Nfreqs`
         frequencies will be kept in the data vector. `Nfreqs` must also be
         passed, otherwise an error is raised. Defaults to None (keep all
@@ -92,10 +92,10 @@ def preprocess_uvdata(
     jd_idx_min : int, optional
         Minimum time index to keep in the data vector. Defaults to None (keep
         all times).
-    jd_min : :class:`astropy.Time` or float, optional
+    jd_min : astropy.Time or float, optional
         Minimum time to keep in the data vector as a Julian date if not a Time.
         Defaults to None (keep all times).
-    jd_center : :class:`astropy.Time` or float, optional
+    jd_center : astropy.Time or float, optional
         Central time, as a Julian date if not a Time, around which `Ntimes`
         times will be kept in the data vector. `Ntimes` must also be passed,
         otherwise an error is raised. Defaults to None (keep all times).
@@ -120,7 +120,7 @@ def preprocess_uvdata(
         Create a "phasor vector" which can be used to phase each visibility
         in the data vector as a function of baseline, time, and frequency via
         element-wise multiplication. Defaults to False.
-    phase_time : :class:`astropy.Time` or float, optional
+    phase_time : astropy.Time or float, optional
         The time to which the visibilities will be phased as a Julian date if
         not a Time. If `phase` is True and `phase_time` is None, `phase_time`
         will be automatically set to the central time in the data. Defaults to
@@ -149,25 +149,25 @@ def preprocess_uvdata(
 
     Returns
     -------
-    vis : :class:`numpy.ndarray`
+    vis : numpy.ndarray
         Visibility vector with shape (2*Nbls*Nfreqs*Ntimes,).
     antpairs : list of tuple
         List of antenna pair tuples corresponding to the (u, v, w) coordinates
         in `uvws`, in identical order, with length (2*Nbls).
-    uvws : :class:`numpy.ndarray`
+    uvws : numpy.ndarray
         Sampled (u, v, w) coordinates with shape (Ntimes, 2*Nbls, 3). The
         ordering of the Nbls axis matches the ordering of the baselines in
         `vis_vec`.
-    redundancy : :class:`numpy.ndarray`
+    redundancy : numpy.ndarray
         Redundancy model containing the number of baselines averaged within
         a redundant baseline group.
-    phasor : :class:`numpy.ndarray`
+    phasor : numpy.ndarray
         Phasor vector which can be multiplied element-wise into `vis` to form
         phased visibilities. Returned only if `phase` is True.
-    noise : :class:`numpy.ndarray`
+    noise : numpy.ndarray
         Estimated noise vector with shape (2*Nbls*Nfreqs*Ntimes,). Returned
         only if `calc_noise` is True.
-    uvd : :class:`pyuvdata.UVData`
+    uvd : pyuvdata.UVData
         Preprocessed UVData object.  Returned only if `return_uvd` is True.
 
     """
@@ -490,7 +490,13 @@ def preprocess_uvdata(
     # fail if we ever analyze data with baseline-dependent averaging.
     if uvd.blt_order != ("time", "baseline"):
         uvd.reorder_blts(order="time")
-    antpairs = uvd.get_antpairs()
+    # Different versions of pyuvdata can produce different baseline orderings
+    # via UVData.get_antpairs(). Sorting antenna pair tuples (ant1, ant2) by
+    # ant1 and then ant2 should prevent this from being an issue when
+    # comparing data vectors using different pyuvdata versions.
+    antpairs = sorted(
+        uvd.get_antpairs(), key=lambda element: (element[0], element[1])
+    )
     Nbls = uvd.Nbls
     Nbls_vec = 2*Nbls
     
@@ -515,12 +521,10 @@ def preprocess_uvdata(
                 if bl in bls:
                     redundancy[:, i_bl] = len(bls)
                     redundancy[:, Nbls+i_bl] = len(bls)
-    # Add conjugated antenna pairs to antpairs for a one-to-one mapping
-    # with the (u, v, w) coordinates in uvws
-    antpairs += [antpair[::-1] for antpair in antpairs]
     
     vis, phasor, noise = uvd_to_vector(
         uvd,
+        antpairs,
         pol=pol,
         phase=phase,
         phase_time=phase_time,
@@ -562,6 +566,9 @@ def preprocess_uvdata(
                 noise_path, noise, args, extra=extra, clobber=clobber
             )
     if save_model:
+        # Add conjugated antenna pairs to antpairs for a one-to-one mapping
+        # with the (u, v, w) coordinates in uvws
+        antpairs += [antpair[::-1] for antpair in antpairs]
         mpiprint(f"\nSaving instrument model to disk:", rank=print_rank)
         mpiprint(f"\tAntpairs: {ants_path}", rank=print_rank)
         save_numpy_dict(
@@ -588,6 +595,7 @@ def preprocess_uvdata(
 
 def uvd_to_vector(
     uvd,
+    antpairs,
     pol="xx",
     phase=False,
     phase_time=False,
@@ -596,13 +604,16 @@ def uvd_to_vector(
     rank=0
 ):
     """
-    Form a one-dimensional data vector from a :class:`pyuvdata.UVData` object.
+    Form a one-dimensional data vector from a pyuvdata.UVData object.
 
     Parameters
     ----------
-    uvd : :class:`pyuvdata.UVData`
+    uvd : pyuvdata.UVData
         UVData object containing unphased visibilities for a single
         polarization specified by `pol`.
+    antpairs : list of tuple
+        List of antenna pair tuples. Determines the baseline ordering in
+        the data vector.
     pol : str, optional
         Case-insensitive polarization string. Defaults to 'xx'.
     save_vis : bool, optional
@@ -618,7 +629,7 @@ def uvd_to_vector(
         Create a "phasor vector" which is created identically to the data
         vector which can be used to phase each visibility as a function of
         baseline, time, and frequency using element-wise multiplication.
-    phase_time : :class:`astropy.Time` or float, optional
+    phase_time : astropy.Time or float, optional
         The time to which the visibilities will be phased as a Julian date if
         not a Time. Defaults to None (phase visibilities to the central time
         if `phase` is True).
@@ -632,12 +643,12 @@ def uvd_to_vector(
     
     Returns
     -------
-    vis_vec : :class:`numpy.ndarray`
+    vis_vec : numpy.ndarray
         Visibility vector with shape (Nbls*Nfreqs*Ntimes,).
-    phasor_vec : :class:`numpy.ndarray`
+    phasor_vec : numpy.ndarray
         Phasor vector which can be multiplied element-wise into `vis` to form
         phased visibilities. Returned only if `phase` is True.
-    noise_vec : :class:`numpy.ndarray`
+    noise_vec : numpy.ndarray
         Estimated noise vector with shape (Nbls*Nfreqs*Ntimes,). Returned only
         if `calc_noise` is True.
 
@@ -653,8 +664,6 @@ def uvd_to_vector(
     # Check if the frequency array has the Nspws axis for
     # backwards compatibility with old versions of pyuvdata
     trim_nspws_ax = len(uvd.freq_array.shape) > 1
-
-    antpairs = uvd.get_antpairs()
 
     if phase:
         uvd_phasor = uvd.copy()
@@ -761,7 +770,7 @@ def form_pI_vis(uvd, norm=1.0):
 
     Parameters
     ----------
-    uvd : :class:`pyuvdata.UVData`
+    uvd : pyuvdata.UVData
         UVData object containing XX and YY polarization visibilities.
     norm : float, optional
         Normalization, ``N``, used in forming pseudo-Stokes I from XX and YY
@@ -769,7 +778,7 @@ def form_pI_vis(uvd, norm=1.0):
 
     Returns
     -------
-    uvd : :class:`pyuvdata.UVData`
+    uvd : pyuvdata.UVData
         UVData object containing pI visibilities.
 
     """
@@ -793,10 +802,10 @@ def jy_to_ksr(data, freqs, mK=False):
 
     Parameters
     ----------
-    data : :class:`numpy.ndarray`
+    data : numpy.ndarray
         Two-dimensional array of visibilities with frequency on the second
         axis, i.e. `data` has shape (Ntimes, Nfreqs) or (Nbls*Ntimes, Nfreqs).
-    freqs : :class:`astropy.Quantity` or :class:`numpy.ndarray`
+    freqs : astropy.Quantity or numpy.ndarray
         Frequencies along the second axis of `data` in Hertz if not a Quantity.
     mK : bool, optional
         Return data in milikelvin units, i.e. mK sr. Defaults to False (data
@@ -804,7 +813,7 @@ def jy_to_ksr(data, freqs, mK=False):
 
     Returns
     -------
-    data : :class:`numpy.ndarray`
+    data : numpy.ndarray
         Visibilities in units of K sr (or mK sr if `mK` is True).
 
     """
@@ -855,9 +864,9 @@ def mock_data_from_eor_cube(
 
     Returns
     -------
-    s : :class:`numpy.ndarray` of complex floats
+    s : numpy.ndarray of complex floats
         Signal vector of visibilities generated from the 21cmFAST cube.
-    eor_cube : :class:`numpy.ndarray` of floats
+    eor_cube : numpy.ndarray of floats
         Full 21cmFAST cube.
 
     Notes
@@ -917,7 +926,7 @@ def generate_mock_eor_signal_instrumental(
 
     Parameters
     ----------
-    Finv : :class:`numpy.ndarray` of complex floats
+    Finv : numpy.ndarray of complex floats
         2D non-uniform DFT matrix describing the transformation from
         (l, m, n, f) to instrumentally sampled, phased (u, v, w, f) space.
     nf : int
@@ -947,10 +956,10 @@ def generate_mock_eor_signal_instrumental(
 
     Returns
     -------
-    s : :class:`numpy.ndarray` of complex floats
+    s : numpy.ndarray of complex floats
         Signal vector of visibilities generated from the white noise sky
         realization.
-    white_noise_sky : :class:`numpy.ndarray` of floats
+    white_noise_sky : numpy.ndarray of floats
         White noise sky realization.
 
     """
