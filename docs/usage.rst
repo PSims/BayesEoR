@@ -55,17 +55,17 @@ pyuvdata-Compatible File
 
 Visibilities can be read via ``pyuvdata`` in ``.uvh5``, ``.uvfits``, or ``.ms`` format (measurement set funcationality in ``pyuvdata`` requires an `optional dependency <https://pyuvdata.readthedocs.io/en/latest/index.html#dependencies>`_ of ``casacore``).  This is the recommended method for specifying input visibilities as no data preprocessing step is required (more on this in the subsection below).  The data can be downselected via a suite of configuration file (command line) arguments, a subset of which is presented here:
 
-1. ``ant_str`` (``--ant-str``): antenna downselect string (please see the ``pyuvdata.UVData.select`` `documentation <https://pyuvdata.readthedocs.io/en/latest/uvdata.html#pyuvdata.UVData.select>`_ for more details)
+1. ``ant_str`` (``--ant-str``): antenna downselect string
 2. ``bl_cutoff`` (``--bl-cutoff``): maximum baseline length, :math:`b=\sqrt{u^2 + v^2}`, in meters
-3. ``pol`` (``--pol``): polarization string, e.g. 'xx', 'yy', 'pI' (please see the ``pyuvdata.UVData.select`` `documentation <https://pyuvdata.readthedocs.io/en/latest/uvdata.html#pyuvdata.UVData.select>`_ for more details)
+3. ``pol`` (``--pol``): polarization string, e.g. 'xx', 'yy', 'pI'
 4. ``form_pI`` (``--form-pI``): form pseudo-Stokes I visibilities from XX and YY visibilities via `pI = N * (XX + YY)` where `N` is a user-specified normalization set via ``pI_norm`` (``--pI-norm``) which defaults to 1.0
-5. ``--redundant-avg`` (``redundant_avg``): redundantly average visibilities (please see the ``pyuvdata.UVData.compress_by_redundancy`` `documentation <https://pyuvdata.readthedocs.io/en/latest/uvdata.html#pyuvdata.UVData.compress_by_redundancy>`_ for more details)
+5. ``--redundant-avg`` (``redundant_avg``): redundantly average visibilities
 6. ``freq_min`` (``--freq-min``): minimum frequency in hertz
 7. ``nf`` (``--nf``): number of frequencies
 8. ``jd_min`` (``--jd-min``): minimum Julian date
 9. ``nt`` (``--nt``): number of times
 
-For a complete list of parameters, please see :ref:`all-parameters`.
+For a complete list of parameters, please see :ref:`all-parameters`.  For more information on the ``ant_str`` and ``pol`` arguments, please see the `pyuvdata.UVData.select documentation <https://pyuvdata.readthedocs.io/en/latest/uvdata.html#pyuvdata.UVData.select>`_.  For more information on the redundant averaging, please see the `pyuvdata.UVData.compress_by_redundancy documentation <https://pyuvdata.readthedocs.io/en/latest/uvdata.html#pyuvdata.UVData.compress_by_redundancy>`_.
 
 At runtime, a one-dimensional vector of visibilities, and the corresponding instrument model (see :ref:`inst-model` below), is formed based on the contents of the ``pyuvdata``-compatible file and the user-specified analysis parameters.  This visibility vector can be saved to disk for later use by setting the ``save_vis`` kwarg to True when calling ``bayeseor.setup.run_setup`` (or by setting ``save_vis: True`` in the configuration file (``--save-vis`` on the command line) when using the driver script).  The location in which the visibility vector is saved can be specified by the ``save_dir`` kwarg in ``bayeseor.setup.run_setup``.  By default, when using the driver script, the visibility vector will be saved to the output directory containing the sampler outputs if ``save_vis`` is True.
 

@@ -2155,8 +2155,10 @@ class BuildMatrices():
 
     def prepare_matrix_stack_for_deletion(self, src, clobber_matrices):
         """
-        Archive an existing matrix stack on disk by prepending 'delete_'
-        to the child directory.
+        Archive an existing matrix stack on disk.
+
+        Prepends 'delete\_' to the child directory of the matrix stack to be
+        archived.
 
         Parameters
         ----------

@@ -48,11 +48,11 @@ class PowerSpectrumPosteriorProbability(object):
         visibilities in model (u, v, eta) space computed as
         :math:`\bar{\boldsymbol{d}}=\mathbf{T}^\dagger\mathbf{N}^{-1}\mathbf{d}`.
     k_vals : numpy.ndarray
-        Mean of each k bin.
+        Mean of each :math:`k` bin.
     k_cube_voxels_in_bin : list
-        List containing sublists for each k bin.  Each sublist contains the
-        flattened 3D k-space cube index of all |k| that fall within a given
-        k bin.
+        List containing sublists for each :math:`k` bin.  Each sublist contains
+        the flattened 3D :math:`k`-cube index of all :math:`\vec{k}` that fall
+        within a given :math:`k` bin.
     nuv : int
         Number of model uv-plane pixels per frequency channel in the EoR model.
     neta : int
@@ -81,9 +81,9 @@ class PowerSpectrumPosteriorProbability(object):
         Assume priors on power spectrum coefficients are in log_10 units.
         Defaults to False.
     uprior_inds : numpy.ndarray, optional
-        Boolean 1D array that is True for any k bins using a uniform prior.
-        False entries use a log-uniform prior. Defaults to None (all k bins
-        use a log-uniform prior).
+        Boolean 1D array that is True for any :math:`k` bins using a uniform
+        prior. False entries use a log-uniform prior. Defaults to None (all
+        :math:`k` bins use a log-uniform prior).
     use_LWM_Gaussian_prior : bool, optional
         Use a Gaussian prior on the large spectral scale model (NOT
         IMPLEMENTED). Otherwise, use a uniform prior. Defaults to False.
@@ -270,8 +270,8 @@ class PowerSpectrumPosteriorProbability(object):
         T_Ninv_T_block : numpy.ndarray
             Single block matrix from block_T_Ninv_T.
         PhiI_block : numpy.ndarray
-            Vector of the estimated inverse variance of each k voxel present
-            in `T_Ninv_T_block`.
+            Vector of the estimated inverse variance of each :math:`k` voxel
+            present in `T_Ninv_T_block`.
 
         Returns
         -------
@@ -293,7 +293,7 @@ class PowerSpectrumPosteriorProbability(object):
         Parameters
         ----------
         i_bin : int
-            Spherically averaged k bin index.
+            Spherically averaged :math:`k` bin index.
 
         Returns
         -------
@@ -322,7 +322,8 @@ class PowerSpectrumPosteriorProbability(object):
         Parameters
         ----------
         x : array_like
-            Input power spectrum amplitudes per k bin with length `nDims`.
+            Input power spectrum amplitudes per :math:`k` bin with length
+            `nDims`.
 
         Returns
         -------
@@ -447,7 +448,8 @@ class PowerSpectrumPosteriorProbability(object):
         Parameters
         ----------
         x : array_like
-            Input power spectrum amplitudes per k bin with length `nDims`.
+            Input power spectrum amplitudes per :math:`k` bin with length
+            `nDims`.
         T_Ninv_T : numpy.ndarray
             Complex matrix product ``T.conjugate().T * Ninv * T``.
         dbar : numpy.ndarray
@@ -622,9 +624,9 @@ class PowerSpectrumPosteriorProbability(object):
             Noise weighted representation of the data (signal + noise) vector
             of visibilities in model (u, v, eta) space.
         x_for_error_checking : array_like
-            Input power spectrum amplitudes per k bin with length `nDims`
-            used for error checking of the matrix inversion.  Defaults to an
-            empty list (no error checking).
+            Input power spectrum amplitudes per :math:`k` bin with length
+            `nDims` used for error checking of the matrix inversion. Defaults
+            to an empty list (no error checking).
 
         Returns
         -------
@@ -698,7 +700,8 @@ class PowerSpectrumPosteriorProbability(object):
         Parameters
         ----------
         x : array_like
-            Input power spectrum amplitudes per k bin with length `nDims`.
+            Input power spectrum amplitudes per :math:`k` bin with length
+            `nDims`.
         block_T_Ninv_T : list
             Block diagonal representation of `T_Ninv_T`.  Only used if ignoring
             instrumental effects.  Defaults to an empty list.

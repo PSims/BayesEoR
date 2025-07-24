@@ -15,7 +15,7 @@ BuildMatrices
 
 Main class for building all of the necessary matrices used by BayesEoR.
 
-.. autoclass:: bayeseor.matrices.BuildMatrices
+.. autoclass:: bayeseor.matrices.build.BuildMatrices
     :members:
 
 Healpix
@@ -37,5 +37,5 @@ PowerSpectrumPosteriorProbability
 DataContainer
 -------------
 
-.. autoclass:: bayeseor.utils.analyze_results.DataContainer
+.. autoclass:: bayeseor.analyze.analyze.DataContainer
     :members:
