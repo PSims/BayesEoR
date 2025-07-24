@@ -1222,8 +1222,7 @@ class BuildMatrices():
         Notes
         -----
         * Used for the FG model in `Fprime`.
-        * `multi_chan_nuidft_fg` has shape
-          (npix_fg * nf, nuv_fg * nf)
+        * `multi_chan_nuidft_fg` has shape (npix_fg * nf, nuv_fg * nf)
 
         """
         matrix_name = "multi_chan_nuidft_fg"
@@ -1587,12 +1586,11 @@ class BuildMatrices():
         
         Notes
         -----
-        * `Finv_Fprime` has shape
-          - (ndata, nf*nuv_eor) if modelling the EoR only
-          - (ndata, nf*(nuv_eor + nuv_fg)) if modelling EoR + foregrounds
-          - (ndata, nf*(nuv_eor + nuv_fg) + nuv_sh*(nq_sh +
-            fit_for_shg_amps)) if modelling EoR + foregrounds + SHG.  Please
-            note that the SHG is not currently supported (see issue #50).
+        * `Finv_Fprime` has shape (ndata, nf*nuv_eor) if modelling the EoR
+          only, (ndata, nf*(nuv_eor + nuv_fg)) if modelling EoR + foregrounds,
+          (ndata, nf*(nuv_eor + nuv_fg) + nuv_sh*(nq_sh + fit_for_shg_amps))
+          if modelling EoR + foregrounds + SHG.  Please note that the SHG is
+          not currently supported (see issue #50).
 
         """
         nuv_eor = self.nu*self.nv - 1
