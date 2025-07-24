@@ -1,8 +1,8 @@
 Full Class List
 ===============
 
-Parameter Parsing
------------------
+BayesEoRParser
+--------------
 
 Parameter parsing of command line arguments and/or configuration files.
 
@@ -10,24 +10,32 @@ Parameter parsing of command line arguments and/or configuration files.
     :members:
     :noindex:
 
-Matrix Building
----------------
+BuildMatrices
+--------------
 
 Main class for building all of the necessary matrices used by BayesEoR.
 
 .. autoclass:: bayeseor.matrices.BuildMatrices
     :members:
 
-HEALPix Interface
------------------
+Healpix
+-------
 
 Class containing HEALPix functions for the image domain model.
 
 .. autoclass:: bayeseor.model.healpix.Healpix
     :members:
 
-Posterior Probability Calculations
-----------------------------------
+PowerSpectrumPosteriorProbability
+---------------------------------
 
 .. autoclass:: bayeseor.posterior.PowerSpectrumPosteriorProbability
+    :members:
+
+.. _datacontainer-class-def:
+
+DataContainer
+-------------
+
+.. autoclass:: bayeseor.utils.analyze_results.DataContainer
     :members:
