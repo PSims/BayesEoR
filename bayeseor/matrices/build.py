@@ -1595,17 +1595,20 @@ class BuildMatrices():
 
         The gridding matrix takes a :math:`(u, v, f)`-space vector that is
         vis-ordered:
-          - the first `neta` entries correspond to the spectrum of the zeroth
-            index model :math:`(u, v)` pixel
-          - the second `neta` entries correspond to the spectrum of the first
-            index model :math:`(u, v)` pixel
-          - etc.
+
+        * the first `neta` entries correspond to the spectrum of the zeroth
+          index model :math:`(u, v)` pixel
+        * the second `neta` entries correspond to the spectrum of the first
+          index model :math:`(u, v)` pixel
+        * etc.
+
         and converts it to chan ordered:
-          - the first 'nuv' entries correspond to the values of the model
-            :math:`(u, v)` plane at the zeroth frequency channel
-          - the second 'nuv' entries correspond to the values of the model
-            :math:`(u, v)` plane at the first frequency channel
-          - etc.
+
+        * the first 'nuv' entries correspond to the values of the model
+          :math:`(u, v)` plane at the zeroth frequency channel
+        * the second 'nuv' entries correspond to the values of the model
+          :math:`(u, v)` plane at the first frequency channel
+        * etc.
 
         Notes
         -----
@@ -1639,17 +1642,20 @@ class BuildMatrices():
 
         The gridding matrix takes a :math:`(u, v, f)`-space vector that is
         vis-ordered:
-          - the first `neta` entries correspond to the spectrum of the zeroth
-            index model :math:`(u, v)` pixel
-          - the second `neta` entries correspond to the spectrum of the first
-            index model :math:`(u, v)` pixel
-          - etc.
+
+        * the first `neta` entries correspond to the spectrum of the zeroth
+          index model :math:`(u, v)` pixel
+        * the second `neta` entries correspond to the spectrum of the first
+          index model :math:`(u, v)` pixel
+        * etc.
+
         and converts it to chan ordered:
-          - the first 'nuv' entries correspond to the values of the model
-            :math:`(u, v)` plane at the zeroth frequency channel
-          - the second 'nuv' entries correspond to the values of the model
-            :math:`(u, v)` plane at the first frequency channel
-          - etc.
+
+        * the first 'nuv' entries correspond to the values of the model
+          :math:`(u, v)` plane at the zeroth frequency channel
+        * the second 'nuv' entries correspond to the values of the model
+          :math:`(u, v)` plane at the first frequency channel
+        * etc.
 
         Notes
         -----
