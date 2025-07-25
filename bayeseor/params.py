@@ -22,11 +22,9 @@ class BayesEoRParser(ArgumentParser):
     Attributes
     ----------
 
-    # FIXME: update docstring to match updated parameters
+    General Parameters
 
-    General
-    *******
-    config : str, optional  # DONE
+    config : str, optional
         Path to a yaml configuration file containing any command line arguments
         below parsable by `jsonargparse.ArgumentParser`. Please note command
         line arguments use dashes '-' but the configuration yaml file requires
@@ -35,35 +33,29 @@ class BayesEoRParser(ArgumentParser):
         To specify the array directory prefix in the configuration yaml file,
         use `array_dir_prefix` instead.  For an example, please see the
         provided configuration yaml file `BayesEoR/example-config.yaml`.
-    verbose : bool, optional  # DONE
-        Print info/timing statements from posterior probability calulations.
-        Defaults to False.
-    clobber : bool, optional  # DONE
+    verbose : bool, optional
+        Verbose output. Defaults to False.
+    clobber : bool, optional
         Overwrite files if they exist. This includes the matrix stack, any
         existing preprocessed data/noise vectors, and instrument model files.
         Defaults to False.
 
-    Compute
-    *******
-    use_gpu : bool, optional  # DONE
-        Use GPUs ('--gpu', True) or CPUs ('--cpu', False).  Defaults to True
-        (use GPUs).
+    Compute Parameters
+
+    use_gpu : bool, optional
+        Use GPUs (True) or CPUs (False). Defaults to True.
     run : bool, optional
         Run a full power spectrum analysis. To build the matrix stack only,
         run can be omitted or set to False in the configuration yaml.
-    single_node : bool, optional  # DONE
-        Run an analysis on a single node or with an MPI size of 1.  Defaults to
-        False (do not run an analysis if MPI size is 1).
 
-    Matrices
-    ********
-    array_dir_prefix : str, optional  # DONE
-        Directory for matrix storage.  Defaults to './array-storage'.
-    sparse_mats : bool, optional  # DONE
-        Use sparse matrices ('--sparse-mats', True) to reduce storage
-        requirements or dense matrices ('--dense-mats', False).  Defaults to
-        True (use sparse matrices).
-    build_Finv_and_Fprime : bool, optional  # DONE
+    Matrix Parameters
+
+    array_dir_prefix : str, optional
+        Directory for matrix storage. Defaults to './array-storage'.
+    use_sparse_matrices : bool, optional
+        Use sparse matrices (True) to reduce storage requirements or dense
+        matrices (False). Defaults to True.
+    build_Finv_and_Fprime : bool, optional
         If True, construct Finv and Fprime independently and write 
         both matrices to disk when building the matrix stack. 
         Otherwise (default), construct the matrix product Finv_Fprime in
@@ -71,283 +63,332 @@ class BayesEoRParser(ArgumentParser):
         the memory and time required to build the matrix stack.  In this
         case, only the matrix product Finv_Fprime is written to disk.
     
-    Priors
-    ******
-    priors : list of list  # DONE
+    Prior Parameters
+
+    priors : list of list
         Power spectrum prior range [min, max] for each k bin.
-    log_priors : bool, optional  # DONE
+    log_priors : bool, optional
         Assume priors on power spectrum coefficients are in log_10 units
-        ('--log-priors', True) or linear units ('--lin-priors', False).
-        Defaults to True.
-    uprior_bins : str, optional  # DONE
+        (True) or linear units (False). Defaults to True.
+    uprior_bins : str, optional
         Array indices of k-bins using a uniform prior.  All other bins use the
         default log-uniform prior.  Follows python slicing syntax.  Can pass a
         range via '1:4' (non-inclusive high end), a list of indices via '1,4,6'
         (no spaces between commas), a single index '3' or '-3', or 'all'.
         Defaults to an empty string (all k-bins use log-uniform priors).
-    inverse_LW_power : float, optional  # DONE
-        Prior on the inverse power of the LSSM coefficients.  A large value,
-        ``1e16``, constrains the LSSM coefficients to be zero.  A small value,
-        ``1e-16``, leaves the LSSM coefficients unconstrained (default).
-    use_LWM_Gaussian_prior: bool, optional  # DONE
-        Use a Gaussian prior on the LSSM (True, **NOT CURRENTLY IMPLEMENTED**).
-        Otherwise, use a uniform prior (False, default).
+    inverse_LW_power : float, optional
+        Prior on the inverse power of the large spectral scale model (LSSM)
+        coefficients. A large value, 1e16, constrains the LSSM coefficients to
+        be zero. A small value, 1e-16 (default), leaves the LSSM coefficients
+        unconstrained.
+    use_LWM_Gaussian_prior: bool, optional
+        Use a Gaussian prior on the large spectral scale model (True,
+        **NOT CURRENTLY IMPLEMENTED**). Otherwise, use a uniform prior (False,
+        default)
 
-    Sampler
-    *******
-    output_dir : str, optional  # DONE
-        Directory for sampler output.  Defaults to './chains/'.
-    file_root : str, optional  # DONE
-        If None (default), start a new analysis.  Otherwise, resume analysis
+    Sampler Parameters
+
+    output_dir : str, optional
+        Directory for sampler output. Defaults to './chains/'.
+    file_root : str, optional
+        If None (default), start a new analysis. Otherwise, resume analysis
         from `file_root`.
-    use_Multinest : bool, optional  # DONE
+    use_Multinest : bool, optional
         Use MultiNest ('--multinest', True) or Polychord ('--polychord', False)
-        as the sampler.  Defaults to True (use MultiNest).  Using Polychord is
+        as the sampler. Defaults to True (use MultiNest). Using Polychord is
         advised for large parameter spaces.
         
-    Frequency axis
-    **************
-    nf : int  # CHECK
-        Number of frequency channels.  If `data_path` points to a
-        pyuvdata-compatible visibility file, `nf` sets the number of
-        frequencies kept in the data vector in conjunction with
-        one of `freq_idx_min`, `freq_min`, or `freq_center`.
-    neta : int, optional  # DONE
-        Number of line-of-sight Fourier modes.  Defaults to `nf`.
-    freq_idx_min : int, optional  # CHECK
+    Frequency Parameters
+
+    nf : int, optional
+        Number of frequency channels. Required if `data_path` points to a
+        preprocessed data vector with a '.npy' suffix. Otherwise, `nf` sets
+        the number of frequencies to keep starting from `freq_idx_min` or
+        `freq_min`, or around `freq_center`. Defaults to None (keep all
+        frequencies).
+    df : float, optional
+        Frequency channel width in hertz.  Required if `data_path` points
+        to a preprocessed numpy-compatible file. Otherwise, if None (default),
+        defaults to the frequency channel width in the input
+        pyuvdata-compatible visibilities. Defaults to None.
+    freq_idx_min : int, optional
         Minimum frequency channel index to keep in the data vector. Used only
-        if `data_path` points to a pyuvdata-compatible. Defaults to None (keep
-        all frequencies).
-    freq_min : float  # CHECK
+        if `data_path` points to a pyuvdata-compatible visibility file.
+        Defaults to None (keep all frequencies).
+    freq_min : float, optional
         Minimum frequency in hertz.  If `data_path` points to a
         pyuvdata-compatible visibility file, `freq_min` sets the minimum
-        frequency kept in the data vector.
-    freq_center : :class:`astropy.Quantity` or float, optional  # CHECK
-        Central frequency in Hertz around which `nf` frequencies will be kept
-        in the data vector. `nf` must also be passed, otherwise an error is
-        raised.  Used only if `data_path` points to a pyuvdata-compatible
-        visibility file.  Defaults to None (keep all frequencies).
-    delta_freq : float, optional  # CHECK
-        Frequency channel width in hertz.  Required if `data_path` points
-        to a preprocessed numpy-compatible file.  Otherwise, defaults to the
-        frequency channel width in the input pyuvdata-compatible visibilities.
-    nq : int, optional  # DONE
-        Number of Large Spectral Scale Model (LSSM) quadratic basis vectors.
-        If passing `beta`, the quadratic basis vectors are replaced by power
-        law basis vectors according to the spectral indices in `beta`.
-    beta : list of float, optional  # DONE
+        frequency kept in the data vector.  All frequencies greater than or
+        equal to `freq_min` will be kept, unless `nf` is specified. If None
+        (default), all frequencies are kept. If `data_path` points to a
+        preprocessed data vector with a '.npy' suffix, one of `freq_min` or
+        `freq_center` is required.
+    freq_center : float, optional
+        Central frequency in Hertz. If `data_path` points to a
+        pyuvdata-compatible visibility file, `nf` is also required to
+        determine the number of frequencies kept around `freq_center` in the
+        data vector. If None (default), all frequencies are kept. If
+        `data_path` points to a preprocessed data vector with a '.npy' suffix,
+        one of `freq_min` or `freq_center` is required.
+    neta : int, optional
+        Number of line-of-sight Fourier modes. Defaults to `nf`.
+    nq : int, optional
+        Number of large spectral scale model quadratic basis vectors.
+        If `beta` is not None, the quadratic basis vectors are replaced by
+        power law basis vectors according to the spectral indices in `beta`.
+        Defaults to 0.
+    beta : list of float, optional
         Brightness temperature power law spectral index/indices used in the
-        LSSM.  Can be a single spectral index, '[2.63]', or multiple spectral
-        indices can be passed, '[2.63,2.82]', to use multiple power law
-        spectral basis vectors.  Do not put spaces after commas if using
-        multiple spectral indices.
-    fit_for_spectral_model_parameters : bool, optional  # DONE
-        Fit for the optimal LSSM spectral indices.
-    pl_min : float, optional  # DONE
+        large spectral scale model. Can be a single spectral index, '[2.63]',
+        or multiple spectral indices can be passed, '[2.63,2.82]', to use
+        multiple power law spectral basis vectors. Do not put spaces after
+        commas if using multiple spectral indices. Defaults to [2.63, 2.82].
+    fit_for_spectral_model_parameters : bool, optional
+        Fit for the optimal large spectral scale model spectral indices.
+        Defaults to False.
+    pl_min : float, optional
         Minimum brightness temperature spectral index when fitting for the
-        optimal LSSM spectral indices.
-    pl_max : float, optional  # DONE
+        optimal large spectral scale model spectral indices. Defaults to None.
+    pl_max : float, optional
         Maximum brightness temperature spectral index when fitting for the
-        optimal LSSM spectral indices.
-    pl_grid_spacing : float, optional  # DONE
+        optimal large spectral scale model spectral indices. Defaults to None.
+    pl_grid_spacing : float, optional
         Grid spacing for the power law spectral index axis when fitting for
-        the optimal LSSM spectral indices.
+        the optimal large spectral scale model spectral indices. Defaults to
+        None.
 
-    Time axis
-    *********
-    nt : int  # CHECK
-        Number of times/observations.
-    dt : float  # CHECK
-        Integration time in seconds.
-    jd_idx_min : int, optional  # CHECK
+    Time Parameters
+
+    nt : int, optional
+        Number of times. Required if `data_path` points to a preprocessed data
+        vector with a '.npy' suffix. Otherwise, sets the number of times to
+        keep starting from `jd_idx_min` or `jd_min`, or around `jd_center`.
+        Defaults to None (keep all times).
+    dt : float, optional
+        Integration time in seconds. Required if `data_path` points to a
+        preprocessed data vector with a '.npy' suffix. Otherwise, if None
+        (default), defaults to the integration time in the input
+        pyuvdata-compatible visibilities. Defaults to None.
+    jd_idx_min : int, optional
         Minimum time index to keep in the data vector. Used only if `data_path`
         points to a pyuvdata-compatible visibility file. Defaults to None (keep
-        all times).
-    jd_min : :class:`astropy.Time` or float, optional  # CHECK
-        Minimum time to keep in the data vector as a Julian date. Used only if
-        `data_path` points to a pyuvdata-compatible visibility file. Defaults
-        to None (keep all times).
-    jd_center : float  # CHECK
-        Central Julian Date of the observations. If `data_path` points to a
-        pyuvdata-compatible visibility file, `jd_center` sets the central
-        Julian date around which `nt` times will be kept in the data vector.
+        all times). Defaults to None (keep all times).
+    jd_min : float, optional
+        Minimum time as a Julian date. If `data_path` points to a
+        pyuvdata-compatible visibility file, `jd_min` sets the minimum time
+        kept in the data vector.  All times greater than or equal to `jd_min`
+        will be kept, unless `nt` is specified. If None (default), all times
+        are kept. If `data_path` points to a preprocessed data vector with a
+        '.npy' suffix, one of `jd_min` or `jd_center` is required.
+    jd_center : float, optional
+        Central time as a Julian date. If `data_path` points to a
+        pyuvdata-compatible visibility file, `nt` is also required to
+        determine the number of times kept around `jd_center` in the data
+        vector. If None (default), all times are kept. If `data_path` points
+        to a preprocessed data vector with a '.npy' suffix, one of `jd_min` or
+        `jd_center` is required.
 
-    Model image domain
-    ******************
-    nside : int, optional  # DONE
+    Model Image Parameters
+
+    nside : int
         HEALPix resolution parameter.  Sets the resolution of the sky model.
         Note, the HEALPix resolution must be chosen such that there are two
         HEALPix pixels per minimum fringe wavelength from the model uv-plane
         to satisfy the Nyquist-Shannon sampling theorem.
-    fov_ra_eor : float  # DONE
-        Field of view (FoV) of the Right Ascension (RA) axis of the EoR sky
-        model in degrees.
-    fov_dec_eor : float, optional  # DONE
-        FoV of the Declination (Dec) axis of the EoR sky model in degrees.
-        Defaults to the value of `fov_ra_eor` (square FoV).
-    fov_ra_fg : float, optional  # DONE
-        FoV of the RA axis of the FG sky model in degrees.  Defaults to the
-        value of `fov_ra_eor`.
-    fov_dec_fg : float, optional  # DONE
-        FoV of the Dec axis of the FG sky model in degrees.  Defaults to the
-        value of `fov_ra_fg` or `fov_dec_eor` if `fov_ra_fg` is not defined.
-    simple_za_filter : bool, optional  # DONE
+    fov_ra_eor : float
+        Field of view of the right ascension axis of the EoR sky model in
+        degrees.
+    fov_dec_eor : float, optional
+        Field of view of the declination axis of the EoR sky model in
+        degrees. Defaults to `fov_ra_eor`.
+    fov_ra_fg : float, optional
+        Field of view of the right ascension axis of the foreground sky model
+        in degrees.  Defaults to `fov_ra_eor`.
+    fov_dec_fg : float, optional
+        Field of view of the declination axis of the foreground sky model in
+        degrees.  Defaults to `fov_ra_fg` or `fov_dec_eor` if `fov_ra_fg` is
+        not defined.
+    simple_za_filter : bool, optional
         Filter pixels in the sky model by zenith angle only (True, default).
         Otherwise, filter pixels in a rectangular region set by the field of
-        view values along the RA and Dec axes (False, default).
+        view values along the RA and Dec axes (False). It is suggested to
+        set `simple_za_filter` to True (see issue #11).
 
-    Model uv plane
-    **************
-    nu : int  # DONE
+    Model uv-Plane Parameters
+
+    nu : int
         Number of pixels on the u-axis of the model uv-plane for the EoR model.
-    nv : int, optional  # DONE
+    nv : int, optional
         Number of pixels on the v-axis of the model uv-plane for the EoR model.
-    nu_fg : int, optional  # DONE
+        Defaults to `nu`.
+    nu_fg : int, optional
         Number of pixels on the u-axis of the model uv-plane for the foreground
-        (FG) model.  Defaults to the value of `nu`.
-    nv_fg : int, optional  # DONE
-        Number of pixels on the v-axis of the model uv-plane for the FG model.
-        Defaults to the value of `nu_fg` or `nv` if `nu_fg` is not defined.
-    fit_for_monopole : bool, optional  # DONE
+        model.  Defaults to `nu`.
+    nv_fg : int, optional
+        Number of pixels on the v-axis of the model uv-plane for the foreground
+        model. Defaults to `nu_fg` or `nv` if `nu_fg` is not defined.
+    fit_for_monopole : bool, optional
         Include (True) or exclude (False) the ``(u, v) == (0, 0)`` pixel in
-        the model uv-plane.  Defaults to False.
+        the model uv-plane. Defaults to False.
 
-    Noise model
-    ***********
-    sigma : float, optional  # DONE
-        Standard deviation of the visibility noise.  Only used if adding noise
-        to the input visibility data.  If inputing noise along with the data,
-        `sigma` is calculated from the noise directly.
-    noise_seed : float, optional  # DONE
-        Seed for `numpy.random.`  Used to generate the noise vector if adding
-        noise to the input visibility data.  Defaults to ``742123``.
-    fit_noise : bool, optional  # DONE
-        If True, fit for the noise level.  Defaults to False.
+    Noise Model Parameters
 
-    Instrument model
-    ****************
-    model_instrument : bool, optional  # DONE
-        Forward model an instrument ('--model-instrument', True) or exclude
-        instrumental effects ('--no-instrument', False).
-    inst_model : str, optional  # DONE
-        Path to a numpy compatible dictionary containing the instrument model.
-        A valid instrument model contains the uv-sampling with shape
-        ``(Ntimes, Nbls, 3)`` accessible via the key 'uvw_model' and a
-        redundancy array to account for any redundant averaging with shape
-        ``(Ntimes, Nbls, 1)`` accessible via the key 'redundancy_model'.
-    tele_latlonalt : list of float, optional  # DONE
+    sigma : float, optional  # FIXME: when is sigma required?
+        Standard deviation of the visibility noise in mK sr. Only used if
+        adding noise to the input visibility data.
+    noise_seed : float, optional
+        Seed for `numpy.random`. Used to generate the noise vector if adding
+        noise to the input visibility data. Defaults to 742123.
+    use_intrinsic_noise_fitting : bool, optional
+        Fit for the noise level. Defaults to False.
+
+    Instrument Model Parameters
+
+    model_instrument : bool, optional
+        Forward model an instrument (True) or exclude instrumental effects
+        (False). Defaults to True.
+    inst_model : str, optional
+        Path to a directory containing the instrument model. This directory
+        must at least contain two numpy-compatible files: `uvw_model.npy`
+        containing the sampled (u, v, w) coordinates with shape
+        (nt, nbls, 3) where nbls is the number of baselines, and
+        `redundancy_model.npy` containing the number of baselines in a each
+        sampled (u, v, w) with shape (nt, nbls, 1). Please see
+        `bayeseor.model.instrument` for more details. Used only if
+        `include_instrumental_effects` is True. Defaults to None.
+    telescope_latlonalt : list of float, optional
         Telescope location in latitude (deg), longitude (deg), and altitude
-        (meters).  Passed as a list of floats, e.g. '[30.1,125.6,80.4]'.  Do
-        not put spaces after commas.  Defaults to the HERA telescope location.
-    drift_scan : bool, optional  # DONE
-        Model the instrument in drift scan mode ('--drift-scan', True) or in
-        phased mode ('--phased', False).  Defaults to True (drift scan mode).
-    beam_type : str  # DONE
-        Can be 'uniform', 'gaussian', or 'airy' (case insensitive).
-    fwhm_deg : float, optional  # DONE
-        Full Width at Half Maximum (FWHM) of beam in degrees.
-    antenna_diameter : float, optional  # DONE
-        Antenna diameter in meters.
-    cosfreq : float, optional  # DONE
-        Cosine frequency if using a 'gausscosine' beam.
-    achromatic_beam : bool, optional  # DONE
-        If True, force the beam to be achromatic.  The frequency at which the
-        beam will be calculated is set via `beam_ref_freq`.
-    beam_ref_freq : bool, optional  # DONE
-        Beam reference frequency in hertz.  Defaults to the minimum
-        frequency.
-    beam_peak_amplitude : float, optional  # DONE
-        Peak amplitude of the beam.  Defaults to 1.0.
-    beam_center : list of float, optional  # DONE
+        (meters). Passed as a list of floats, e.g. '[30.1,125.6,80.4]'. Do not
+        put spaces after commas. Used only if `include_instrumental_effects`
+        is True. Defaults to [0, 0, 0].
+    drift_scan : bool, optional
+        Model the instrument in drift scan mode (True) or in phased mode
+        (False). Used only if `include_instrumental_effects` is True. Defaults
+        to True.
+    beam_type : str
+        Path to a pyuvdata-compatible beam file or one of 'uniform',
+        'gaussian', 'airy', 'gausscosine', or 'taperairy'. Used only if
+        `include_instrumental_effects` is True. Defaults to None.
+    fwhm_deg : float, optional
+        Full width at half maximum of beam in degrees. Used only if
+        `include_instrumental_effects` is True and `beam_type` is 'airy',
+        'gaussian', or 'gausscosine'. Defaults to None.
+    antenna_diameter : float, optional
+        Antenna (aperture) diameter in meters. Used only if
+        `include_instrumental_effects` is True and `beam_type` is 'airy',
+        'gaussian', or 'gausscosine'. Defaults to None.
+    cosfreq : float, optional
+        Cosine frequency if using a 'gausscosine' beam. Used only if
+        `include_instrumental_effects` is True. Defaults to None.
+    achromatic_beam : bool, optional
+        Force the beam to be achromatic. The frequency at which the beam will
+        be calculated is set via `beam_ref_freq`. Used only if
+        `include_instrumental_effects` is True. Defaults to False.
+    beam_ref_freq : bool, optional
+        Beam reference frequency in hertz. Used only if
+        `include_instrumental_effects` is True. Defaults to `freq_min`.
+    beam_peak_amplitude : float, optional
+        Peak amplitude of the beam. Used only if `include_instrumental_effects`
+        is True. Defaults to 1.0.
+    beam_center : list of float, optional
         Beam center offsets from the phase center in RA and Dec in degrees.
         Default behavior is the beam center aligns with the phase center.
-        Passed as a list of floats, e.g. '[-1.3,0.01]'.  Do not put a space
-        after the comma.
-    freq_interp_kind : str, optional  # DONE
-        Frequency interpolation kind. Please see `scipy.interpolate.interp1d`
-        for valid options and more details.  Defaults to 'cubic'.
+        Passed as a list of floats, e.g. '[-1.3,0.01]'. Do not include a space
+        after the comma. Defaults to None.
 
-    Subharmonic grid
-    ****************
-    nu_sh : int, optional  # DONE
-        Number of pixels on a side for the u-axis in the SubHarmonic Grid (SHG)
-        model uv-plane.
-    nv_sh : int, optional  # DONE
-        Number of pixels on a side for the v-axis in the SHG model uv-plane.
-        Defaults to the value of `nu_sh`.
-    nq_sh : int, optional  # DONE
-        Number of LSSM quadratic modes for the SHG.
-    fit_for_shg_amps : bool, optional  # DONE
-        If True, fit for the amplitudes of the SHG pixels.  Defaults to False.
+    Subharmonic Grid Parameters
+
+    nu_sh : int, optional
+        Number of pixels on a side for the u-axis in the subharmonic grid
+        model uv-plane. Defaults to None.
+    nv_sh : int, optional
+        Number of pixels on a side for the v-axis in the subharmonic grid
+        model uv-plane. Defaults to `nu_sh`.
+    fit_for_shg_amps : bool, optional
+        Fit for the amplitudes of the subharmonic grid pixels. Defaults to
+        False.
     
-    Tapering
-    ********
-    taper_func : str, optional  # DONE
-        Tapering function to apply to the frequency axis of the model
-        visibilities.  Can be any valid argument to
-        `scipy.signal.windows.get_window`.
+    Tapering Parameters
+
+    taper_func : str, optional
+        Taper function applied to the frequency axis of the visibilities.
+        Can be any valid argument to `scipy.signal.windows.get_window`.
+        Defaults to None.
     
-    Input data parameters
-    *********************
-    data_path : str, optional  # DONE
+    Input Data Parameters
+
+    data_path : str
         Path to either a pyuvdata-compatible visibility file or a preprocessed
         numpy-compatible visibility vector in units of mK sr.
-    noise_data_path : str, optional  # DONE
+    noise_data_path : str, optional
         Path to a preprocessed numpy-compatible noise visibility vector in
         units of mK sr.  Required if `calc_noise` is False and `sigma` is None.
-    eor_sim_path : str, optional  # DONE
-        Path to 21cmFAST EoR simulation cube.
-    eor_random_seed : int, optional  # DONE
-        Used to seed `numpy.random` if generating a mock EoR white noise
-        signal, i.e. passing no data file via '--data-path'.
-    ant_str : str, optional  # DONE
-        Antenna downselect string. This determines what baselines to keep in
-        the data vector. Please see `pyuvdata.UVData.select` for more details.
-        Defaults to 'cross' (cross-correlation baselines only).
-    bl_cutoff : :class:`astropy.Quantity` or float, optional  # DONE
-        Baseline length cutoff in meters if not a Quantity. Defaults to None
-        (keep all baselines).
-    form_pI : bool, optional  # CHECK
+    ant_str : str, optional
+        Antenna downselect string. If `data_path` points to a
+        pyuvdata-compatible visibility file, `ant_str` determines what
+        baselines to keep in the data vector. Please see
+        `pyuvdata.UVData.select` for more details. Defaults to 'cross'
+        (cross-correlation baselines only).
+    bl_cutoff : float, optional
+        Baseline length cutoff in meters. If `data_path` points to a
+        pyuvdata-compatible visibility file, `bl_cutoff` determines the longest
+        baselines kept in the data vector. Defaults to None (keep all
+        baselines).
+    form_pI : bool, optional
         Form pseudo-Stokes I visibilities. Otherwise, use the polarization
-        specified by `pol`. Defaults to True.
-    pI_norm : float, optional  # DONE
+        specified by `pol`. Used only if `data_path` points to a
+        pyuvdata-compatible visibility file. Defaults to True.
+    pI_norm : float, optional
         Normalization, ``N``, used in forming pseudo-Stokes I from XX and YY
-        via ``pI = N * (XX + YY)``. Defaults to 1.0.
-    pol : str, optional  # CHECK
+        via ``pI = N * (XX + YY)``. Used only if `data_path` points to a
+        pyuvdata-compatible visibility file and `form_pI` is True. Defaults to
+        1.0.
+    pol : str, optional
         Case-insensitive polarization string. Can be one of 'xx', 'yy', or 'pI'
         for XX, YY, or pseudo-Stokes I polarization, respectively. Used only if
+        `data_path` points to a pyuvdata-compatible visibility file and
         `form_pI` is False. Defaults to 'xx'.
-    redundant_avg : bool, optional  # DONE
-        Redundantly average the data.  Defaults to True.
-    uniform_redundancy : bool, optional  # DONE
-        Force the redundancy model to be uniform. Defaults to False.
-    phase_time : float, optional  # DONE
+    redundant_avg : bool, optional
+        Redundantly average the data. Used only if `data_path` points to a
+        pyuvdata-compatible visibility file. Defaults to False.
+    uniform_redundancy : bool, optional
+        Force the redundancy model to be uniform. Used only if `data_path`
+        points to a pyuvdata-compatible visibility file. Defaults to False.
+    phase_time : float, optional
         The time to which the visibilities will be phased as a Julian date.
-        Used only if `drift_scan` is False.  If `drift_scan` is False and and
+        Used only if `drift_scan` is False.  If `drift_scan` is False and
         `phase_time` is None, `phase_time` will be automatically set to the
-        central time in the data. Defaults to None.
-    calc_noise : bool, optional  # DONE
+        central time in the data. Used only if `data_path` points to a
+        pyuvdata-compatible visibility file. Defaults to None.
+    calc_noise : bool, optional
         Calculate a noise estimate from the visibilities via differencing
-        adjacent times per baseline and frequency. Defaults to False.
-    save_vis : bool, optional  # DONE
+        adjacent times per baseline and frequency. Used only if `data_path`
+        points to a pyuvdata-compatible visibility file. Defaults to False.
+    save_vis : bool, optional
         Write visibility vector to disk in `out_dir`. If `calc_noise` is True,
-        also save the noise vector. Defaults to False.
-    save_model : bool, optional  # DONE
+        also save the noise vector. Used only if `data_path` points to a
+        pyuvdata-compatible visibility file. Defaults to False.
+    save_model : bool, optional
         Write instrument model (antenna pairs, (u, v, w) sampling, and
         redundancy model) to disk in `out_dir`. If `phase` is True, also save
-        the phasor vector. Defaults to False.
+        the phasor vector. Used only if `data_path` points to a
+        pyuvdata-compatible visibility file. Defaults to False.
 
     """
     def __init__(self, *args, parse_as_dict=False, **kwargs):
         super().__init__(*args, parse_as_dict=parse_as_dict, **kwargs)
-        # --- General ---
+        # General Parameters
         self.add_argument(
             "--config",
             action=ActionConfigFile,
-            help="Path to a yaml configuration file containing any command line "
-                 "arguments below parsable by `jsonargparse.ArgumentParser`. For "
-                 "an example, please see the provided configuration yaml file "
-                 "`BayesEoR/example-config.yaml`."
+            help="Path to a yaml configuration file containing any command line arguments"
+                 "below parsable by `jsonargparse.ArgumentParser`. Please note command"
+                 "line arguments use dashes '-' but the configuration yaml file requires"
+                 "underscores '_'.  For example, to specify the array directory prefix"
+                 "on the command line, the command line argument is `--array-dir-prefix`."
+                 "To specify the array directory prefix in the configuration yaml file,"
+                 "use `array_dir_prefix` instead.  For an example, please see the"
+                 "provided configuration yaml file `BayesEoR/example-config.yaml`."
         )
         self.add_argument(
             "-v", "--verbose",
@@ -361,15 +402,13 @@ class BayesEoRParser(ArgumentParser):
             help="Overwrite files if they exist. This includes the matrix stack, any "
                  "existing preprocessed data/noise vectors, and instrument model files."
         )
-        # --- Compute params ---
+        # Compute Parameters
         self.add_argument(
             "--gpu",
             action=ActionYesNo(yes_prefix="g", no_prefix="c"),
             default=True,
             dest="use_gpu",
-            help="Use GPUs (--gpu) or CPUs (--cpu).  Using GPUs is required for "
-                "the power spectrum analysis.  CPUs can be used to construct the "
-                "required matrices.  Defaults to True (use GPUs)."
+            help="Use GPUs (--gpu) or CPUs (--cpu)."
         )
         self.add_argument(
             "--run",
@@ -378,39 +417,33 @@ class BayesEoRParser(ArgumentParser):
                  "stack only, --run can be omitted or set to False in the "
                  "configuration yaml."
         )
-        self.add_argument(
-            "--single-node",
-            action="store_true",
-            help="If passed, run an analysis on a single node.  If the MPI size is"
-                "1 and --single-node is not passed, the matrices will be built "
-                "but the power spectrum analysis will not be run."
-        )
+        # Matrix Parameters
         self.add_argument(
             "--array-dir-prefix",
             type=str,
             default="./array-storage/",
-            help="Directory for matrix storage.  Defaults to './array-storage/'."
+            help="Directory for matrix storage. Defaults to './array-storage/'."
         )
         self.add_argument(
             "--sparse-mats",
             action=ActionYesNo(yes_prefix="sparse-", no_prefix="dense-"),
-            dest="use_sparse_matrices",  #FIXME
+            dest="use_sparse_matrices",  # FIXME: remove need for dest
             default=True,
             help="Use sparse matrices (--sparse-mats) to reduce storage "
-                "requirements or use dense matrices (--dense-mats).  Defaults "
-                "to True (use sparse matrices)."
+                 "requirements or dense matrices (--dense-mats)."
         )
         self.add_argument(
             "--build-Finv-and-Fprime",
             action="store_true",
             help="If passed, construct Finv and Fprime independently and write "
-                "both matrices to disk when building the matrix stack. "
-                "Otherwise (default), construct the matrix product Finv_Fprime "
-                "in place from the dense matrices comprising Finv and Fprime to "
-                "minimize the memory and time required to build the matrix "
-                "stack. In this case, only the matrix product Finv_Fprime is "
-                "written to disk."
+                 "both matrices to disk when building the matrix stack. "
+                 "Otherwise (default), construct the matrix product Finv_Fprime "
+                 "in place from the dense matrices comprising Finv and Fprime to "
+                 "minimize the memory and time required to build the matrix "
+                 "stack. In this case, only the matrix product Finv_Fprime is "
+                 "written to disk."
         )
+        # Prior Parameters
         self.add_argument(
             "--priors",
             type=List[list],
@@ -420,36 +453,35 @@ class BayesEoRParser(ArgumentParser):
             "--log-priors",
             action=ActionYesNo(yes_prefix="log-", no_prefix="lin-"),
             default=True,
-            help="Use log_10 (--log-priors) or linear (--lin-priors) prior "
-                "values.  If using log priors (x), the prior values will first be"
-                " linearized (10^x)."
+            help="Assume priors on power spectrum coefficients are in log_10 units "
+                 "('--log-priors', True) or linear units ('--lin-priors', False)."
         )
         self.add_argument(
             "--uprior-bins",
             type=str,
             default="",
             help="Array indices of k-bins using a uniform prior.  Follows python "
-                "slicing syntax.  Can pass a range via '1:4' (non-inclusive high "
-                "end), a list of indices via '1,4,6' (no spaces between commas), "
-                " a single index '3' or '-3', or 'all'.  Defaults to an empty "
-                "string (all k-bins use log-uniform priors)."
+                 "slicing syntax.  Can pass a range via '1:4' (non-inclusive high "
+                 "end), a list of indices via '1,4,6' (no spaces between commas), "
+                 " a single index '3' or '-3', or 'all'.  Defaults to an empty "
+                 "string (all k-bins use log-uniform priors)."
         )
         self.add_argument(
             "--inverse-lw-power",
             type=float,
             default=1e-16,
-            dest="inverse_LW_power",  #FIXME
-            help="Prior on the inverse power of the LSSM coefficients.  A large "
-                "value (1e16) constrains the LSSM coefficients to be zero.  A "
-                "small value (1e-16) leaves the LSSM coefficients unconstrained "
-                "(default)."
+            dest="inverse_LW_power",  # FIXME: remove need for dest
+            help="Prior on the inverse power of the large spectral scale model (LSSM) "
+                 "coefficients. A large value, 1e16, constrains the LSSM coefficients to "
+                 "be zero. A small value, 1e-16 (default), leaves the LSSM coefficients "
+                 "unconstrained."
         )
         self.add_argument(
             "--lw-gaussian-priors",
             action="store_true",
-            dest="use_LWM_Gaussian_prior",  #FIXME
-            help="If passed, uses a Gaussian prior on the LSSM (NOT IMPLEMENTED). "
-                "Otherwise, use a uniform prior (default)."
+            dest="use_LWM_Gaussian_prior",  # FIXME: remove need for dest
+            help="If passed, Use a Gaussian prior on the large spectral scale model "
+                 "(**NOT CURRENTLY IMPLEMENTED**). Otherwise, use a uniform prior (default)."
         )
         self.add_argument(
             "--output-dir",
@@ -460,146 +492,156 @@ class BayesEoRParser(ArgumentParser):
         self.add_argument(
             "--file-root",
             type=str,
-            help="If None (default), start a new analysis.  Otherwise, resume "
+            help="If None (default), start a new analysis. Otherwise, resume "
                 "analysis from `file_root`."
         )
         self.add_argument(
             "--multinest",
             action=ActionYesNo(yes_prefix="multinest", no_prefix="polychord"),
             default=True,
-            dest="use_Multinest",  #FIXME
+            dest="use_Multinest",  # FIXME: remove need for dest
             help="Use Multinest (--multinest) or Polychord (--polychord) as "
-                "the sampler.  Defaults to using Multinest.  Using Polychord is "
-                "advised for large parameter spaces."
+                 "the sampler. Defaults to using Multinest. Using Polychord is "
+                 "advised for large parameter spaces."
         )
-        # --- Model params ---
-        # Frequency axis
+        # Frequency Parameters
         self.add_argument(
             "--nf",
             type=int,
-            help="Number of frequency channels. If `data_path` points to a "
-                 "pyuvdata-compatible visibility file, `nf` sets the number "
-                 "of frequencies kept in the data vector in conjunction with "
-                 "one of `freq_idx_min`, `freq_min`, or `freq_center`. "
-                 "Defaults to None (all frequencies kept)."
-        )
-        self.add_argument(
-            "--neta",
-            type=int,
-            help="Number of line-of-sight Fourier modes.  Defaults to `nf`."
-        )
-        self.add_argument(
-            "--freq-idx-min",
-            type=int,
-            help="Minimum frequency channel index to keep in the data vector. "
-                 "Used only if `data_path` points to a pyuvdata-compatible "
-                 "visibility file. Defaults to None (keep all frequencies)."
-        )
-        self.add_argument(
-            "--freq-min",
-            type=float,
-            help="Minimum frequency in hertz. If `data_path` points to a "
-                 "pyuvdata-compatible visibility file, `freq_min` sets the "
-                 "minimum frequency kept in the data vector."
-        )
-        self.add_argument(
-            "--freq-center",
-            type=float,
-            help="Central frequency in Hertz around which `nf` frequencies "
-                 "will be kept in the data vector. `nf` must also be passed, "
-                 "otherwise an error is raised. Used only if `data_path` "
-                 "points to a pyuvdata-compatible visibility file. Defaults "
-                 "to None (keep all frequencies)."
+            help="Number of frequency channels. Required if `data_path` points to a "
+                 "preprocessed data vector with a '.npy' suffix. Otherwise, `nf` sets "
+                 "the number of frequencies to keep starting from `freq_idx_min` or "
+                 "`freq_min`, or around `freq_center`. Defaults to None (keep all "
+                 "frequencies)."
         )
         self.add_argument(
             "--df",
             type=float,
-            help="Frequency channel width in hertz. If `data_path` points "
-                 "to a pyuvdata-compatible visibility file, `delta_freq` will "
-                 "be overwritten by the frequency channel width in the UVData "
-                 "object."
+            help="Frequency channel width in hertz.  Required if `data_path` points "
+                 "to a preprocessed numpy-compatible file. Otherwise, if None (default), "
+                 "defaults to the frequency channel width in the input "
+                 "pyuvdata-compatible visibilities. Defaults to None."
+        )
+        self.add_argument(
+            "--freq-idx-min",
+            type=int,
+            help="Minimum frequency channel index to keep in the data vector. Used only "
+                 "if `data_path` points to a pyuvdata-compatible visibility file. "
+                 "Defaults to None (keep all frequencies)."
+        )
+        self.add_argument(
+            "--freq-min",
+            type=float,
+            help="Minimum frequency in hertz.  If `data_path` points to a "
+                 "pyuvdata-compatible visibility file, `freq_min` sets the minimum "
+                 "frequency kept in the data vector.  All frequencies greater than or "
+                 "equal to `freq_min` will be kept, unless `nf` is specified. If None "
+                 "(default), all frequencies are kept. If `data_path` points to a "
+                 "preprocessed data vector with a '.npy' suffix, one of `freq_min` or "
+                 "`freq_center` is required."
+        )
+        self.add_argument(
+            "--freq-center",
+            type=float,
+            help="Central frequency in Hertz. If `data_path` points to a "
+                 "pyuvdata-compatible visibility file, `nf` is also required to "
+                 "determine the number of frequencies kept around `freq_center` in the "
+                 "data vector. If None (default), all frequencies are kept. If "
+                 "`data_path` points to a preprocessed data vector with a '.npy' suffix, "
+                 "one of `freq_min` or `freq_center` is required."
+        )
+        self.add_argument(
+            "--neta",
+            type=int,
+            help="Number of line-of-sight Fourier modes. Defaults to `nf`."
         )
         self.add_argument(
             "--nq",
             type=int,
             default=0,
-            help="Number of Large Spectral Scale Model (LSSM) quadratic basis "
-                "vectors.  If passing '--beta', the quadratic basis vectors are "
-                "replaced by power law basis vectors according to the spectral "
-                "indices in '--beta'."
+            help="Number of large spectral scale model quadratic basis vectors. "
+                 "If `beta` is not None, the quadratic basis vectors are replaced by "
+                 "power law basis vectors according to the spectral indices in `beta`. "
+                 "Defaults to 0."
         )
         self.add_argument(
             "--beta",
             type=List[float],
             default=[2.63, 2.82],
-            help="Brightness temperature power law spectral index/indices used in "
-                "the LSSM.  Can be a single spectral index ('[2.63]') or multiple "
-                "spectral indices can be passed ('[2.63,2.82]') to use multiple "
-                "power law spectral basis vectors.  Do not put spaces after "
-                "commas if using multiple spectral indices."
+            help="Brightness temperature power law spectral index/indices used in the "
+                 "large spectral scale model. Can be a single spectral index, '[2.63]', "
+                 "or multiple spectral indices can be passed, '[2.63,2.82]', to use "
+                 "multiple power law spectral basis vectors. Do not put spaces after "
+                 "commas if using multiple spectral indices. Defaults to [2.63, 2.82]."
         )
         self.add_argument(
             "--fit-for-spectral-model-parameters",
             action="store_true",
-            help="Fit for the optimal LSSM spectral indices."
+            help="Fit for the optimal large spectral scale model spectral indices."
         )
         self.add_argument(
             "--pl-min",
             type=float,
             help="Minimum brightness temperature spectral index when fitting for "
-                "the optimal LSSM spectral indices."
+                 "the optimal large spectral scale model spectral indices."
         )
         self.add_argument(
             "--pl-max",
             type=float,
             help="Maximum brightness temperature spectral index when fitting for "
-                "the optimal LSSM spectral indices."
+                "the optimal large spectral scale model spectral indices."
         )
         self.add_argument(
             "--pl-grid-spacing",
             type=float,
             help="Grid spacing for the power law spectral index axis when fitting "
-                "for the optimal LSSM spectral indices."
+                "for the optimal large spectral scale model spectral indices."
         )
-        # Time axis
+        # Time Parameters
         self.add_argument(
             "--nt",
             type=int,
-            help="Number of times. If `data_path` points to a pyuvdata-"
-                 "compatible visibility file, `nt` sets the number of times "
-                 "kept in the data vector in conjunction with one of "
-                 "`jd_idx_min`, `jd_min`, or `central_jd`. Defaults to None "
-                 "(all times kept)."
+            help="Number of times. Required if `data_path` points to a preprocessed data "
+                 "vector with a '.npy' suffix. Otherwise, sets the number of times to "
+                 "keep starting from `jd_idx_min` or `jd_min`, or around `jd_center`. "
+                 "Defaults to None (keep all times)."
         )
         self.add_argument(
             "--dt",
             type=float,
-            help="Integration time in seconds. If `data_path` points to a "
-                 "pyuvdata-compatible visibility file, `dt` will be "
-                 "overwritten by the integration time in the UVData object."
+            help="Integration time in seconds. Required if `data_path` points to a "
+                 "preprocessed data vector with a '.npy' suffix. Otherwise, if None "
+                 "(default), defaults to the integration time in the input "
+                 "pyuvdata-compatible visibilities. Defaults to None."
         )
         self.add_argument(
             "--jd-idx-min",
             type=int,
-            help="Minimum time index to keep in the data vector. Used only if "
-                 "`data_path` points to a pyuvdata-compatible visibility file."
+            help="Minimum time index to keep in the data vector. Used only if `data_path` "
+                 "points to a pyuvdata-compatible visibility file. Defaults to None (keep "
+                 "all times). Defaults to None (keep all times)."
         )
         self.add_argument(
             "--jd-min",
             type=float,
-            help="Minimum time to keep in the data vector as a Julian date. "
-                 "Used only if `data_path` points to a pyuvdata-compatible "
-                 "visibility file."
+            help="Minimum time as a Julian date. If `data_path` points to a "
+                 "pyuvdata-compatible visibility file, `jd_min` sets the minimum time "
+                 "kept in the data vector.  All times greater than or equal to `jd_min` "
+                 "will be kept, unless `nt` is specified. If None (default), all times "
+                 "are kept. If `data_path` points to a preprocessed data vector with a "
+                 "'.npy' suffix, one of `jd_min` or `jd_center` is required."
         )
         self.add_argument(
             "--jd-center",
             type=float,
-            help="Central Julian date of the observations. If `data_path` "
-                 "points to a pyuvdata-compatible visibility file, "
-                 "`jd_center` sets the central Julian date around which `nt` "
-                 "times will be kept in the data vector."
+            help="Central time as a Julian date. If `data_path` points to a "
+                 "pyuvdata-compatible visibility file, `nt` is also required to "
+                 "determine the number of times kept around `jd_center` in the data "
+                 "vector. If None (default), all times are kept. If `data_path` points "
+                 "to a preprocessed data vector with a '.npy' suffix, one of `jd_min` or "
+                 "`jd_center` is required."
         )
-        # Image domain params
+        # Model Image Parameters
         self.add_argument(
             "--nside",
             type=int,
@@ -612,27 +654,27 @@ class BayesEoRParser(ArgumentParser):
         self.add_argument(
             "--fov-ra-eor",
             type=float,
-            help="Field of view of the Right Ascension (RA) axis of the EoR sky "
+            help="Field of view of the right ascension axis of the EoR sky "
                  "model in degrees."
         )
         self.add_argument(
             "--fov-dec-eor",
             type=float,
-            help="Field of view of the Declination (Dec) axis of the EoR sky model"
-                 " in degrees.  Defaults to the value of `--fov-ra-eor`."
+            help="Field of view of the declination axis of the EoR sky model in "
+                 "degrees. Defaults to `fov_ra_eor`."
         )
         self.add_argument(
             "--fov-ra-fg",
             type=float,
-            help="Field of view of the Right Ascension (RA) axis of the FG sky "
-                 "model in degrees.  Defaults to the value of '--fov-ra-eor'."
+            help="Field of view of the right ascension axis of the foreground sky model "
+                 "in degrees.  Defaults to `fov_ra_eor`."
         )
         self.add_argument(
             "--fov-dec-fg",
             type=float,
-            help="Field of view of the Declination (DEC) axis of the FG sky model"
-                 " in degrees.  Defaults to the value of '--fov-ra-fg' or "
-                 "'--fov-dec-eor' if '--fov-ra-fg' is not defined."
+            help="Field of view of the declination axis of the foreground sky model in "
+                 "degrees.  Defaults to `fov_ra_fg` or `fov_dec_eor` if `fov_ra_fg` is "
+                 "not defined."
         )
         self.add_argument(
             #FIXME: see https://github.com/PSims/BayesEoR/issues/11
@@ -643,282 +685,280 @@ class BayesEoRParser(ArgumentParser):
             "--simple-za-filter",
             action="store_true",
             default=True,
-            help="If passed, filter pixels in the sky model by zenith angle only. "
-                 "Otherwise, filter pixels in a rectangular region set by the FoV "
-                 "values along the RA and Dec axes (default)."
+            help="Filter pixels in the sky model by zenith angle only (True, default). "
+                 "Otherwise, filter pixels in a rectangular region set by the field of "
+                 "view values along the RA and Dec axes (False). It is suggested to "
+                 "set `simple_za_filter` to True (see issue #11)."
         )
-        # uv plane
+        # Model uv-Plane Parameters
         self.add_argument(
             "--nu",
             type=int,
-            help="Number of pixels on the u-axis of the model uv-plane for the EoR"
-                 " model."
+            help="Number of pixels on the u-axis of the model uv-plane for the EoR model."
         )
         self.add_argument(
             "--nv",
             type=int,
-            help="Number of pixels on the v-axis of the model uv-plane for the EoR"
-                 " model. Defaults to the value of '--nu'."
+            help="Number of pixels on the v-axis of the model uv-plane for the EoR model. "
+                 "Defaults to `nu`."
         )
         self.add_argument(
             "--nu-fg",
             type=int,
-            help="Number of pixels on the u-axis of the model uv-plane for the "
-                 "foreground (FG) model.  Defaults to the value of '--nu'."
+            help="Number of pixels on the u-axis of the model uv-plane for the foreground "
+                 "model.  Defaults to `nu`."
         )
         self.add_argument(
             "--nv-fg",
             type=int,
-            help="Number of pixels on the v-axis of the model uv-plane for the FG"
-                 " model. Defaults to the value of '--nu-fg' or '--nv' if "
-                 "'--nu-fg' is not defined."
+            help="Number of pixels on the v-axis of the model uv-plane for the foreground "
+                 "model. Defaults to `nu_fg` or `nv` if `nu_fg` is not defined."
         )
         self.add_argument(
             "--fit-for-monopole",
             action="store_true",
-            help="If passed, include the (u, v) = (0, 0) pixel in the "
-                 "model uv-plane."
+            help="Include (True) or exclude (False) the ``(u, v) == (0, 0)`` pixel in "
+                 "the model uv-plane. Defaults to False."
         )
-        # Noise model
+        # Noise Model Parameters
         self.add_argument(
             "--sigma",
             type=float,
-            help="Standard deviation of the visibility noise."
+            help="Standard deviation of the visibility noise in mK sr. Only used if "
+                 "adding noise to the input visibility data."
         )
         self.add_argument(
             "--noise-seed",
             type=int,
             default=742123,
-            help="Seed for numpy.random. Used to generate the noise vector. "
-                 "Defaults to 742123."
+            help="Seed for `numpy.random`. Used to generate the noise vector if adding "
+                 "noise to the input visibility data. Defaults to 742123."
         )
         self.add_argument(
             "--fit-noise",
             action="store_true",
-            dest="use_intrinsic_noise_fitting",  #FIXME
-            help="If passed, fit for the noise level."
+            dest="use_intrinsic_noise_fitting",  # FIXME: remove need for dest
+            help="Fit for the noise level."
         )
-        # Instrument model
+        # Instrument Model Parameters
         self.add_argument(
             "--model-instrument",
             action=ActionYesNo(yes_prefix="model-", no_prefix="no-"),
-            dest="include_instrumental_effects",  #FIXME
-            help="Forward model an instrument (--model-instrument) or don't "
-                 "include instrumental effects (--no-instrument)."
+            dest="include_instrumental_effects",  # FIXME: remove need for dest
+            default=True,
+            help="Forward model an instrument (--model-instrument) or exclude "
+                 "instrumental effects (--no-instrument)."
         )
         self.add_argument(
             "--inst-model",
             type=path_type("dr"),
-            help="Path to a directory containing the instrument model. This "
-                 "directory must at least contain two numpy-compatible files: "
-                 "`uvw_model.npy` containing the sampled (u, v, w) "
-                 "coordinates with shape (Ntimes, Nbls, 3), and "
-                 "`redundancy_model.npy` containing the number of baselines "
-                 "in a each sampled (u, v, w) with shape (Ntimes, Nbls, 1). "
-                 "Please see `bayeseor.model.instrument` for more details."
+            help="Path to a directory containing the instrument model. This directory "
+                 "must at least contain two numpy-compatible files: `uvw_model.npy` "
+                 "containing the sampled (u, v, w) coordinates with shape "
+                 "(nt, nbls, 3) where nbls is the number of baselines, and "
+                 "`redundancy_model.npy` containing the number of baselines in a each "
+                 "sampled (u, v, w) with shape (nt, nbls, 1). Please see "
+                 "`bayeseor.model.instrument` for more details. Used only if "
+                 "`include_instrumental_effects` is True. Defaults to None."
         )
         self.add_argument(
             "--tele-latlonalt",
             type=List[float],
-            dest="telescope_latlonalt",  #FIXME
-            default=[-30.72152777777791, 21.428305555555557, 1073.0000000093132],
-            help="Telescope location in latitude (deg), longitude (deg), and "
-                "altitude (meters).  Passed as a list of floats, e.g. "
-                "'--tele-latlonalt=[-30.1,125.6,80.4]'.  Do not put spaces after "
-                "commas.  Defaults to the HERA telescope location."
+            dest="telescope_latlonalt",  # FIXME: remove need for dest
+            default=[0., 0., 0.],
+            help="Telescope location in latitude (deg), longitude (deg), and altitude "
+                 "(meters). Passed as a list of floats, e.g. '[30.1,125.6,80.4]'. Do not "
+                 "put spaces after commas. Used only if `include_instrumental_effects` "
+                 "is True. Defaults to [0, 0, 0]."
         )
         self.add_argument(
             "--drift-scan",
             action=ActionYesNo(yes_prefix="drift-scan", no_prefix="phased"),
             default=True,
             help="Model the instrument in drift scan mode (--drift-scan) or "
-                "in phased mode (--phased).  Defaults to drift scan mode."
+                 "in phased mode (--phased).  Used only if `include_instrumental_effects` "
+                 "is True. Defaults to drift scan mode."
         )
         self.add_argument(
             "--beam-type",
             type=str,
-            help="Can be either a path to a pyuvdata-compatible beam file or "
-                 "one of 'uniform', 'gaussian', or 'airy'."
+            help="Path to a pyuvdata-compatible beam file or one of 'uniform', "
+                 "'gaussian', 'airy', 'gausscosine', or 'taperairy'. Used only if "
+                 "`include_instrumental_effects` is True."
         )        
         self.add_argument(
             "--fwhm-deg",
             type=float,
-            help="Full Width at Half Maximum (FWHM) of beam in degrees."
+            help="Full width at half maximum of beam in degrees. Used only if "
+                 "`include_instrumental_effects` is True and `beam_type` is 'airy', "
+                 "'gaussian', or 'gausscosine'."
         )
         self.add_argument(
             "--antenna-diameter",
             type=float,
-            help="Antenna diameter in meters used for Airy beam calculations."
+            help="Antenna (aperture) diameter in meters. Used only if "
+                 "`include_instrumental_effects` is True and `beam_type` is 'airy', "
+                 "'gaussian', or 'gausscosine'."
         )
         self.add_argument(
             "--cosfreq",
             type=float,
-            help="Cosine frequency if using a 'gausscosine' beam."
+            help="Cosine frequency if using a 'gausscosine' beam. Used only if "
+                 "`include_instrumental_effects` is True."
         )
         self.add_argument(
             "--achromatic-beam",
             action="store_true",
-            help="If passed, force the beam to be achromatic.  The frequency at "
-                "which the beam will be calculated is set via '--beam-ref-freq'."
+            help="Force the beam to be achromatic. The frequency at which the beam will "
+                 "be calculated is set via `beam_ref_freq`. Used only if "
+                 "`include_instrumental_effects` is True."
         )
         self.add_argument(
             "--beam-ref-freq",
             type=float,
-            help="Beam reference frequency in hertz.  Used for achromatic "
-                "beams.  Defaults to the minimum frequency."
+            help="Beam reference frequency in hertz. Used only if "
+                 "`include_instrumental_effects` is True. Defaults to `freq_min`."
         )
         self.add_argument(
             "--beam-peak-amplitude",
             type=float,
             default=1.0,
-            help="Peak amplitude of the beam.  Defaults to 1.0."
+            help="Peak amplitude of the beam. Used only if `include_instrumental_effects` "
+                 "is True."
         )
         self.add_argument(
             "--beam-center",
             type=List[float],
-            help="Beam center offsets from the phase center in right ascension "
-                "and declination in degrees.  Default behavior is the beam "
-                "center aligns with the phase center.  Passed as a list of "
-                "floats, e.g. '[-1.3,0.01]'.  Do not put a space after the comma."
+            help="Beam center offsets from the phase center in RA and Dec in degrees. "
+                 "Default behavior is the beam center aligns with the phase center. "
+                 "Passed as a list of floats, e.g. '[-1.3,0.01]'. Do not include a space "
+                 "after the comma."
         )
-        self.add_argument(
-            "--freq-interp-kind",
-            type=str,
-            default="cubic",
-            help="Frequency interpolation kind. Used only if `beam_type` is a "
-                 "path to a pyuvdata-compatible beam file. Please see "
-                 "`scipy.interpolate.interp1d` for valid options and more "
-                 "details.  Defaults to 'cubic'."
-        )
-        # --- Subharmonic Grid Params ---
+
+        # Subharmonic Grid Parameters
         self.add_argument(
             "--nu-sh",
             type=int,
-            help="Number of pixels on a side for the u-axis in the SubHarmonic "
-                "Grid (SHG) model uv-plane."
+            help="Number of pixels on a side for the u-axis in the subharmonic grid "
+                 "model uv-plane."
         )
         self.add_argument(
             "--nv-sh",
             type=int,
-            help="Number of pixels on a side for the v-axis in the SHG "
-                "model uv-plane.  Defaults to the value of '--nu-sh'."
-        )
-        self.add_argument(
-            "--nq-sh",
-            type=int,
-            help="Number of LSSM quadratic modes for the SHG."
+            help="Number of pixels on a side for the v-axis in the subharmonic grid "
+                 "model uv-plane. Defaults to `nu_sh`."
         )
         self.add_argument(
             "--fit-for-shg-amps",
             action="store_true",
-            help="If passed, fit for the amplitudes of the SHG pixels."
+            help="Fit for the amplitudes of the subharmonic grid pixels."
         )
-        # --- Tapering params ---
+        # Tapering Parameters
         self.add_argument(
             "--taper-func",
             type=str,
             help="Tapering function to apply to the frequency axis of the model "
-                "visibilities.  Can be any valid argument to "
-                "`scipy.signal.windows.get_window`."
+                 "visibilities.  Can be any valid argument to "
+                 "`scipy.signal.windows.get_window`."
         )
-        # --- Data params ---
+        # Input Data Parameters
         self.add_argument(
             "--data-path",
             type=Path_fr,
-            help="Path to numpy readable visibility data file in units of mK sr."
+            help="Path to either a pyuvdata-compatible visibility file or a preprocessed "
+                 "numpy-compatible visibility vector in units of mK sr."
         )
         self.add_argument(
             "--noise-data-path",
             type=Path_fr,
-            help="Path to noise file associated with data_path argument."
+            help="Path to a preprocessed numpy-compatible noise visibility vector in "
+                 "units of mK sr.  Required if `calc_noise` is False and `sigma` is None."
         )
-        self.add_argument(
-            "--eor-sim-path",
-            type=Path_fr,
-            help="Path to 21cmFAST EoR simulation cube."
-        )
-        self.add_argument(
-            "--eor-random-seed",
-            type=int,
-            default=892736,
-            help="Used to seed numpy.random if generating a mock EoR white noise "
-                "signal, i.e. passing no data file via --data-path."
-        )
-        # Additional data preprocessing params
         self.add_argument(
             "--ant-str",
             type=str,
             default="cross",
-            help="Antenna downselect string. This determines what baselines to "
-                 "keep in the data vector. Please see `pyuvdata.UVData.select` "
-                 "for more details. Defaults to 'cross' (cross-correlation "
-                 "baselines only)."
+            help="Antenna downselect string. If `data_path` points to a "
+                 "pyuvdata-compatible visibility file, `ant_str` determines what "
+                 "baselines to keep in the data vector. Please see "
+                 "`pyuvdata.UVData.select` for more details. Defaults to 'cross' "
+                 "(cross-correlation baselines only)."
         )
         self.add_argument(
             "--bl-cutoff",
             type=float,
-            help="Baseline length cutoff in meters. Defaults to None (keep all "
+            help="Baseline length cutoff in meters. If `data_path` points to a "
+                 "pyuvdata-compatible visibility file, `bl_cutoff` determines the longest "
+                 "baselines kept in the data vector. Defaults to None (keep all "
                  "baselines)."
         )
         self.add_argument(
             "--form-pI",
             action="store_true",
             default=True,
-            help="Form pseudo-Stokes I visibilities. Otherwise, use the "
-                 "polarization specified by `pol`."
+            help="Form pseudo-Stokes I visibilities. Otherwise, use the polarization "
+                 "specified by `pol`. Used only if `data_path` points to a "
+                 "pyuvdata-compatible visibility file."
         )
         self.add_argument(
             "--pI-norm",
             type=float,
             default=1.0,
-            help="Normalization, ``N``, used in forming pseudo-Stokes I from "
-                 "XX and YY via ``pI = N * (XX + YY)``."
+            help="Normalization, ``N``, used in forming pseudo-Stokes I from XX and YY "
+                 "via ``pI = N * (XX + YY)``. Used only if `data_path` points to a "
+                 "pyuvdata-compatible visibility file and `form_pI` is True."
         )
         self.add_argument(
             "--pol",
             type=str,
             default="xx",
-            help="Case-insensitive polarization string. Can be one of 'xx', "
-                 "'yy', or 'pI' for XX, YY, or pseudo-Stokes I polarization, "
-                 "respectively. Used only if `form_pI` is False."
+            help="Case-insensitive polarization string. Can be one of 'xx', 'yy', or 'pI' "
+                 "for XX, YY, or pseudo-Stokes I polarization, respectively. Used only if "
+                 "`data_path` points to a pyuvdata-compatible visibility file and "
+                 "`form_pI` is False."
         )
         self.add_argument(
             "--redundant-avg",
             action="store_true",
-            help="Redundantly average the data when forming the data vector."
+            help="Redundantly average the data. Used only if `data_path` points to a "
+                 "pyuvdata-compatible visibility file."
         )
         self.add_argument(
             "--uniform-redundancy",
             action="store_true",
-            help="Force the redundancy model to be uniform."
+            help="Force the redundancy model to be uniform. Used only if `data_path` "
+                 "points to a pyuvdata-compatible visibility file."
         )
         self.add_argument(
             "--phase-time",
             type=float,
-            help="The time to which the visibilities will be phased as a "
-                 "Julian date. Used only if `drift_scan` is False.  If "
-                 "`drift_scan` is False and and `phase_time` is None, "
-                 "`phase_time` will be automatically set to the central time "
-                 "in the data."
+            help="The time to which the visibilities will be phased as a Julian date. "
+                 "Used only if `drift_scan` is False.  If `drift_scan` is False and "
+                 "`phase_time` is None, `phase_time` will be automatically set to the "
+                 "central time in the data. Used only if `data_path` points to a "
+                 "pyuvdata-compatible visibility file."
         )
         self.add_argument(
             "--calc-noise",
             action="store_true",
-            help="Calculate a noise estimate from the visibilities via "
-                 "differencing adjacent times per baseline and frequency."
+            help="Calculate a noise estimate from the visibilities via differencing "
+                 "adjacent times per baseline and frequency. Used only if `data_path` "
+                 "points to a pyuvdata-compatible visibility file."
         )
         self.add_argument(
             "--save-vis",
             action="store_true",
-            help="Write visibility vector to disk in `out_dir`. If "
-                 "`calc_noise` is True, also save the noise vector."
+            help="Write visibility vector to disk in `out_dir`. If `calc_noise` is True, "
+                 "also save the noise vector. Used only if `data_path` points to a "
+                 "pyuvdata-compatible visibility file."
         )
         self.add_argument(
             "--save-model",
             action="store_true",
-            help="Write instrument model (antenna pairs, (u, v, w) sampling, "
-                 "and redundancy model) to disk in `out_dir`. If `phase` is "
-                 "True, also save the phasor vector."
+            help="Write instrument model (antenna pairs, (u, v, w) sampling, and "
+                 "redundancy model) to disk in `out_dir`. If `phase` is True, also save "
+                 "the phasor vector. Used only if `data_path` points to a "
+                 "pyuvdata-compatible visibility file."
         )
 
     def parse_args(self, args_str=None):

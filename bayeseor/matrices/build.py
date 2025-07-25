@@ -817,7 +817,7 @@ class BuildMatrices():
         Returns
         -------
         block_diag_matrix : array
-            If ``self.use_sparse_matrices = True``, return a sparse matrix.
+            If `self.use_sparse_matrices` is True, return a sparse matrix.
             Otherwise, return a dense numpy array.
 
         """
@@ -839,7 +839,7 @@ class BuildMatrices():
         Returns
         -------
         vstack_matrix : array
-            If ``self.use_sparse_matrices = True``, return a sparse matrix.
+            If `self.use_sparse_matrices` is True, return a sparse matrix.
             Otherwise, return a dense numpy array.
 
         """
@@ -861,7 +861,7 @@ class BuildMatrices():
         Returns
         -------
         hstack_matrix : array
-            If ``self.use_sparse_matrices = True``, return a sparse matrix.
+            If `self.use_sparse_matrices` is True, return a sparse matrix.
             Otherwise, return a dense numpy array.
 
         """
@@ -883,7 +883,7 @@ class BuildMatrices():
         Returns
         -------
         diagonal_matrix : array
-            If ``self.use_sparse_matrices = True``, return a sparse matrix.
+            If `self.use_sparse_matrices` is True, return a sparse matrix.
             Otherwise, return a dense numpy array.
 
         """
@@ -893,9 +893,139 @@ class BuildMatrices():
             diagonal_matrix = np.diag(diagonal_vals)
         return diagonal_matrix
 
+    def build_matrix_if_it_doesnt_already_exist(self, matrix_name):
+        r"""
+        Constructs a matrix with name `matrix_name` if it doesn't exist.
+
+        This function doesn't return anything.  It instead calls the
+        corresponding build matrix function.
+
+        Parameters
+        ----------
+        matrix_name : str
+            Name of matrix.
+
+        """
+        matrix_available = self.check_if_matrix_exists(matrix_name)
+        if not matrix_available:
+            self.matrix_methods[matrix_name]()
+
+    def prepare_matrix_stack_for_deletion(self, src, clobber_matrices):
+        """
+        Archive an existing matrix stack on disk.
+
+        Prepends ``'delete_'`` to the child directory of the matrix stack to
+        be archived.
+
+        Parameters
+        ----------
+        src : str
+            Path to existing matrix stack directory.
+        clobber_matrices : bool
+            If True, overwrite a previously archived matrix stack.
+
+        Returns
+        -------
+        dst : str
+            If `clobber_matrices` is True, path to matrix stack directory to
+            be deleted.
+
+        """
+        if clobber_matrices:
+            if src[-1] == "/":
+                src = src[:-1]
+            head, tail = os.path.split(src)
+            dst = os.path.join(head, "delete_"+tail)
+            print("Archiving existing matrix stack to:", dst)
+            try:
+                shutil.move(src, dst)
+            except Exception:
+                print("Archive path already existed. "
+                      "Deleting the previous archive.")
+                self.delete_old_matrix_stack(dst, "y")
+                self.prepare_matrix_stack_for_deletion(
+                    self.array_dir, self.clobber_matrices
+                )
+            return dst
+
+    def delete_old_matrix_stack(
+        self, path_to_old_matrix_stack, confirm_deletion
+    ):
+        """
+        Delete or archive an existing matrix stack.
+
+        Parameters
+        ----------
+        path_to_old_matrix_stack : str
+            Path to the existing matrix stack.
+        confirm_deletion : str
+            If 'y', delete existing matrix stack.  Otherwise, archive the
+            matrix stack.
+
+        """
+        if confirm_deletion.lower() in ["y", "yes"]:
+            shutil.rmtree(path_to_old_matrix_stack)
+        else:
+            print("Prior matrix tree archived but not deleted."
+                  " \nPath to archive:", path_to_old_matrix_stack)
+    
+    def write_version_info(self):
+        """
+        Write version info to disk.
+
+        """
+        fp = Path(self.array_dir) / "version.txt"
+        if not fp.exists():
+            with open(fp, "w") as f:
+                f.write(f"{__version__}\n")
+
+    def build_minimum_sufficient_matrix_stack(
+        self, clobber_matrices=False, force_clobber=False
+    ):
+        """
+        Construct a minimum sufficient matrix stack needed to run BayesEoR.
+
+        Parameters
+        ----------
+        clobber_matrices : bool
+            If True, overwrite the existing matrix stack.
+        force_clobber : bool
+            If True, delete the old matrix stack without user input.
+            Otherwise, prompt the user to specify wether the matrix stack
+            should be deleted ('y') or archived ('n').
+
+        """
+        self.clobber_matrices = clobber_matrices
+        self.force_clobber = force_clobber
+
+        # Prepare matrix directory
+        matrix_stack_dir_exists = Path(self.array_dir).exists()
+        if matrix_stack_dir_exists:
+            dst = self.prepare_matrix_stack_for_deletion(
+                self.array_dir, self.clobber_matrices
+            )
+        # Build matrices
+        self.build_matrix_if_it_doesnt_already_exist("T_Ninv_T")
+        if not self.include_instrumental_effects:
+            self.build_matrix_if_it_doesnt_already_exist("block_T_Ninv_T")
+        self.build_matrix_if_it_doesnt_already_exist("N")
+        if matrix_stack_dir_exists and self.clobber_matrices:
+            if not self.force_clobber:
+                confirm_deletion = input(
+                    "Confirm deletion of archived matrix stack? (y/n)\n")
+            else:
+                print("Deletion of archived matrix stack has "
+                      "been pre-confirmed. Continuing...")
+                confirm_deletion = "y"
+            self.delete_old_matrix_stack(dst, confirm_deletion)
+
+        self.write_version_info()
+        if self.verbose:
+            print("Matrix stack complete")
+
     # Finv functions
     def build_taper_matrix(self):
-        """
+        r"""
         Build a diagonal matrix containing a frequency taper function.
 
         The taper matrix is a diagonal matrix containing a tapering function
@@ -904,7 +1034,7 @@ class BuildMatrices():
         Notes
         -----
         * Used to construct `Finv` if using a taper function.
-        * taper_matrix has shape (ndata, ndata).
+        * `taper_matrix` has shape (ndata, ndata).
         * This function assumes that `use_nvis_nchan_nt_ordering = True`.
 
         """
@@ -925,21 +1055,21 @@ class BuildMatrices():
         self.output_data(taper_matrix, matrix_name)
 
     def build_phasor_matrix(self):
-        """
+        r"""
         Build a diagonal matrix used to phase visibilities.
 
         The phasor matrix is multiplied elementwise into the visibility vector
-        from Finv, constructed using unphased (u, v, w) coordinates, to produce
-        phased visibilities.
+        from :math:`\mathbf{F}^{-1}`, constructed using unphased
+        :math:`(u, v, w)` coordinates, to produce phased visibilities.
 
         The phasor matrix is constructed as a diagonal matrix of
-        $e^(i*phi(u(t), v(t), w(t)))$ phasor terms from the optional phasor
-        vector in the instrument model.
+        :math:`\exp\left[i\,\phi(u(t),v(t),w(t))\right]` phasor terms from the
+        optional phasor vector in the instrument model.
 
         Notes
         -----
         * Used to construct `Finv` if modelling phased visibilities.
-        * phasor_matrix has shape (ndata, ndata).
+        * `phasor_matrix` has shape (ndata, ndata).
         * This function assumes that `use_nvis_nchan_nt_ordering = True`.
 
         """
@@ -957,23 +1087,23 @@ class BuildMatrices():
         self.output_data(phasor_matrix, matrix_name)
 
     def build_multi_chan_nudft(self):
-        """
+        r"""
         Build a multi-frequency NUDFT matrix for image to measurement space.
 
         Each block in this block-diagonal matrix transforms a set of
-        time-dependent image-space (l(t), m(t), n(t)) HEALPix coordinates to
-        unphased, instrumentall sampled, frequency dependent
-        (u(f), v(f), w(f)).
+        time-dependent image-space :math:`(l(t), m(t), n(t))` HEALPix
+        coordinates to unphased, instrumentall sampled, frequency dependent
+        :math:`(u(f), v(f), w(f))`.
 
         Notes
         -----
         * Used to construct `Finv`.
-        * If ``use_nvis_nt_nchan_ordering = True``: model visibilities will be
+        * `multi_chan_nudft` has shape (ndata, npix * nf * nt).
+        * If `use_nvis_nt_nchan_ordering` is True: model visibilities will be
           ordered (nvis*nt) per chan for all channels (old default).
-        * If ``use_nvis_nchan_nt_ordering = True``: model visibilities will be
+        * If `use_nvis_nchan_nt_ordering` is True: model visibilities will be
           ordered (nvis*nchan) per time step for all time steps.  This ordering
           is required when using a drift scan primary beam (current default).
-        * `multi_chan_nudft` has shape (ndata, npix * nf * nt).
 
         """
         matrix_name = "multi_chan_nudft"
@@ -1035,13 +1165,13 @@ class BuildMatrices():
         self.output_data(multi_chan_nudft, matrix_name)
 
     def build_multi_chan_beam(self):
-        """
+        r"""
         Build a matrix contating image space beam amplitudes.
 
         Each block-diagonal entry contains the beam amplitude at each HEALPix
-        sampled (l(t), m(t), n(t)) for a single time and frequency.  Each stack
-        contains `nf` block-diagonal entries containing the beam amplitudes at
-        all frequencies for a single time.
+        sampled :math:`(l(t), m(t), n(t))` for a single time and frequency.
+        Each stack contains `nf` block-diagonal entries containing the beam
+        amplitudes at all frequencies for a single time.
 
         Notes
         -----
@@ -1103,18 +1233,17 @@ class BuildMatrices():
         self.output_data(multi_chan_beam, matrix_name)
 
     def build_Finv(self):
-        """
+        r"""
         Build a multi-frequency NUDFT matrix for image to measurement space.
 
-        Finv is a a non-uniform DFT matrix that takes a vector of
-        (l, m, n) syk model pixel amplitudes and
+        :math:`\mathbf{F}^{-1}` is a a non-uniform DFT matrix that takes a
+        vector of :math:`(l, m, n)` syk model pixel amplitudes and:
 
           #. Applies a beam per time and frequency via `multi_chan_beam`
-          #. Transforms to insttrumentally sampled, unphased (u(f), v(f), w(f))
-             coordinates from the instrument model
+          #. Transforms to instrumentally sampled, unphased
+             :math:`(u(f), v(f), w(f))` coordinates from the instrument model
           #. If modelling phased visibilities, applies a phasor vector from the
-             instrument model to phase the visibilities to the central time
-             step
+             instrument model to phase the visibilities
 
         Notes
         -----
@@ -1137,14 +1266,14 @@ class BuildMatrices():
 
     # Fprime functions
     def build_nuidft_array(self):
-        """
+        r"""
         Build a NUIDFT matrix for uv to image space.
 
         This matrix forms a block in `multi_chan_nuidft` and transforms the EoR
         model uv-plane to image space at a single frequency. Specifically,
-        `nuidft_array` transforms a rectilinear (u, v) grid to HEALPix sampled
-        (l, m).  The model uv-plane has w=0, so no w or n terms are included
-        in this transformation.
+        `nuidft_array` transforms a rectilinear :math:`(u, v)` grid to HEALPix
+        sampled :math:`(l, m)`. The model uv-plane has w=0, so no w or n terms
+        are included in this transformation.
 
         Notes
         -----
@@ -1185,13 +1314,13 @@ class BuildMatrices():
         self.output_data(nuidft_array, matrix_name)
 
     def build_multi_chan_nuidft(self):
-        """
+        r"""
         Build a multi-frequency NUIDFT matrix for uv to image space.
         
-        `multi_chan_nuidft` is constructed as a block-diagonal matrix.  Each
+        `multi_chan_nuidft` is constructed as a block-diagonal matrix. Each
         block is constructed via `build_nuidft_array` and represents a 2D
-        non-uniform DFT matrix from rectilinear (u, v) to HEALPix (l, m) for a
-        single frequency.
+        non-uniform DFT matrix from rectilinear :math:`(u, v)` to HEALPix
+        :math:`(l, m)` for a single frequency.
 
         Notes
         -----
@@ -1212,17 +1341,17 @@ class BuildMatrices():
         self.output_data(multi_chan_nuidft, matrix_name)
 
     def build_multi_chan_nuidft_fg(self):
-        """
+        r"""
         Build a multi-frequency NUIDFT matrix for uv to image space.
 
-        `multi_chan_nuidft_fg` is constructed as a block-diagonal matrix.  Each
-        block is a 2D non-uniform DFT matrix from rectilinear (u, v) to
-        HEALPix (l, m) at a single frequency.
+        `multi_chan_nuidft_fg` is constructed as a block-diagonal matrix. Each
+        block is a 2D non-uniform DFT matrix from rectilinear :math:`(u, v)`
+        to HEALPix :math:`(l, m)` at a single frequency.
 
         Notes
         -----
         * Used for the FG model in `Fprime`.
-        * `multi_chan_nuidft_fg` has shape (npix_fg * nf, nuv_fg * nf)
+        * `multi_chan_nuidft_fg` has shape (npix_fg * nf, nuv_fg * nf).
 
         """
         matrix_name = "multi_chan_nuidft_fg"
@@ -1253,12 +1382,12 @@ class BuildMatrices():
         self.output_data(multi_chan_nuidft_fg, matrix_name)
 
     def build_nuidft_array_sh(self):
-        """
+        r"""
         Build a multi-frequency NUIDFT matrix for uv to image space.
         
         `nuidft_array_sh` is constructed as a block diagonal matrix.  Each
         block transforms the SubHarmonic Grid (SHG) model uv-plane to HEALPix
-        sampled (l, m) at a single frequency.
+        sampled :math:`(l, m)` at a single frequency.
 
         Notes
         -----
@@ -1291,18 +1420,18 @@ class BuildMatrices():
         self.output_data(nuidft_array_sh, matrix_name)
 
     def build_Fprime(self):
-        """
-        Build a multi-frequency NUIDFT matrix fo uv to image space.
+        r"""
+        Build a multi-frequency NUIDFT matrix for uv to image space.
         
-        Fprime takes a rectilinear (u, v) model as a channel ordered vector
-        and transforms it to HEALPix sky model (l, m) space.  Fprime is
-        constructed as a block-diagonal matrix with blocks for the EoR and FG
-        models.
+        :math:`\mathbf{F}'` takes a rectilinear :math:`(u, v)` model as a
+        channel-ordered vector and transforms it to HEALPix sky model
+        :math:`(l, m)` space. Fprime is constructed as a block-diagonal matrix
+        with blocks for the EoR and FG models.
 
         Notes
         -----
-        * `Fprime` has shape
-          ((npix_eor + npix_fg) * nf, (nuv_eor + nuv_fg) * nf).
+        * `Fprime` has shape ((npix_eor + npix_fg) * nf,
+          (nuv_eor + nuv_fg) * nf).
 
         """
         matrix_name = "Fprime"
@@ -1321,12 +1450,12 @@ class BuildMatrices():
 
     # Fz functions
     def build_idft_array_1d_sh(self):
-        """
+        r"""
         Build a block-diagonal IDFT matrix for eta to frequency space.
 
-        `idft_array_1d_sh` is constructted as a block-diagonal matrix.  Each
-        block is a 1D IDFT matrix for the eta spectrum of each (u, v) pixel in
-        the SubHarmonic Grid (SHG) model uv-plane.
+        `idft_array_1d_sh` is constructed as a block-diagonal matrix.  Each
+        block is a 1D IDFT matrix for the eta spectrum of each :math:`(u, v)`
+        pixel in the SubHarmonic Grid (SHG) model uv-plane.
 
         Notes
         -----
@@ -1358,7 +1487,7 @@ class BuildMatrices():
         self.output_data(idft_array_1d_sh, matrix_name)
 
     def build_idft_array_1d(self):
-        """
+        r"""
         Build an IDFT matrix for eta to frequency space.
         
         Constructs one block within `multi_vis_idft_array_1d`.
@@ -1367,7 +1496,7 @@ class BuildMatrices():
         -----
         * Used for the EoR model in `Fz`.
         * `idft_array` has shape (nf, neta - 1).
-        * Excludes eta=0 which belongs to the FG model.
+        * Excludes :math:`\eta=0` which belongs to the FG model.
 
         """
         matrix_name = "idft_array_1d"
@@ -1385,7 +1514,7 @@ class BuildMatrices():
         self.output_data(idft_array_1d, matrix_name)
 
     def build_multi_vis_idft_array_1d(self):
-        """
+        r"""
         Build a block-diagonal IDFT matrix from eta to frequency space.
 
         Notes
@@ -1412,8 +1541,8 @@ class BuildMatrices():
         self.output_data(multi_vis_idft_array_1d, matrix_name)
 
     def build_idft_array_1d_fg(self):
-        """
-        Build a block-diagonal IDFT matrix for eta to freuqency space.
+        r"""
+        Build a block-diagonal IDFT matrix for eta to frequency space.
 
         Notes
         -----
@@ -1461,26 +1590,27 @@ class BuildMatrices():
         self.output_data(idft_array_1d_fg, matrix_name)
 
     def build_gridding_matrix_vo2co(self):
-        """
-        Build a vis ordered to chan ordered gridding matrix.
+        r"""
+        Build a vis-ordered to chan-ordered gridding matrix for the EoR model.
 
-        The gridding matrix takes a (u, v, f) space vector that is vis ordered:
+        The gridding matrix takes a :math:`(u, v, f)`-space vector that is
+        vis-ordered:
           - the first `neta` entries correspond to the spectrum of the zeroth
-            index model (u, v) pixel
+            index model :math:`(u, v)` pixel
           - the second `neta` entries correspond to the spectrum of the first
-            index model (u, v) pixel
+            index model :math:`(u, v)` pixel
           - etc.
         and converts it to chan ordered:
           - the first 'nuv' entries correspond to the values of the model
-            (u, v) plane at the zeroth frequency channel
+            :math:`(u, v)` plane at the zeroth frequency channel
           - the second 'nuv' entries correspond to the values of the model
-            (u, v) plane at the first frequency channel
+            :math:`(u, v)` plane at the first frequency channel
           - etc.
 
         Notes
         -----
         * Used for the EoR model in `Fz`.
-        * `gridding_matrix_vo2co` has shape (nuv*nf, nuv*nf).
+        * `gridding_matrix_vo2co` is a square matrix with dimension nuv*nf.
 
         """
         matrix_name = "gridding_matrix_vo2co"
@@ -1504,20 +1634,21 @@ class BuildMatrices():
         self.output_data(gridding_matrix, matrix_name)
     
     def build_gridding_matrix_vo2co_fg(self):
-        """
-        Build a vis ordered to chan ordered gridding matrix.
+        r"""
+        Build a vis-ordered to chan-ordered gridding matrix for the FG model.
 
-        The gridding matrix takes a (u, v, f) space vector that is vis ordered:
+        The gridding matrix takes a :math:`(u, v, f)`-space vector that is
+        vis-ordered:
           - the first `neta` entries correspond to the spectrum of the zeroth
-            index model (u, v) pixel
+            index model :math:`(u, v)` pixel
           - the second `neta` entries correspond to the spectrum of the first
-            index model (u, v) pixel
+            index model :math:`(u, v)` pixel
           - etc.
         and converts it to chan ordered:
           - the first 'nuv' entries correspond to the values of the model
-            (u, v) plane at the zeroth frequency channel
+            :math:`(u, v)` plane at the zeroth frequency channel
           - the second 'nuv' entries correspond to the values of the model
-            (u, v) plane at the first frequency channel
+            :math:`(u, v)` plane at the first frequency channel
           - etc.
 
         Notes
@@ -1542,18 +1673,17 @@ class BuildMatrices():
         self.output_data(gridding_matrix, matrix_name)
 
     def build_Fz(self):
-        """
+        r"""
         Build a block-diagonal IDFT matrix for eta to frequency space.
 
-        `Fz` is constructed as a block-diagonal matrix.  Each block is a 1D
-        IDFT matrix which takes a vis ordered eta space vector and
-        transforms it to a chan ordered frequency space data vector.
+        :math:`\mathbf{F}_z` is constructed as a block-diagonal matrix. Each
+        block is a 1D IDFT matrix which takes a vis-ordered eta space vector
+        and transforms it to a chan-ordered frequency space data vector.
 
         Notes
         -----
-        * `Fz` has shape ((nuv_eor + nuv_fg)*nf,
-           nuv_eor*(neta - 1) + nuv_fg*(1 + nq)
-           + fit_for_monopole*(neta + nq)).
+        * `Fz` has shape ((nuv_eor + nuv_fg)*nf, nuv_eor*(neta - 1) +
+          nuv_fg*(1 + nq) + fit_for_monopole*(neta + nq)).
 
         """
         matrix_name = "Fz"
@@ -1573,16 +1703,18 @@ class BuildMatrices():
         self.output_data(Fz, matrix_name)
 
     def build_Finv_Fprime(self):
-        """
-        Build the matrix product Finv @ Fprime from their dense blocks.
+        r"""
+        Build the matrix product :math:`\mathbf{F}^{-1}\mathbf{F}'`.
 
         This function has been added to reduce the RAM required to build
-        Finv and Fprime when the foreground sky model FoV is large.  Building
-        the matrix product Finv @ Fprime directly from their dense blocks
-        requires much less memory than constructing Finv and Fprime
-        independently.  If more than one thread is available and threading is
-        available within numpy, this method also significantly reduces the time
-        required to compute the matrix product Finv @ Fprime.
+        :math:`\mathbf{F}^{-1}` and :math:`\mathbf{F}'` when the foreground
+        sky model FoV is large. Building the matrix product
+        :math:`\mathbf{F}^{-1}\mathbf{F}'` directly from their dense blocks
+        requires much less memory than constructing :math:`\mathbf{F}^{-1}`
+        and :math:`\mathbf{F}'` independently. If more than one thread is
+        available and threading is available within numpy, this method also
+        significantly reduces the time required to compute the matrix product
+        :math:`\mathbf{F}^{-1}\mathbf{F}'`.
         
         Notes
         -----
@@ -1795,14 +1927,14 @@ class BuildMatrices():
         self.output_data(Finv_Fprime, matrix_name)
 
     def build_Fprime_Fz(self):
-        """
-        Build `Fprime_Fz = Fprime * Fz`.
+        r"""
+        Build :math:`\mathbf{F}'\mathbf{F}_z`.
 
         Notes
         -----
-        * `Fprime_Fz` has shape (npix, nuv_eor * (neta - 1)
-           + (nuv_fg - fit_for_monopole) * (1 + nq)
-           + fit_for_monopole * (neta + nq)).
+        * `Fprime_Fz` has shape (npix, nuv_eor * (neta - 1) +
+          (nuv_fg - fit_for_monopole) * (1 + nq) + fit_for_monopole *
+          (neta + nq)).
 
         """
         matrix_name = "Fprime_Fz"
@@ -1821,7 +1953,7 @@ class BuildMatrices():
 
     def build_gridding_matrix_co2vo(self):
         """
-        Build a chan ordered to vis ordered gridding matrix.
+        Build a chan-ordered to vis-ordered gridding matrix.
 
         This matrix is the transposition of `gridding_matrix_vo2co`.
 
@@ -1850,11 +1982,8 @@ class BuildMatrices():
 
     # Covariance matrix functions
     def build_Ninv(self):
-        """
-        Build a diagonal inverse covariance matrix.
-
-        Each diagonal component contains an estimate of `1 / |noise|**2`
-        in the data vector.
+        r"""
+        Build an inverse noise covariance matrix, :math:`\mathbf{N}^{-1}`.
 
         Notes
         -----
@@ -1924,11 +2053,8 @@ class BuildMatrices():
         self.output_data(Ninv, matrix_name)
 
     def build_N(self):
-        """
-        Build a diagonal covariance matrix.
-
-        Each diagonal component contains an estimate of `|noise|**2` in the
-        data vector.
+        r"""
+        Build a noise covariance matrix, :math:`\mathbf{N}`.
 
         Notes
         -----
@@ -1999,15 +2125,15 @@ class BuildMatrices():
 
     # T functions
     def build_T(self):
-        """
-        Build `T = Finv * Fprime * Fz`.
+        r"""
+        Build :math:`\mathbf{T}=\mathbf{F}^{-1}\mathbf{F}'\mathbf{F}_z`.
 
-        `T` takes a model (u(eta), v(eta)) space data vector and transforms it
-        to
+        :math:`\mathbf{T}` takes a joint EoR and foreground model vector and
+        transforms it to
 
-          #. uv space via `Fz`
-          #. image space via `Fprime`
-          #. measurement space via `Finv`
+          #. :math:`(u, v, f)` space via :math:`\mathbf{F}_z`
+          #. image space via :math:`\mathbf{F}'`
+          #. measurement space via :math:`\mathbf{F}^{-1}`
 
         Notes
         -----
@@ -2069,11 +2195,12 @@ class BuildMatrices():
         self.output_data(T, matrix_name)
 
     def build_Ninv_T(self):
-        """
-        Build `Ninv_T = Ninv * T`.
+        r"""
+        Build :math:`\mathbf{N}^{-1}\mathbf{T}`.
 
-        `Ninv_T` computes the inverse covariance weighted vector in data space
-        from an eta space data vector.
+        :math:`\mathbf{N}^{-1}\mathbf{T}` computes the inverse
+        noise-covariance-weighted visibility vector from a joint EoR and
+        foreground model vector.
 
         Notes
         -----
@@ -2091,8 +2218,8 @@ class BuildMatrices():
         self.output_data(Ninv_T, matrix_name)
 
     def build_T_Ninv_T(self):
-        """
-        Build `T_Ninv_T = T.conjugate().T * Ninv * T`.
+        r"""
+        Build :math:`\mathbf{T}^\dagger\mathbf{N}^{-1}\mathbf{T}`.
 
         Notes
         -----
@@ -2115,8 +2242,10 @@ class BuildMatrices():
 
     def build_block_T_Ninv_T(self):
         """
-        Constructs a block diagonal representation of `T_Ninv_T`.  Only used
-        if ``self.use_instrumental_effects = False``.
+        Constructs a block-diagonal representation of `T_Ninv_T`.
+        
+        Only used if `self.use_instrumental_effects` is False.
+
         """
         matrix_name = "block_T_Ninv_T"
         pmd = self.load_prerequisites(matrix_name)
@@ -2134,134 +2263,3 @@ class BuildMatrices():
         if self.verbose:
             print(f"Time taken: {time.time() - start}")
         self.output_data(block_T_Ninv_T, matrix_name)
-
-    def build_matrix_if_it_doesnt_already_exist(self, matrix_name):
-        """
-        Constructs a matrix with name `matrix_name` if it doesn't
-        already exist.
-
-        This function doesn't return anything.  It instead calls the
-        corresponding build matrix function.
-
-        Parameters
-        ----------
-        matrix_name : str
-            Name of matrix.
-
-        """
-        matrix_available = self.check_if_matrix_exists(matrix_name)
-        if not matrix_available:
-            self.matrix_methods[matrix_name]()
-
-    def prepare_matrix_stack_for_deletion(self, src, clobber_matrices):
-        """
-        Archive an existing matrix stack on disk.
-
-        Prepends 'delete\_' to the child directory of the matrix stack to be
-        archived.
-
-        Parameters
-        ----------
-        src : str
-            Path to existing matrix stack directory.
-        clobber_matrices : bool
-            If `True`, overwrite a previously archived matrix stack.
-
-        Returns
-        -------
-        dst : str
-            If `clobber_matrices` is True, path to matrix stack directory to
-            be deleted.
-
-        """
-        if clobber_matrices:
-            if src[-1] == "/":
-                src = src[:-1]
-            head, tail = os.path.split(src)
-            dst = os.path.join(head, "delete_"+tail)
-            print("Archiving existing matrix stack to:", dst)
-            try:
-                shutil.move(src, dst)
-            except Exception:
-                print("Archive path already existed. "
-                      "Deleting the previous archive.")
-                self.delete_old_matrix_stack(dst, "y")
-                self.prepare_matrix_stack_for_deletion(
-                    self.array_dir, self.clobber_matrices
-                )
-            return dst
-
-    def delete_old_matrix_stack(
-        self, path_to_old_matrix_stack, confirm_deletion
-    ):
-        """
-        Delete or archive an existing matrix stack.
-
-        Parameters
-        ----------
-        path_to_old_matrix_stack : str
-            Path to the existing matrix stack.
-        confirm_deletion : str
-            If 'y', delete existing matrix stack.  Otherwise, archive the
-            matrix stack.
-
-        """
-        if confirm_deletion.lower() in ["y", "yes"]:
-            shutil.rmtree(path_to_old_matrix_stack)
-        else:
-            print("Prior matrix tree archived but not deleted."
-                  " \nPath to archive:", path_to_old_matrix_stack)
-    
-    def write_version_info(self):
-        """
-        Write version info to disk.
-
-        """
-        fp = Path(self.array_dir) / "version.txt"
-        if not fp.exists():
-            with open(fp, "w") as f:
-                f.write(f"{__version__}\n")
-
-    def build_minimum_sufficient_matrix_stack(
-        self, clobber_matrices=False, force_clobber=False
-    ):
-        """
-        Construct a minimum sufficient matrix stack needed to run BayesEoR.
-
-        Parameters
-        ----------
-        clobber_matrices : bool
-            If `True`, overwrite the existing matrix stack.
-        force_clobber : bool
-            If `True`, delete the old matrix stack without user input.
-            If `False`, prompt the user to specify wether the matrix stack
-            should be deleted ('y') or archived ('n').
-
-        """
-        self.clobber_matrices = clobber_matrices
-        self.force_clobber = force_clobber
-
-        # Prepare matrix directory
-        matrix_stack_dir_exists = Path(self.array_dir).exists()
-        if matrix_stack_dir_exists:
-            dst = self.prepare_matrix_stack_for_deletion(
-                self.array_dir, self.clobber_matrices
-            )
-        # Build matrices
-        self.build_matrix_if_it_doesnt_already_exist("T_Ninv_T")
-        if not self.include_instrumental_effects:
-            self.build_matrix_if_it_doesnt_already_exist("block_T_Ninv_T")
-        self.build_matrix_if_it_doesnt_already_exist("N")
-        if matrix_stack_dir_exists and self.clobber_matrices:
-            if not self.force_clobber:
-                confirm_deletion = input(
-                    "Confirm deletion of archived matrix stack? (y/n)\n")
-            else:
-                print("Deletion of archived matrix stack has "
-                      "been pre-confirmed. Continuing...")
-                confirm_deletion = "y"
-            self.delete_old_matrix_stack(dst, confirm_deletion)
-
-        self.write_version_info()
-        if self.verbose:
-            print("Matrix stack complete")

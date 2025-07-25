@@ -32,7 +32,7 @@ More information about each of these components can be found below.
 Analysis Parameters
 ^^^^^^^^^^^^^^^^^^^
 
-BayesEoR is configured via a set of analysis parameters which can be set via a configuration yaml file (recommended) or the command line.  The example configuration file (`example-config.yaml`) provides an example of the minimum sufficient set of analysis parameters for a power spectrum analysis when using a ``numpy``-compatible file as input (more on this in the section below on :ref:`vis`).  Please see :ref:`setting-parameters` for the contents of this file and :class:`bayeseor.params.BayesEoRParser` for a description of each of the user-definable analysis parameters.  The full list of parameters can also be displayed by running
+BayesEoR is configured via a set of analysis parameters which can be set via a configuration yaml file (recommended) or the command line.  The provided configuration file (`example-config.yaml`) provides an example of the minimum sufficient set of analysis parameters for a power spectrum analysis when using a ``numpy``-compatible file as input (more on this in the section below on :ref:`vis`).  Please see :ref:`setting-parameters` for the contents of this file and :class:`bayeseor.params.BayesEoRParser` for a description of each of the user-definable analysis parameters.  The full list of parameters can also be displayed by running
 
 .. code-block:: Bash
 
@@ -78,16 +78,19 @@ Alternatively, visibilities can be read via ``numpy`` in the form of a preproces
 If passing a ``numpy``-compatible file as input, the following analysis parameters are required as configuration file (command line) arguments:
 
 **Frequency parameters:**
+
 1. ``nf`` (``--nf``): number of frequencies
 2. ``df`` (``--df``): frequency channel width in hertz
 3. ``freq_min`` (``--freq-min``): minimum frequency in hertz **OR** ``freq_center`` (``--freq-center``): central frequency in hertz
 
 **Time parameters:**
+
 1. ``nt`` (``--nt``): number of times
 2. ``dt`` (``--dt``): integration time in seconds
 3. ``jd_min`` (``--jd-min``): minimum Julian date **OR** ``jd_center`` (``--jd-center``): central Julian date
 
 **Instrument model parameters:**
+
 1. ``inst_model`` (``--inst-model``): path to the directory containing the instrument model (see :ref:`inst-model` below)
 
 This ``numpy``-compatible dictionary can be generated via ``bayeseor.setup.run_setup`` with ``save_vis`` set to True (and ``save_dir`` specifying the output location for the dictionary).  This is an optional preprocessing step and is not required as the data vector can be generated at runtime if a ``pyuvdata``-compatible file is passed via ``data_path``.  However, preprocessing the data vector and saving it to disk can be potentially beneficial if the ``pyuvdata``-compatible file you are reading from is large.

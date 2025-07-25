@@ -323,25 +323,25 @@ class Healpix(HEALPix):
             Return the (RA, DEC) coordinates associated with each pixel center.
             Defaults to False.
         inverse : boolean, optional
-            If `False`, return the pixels within the observed region.
-            If `True`, return the pixels outside the observed region.
+            If False, return the pixels within the observed region.
+            If True, return the pixels outside the observed region.
         simple_za_filter : boolean, optional
-            If `True` (default), return the pixels inside a circular region
+            If True (default), return the pixels inside a circular region
             defined by ``za <= fov_ra/2`` where `za` is the zenith angle.
             Otherwise, return the pixels inside a rectangular region with equal
             arc length on all sides.
 
         Returns
         -------
-        pix : array
+        pix : numpy.ndarray
             HEALPix pixel numbers lying within the observed region set by
             `fov_ra` and `fov_dec`.
-        ra : array
-            Array of RA values for each pixel center.  Only returned if
-            `return_radec` is True.
-        dec : array
-            Array of DEC values for each pixel center.  Only returned if
-            `return_radec` is True.
+        ra : numpy.ndarray
+            RA values for each pixel center.  Only returned if `return_radec`
+            is True.
+        dec : numpy.ndarray
+            DEC values for each pixel center.  Only returned if `return_radec`
+            is True.
         
         Notes
         -----
@@ -350,7 +350,7 @@ class Healpix(HEALPix):
           field of view along right ascension becomes large (see issue #11
           in the BayesEoR repo for more details).  We advise setting
           `simple_za_filter` to True (the default) to avoid any potential
-          issues with the rectangular pixel selection.
+          issues with the rectangular pixel selections.
 
         """
         lons, lats = hp.pix2ang(
@@ -426,10 +426,10 @@ class Healpix(HEALPix):
         ----------
         time : float
             Julian date used in ICRS to AltAz coordinate frame conversion.
-        ra : array
-            Array of RA values in degrees.
-        dec : array
-            Array of DEC values in degrees.
+        ra : numpy.ndarray
+            RA values in degrees.
+        dec : numpy.ndarray
+            DEC values in degrees.
         return_azza : boolean
             If True, return both (l, m, n) and (az, za) coordinate arrays.
             Otherwise return only (l, m, n).  Defaults to 'False'.
@@ -438,11 +438,11 @@ class Healpix(HEALPix):
 
         Returns
         -------
-        l : np.ndarray of floats
+        l : numpy.ndarray of floats
             Array containing the EW direction cosine of each HEALPix pixel.
-        m : np.ndarray of floats
+        m : numpy.ndarray of floats
             Array containing the NS direction cosine of each HEALPix pixel.
-        n : np.ndarray of floats
+        n : numpy.ndarray of floats
             Array containing the radial direction cosine of each HEALPix pixel.
 
         Notes
@@ -480,16 +480,16 @@ class Healpix(HEALPix):
 
         Parameters
         ----------
-        az : np.ndarray of floats
+        az : numpy.ndarray of floats
             Azimuthal angle of each pixel in radians.
-        za : np.ndarray of floats
+        za : numpy.ndarray of floats
             Zenith angle of each pixel in radians.
         freq : float, optional
             Frequency in Hz.
 
         Returns
         -------
-        beam_vals : np.ndarray
+        beam_vals : numpy.ndarray
             Array containing beam amplitude values at each (az, za).
 
         """
@@ -545,7 +545,7 @@ class Healpix(HEALPix):
 
         Parameters
         ----------
-        za : np.ndarray
+        za : numpy.ndarray
             Zenith angle of each pixel in radians.
         sigma : float
             Standard deviation in radians.
@@ -554,7 +554,7 @@ class Healpix(HEALPix):
 
         Returns
         -------
-        beam_vals : np.ndarray
+        beam_vals : numpy.ndarray
             Array of Gaussian beam amplitudes for each zenith angle in `za`.
 
         """
@@ -567,7 +567,7 @@ class Healpix(HEALPix):
 
         Parameters
         ----------
-        za : np.ndarray
+        za : numpy.ndarray
             Zenith angle of each pixel in radians.
         sigma : float
             Standard deviation in radians.
@@ -578,7 +578,7 @@ class Healpix(HEALPix):
 
         Returns
         -------
-        beam_vals : np.ndarray
+        beam_vals : numpy.ndarray
             Array of Gaussian beam amplitudes for each zenith angle in `za`.
 
         """
@@ -604,7 +604,7 @@ class Healpix(HEALPix):
 
         Parameters
         ----------
-        za : np.ndarray of floats
+        za : numpy.ndarray of floats
             Zenith angle of each pixel in radians.
         diam : float
             Antenna (aperture) diameter in meters.
@@ -613,7 +613,7 @@ class Healpix(HEALPix):
 
         Returns
         -------
-        beam_vals : np.ndarray
+        beam_vals : numpy.ndarray
             Array of Airy disk amplitudes for each zenith angle in `za`.
 
         """
@@ -634,7 +634,7 @@ class Healpix(HEALPix):
 
         Parameters
         ----------
-        za : np.ndarray of floats
+        za : numpy.ndarray of floats
             Zenith angle of each pixel in radians.
         tanh_freq : float, optional
             Exponential frequency (rate parameter) in inverse radians.
@@ -645,7 +645,7 @@ class Healpix(HEALPix):
         
         Returns
         -------
-        taper_vals : np.ndarray
+        taper_vals : numpy.ndarray
             Array of tanh taper amplitudes for each zenith angle in `za`.
 
         """

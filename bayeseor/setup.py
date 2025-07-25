@@ -191,47 +191,67 @@ def run_setup(
         Forward model an instrument. Defaults to True.
     beam_type : str
         Path to a pyuvdata-compatible beam file or one of 'uniform',
-        'gaussian', 'airy', 'gausscosine', or 'taperairy'.
+        'gaussian', 'airy', 'gausscosine', or 'taperairy'. Used only if
+        `include_instrumental_effects` is True. Defaults to None.
     beam_center : list of float, optional
         Beam center offsets from the phase center in right ascension and
-        declination in degrees. Defaults to None.
+        declination in degrees. Used only if `include_instrumental_effects` is
+        True. Defaults to None.
     achromatic_beam : bool, optional
-        Force the beam to be achromatic. Defaults to False.
+        Force the beam to be achromatic. The frequency at which the beam will
+        be calculated is set via `beam_ref_freq`. Used only if
+        `include_instrumental_effects` is True. Defaults to False.
     beam_peak_amplitude : float, optional
-        Peak amplitude of the beam. Defaults to 1.0.
+        Peak amplitude of the beam. Used only if `include_instrumental_effects`
+        is True. Defaults to 1.0.
     fwhm_deg : float, optional
-        Full width at half maximum of beam in degrees. Used only if `beam_type`
-        is 'airy', 'gaussian', or 'gausscosine'. Defaults to None.
+        Full width at half maximum of beam in degrees. Used only if
+        `include_instrumental_effects` is True and `beam_type` is 'airy',
+        'gaussian', or 'gausscosine'. Defaults to None.
     antenna_diameter : float, optional
-        Antenna (aperture) diameter in meters. Used only if `beam_type` is
-        'airy', 'gaussian', or 'gausscosine'. Defaults to None.
+        Antenna (aperture) diameter in meters. Used only if
+        `include_instrumental_effects` is True and `beam_type` is 'airy',
+        'gaussian', or 'gausscosine'. Defaults to None.
     cosfreq : float, optional
-        Cosine frequency if using a 'gausscosine' beam. Defaults to None.
+        Cosine frequency if using a 'gausscosine' beam. Used only if
+        `include_instrumental_effects` is True. Defaults to None.
     beam_ref_freq : float, optional
-        Beam reference frequency in hertz. Defaults to None.
+        Beam reference frequency in hertz. Used only if
+        `include_instrumental_effects` is True. Defaults to `freq_min`.
     data_path : pathlib.Path or str
-        Path to either a pyuvdata-compatible file containing visibilities or
-        a numpy-compatible file containing a preprocessed visibility vector.
+        Path to either a pyuvdata-compatible visibility file or a preprocessed
+        numpy-compatible visibility vector in units of mK sr.
     ant_str : str, optional
-        Antenna downselect string. This determines what baselines to keep in
-        the data vector. Please see `pyuvdata.UVData.select` for more details.
-        Defaults to 'cross' (cross-correlation baselines only).
+        Antenna downselect string. If `data_path` points to a
+        pyuvdata-compatible visibility file, `ant_str` determines what
+        baselines to keep in the data vector. Please see
+        `pyuvdata.UVData.select` for more details. Defaults to 'cross'
+        (cross-correlation baselines only).
     bl_cutoff : astropy.Quantity or float, optional
-        Baseline length cutoff in meters if not a Quantity. Defaults to None
-        (keep all baselines).
+        Baseline length cutoff in meters. If `data_path` points to a
+        pyuvdata-compatible visibility file, `bl_cutoff` determines the longest
+        baselines kept in the data vector. Defaults to None (keep all
+        baselines).
     freq_idx_min : int, optional
-        Minimum frequency channel index to keep in the data vector. Defaults
-        to None (keep all frequencies).
+        Minimum frequency channel index to keep in the data vector. Used only
+        if `data_path` points to a pyuvdata-compatible visibility file.
+        Defaults to None (keep all frequencies).
     freq_min : astropy.Quantity or float, optional
-        Minimum frequency to keep in the data vector in hertz if not a
-        Quantity. All frequencies greater than or equal to `freq_min` will be
-        kept, unless `nf` is specified. Defaults to None (keep all
-        frequencies).
+        Minimum frequency in hertz if not a Quantity. If `data_path` points to
+        a pyuvdata-compatible visibility file, `freq_min` sets the minimum
+        frequency kept in the data vector.  All frequencies greater than or
+        equal to `freq_min` will be kept, unless `nf` is specified. If None
+        (default), all frequencies are kept. If `data_path` points to a
+        preprocessed data vector with a '.npy' suffix, one of `freq_min` or
+        `freq_center` is required. Defaults to None (keep all frequencies).
     freq_center : astropy.Quantity or float, optional
-        Central frequency, in hertz if not a Quantity, around which `nf`
-        frequencies will be kept in the data vector. `nf` must also be
-        passed, otherwise an error is raised. Defaults to None (keep all
-        frequencies).
+        Central frequency in hertz if not a Quantity. If `data_path` points to
+        a pyuvdata-compatible visibility file, `nf` is also required to
+        determine the number of frequencies kept around `freq_center` in the
+        data vector. If None (default), all frequencies are kept. If
+        `data_path` points to a preprocessed data vector with a '.npy' suffix,
+        one of `freq_min` or `freq_center` is required. Defaults to None (keep
+        all frequencies).
     df : astropy.Quantity or float, optional
         Frequency channel width in hertz if not a Quantity. Required if
         `data_path` points to a preprocessed data vector with a '.npy' suffix.
@@ -239,33 +259,43 @@ def run_setup(
         `data_path` points to a pyuvdata-compatible file containing
         visibilities. Defaults to None.
     jd_idx_min : int, optional
-        Minimum time index to keep in the data vector. Defaults to None (keep
-        all times).
+        Minimum time index to keep in the data vector. Used only if `data_path`
+        points to a pyuvdata-compatible visibility file. Defaults to None (keep
+        all times). Defaults to None (keep all times).
     jd_min : astropy.Time or float, optional
         Minimum time to keep in the data vector as a Julian date if not a Time.
-        Defaults to None (keep all times).
+        One of `jd_min` or `jd_center` is required if `data_path` points to a
+        preprocessed data vector with a '.npy' suffix. Defaults to None (keep
+        all times).
     jd_center : astropy.Time or float, optional
         Central time, as a Julian date if not a Time, around which `nt`
         times will be kept in the data vector. `nt` must also be passed,
         otherwise an error is raised. Defaults to None (keep all times).
     dt : astropy.Quantity or float, optional
-        Integration time in seconds of not a Quantity. Required if `data_path`
+        Integration time in seconds if not a Quantity. Required if `data_path`
         points to a preprocessed data vector with a '.npy' suffix. Overwritten
         by the integration time in the UVData object if `data_path` points to
         a pyuvdata-compatible file. Defaults to None.
     form_pI : bool, optional
         Form pseudo-Stokes I visibilities. Otherwise, use the polarization
-        specified by `pol`. Defaults to True.
+        specified by `pol`. Used only if `data_path` points to a
+        pyuvdata-compatible visibility file. Defaults to True.
     pI_norm : float, optional
         Normalization, ``N``, used in forming pseudo-Stokes I from XX and YY
-        via ``pI = N * (XX + YY)``. Defaults to 1.0.
+        via ``pI = N * (XX + YY)``. Used only if `data_path` points to a
+        pyuvdata-compatible visibility file and `form_pI` is True. Defaults to
+        1.0.
     pol : str, optional
-        Case-insensitive polarization string. Used only if `form_pI` is False.
-        Defaults to 'xx'.
+        Case-insensitive polarization string. Can be one of 'xx', 'yy', or 'pI'
+        for XX, YY, or pseudo-Stokes I polarization, respectively. Used only if
+        `data_path` points to a pyuvdata-compatible visibility file and
+        `form_pI` is False. Defaults to 'xx'.
     redundant_avg : bool, optional
-        Redundantly average the data.  Defaults to False.
+        Redundantly average the data. Used only if `data_path` points to a
+        pyuvdata-compatible visibility file. Defaults to False.
     uniform_redundancy : bool, optional
-        Force the redundancy model to be uniform. Defaults to False.
+        Force the redundancy model to be uniform. Used only if `data_path`
+        points to a pyuvdata-compatible visibility file. Defaults to False.
     phase : bool, optional
         Create a "phasor vector" which can be used to phase each visibility
         in the data vector as a function of baseline, time, and frequency via
@@ -273,18 +303,22 @@ def run_setup(
     phase_time : astropy.Time or float, optional
         The time to which the visibilities will be phased as a Julian date if
         not a Time. If `phase` is True and `phase_time` is None, `phase_time`
-        will be automatically set to the central time in the data. Defaults to
-        None.
+        will be automatically set to the central time in the data. Used only
+        if `data_path` points to a pyuvdata-compatible visibility file.
+        Defaults to None.
     calc_noise : bool, optional
         Calculate a noise estimate from the visibilities via differencing
-        adjacent times per baseline and frequency. Defaults to False.
+        adjacent times per baseline and frequency. Used only if `data_path`
+        points to a pyuvdata-compatible visibility file. Defaults to False.
     save_vis : bool, optional
         Write visibility vector to disk in `save_dir`. If `calc_noise` is True,
-        also save the noise vector. Defaults to False.
+        also save the noise vector. Used only if `data_path` points to a
+        pyuvdata-compatible visibility file. Defaults to False.
     save_model : bool, optional
         Write instrument model (antenna pairs, (u, v, w) sampling, and
         redundancy model) to disk in `save_dir`. If `phase` is True, also save
-        the phasor vector. Defaults to False.
+        the phasor vector. Used only if `data_path` points to a
+        pyuvdata-compatible visibility file. Defaults to False.
     save_dir : pathlib.Path or str, optional
         Output directory if `save_vis` or `save_model` is True. Defaults to
         ``Path(output_dir) / file_root``.
@@ -297,11 +331,13 @@ def run_setup(
         Used to seed `np.random` when generating the noise vector. Defaults to
         742123.
     noise_data_path : pathlib.Path or str, optional
-        Path to a numpy-compatible file containing a preprocessed noise vector.
-        Defaults to None.
+        Path to a preprocessed numpy-compatible noise visibility vector in
+        units of mK sr. Defaults to None.
     inst_model : pathlib.Path or str, optional
         Path to directory containing instrument model files (`uvw_array.npy`,
-        `redundancy_model.npy`, and optionally `phasor_vector.npy`). Defaults
+        `redundancy_model.npy`, and optionally `phasor_vector.npy`). Required
+        if `data_path` points to a preprocessed data vector with a '.npy'
+        suffix. Used only if `include_instrumental_effects` is True. Defaults
         to None.
     save_k_vals : bool, optional
         Save k bin files (means, edges, and number of voxels in each bin).
@@ -309,8 +345,9 @@ def run_setup(
     telescope_name : str, optional
         Telescope identifier string. Defaults to ''.
     telescope_latlonalt : sequence of float, optional
-        The latitude, longitude, and altitude of the telescope in degrees,
-        degrees, and meters, respectively.
+        Telescope location tuple as (latitude in degrees, longitude in degrees,
+        altitude in meters). Used only if `include_instrumental_effects` is
+        True. Defaults to (0, 0, 0).
     array_dir_prefix : pathlib.Path or str, optional
         Array directory prefix. Defaults to './matrices/'.
     use_sparse_matrices : bool, optional
@@ -968,16 +1005,19 @@ def get_vis_data(
     Parameters
     ----------
     data_path : pathlib.Path or str
-        Path to either a pyuvdata-compatible file containing visibilities or
-        a numpy-compatible file containing a preprocessed visibility vector.
-        Defaults to None.
+        Path to either a pyuvdata-compatible visibility file or a preprocessed
+        numpy-compatible visibility vector in units of mK sr. Defaults to None.
     ant_str : str, optional
-        Antenna downselect string. This determines what baselines to keep in
-        the data vector. Please see `pyuvdata.UVData.select` for more details.
-        Defaults to 'cross' (cross-correlation baselines only).
+        Antenna downselect string. If `data_path` points to a
+        pyuvdata-compatible visibility file, `ant_str` determines what
+        baselines to keep in the data vector. Please see
+        `pyuvdata.UVData.select` for more details. Defaults to 'cross'
+        (cross-correlation baselines only).
     bl_cutoff : astropy.Quantity or float, optional
-        Baseline length cutoff in meters if not a Quantity. Defaults to None
-        (keep all baselines).
+        Baseline length cutoff in meters. If `data_path` points to a
+        pyuvdata-compatible visibility file, `bl_cutoff` determines the longest
+        baselines kept in the data vector. Defaults to None (keep all
+        baselines).
     freq_idx_min : int, optional
         Minimum frequency channel index to keep in the data vector. Defaults
         to None (keep all frequencies).
@@ -1009,7 +1049,9 @@ def get_vis_data(
         all times).
     jd_min : astropy.Time or float, optional
         Minimum time to keep in the data vector as a Julian date if not a Time.
-        Defaults to None (keep all times).
+        One of `jd_min` or `jd_center` is required if `data_path` points to a
+        preprocessed data vector with a '.npy' suffix. Defaults to None (keep
+        all times).
     jd_center : astropy.Time or float, optional
         Central time, as a Julian date if not a Time, around which `nt`
         times will be kept in the data vector. `nt` must also be passed,
@@ -1020,23 +1062,30 @@ def get_vis_data(
         keep starting from `jd_idx_min`, the time corresponding to `jd_min`
         or around `jd_center`. Defaults to None (keep all times).
     dt : astropy.Quantity or float, optional
-        Integration time in seconds of not a Quantity. Required if `data_path`
+        Integration time in seconds if not a Quantity. Required if `data_path`
         points to a preprocessed data vector with a '.npy' suffix. Overwritten
         by the integration time in the UVData object if `data_path` points to
         a pyuvdata-compatible file. Defaults to None.
     form_pI : bool, optional
         Form pseudo-Stokes I visibilities. Otherwise, use the polarization
-        specified by `pol`. Defaults to True.
+        specified by `pol`. Used only if `data_path` points to a
+        pyuvdata-compatible visibility file. Defaults to True.
     pI_norm : float, optional
         Normalization, ``N``, used in forming pseudo-Stokes I from XX and YY
-        visibilities via ``pI = N * (XX + YY)``. Defaults to 1.0.
+        via ``pI = N * (XX + YY)``. Used only if `data_path` points to a
+        pyuvdata-compatible visibility file and `form_pI` is True. Defaults to
+        1.0.
     pol : str, optional
-        Case-insensitive polarization string. Used only if `form_pI` is False.
-        Defaults to 'xx'.
+        Case-insensitive polarization string. Can be one of 'xx', 'yy', or 'pI'
+        for XX, YY, or pseudo-Stokes I polarization, respectively. Used only if
+        `data_path` points to a pyuvdata-compatible visibility file and
+        `form_pI` is False. Defaults to 'xx'.
     redundant_avg : bool, optional
-        Redundantly average the data.  Defaults to False.
+        Redundantly average the data. Used only if `data_path` points to a
+        pyuvdata-compatible visibility file. Defaults to False.
     uniform_redundancy : bool, optional
-        Force the redundancy model to be uniform. Defaults to False.
+        Force the redundancy model to be uniform. Used only if `data_path`
+        points to a pyuvdata-compatible visibility file. Defaults to False.
     phase : bool, optional
         Create a "phasor vector" which can be used to phase each visibility
         in the data vector as a function of baseline, time, and frequency via
@@ -1044,11 +1093,13 @@ def get_vis_data(
     phase_time : astropy.Time or float, optional
         The time to which the visibilities will be phased as a Julian date if
         not a Time. If `phase` is True and `phase_time` is None, `phase_time`
-        will be automatically set to the central time in the data. Defaults to
-        None.
+        will be automatically set to the central time in the data. Used only
+        if `data_path` points to a pyuvdata-compatible visibility file.
+        Defaults to None.
     calc_noise : bool, optional
         Calculate a noise estimate from the visibilities via differencing
-        adjacent times per baseline and frequency. Defaults to False.
+        adjacent times per baseline and frequency. Used only if `data_path`
+        points to a pyuvdata-compatible visibility file. Defaults to False.
     sigma : float, optional
         Standard deviation of the visibility noise. Required if `calc_noise`
         and `noise_data_path` are both None. Defaults to None.
@@ -1057,24 +1108,27 @@ def get_vis_data(
         742123.
     save_vis : bool, optional
         Write visibility vector to disk in `save_dir`. If `calc_noise` is True,
-        also save the noise vector. Defaults to False.
+        also save the noise vector. Used only if `data_path` points to a
+        pyuvdata-compatible visibility file. Defaults to False.
     save_model : bool, optional
         Write instrument model (antenna pairs, (u, v, w) sampling, and
         redundancy model) to disk in `save_dir`. If `phase` is True, also save
-        the phasor vector. Defaults to False.
+        the phasor vector. Used only if `data_path` points to a
+        pyuvdata-compatible visibility file. Defaults to False.
     save_dir : pathlib.Path or str, optional
         Output directory if `save_vis` or `save_model` is True. Defaults to
         ``Path('./')``.
     clobber : bool, optional
         Clobber files on disk if they exist. Defaults to False.
     noise_data_path : pathlib.Path or str, optional
-        Path to a numpy-compatible file containing a preprocessed noise vector.
-        Defaults to None.
+        Path to a preprocessed numpy-compatible noise visibility vector in
+        units of mK sr. Defaults to None.
     inst_model : pathlib.Path or str, optional
         Path to directory containing instrument model files (`uvw_array.npy`,
         `redundancy_model.npy`, and optionally `phasor_vector.npy`). Required
         if `data_path` points to a preprocessed data vector with a '.npy'
-        suffix. Defaults to None.
+        suffix. Used only if `include_instrumental_effects` is True. Defaults
+        to None.
     return_uvd : bool, optional
         Return the UVData object if `data_path` points to a pyuvdata-compatible
         file. Defaults to False.
@@ -1537,25 +1591,29 @@ def generate_array_dir(
         declination in degrees. Used only if `include_instrumental_effects` is
         True. Defaults to None.
     achromatic_beam : bool, optional
-        Force the beam to be achromatic. Used only if
+        Force the beam to be achromatic. The frequency at which the beam will
+        be calculated is set via `beam_ref_freq`. Used only if
         `include_instrumental_effects` is True. Defaults to False.
     beam_peak_amplitude : float, optional
         Peak amplitude of the beam. Used only if `include_instrumental_effects`
         is True. Defaults to 1.0.
     fwhm_deg : float, optional
-        Full width at half maximum of beam in degrees. Used only if `beam_type`
-        is 'airy', 'gaussian', or 'gausscosine'. Defaults to None.
+        Full width at half maximum of beam in degrees. Used only if
+        `include_instrumental_effects` is True and `beam_type` is 'airy',
+        'gaussian', or 'gausscosine'. Defaults to None.
     antenna_diameter : float, optional
-        Antenna (aperture) diameter in meters. Used only if `beam_type` is
-        'airy', 'gaussian', or 'gausscosine'. Defaults to None.
+        Antenna (aperture) diameter in meters. Used only if
+        `include_instrumental_effects` is True and `beam_type` is 'airy',
+        'gaussian', or 'gausscosine'. Defaults to None.
     cosfreq : float, optional
-        Cosine frequency if using a 'gausscosine' beam. Defaults to None.
+        Cosine frequency if using a 'gausscosine' beam. Used only if
+        `include_instrumental_effects` is True. Defaults to None.
     beam_ref_freq : float, optional
         Beam reference frequency in megahertz. Used only if
         `include_instrumental_effects` is True. Defaults to None.
     noise_data_path : pathlib.Path or str, optional
-        Path to a numpy-compatible file containing a preprocessed noise vector.
-        Defaults to None.
+        Path to a preprocessed numpy-compatible noise visibility vector in
+        units of mK sr. Defaults to None.
     taper_func : str, optional
         Taper function applied to the frequency axis of the visibilities.
         Can be any valid argument to `scipy.signal.windows.get_window`.
@@ -1839,7 +1897,8 @@ def build_matrices(
         Forward model an instrument. Defaults to True.
     telescope_latlonalt : sequence of floats, optional
         Telescope location tuple as (latitude in degrees, longitude in degrees,
-        altitude in meters). Defaults to (0, 0, 0).
+        altitude in meters). Used only if `include_instrumental_effects` is
+        True. Defaults to (0, 0, 0).
     nt : float
         Number of times.
     jd_center : float
@@ -1848,24 +1907,33 @@ def build_matrices(
         Integration time in seconds.
     beam_type : str
         Path to a pyuvdata-compatible beam file or one of 'uniform',
-        'gaussian', 'airy', 'gausscosine', or 'taperairy'.
+        'gaussian', 'airy', 'gausscosine', or 'taperairy'. Used only if
+        `include_instrumental_effects` is True. Defaults to None.
     beam_center : list of float, optional
         Beam center offsets from the phase center in right ascension and
-        declination in degrees.
+        declination in degrees. Used only if `include_instrumental_effects`
+        is True.
     achromatic_beam : bool, optional
-        Force the beam to be achromatic. Defaults to False.
+        Force the beam to be achromatic. The frequency at which the beam will
+        be calculated is set via `beam_ref_freq`. Used only if
+        `include_instrumental_effects` is True. Defaults to False.
     beam_peak_amplitude : float
-        Peak amplitude of the beam. Defaults to 1.0.
+        Peak amplitude of the beam. Used only if `include_instrumental_effects`
+        is True. Defaults to 1.0.
     fwhm_deg : float, optional
-        Full width at half maximum of beam in degrees. Used only if `beam_type`
-        is 'airy', 'gaussian', or 'gausscosine'. Defaults to None.
+        Full width at half maximum of beam in degrees. Used only if
+        `include_instrumental_effects` is True and `beam_type` is 'airy',
+        'gaussian', or 'gausscosine'. Defaults to None.
     antenna_diameter : float, optional
-        Antenna (aperture) diameter in meters. Used only if `beam_type` is
-        'airy', 'gaussian', or 'gausscosine'. Defaults to None.
+        Antenna (aperture) diameter in meters. Used only if
+        `include_instrumental_effects` is True and `beam_type` is 'airy',
+        'gaussian', or 'gausscosine'. Defaults to None.
     cosfreq : float, optional
-        Cosine frequency if using a 'gausscosine' beam. Defaults to None.
+        Cosine frequency if using a 'gausscosine' beam. Used only if
+        `include_instrumental_effects` is True. Defaults to None.
     beam_ref_freq : float, optional
-        Beam reference frequency in megahertz. Defaults to None.
+        Beam reference frequency in megahertz. Used only if
+        `include_instrumental_effects` is True. Defaults to None.
     drift_scan : bool, optional
         Model drift scan (True, default) or phased (False) visibilities.
     telescope_name : str, optional
@@ -1888,8 +1956,8 @@ def build_matrices(
         Can be any valid argument to `scipy.signal.windows.get_window`.
         Defaults to None.
     noise_data_path : pathlib.Path or str, optional
-        Path to a numpy-compatible file containing a preprocessed noise vector.
-        Defaults to None.
+        Path to a preprocessed numpy-compatible noise visibility vector in
+        units of mK sr. Defaults to None.
     use_sparse_matrices : bool, optional
         Use sparse arrays. Defaults to True.
     build_Finv_and_Fprime : bool, optional
