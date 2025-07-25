@@ -94,9 +94,9 @@ class BayesEoRParser(ArgumentParser):
         If None (default), start a new analysis. Otherwise, resume analysis
         from `file_root`.
     use_Multinest : bool, optional
-        Use MultiNest ('--multinest', True) or Polychord ('--polychord', False)
-        as the sampler. Defaults to True (use MultiNest). Using Polychord is
-        advised for large parameter spaces.
+        Use MultiNest (True) or Polychord (False) as the sampler. Using
+        Polychord is advised for large parameter spaces. Defaults to True
+        (use MultiNest).
         
     Frequency Parameters
 

@@ -1098,7 +1098,7 @@ class BuildMatrices():
         Notes
         -----
         * Used to construct `Finv`.
-        * `multi_chan_nudft` has shape (ndata, npix * nf * nt).
+        * `multi_chan_nudft` has shape (ndata, npix_fg * nf * nt).
         * If `use_nvis_nt_nchan_ordering` is True: model visibilities will be
           ordered (nvis*nt) per chan for all channels (old default).
         * If `use_nvis_nchan_nt_ordering` is True: model visibilities will be
@@ -1176,7 +1176,7 @@ class BuildMatrices():
         Notes
         -----
         * Used to construct `Finv`.
-        * `multi_chan_beam` has shape (npix * nf * nt, npix * nf).
+        * `multi_chan_beam` has shape (npix_fg * nf * nt, npix_fg * nf).
 
         """
         matrix_name = "multi_chan_beam"
@@ -1247,7 +1247,7 @@ class BuildMatrices():
 
         Notes
         -----
-        * `Finv` has shape (ndata, npix * nf).
+        * `Finv` has shape (ndata, npix_fg * nf).
 
         """
         matrix_name = "Finv"
@@ -1278,7 +1278,7 @@ class BuildMatrices():
         Notes
         -----
         * Used for the EoR model in `Fprime`.
-        * `nuidft_array` has shape (npix, nuv).
+        * `nuidft_array` has shape (npix_fg, nu*nv - 1).
         * If the EoR and FG models have different FoV values, `nuidft_array` is
           reshaped to match the dimensions of the FG model (FoV_FG >= FoV_EoR).
           The HEALPix pixel ordering must be preserved in this reshaping so
@@ -1325,7 +1325,7 @@ class BuildMatrices():
         Notes
         -----
         * Used for the EoR model in `Fprime`.
-        * `multi_chan_nuidft` has shape (npix_eor * nf, nuv_eor * nf).
+        * `multi_chan_nuidft` has shape (npix_fg * nf, (nu*nv - 1) * nf).
 
         """
         matrix_name = "multi_chan_nuidft"
@@ -1351,7 +1351,8 @@ class BuildMatrices():
         Notes
         -----
         * Used for the FG model in `Fprime`.
-        * `multi_chan_nuidft_fg` has shape (npix_fg * nf, nuv_fg * nf).
+        * `multi_chan_nuidft_fg` has shape (npix_fg * nf, 
+          (nu_fg*nv_fg - (not fit_for_monopole)) * nf).
 
         """
         matrix_name = "multi_chan_nuidft_fg"
@@ -1396,6 +1397,7 @@ class BuildMatrices():
           (npix*nf, nuv_sh*fit_for_shg_amps + nuv_sh*nq_sh).
 
         """
+        # FIXME: add support for the SHG uv-plane (issue #50)
         matrix_name = "nuidft_array_sh"
         pmd = self.load_prerequisites(matrix_name)
         if self.verbose:
@@ -1430,8 +1432,8 @@ class BuildMatrices():
 
         Notes
         -----
-        * `Fprime` has shape ((npix_eor + npix_fg) * nf,
-          (nuv_eor + nuv_fg) * nf).
+        * `Fprime` has shape (npix_fg * nf, (nu*nv - 1) * nf + (nu_fg*nv_fg -
+          (not fit_for_monopole)) * nf.
 
         """
         matrix_name = "Fprime"
@@ -1462,6 +1464,7 @@ class BuildMatrices():
         * Used for the SHG model in `Fz`.
 
         """
+        # FIXME: add support for the SHG uv-plane (issue #50)
         matrix_name = "idft_array_1d_sh"
         pmd = self.load_prerequisites(matrix_name)
         if self.verbose:
@@ -1521,7 +1524,7 @@ class BuildMatrices():
         -----
         * Used for the EoR model in `Fz`.
         * `multi_vis_idft_array_1d` has shape
-          (nuv_eor * nf, nuv_eor * (neta - 1)).
+          ((nu*nv - 1) * nf, (nu*nv - 1) * (neta - 1)).
 
         """
         matrix_name = "multi_vis_idft_array_1d"
@@ -1547,8 +1550,9 @@ class BuildMatrices():
         Notes
         -----
         * Used for the FG model in `Fz`.
-        * `idft_array_1d_fg` has shape (nuv_fg * nf,
-          nuv_fg*(1 + nq) + fit_for_monopole*(neta + nq)).
+        * `idft_array_1d_fg` has shape ((nu_fg*nv_fg -
+          (not fit_for_monopole))*nf + nf, (nq + 1)*(nu_fg*nv_fg - 1) +
+          fit_for_monopole*(neta + nq)).
 
         """
         matrix_name = "idft_array_1d_fg"
@@ -1604,16 +1608,17 @@ class BuildMatrices():
 
         and converts it to chan ordered:
 
-        * the first 'nuv' entries correspond to the values of the model
+        * the first `nuv` entries correspond to the values of the model
           :math:`(u, v)` plane at the zeroth frequency channel
-        * the second 'nuv' entries correspond to the values of the model
+        * the second `nuv` entries correspond to the values of the model
           :math:`(u, v)` plane at the first frequency channel
         * etc.
 
         Notes
         -----
         * Used for the EoR model in `Fz`.
-        * `gridding_matrix_vo2co` is a square matrix with dimension nuv*nf.
+        * `gridding_matrix_vo2co` is a square matrix with dimension
+          (nu*nv - 1) * nf.
 
         """
         matrix_name = "gridding_matrix_vo2co"
@@ -1651,9 +1656,9 @@ class BuildMatrices():
 
         and converts it to chan ordered:
 
-        * the first 'nuv' entries correspond to the values of the model
+        * the first `nuv` entries correspond to the values of the model
           :math:`(u, v)` plane at the zeroth frequency channel
-        * the second 'nuv' entries correspond to the values of the model
+        * the second `nuv` entries correspond to the values of the model
           :math:`(u, v)` plane at the first frequency channel
         * etc.
 
@@ -1661,7 +1666,7 @@ class BuildMatrices():
         -----
         * Used for the FG model in `Fz`.
         * `gridding_matrix_vo2co_fg` is a square matrix with dimension
-          (nuv_fg - (not fit_for_monopole)) * nf.
+          (nu_fg*nv_fg - (not fit_for_monopole)) * nf.
 
         """
         matrix_name = "gridding_matrix_vo2co_fg"
@@ -1688,8 +1693,10 @@ class BuildMatrices():
 
         Notes
         -----
-        * `Fz` has shape ((nuv_eor + nuv_fg)*nf, nuv_eor*(neta - 1) +
-          nuv_fg*(1 + nq) + fit_for_monopole*(neta + nq)).
+        * `Fz` has shape
+          (nf*(nu*nv - 1 + nu_fg*nv_fg - (not fit_for_monopole)),
+          (nu*nv - 1)*(neta - 1) + (nq + 1)*(nu_fg*nv_fg - 1) +
+          fit_for_monopole*(neta + nq)).
 
         """
         matrix_name = "Fz"
@@ -1724,11 +1731,12 @@ class BuildMatrices():
         
         Notes
         -----
-        * `Finv_Fprime` has shape (ndata, nf*nuv_eor) if modelling the EoR
-          only, (ndata, nf*(nuv_eor + nuv_fg)) if modelling EoR + foregrounds,
-          (ndata, nf*(nuv_eor + nuv_fg) + nuv_sh*(nq_sh + fit_for_shg_amps))
-          if modelling EoR + foregrounds + SHG.  Please note that the SHG is
-          not currently supported (see issue #50).
+        * `Finv_Fprime` has shape (ndata, (nu*nv - 1)*nf) if modelling the EoR
+          only, (ndata, (nu*nv - 1 + nu_fg*nv_fg - (not fit_for_monopole))*nf)
+          if modelling EoR + foregrounds, (ndata, (nu*nv - 1 + nu_fg*nv_fg
+          - (not fit_for_monopole))*nf + nuv_sh*(nq_sh + fit_for_shg_amps))
+          if modelling EoR + foregrounds + the subharmonic grid (SHG). Please
+          note that the SHG is not currently supported (see issue #50).
 
         """
         nuv_eor = self.nu*self.nv - 1
@@ -1938,9 +1946,8 @@ class BuildMatrices():
 
         Notes
         -----
-        * `Fprime_Fz` has shape (npix, nuv_eor * (neta - 1) +
-          (nuv_fg - fit_for_monopole) * (1 + nq) + fit_for_monopole *
-          (neta + nq)).
+        * `Fprime_Fz` has shape (npix_fg*nf, (nu*nv - 1)*(neta - 1) +
+          (nq + 1)*(nu_fg*nv_fg - 1) + fit_for_monopole*(neta + nq)).
 
         """
         matrix_name = "Fprime_Fz"
@@ -1965,8 +1972,8 @@ class BuildMatrices():
 
         Notes
         -----
-        * `gridding_matrix_co2vo` has shape
-          (nuv * (neta + nq), nuv * (neta + nq)).
+        * `gridding_matrix_co2vo` is a square matrix with dimension
+          (nu*nv - 1) * nf.
 
         """
         matrix_name = "gridding_matrix_co2vo"
@@ -2143,7 +2150,8 @@ class BuildMatrices():
 
         Notes
         -----
-        * `T` has shape (ndata, nuv * (neta + nq)).
+        * `T` has shape (ndata, (nu*nv - 1)*(neta - 1) +
+          (nq + 1)*(nu_fg*nv_fg - 1) + fit_for_monopole*(neta + nq)).
 
         """
         matrix_name = "T"
@@ -2210,7 +2218,8 @@ class BuildMatrices():
 
         Notes
         -----
-        * `Ninv_T` has shape (ndata, nuv * (neta + nq)).
+        * `Ninv_T` has shape (ndata, (nu*nv - 1)*(neta - 1) +
+          (nq + 1)*(nu_fg*nv_fg - 1) + fit_for_monopole*(neta + nq)).
 
         """
         matrix_name = "Ninv_T"
@@ -2229,7 +2238,9 @@ class BuildMatrices():
 
         Notes
         -----
-        * `T_Ninv_T` has shape (nuv * (neta + nq), nuv * (neta + nq)).
+        * `T_Ninv_T` is a square matrix with dimension
+          (nu*nv - 1)*(neta - 1) + (nq + 1)*(nu_fg*nv_fg - 1) +
+          fit_for_monopole*(neta + nq).
 
         """
         matrix_name = "T_Ninv_T"
