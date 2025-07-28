@@ -1249,9 +1249,16 @@ def get_vis_data(
             else:
                 freqs = freq_center + np.arange(-(nf//2), nf//2 + nf%2)*df
             if jd_min is not None:
-                jds = jd_min + np.arange(nt)*dt
+                jds = (
+                    Time(jd_min, format="jd")
+                    + np.arange(nt)*(dt*units.s).to("d")
+                )
             else:
-                jds = jd_center + np.arange(-(nt//2), nt//2 + nt%2)*dt
+                jds = (
+                    Time(jd_center, format="jd")
+                    + np.arange(-(nt//2), nt//2 + nt%2)*(dt*units.s).to("d")
+                )
+            jds = jds.jd
 
         elif data_path.suffix in [".uvh5", ".uvfits", ".ms"]:
             mpiprint(
