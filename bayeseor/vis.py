@@ -521,7 +521,7 @@ def preprocess_uvdata(
                 if bl in bls:
                     redundancy[:, i_bl] = len(bls)
                     redundancy[:, Nbls+i_bl] = len(bls)
-    
+
     vis, phasor, noise = uvd_to_vector(
         uvd,
         antpairs,
@@ -532,6 +532,10 @@ def preprocess_uvdata(
         verbose=verbose,
         rank=rank
     )
+
+    # Add conjugated antenna pairs to antpairs for a one-to-one mapping
+    # with the (u, v, w) coordinates in uvws
+    antpairs += [antpair[::-1] for antpair in antpairs]
     
     if save_vis or save_model:
         args = dict(
@@ -566,9 +570,6 @@ def preprocess_uvdata(
                 noise_path, noise, args, extra=extra, clobber=clobber
             )
     if save_model:
-        # Add conjugated antenna pairs to antpairs for a one-to-one mapping
-        # with the (u, v, w) coordinates in uvws
-        antpairs += [antpair[::-1] for antpair in antpairs]
         mpiprint(f"\nSaving instrument model to disk:", rank=print_rank)
         mpiprint(f"\tAntpairs: {ants_path}", rank=print_rank)
         save_numpy_dict(
