@@ -259,8 +259,8 @@ class BayesEoRParser(ArgumentParser):
     telescope_latlonalt : list of float, optional
         Telescope location in latitude (deg), longitude (deg), and altitude
         (meters). Passed as a list of floats, e.g. '[30.1,125.6,80.4]'. Do not
-        put spaces after commas. Used only if `include_instrumental_effects`
-        is True. Defaults to [0, 0, 0].
+        put spaces after commas. Required if `include_instrumental_effects`
+        is True. Defaults to None.
     drift_scan : bool, optional
         Model the instrument in drift scan mode (True) or in phased mode
         (False). Used only if `include_instrumental_effects` is True. Defaults
@@ -765,11 +765,10 @@ class BayesEoRParser(ArgumentParser):
             "--tele-latlonalt",
             type=List[float],
             dest="telescope_latlonalt",  # FIXME: remove need for dest
-            default=[0., 0., 0.],
             help="Telescope location in latitude (deg), longitude (deg), and altitude "
                  "(meters). Passed as a list of floats, e.g. '[30.1,125.6,80.4]'. Do not "
-                 "put spaces after commas. Used only if `include_instrumental_effects` "
-                 "is True. Defaults to [0, 0, 0]."
+                 "put spaces after commas. Required if `include_instrumental_effects` "
+                 "is True. Defaults to None."
         )
         self.add_argument(
             "--drift-scan",

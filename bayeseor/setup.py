@@ -86,7 +86,7 @@ def run_setup(
     inst_model : Path | str | None = None,
     save_k_vals : bool = True,
     telescope_name : str = "",
-    telescope_latlonalt : Sequence[float] = (0, 0, 0),
+    telescope_latlonalt : Sequence[float] | None = None,
     array_dir_prefix : Path | str = "./matrices/",
     use_sparse_matrices : bool = True,
     build_Finv_and_Fprime : bool = True,
@@ -346,8 +346,8 @@ def run_setup(
         Telescope identifier string. Defaults to ''.
     telescope_latlonalt : sequence of float, optional
         Telescope location tuple as (latitude in degrees, longitude in degrees,
-        altitude in meters). Used only if `include_instrumental_effects` is
-        True. Defaults to (0, 0, 0).
+        altitude in meters). Required if `include_instrumental_effects` is
+        True. Defaults to None.
     array_dir_prefix : pathlib.Path or str, optional
         Array directory prefix. Defaults to './matrices/'.
     use_sparse_matrices : bool, optional
@@ -487,6 +487,11 @@ def run_setup(
         )
     if output_dir is None:
         raise ValueError("output_dir cannot be None")
+    if include_instrumental_effects and telescope_latlonalt is None:
+        raise ValueError(
+            "telescope_latlonalt cannot be None if "
+            "include_instrumental_effects is true"
+        )
 
     # print_rank will only trigger print if verbose is True and rank == 0
     print_rank = 1 - (verbose and rank == 0)
@@ -1788,7 +1793,7 @@ def build_matrices(
     fov_dec_fg : float,
     simple_za_filter : bool = True,
     include_instrumental_effects : bool = True,
-    telescope_latlonalt : Sequence[float] = (0, 0, 0),
+    telescope_latlonalt : Sequence[float] | None = None,
     nt : int,
     jd_center : float,
     dt : float,
@@ -1904,8 +1909,8 @@ def build_matrices(
         Forward model an instrument. Defaults to True.
     telescope_latlonalt : sequence of floats, optional
         Telescope location tuple as (latitude in degrees, longitude in degrees,
-        altitude in meters). Used only if `include_instrumental_effects` is
-        True. Defaults to (0, 0, 0).
+        altitude in meters). Required if `include_instrumental_effects` is
+        True. Defaults to None.
     nt : float
         Number of times.
     jd_center : float
@@ -2000,6 +2005,11 @@ def build_matrices(
             "be forced to None."
         )
         noise = None
+    if include_instrumental_effects and telescope_latlonalt is None:
+        raise ValueError(
+            "telescope_latlonalt cannot be None if "
+            "include_instrumental_effects is true"
+        )
 
     # print_rank will only trigger print if verbose is True and rank == 0
     print_rank = 1 - (verbose and rank == 0)
