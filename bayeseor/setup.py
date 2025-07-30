@@ -1673,7 +1673,7 @@ def generate_array_dir(
     if nq > 0 and beta is not None:
         beta_str = "beta-"
         beta_str += "-".join([f"{beta[i]:.2f}" for i in range(len(beta))])
-    freq_str += f"-{beta_str}"
+        freq_str += f"-{beta_str}"
     matrices_path /= freq_str
 
     fovs_match = (
