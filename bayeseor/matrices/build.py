@@ -1740,9 +1740,11 @@ class BuildMatrices():
 
         """
         nuv_eor = self.nu*self.nv - 1
-        model_fgs = self.nq > 0 or self.fit_for_monopole
-        if model_fgs:
-            nuv_fg = self.nu_fg*self.nv_fg - (not self.fit_for_monopole)
+        # The foreground (FG) model includes the eta=0 term which is always
+        # included in the model, even if nq=0 or fit_for_monopole=False.
+        # eta=0 is not included in the EoR model, so it's lumped in with
+        # the foreground model.
+        nuv_fg = self.nu_fg*self.nv_fg - (not self.fit_for_monopole)
         # FIXME: add support for the SHG uv-plane (issue #50)
         # if self.use_shg:
         #     nuv_sh = self.nu_sh*self.nv_sh - 1
@@ -1754,10 +1756,9 @@ class BuildMatrices():
             # Combined EoR + FG model (u, v, f) cube axis
             # Number of EoR model parameters
             nuv_eor * self.nf
+            # Number of eta=0 / FG model parameters
+            + nuv_fg * self.nf
         ]
-        if model_fgs:
-            # Number of FG model parameters
-            Finv_Fprime_shape[1] += nuv_fg * self.nf
         # FIXME: add support for the SHG uv-plane (issue #50)
         # if self.use_shg:
         #     # Number of SHG model parameters
@@ -1821,36 +1822,36 @@ class BuildMatrices():
             self.Fprime_normalization_eor / (self.nu * self.nv)
         )
         
-        if model_fgs:
-            model_us_fg_irad, model_vs_fg_irad = sampled_uv_vectors(
-                self.nu_fg,
-                self.nv_fg,
-                du=self.du_fg,
-                dv=self.dv_fg,
-                exclude_mean=(not self.fit_for_monopole)
-            )
-            model_uv_fg_irad = np.vstack((model_us_fg_irad, model_vs_fg_irad))
-            nuidft_uv_to_lm_fg = build_nudft_array(
-                model_uv_fg_irad,
-                model_lmnazza_rad[self.nt//2, :2],
-                sign=-1
-            )
-            # FIXME: Fprime normalization no longer needs to include nu*nv norm
-            # when using the build_nudft_array function.  The nuidft_matrix_2d
-            # function follows the numpy approach and uses 1/Npix for the
-            # inverse transform which is why the nu*nv normalization is
-            # currently included in self.Fprime_normalization_fg.
-            nuidft_uv_to_lm_fg *= (
-                self.Fprime_normalization_fg / (self.nu_fg * self.nv_fg)
-            )
-            # Move the (u, v) = (0, 0) pixel to the rightmost column in
-            # nuidft_uv_to_lm_fg so that the LSSM components are all clustered
-            # together in the model vector (recall that (u, v) = (0, 0) acts
-            # like the constant term in the LSSM).
-            mp_column = nuidft_uv_to_lm_fg[:, nuv_fg//2].copy()
-            mp_ind = nuv_fg//2
-            nuidft_uv_to_lm_fg[:, mp_ind:-1] = nuidft_uv_to_lm_fg[:, mp_ind+1:]
-            nuidft_uv_to_lm_fg[:, -1] = mp_column
+        # eta=0 / FG model uv-plane components and matrix
+        model_us_fg_irad, model_vs_fg_irad = sampled_uv_vectors(
+            self.nu_fg,
+            self.nv_fg,
+            du=self.du_fg,
+            dv=self.dv_fg,
+            exclude_mean=(not self.fit_for_monopole)
+        )
+        model_uv_fg_irad = np.vstack((model_us_fg_irad, model_vs_fg_irad))
+        nuidft_uv_to_lm_fg = build_nudft_array(
+            model_uv_fg_irad,
+            model_lmnazza_rad[self.nt//2, :2],
+            sign=-1
+        )
+        # FIXME: Fprime normalization no longer needs to include nu*nv norm
+        # when using the build_nudft_array function.  The nuidft_matrix_2d
+        # function follows the numpy approach and uses 1/Npix for the
+        # inverse transform which is why the nu*nv normalization is
+        # currently included in self.Fprime_normalization_fg.
+        nuidft_uv_to_lm_fg *= (
+            self.Fprime_normalization_fg / (self.nu_fg * self.nv_fg)
+        )
+        # Move the (u, v) = (0, 0) pixel to the rightmost column in
+        # nuidft_uv_to_lm_fg so that the LSSM components are all clustered
+        # together in the model vector (recall that (u, v) = (0, 0) acts
+        # like the constant term in the LSSM).
+        mp_column = nuidft_uv_to_lm_fg[:, nuv_fg//2].copy()
+        mp_ind = nuv_fg//2
+        nuidft_uv_to_lm_fg[:, mp_ind:-1] = nuidft_uv_to_lm_fg[:, mp_ind+1:]
+        nuidft_uv_to_lm_fg[:, -1] = mp_column
 
         # FIXME: add support for the SHG uv-plane (issue #50)
         # if self.use_shg:
@@ -1873,11 +1874,10 @@ class BuildMatrices():
             uv_Fprime_inds_eor = slice(
                 i_f*nuv_eor, (i_f + 1)*nuv_eor
             )
-            if model_fgs:
-                uv_Fprime_inds_fg = slice(
-                    self.nf*nuv_eor + i_f*nuv_fg,
-                    self.nf*nuv_eor + (i_f + 1)*nuv_fg
-                )
+            uv_Fprime_inds_fg = slice(
+                self.nf*nuv_eor + i_f*nuv_fg,
+                self.nf*nuv_eor + (i_f + 1)*nuv_fg
+            )
             # FIXME: add support for the SHG uv-plane (issue #50)
             # if self.use_shg:
             #     uv_Fprime_inds_shg = slice(
@@ -1927,11 +1927,10 @@ class BuildMatrices():
                     Finv_block[:, self.hpx.eor_to_fg_pix],
                     nuidft_uv_to_lm_eor
                 )
-                if model_fgs:
-                    Finv_Fprime[vis_inds, uv_Fprime_inds_fg] = np.dot(
-                        Finv_block,
-                        nuidft_uv_to_lm_fg
-                    )
+                Finv_Fprime[vis_inds, uv_Fprime_inds_fg] = np.dot(
+                    Finv_block,
+                    nuidft_uv_to_lm_fg
+                )
                 # FIXME: add support for the SHG uv-plane (issue #50)
                 # if self.use_shg:
                 #     Finv_Fprime[vis_inds, uv_Fprime_inds_shg] = ?
