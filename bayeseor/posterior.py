@@ -383,7 +383,8 @@ class PowerSpectrumPosteriorProbability(object):
             self.power_spectrum_normalisation_func =\
                 self.calc_physical_dimensionless_power_spectral_normalisation
         else:
-            # FIXME: do we want to add support for modelling P(k)?
+            # FIXME: see BayesEoR issue #59
+            # Do we want to add support for modelling P(k)?
             self.power_spectrum_normalisation_func =\
                 self.calc_Npix_physical_power_spectrum_normalisation
 
