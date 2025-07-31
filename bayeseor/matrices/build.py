@@ -180,13 +180,6 @@ class BuildMatrices():
         Array containing the number of redundant baselines at each
         (u(t), v(t), w(t)) in the instrument model with shape (nt, nbls, 1).
         Defaults to None.
-    bl_red_array_vec : numpy.ndarray
-        Reshaped `bl_red_array` with shape
-        (nt * nbls, 1).  Each set of nbls entries contain the redundancy of
-        each (u, v, w) for a single integration. Defaults to None.
-    n_vis : int
-        Number of visibilities per channel, i.e. number of redundant
-        baselines * number of time steps. Defaults to None.
     phasor : numpy.ndarray, optional
         Array with shape (ndata,) that contains the phasor term used to phase
         visibilities after performing the nuDFT from HEALPix (l, m, f) to
@@ -250,7 +243,7 @@ class BuildMatrices():
         fov_ra_fg=None,
         fov_dec_fg=None,
         simple_za_filter=True,
-        include_instrumental_effects=True,  # TODO: remove kwarg
+        include_instrumental_effects=True,  # FIXME: see BayesEoR issue #57
         telescope_latlonalt=(0, 0, 0),
         nt=None,
         jd_center=None,
@@ -266,8 +259,6 @@ class BuildMatrices():
         drift_scan=True,
         uvw_array_m=None,
         bl_red_array=None,
-        bl_red_array_vec=None,  # TODO: remove kwarg, calculate from bl_red_array
-        n_vis=None,  # TODO: remove kwarg, calculate from uvw_array_m
         phasor=None,
         effective_noise=None,
         taper_func=None,
@@ -276,37 +267,11 @@ class BuildMatrices():
         Finv_Fprime=True,
         verbose=False
     ):
-        # TODO: it would be nice to come up with some way to check that the
-        # required kwargs have been passed, but the list of required kwargs
-        # depends on e.g. include_instrumental_effects, use_shg.
-        required_kwargs = [
-            nu,
-            nv,
-            nu_fg,
-            nv_fg,
-            n_vis,
-            neta,
-            nf,
-            f_min,
-            df,
-            sigma,
-            deta,
-            du_eor,
-            dv_eor,
-            du_fg,
-            dv_fg
-        ]
-        if not np.all([arg is not None for arg in required_kwargs]):
-            raise ValueError(
-                "The following kwargs are required and cannot be None: "
-                "nu, nv, nu_fg, nv_fg, n_vis, neta, nf, f_min, df, sigma, "
-                "deta, du_eor, dv_eor, du_fg, dv_fg"
-            )
+        # FIXME: add check for required args/kwargs
         self.nu = nu
         self.nv = nv
         self.nu_fg = nu_fg
         self.nv_fg = nv_fg
-        self.n_vis = n_vis
         self.neta = neta
         self.nf = nf
         self.f_min = f_min
@@ -329,7 +294,7 @@ class BuildMatrices():
             self.uvw_array_m = uvw_array_m
             self.nbls = uvw_array_m.shape[1]
             self.bl_red_array = bl_red_array
-            self.bl_red_array_vec = bl_red_array_vec
+            self.bl_red_array_vec = bl_red_array.reshape(-1, 1).flatten()
             self.phasor = phasor
             self.fov_ra_eor = fov_ra_eor
             if fov_dec_eor is None:
@@ -411,7 +376,6 @@ class BuildMatrices():
         )
 
         # Finv normalization
-        # FIXME: this will error if include_instrumental_effects is False.
         self.Finv_normalisation = self.hpx.pixel_area_sr
 
         # Dictionary with keys for each parent matrix required to build the
@@ -1074,7 +1038,6 @@ class BuildMatrices():
 
         """
         matrix_name = "phasor_matrix"
-        pmd = self.load_prerequisites(matrix_name)  # TODO: remove unused pmd
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
@@ -1861,7 +1824,7 @@ class BuildMatrices():
         Finv_Fprime = sparse.lil_matrix(Finv_Fprime_shape, dtype=complex)
         
         matrix_name = "Finv_Fprime"
-        # FIXME: for now, there are no prerequisites for this matrix.  But,
+        # For now, there are no prerequisites for this matrix.  But,
         # this might change in the future if we add a kwarg for writing out
         # intermediate matrices to disk (e.g. the dense blocks that comprise
         # Fprime).
@@ -2014,7 +1977,7 @@ class BuildMatrices():
                 # (this vector should be re-ordered if
                 # the data is in a different order)
                 baseline_redundancy_array = self.bl_red_array_vec
-                s_size = self.n_vis * self.nf
+                s_size = self.nbls * self.nf * self.nt
                 multifreq_baseline_redundancy_array = np.array(
                     [baseline_redundancy_array for i in range(self.nf)]
                 ).flatten()
@@ -2034,7 +1997,7 @@ class BuildMatrices():
                         [red_array_vis for i in range(self.nf)]
                         for red_array_vis in red_array_time_vis_shaped
                     ]).flatten()
-                    s_size = self.n_vis * self.nf
+                    s_size = self.nbls * self.nf * self.nt
 
                     # RMS drops as the square root of
                     # the number of redundant samples
@@ -2085,7 +2048,7 @@ class BuildMatrices():
                 # (this vector should be re-ordered if
                 # the data is in a different order)
                 baseline_redundancy_array = self.bl_red_array_vec
-                s_size = self.n_vis * self.nf
+                s_size = self.nbls * self.nf * self.nt
                 multifreq_baseline_redundancy_array = np.array(
                     [baseline_redundancy_array for i in range(self.nf)]
                 ).flatten()
@@ -2104,7 +2067,7 @@ class BuildMatrices():
                         [red_array_vis for i in range(self.nf)]
                         for red_array_vis in red_array_time_vis_shaped
                     ]).flatten()
-                    s_size = self.n_vis * self.nf
+                    s_size = self.nbls * self.nf * self.nt
 
                     # RMS drops as the square root of
                     # the number of redundant samples

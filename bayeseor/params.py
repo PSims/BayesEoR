@@ -233,9 +233,11 @@ class BayesEoRParser(ArgumentParser):
 
     Noise Model Parameters
 
-    sigma : float, optional  # FIXME: when is sigma required?
-        Standard deviation of the visibility noise in mK sr. Only used if
-        adding noise to the input visibility data.
+    sigma : float, optional
+        Standard deviation of the visibility noise in mK sr. Required if
+        `calc_noise` is False and `data_path` points to a pyuvdata-compatible
+        visibility file or `noise_data_path` is None and `data_path` points to
+        a preprocessed numpy-compatible visibility vector. Defaults to None.
     noise_seed : float, optional
         Seed for `numpy.random`. Used to generate the noise vector if adding
         noise to the input visibility data. Defaults to 742123.
@@ -677,7 +679,7 @@ class BayesEoRParser(ArgumentParser):
                  "not defined."
         )
         self.add_argument(
-            #FIXME: see https://github.com/PSims/BayesEoR/issues/11
+            # FIXME: see BayesEoR issue #11
             # There is a bug in the rectangular pixel selection logic due to the
             # wrapping of Right Ascension.  We are thus forcing the analysis to use
             # the zenith angle filter (a circular sky model FoV) as this selection
@@ -724,8 +726,10 @@ class BayesEoRParser(ArgumentParser):
         self.add_argument(
             "--sigma",
             type=float,
-            help="Standard deviation of the visibility noise in mK sr. Only used if "
-                 "adding noise to the input visibility data."
+            help="Standard deviation of the visibility noise in mK sr. Required if "
+                 "`calc_noise` is False and `data_path` points to a pyuvdata-compatible "
+                 "visibility file or `noise_data_path` is None and `data_path` points to "
+                 "a preprocessed numpy-compatible visibility vector. Defaults to None."
         )
         self.add_argument(
             "--noise-seed",

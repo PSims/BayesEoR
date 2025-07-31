@@ -13,7 +13,7 @@ import warnings
 from .cosmology import Cosmology
 from .matrices.build import BuildMatrices
 from .model.instrument import load_inst_model
-from .model.noise import generate_data_and_noise_vector_instrumental
+from .model.noise import generate_gaussian_noise
 from .model.k_cube import (
     generate_k_cube_in_physical_coordinates,
     mask_k_cube,
@@ -324,9 +324,11 @@ def run_setup(
         ``Path(output_dir) / file_root``.
     clobber : bool, optional
         Clobber files on disk if they exist.  Defaults to False.
-    sigma : float, optional  # FIXME: when should sigma be required?
-        Standard deviation of the visibility noise. Required if `calc_noise`
-        and `noise_data_path` are both None. Defaults to None.
+    sigma : float, optional
+        Standard deviation of the visibility noise in mK sr. Required if
+        `calc_noise` is False and `data_path` points to a pyuvdata-compatible
+        visibility file or `noise_data_path` is None and `data_path` points to
+        a preprocessed numpy-compatible visibility vector. Defaults to None.
     noise_seed : int, optional
         Used to seed `np.random` when generating the noise vector. Defaults to
         742123.
@@ -440,22 +442,30 @@ def run_setup(
     sampler_dir : pathlib.Path
         Path to sampler output directory, ``Path(output_dir) / file_root``.
     vis_dict : dict
-        Dictionary with value (key) pairs of: the visibility vector ('vis'),
-        the noise ('noise'), noisy visibilities if `noise_data_path` is None
-        and `sigma` is not None ('vis_noisy'), a dictionary containing the
-        array index mapping of conjugated baselines in the visibility vector
-        ('bl_conj_pairs_map'), the instrumentally sampled (u, v, w) ('uvws'),
-        the number of redundant baselines averaged in each (u, v, w)
-        ('redundancy'), the frequencies in hertz ('freqs'), the frequency
-        channel width in hertz ('df'), the Julian dates ('jds'), the
-        integration time in seconds ('dt'), baseline antenna pairs for each
-        (u, v, w) ('antpairs') if `inst_model` contains a file 'antpairs.npy'
-        or if `data_path` points to a pyuvdata-compatible file, the phasor
-        vector if `phase` is True ('phasor'), the telescope name if `data_path`
-        points to a pyuvdata-compatible file with a valid telescope name
-        attribute, and the UVData object if `data_path` points to a
-        pyuvdata-compatible file and `return_uvd` is True. Returned only if
-        `return_vis` is True.
+        Dictionary with the following key: value pairs
+
+        - vis_noisy: noisy visibility vector with shape (nf*nbls*nt,)
+        - noise: noise vector with shape (nf*nbls*nt,)
+        - bl_conj_pairs_map: array index mapping of conjugate baseline pairs
+        - uvws: instrumentally sampled (u, v, w) coordinates with shape
+          (nt, nbls, 3)
+        - redundancy: number of redundantly averaged baselines per (u, v, w)
+          with shape (nt, nbls, 1)
+        - freqs: frequency channels in Hz
+        - df: frequency channel width in Hz
+        - jds: Julian dates
+        - dt: integration time in seconds
+        - vis: optional noise free visibility vector with shape (nf*nbls*nt,)
+          if `noise_data_path` is None or `calc_noise` is False
+        - antpairs: optional baseline antenna pairs for each (u, v, w) if
+          `inst_model` contains a file 'antpairs.npy' or if `data_path` points
+          to a pyuvdata-compatible file
+        - phasor: optional phasor vector if `phased` is True with shape
+          (nf*nbls*nt,)
+        - tele_name: optional telescope name if `data_path` points to a
+          pyuvdata-compatible file with a valid telescope name attribute
+        - uvd: optional UVData object if `data_path` points to a
+          pyuvdata-compatible file and `return_uvd` is True
     k_vals : numpy.ndarray
         Mean of each k bin. Returned only if `return_ks` is True.
     k_cube_voxels_in_bin : list
@@ -480,10 +490,11 @@ def run_setup(
             "reimplemented in the future. For now, please set "
             "use_LWM_Gaussian_prior to False."
         )
-    if sigma is None and noise_data_path is None:
-        raise ValueError(  # FIXME: broken reference to setup_data_vec
-            "sigma cannot be None if setup_data_vec is True "
-            "and noise_data_path is None"
+    if sigma is None and (noise_data_path is None or not calc_noise):
+        raise ValueError(
+            "sigma cannot be None if noise_data_path is None or calc_noise "
+            "is False. The input visibilities in either case are assumed to "
+            "be noise free and require sigma to generate noise."
         )
     if output_dir is None:
         raise ValueError("output_dir cannot be None")
@@ -517,7 +528,7 @@ def run_setup(
         fov_dec_fg = fov_ra_fg
     # Foreground model params
     if beta is not None:
-        npl = len(beta)  #FIXME: update if fitting for LSSM
+        npl = len(beta)  # FIXME: update if fitting for LSSM
     else:
         npl = 0
     if nq > npl:
@@ -608,15 +619,8 @@ def run_setup(
         verbose=verbose,
         rank=rank,
     )
-    if "vis_noisy" in vis_dict:
-        vis = vis_dict["vis"]
-        vis_noisy = vis_dict["vis_noisy"]
-    else:
-        # Input visibilities contain noise
-        vis = None
-        vis_noisy = vis_dict["vis"]
+    vis_noisy = vis_dict["vis_noisy"]
     noise = vis_dict["noise"]
-    bl_conj_pairs_map = vis_dict["bl_conj_pairs_map"]
     uvws = vis_dict["uvws"]
     redundancy = vis_dict["redundancy"]
     nf = len(vis_dict["freqs"])
@@ -881,7 +885,7 @@ def generate_file_root(
     nq : int
         Number of large spectral scale model quadratic basis vectors.
     sigma : float
-        Standard deviation of the visibility noise.
+        Standard deviation of the visibility noise in mK sr.
     beta : list of float, optional
         Brightness temperature power law spectral index/indices used in the
         large spectral scale model. Defaults to None.
@@ -1106,8 +1110,10 @@ def get_vis_data(
         adjacent times per baseline and frequency. Used only if `data_path`
         points to a pyuvdata-compatible visibility file. Defaults to False.
     sigma : float, optional
-        Standard deviation of the visibility noise. Required if `calc_noise`
-        and `noise_data_path` are both None. Defaults to None.
+        Standard deviation of the visibility noise in mK sr. Required if
+        `calc_noise` is False and `data_path` points to a pyuvdata-compatible
+        visibility file or `noise_data_path` is None and `data_path` points to
+        a preprocessed numpy-compatible visibility vector. Defaults to None.
     noise_seed : int, optional
         Used to seed `np.random` when generating the noise vector. Defaults to
         742123.
@@ -1150,9 +1156,9 @@ def get_vis_data(
     -------
     vis_dict : dict
         Dictionary with the following key: value pairs
-        - vis: visibility vector with shape (nf*nbls*nt,)
+
+        - vis_noisy: noisy visibility vector with shape (nf*nbls*nt,)
         - noise: noise vector with shape (nf*nbls*nt,)
-        - vis_noisy: visibility + noise vector
         - bl_conj_pairs_map: array index mapping of conjugate baseline pairs
         - uvws: instrumentally sampled (u, v, w) coordinates with shape
           (nt, nbls, 3)
@@ -1162,6 +1168,8 @@ def get_vis_data(
         - df: frequency channel width in Hz
         - jds: Julian dates
         - dt: integration time in seconds
+        - vis: optional noise free visibility vector with shape (nf*nbls*nt,)
+          if `noise_data_path` is None or `calc_noise` is False
         - antpairs: optional baseline antenna pairs for each (u, v, w) if
           `inst_model` contains a file 'antpairs.npy' or if `data_path` points
           to a pyuvdata-compatible file
@@ -1173,6 +1181,17 @@ def get_vis_data(
           pyuvdata-compatible file and `return_uvd` is True
 
     """
+    # If `noise_data_path` is None or `calc_noise` is False,
+    # the input visbilities are assumed to be noise free and we
+    # need to simulate noise to form a noisy visibility vector.
+    simulate_noise = noise_data_path is None or not calc_noise
+    if simulate_noise and sigma is None:
+        raise ValueError(
+            "sigma cannot be None if noise_data_path is None or calc_noise "
+            "is False. The input visibilities in either case are assumed to "
+            "be noise free and require sigma to generate noise."
+        )
+
     # print_rank will only trigger print if verbose is True and rank == 0
     print_rank = 1 - (verbose and rank == 0)
 
@@ -1319,32 +1338,29 @@ def get_vis_data(
             except:
                 tele_name = uvd.telescope.name
 
-        if noise is not None:
-            vis_noisy = vis + noise
-        elif sigma is not None:
+        if simulate_noise:
             mpiprint(
                 "\nGenerating visibility noise:", style="bold", rank=print_rank
             )
             mpiprint(
                 f"\nNoise std. dev. = {sigma:.2e} mK sr", rank=print_rank
             )
-            vis_noisy, noise, bl_conj_pairs_map = \
-                generate_data_and_noise_vector_instrumental(
-                    sigma,
-                    vis,
-                    nf,
-                    nt,
-                    uvws[0],
-                    redundancy[0],
-                    random_seed=noise_seed,
-                    rank=print_rank
-                )
+            vis_noisy, noise, bl_conj_pairs_map = generate_gaussian_noise(
+                sigma,
+                vis,
+                nf,
+                nt,
+                uvws[0],
+                redundancy[0],
+                random_seed=noise_seed,
+                rank=print_rank
+            )
         else:
-            # Input visibilities contain noise
-            vis_noisy = None
+            # The input visibilities are noisy
+            vis_noisy = vis
 
         vis_dict = {
-            "vis": vis,
+            "vis_noisy": vis_noisy,
             "noise": noise,
             "bl_conj_pairs_map": bl_conj_pairs_map,
             "uvws": uvws,
@@ -1354,10 +1370,10 @@ def get_vis_data(
             "jds": jds,
             "dt": dt,
         }
+        if simulate_noise:
+            vis_dict["vis"] = vis
         if antpairs is not None:
             vis_dict["antpairs"] = antpairs
-        if vis_noisy is not None:
-            vis_dict["vis_noisy"] = vis_noisy
         if phase:
             vis_dict["phasor"] = phasor
         if tele_name is not None:
@@ -1561,7 +1577,7 @@ def generate_array_dir(
         Brightness temperature power law spectral index/indices used in the
         large spectral scale model. Defaults to None.
     sigma : float
-        Standard deviation of the visibility noise.
+        Standard deviation of the visibility noise in mK sr.
     nside : int
         HEALPix nside parameter.
     fov_ra_eor : float
@@ -1889,7 +1905,7 @@ def build_matrices(
         Brightness temperature power law spectral index/indices used in the
         large spectral scale model. Defaults to None.
     sigma : float
-        Standard deviation of the visibility noise.
+        Standard deviation of the visibility noise in mK sr.
     nside : int
         HEALPix nside parameter.
     fov_ra_eor : float
@@ -2135,8 +2151,6 @@ def build_matrices(
         drift_scan=drift_scan,
         uvw_array_m=uvws,
         bl_red_array=redundancy,
-        bl_red_array_vec=redundancy.reshape(-1, 1).flatten(),  # TODO: remove
-        n_vis=n_vis,  # TODO: remove
         phasor=phasor,
         effective_noise=None,
         taper_func=taper_func,
