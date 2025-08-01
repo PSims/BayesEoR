@@ -617,15 +617,6 @@ def uvd_to_vector(
         the data vector.
     pol : str, optional
         Case-insensitive polarization string. Defaults to 'xx'.
-    save_vis : bool, optional
-        Write visibility vector to disk in `save_dir`. Defaults to False.
-    save_model : bool, optional
-        Write instrument model to disk in `save_dir`. Defaults to False.
-    save_dir : Path or str, optional
-        Output directory for visibility vector which must be specified if
-        `save_vis` or `save_model` is True. Defaults to None.
-    uniform_redundancy : bool, optional
-        Force the redundancy model to be uniform.
     phase : bool, optional
         Create a "phasor vector" which is created identically to the data
         vector which can be used to phase each visibility as a function of
