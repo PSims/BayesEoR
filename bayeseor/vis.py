@@ -261,7 +261,7 @@ def preprocess_uvdata(
                     f"and Nfreqs ({Nfreqs}).  There are fewer than Nfreqs//2 "
                     "frequencies less than or equal to freq_center."
                 )
-            if freq_idx_center + Nfreqs//2 > freqs.size - 1:
+            if freq_idx_center + Nfreqs//2 > freqs.size:
                 warnings.warn(
                     "There are less than Nfreqs//2 frequencies "
                     "greater than or equal to freq_center.  This combination "
@@ -362,7 +362,7 @@ def preprocess_uvdata(
                     f"Ntimes ({Ntimes}).  There are fewer than Ntimes//2 times "
                     "less than or equal to jd_center."
                 )
-            if jd_idx_center + Ntimes//2 > jds.size - 1:
+            if jd_idx_center + Ntimes//2 > jds.size:
                 warnings.warn(
                     "There are less than Ntimes//2 times greater "
                     "than or equal to jd_center.  This combination of "
