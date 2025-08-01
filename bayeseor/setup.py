@@ -6,6 +6,7 @@ from astropy.time import Time
 from astropy import units
 from astropy.units import Quantity
 from pathlib import Path
+from pyuvdata import __version__ as pyuvdata_version
 from rich.panel import Panel
 from scipy import sparse
 import warnings
@@ -22,7 +23,9 @@ from .model.k_cube import (
 )
 from .posterior import PowerSpectrumPosteriorProbability
 from .vis import preprocess_uvdata
-from .utils import mpiprint, load_numpy_dict, parse_uprior_inds
+from .utils import (
+    mpiprint, save_numpy_dict, load_numpy_dict, parse_uprior_inds
+)
 
 
 def run_setup(
@@ -507,6 +510,84 @@ def run_setup(
     # print_rank will only trigger print if verbose is True and rank == 0
     print_rank = 1 - (verbose and rank == 0)
 
+    # We must first process the input data to assign nf and nt
+    # as they are not required parameters if data_path points to
+    # a pyuvdata-compatible file.  If nf and nt are none, they
+    # are assigned values based on the number of frequencies and
+    # times in the pyuvdata-compatible file.
+    mpiprint("\n", Panel("Data and Noise"), rank=print_rank)
+    if save_vis or save_model:
+        # Catalog relevant command line arguments for posterity so
+        # the data vector can be recreated exactly before parameters
+        # like nf or nt get potentially overwritten after processing
+        # the data vector.
+        vis_args = dict(
+            fp=data_path.as_posix(),
+            ant_str=ant_str,
+            bl_cutoff=bl_cutoff,
+            freq_min=freq_min,
+            freq_idx_min=freq_idx_min,
+            freq_center=freq_center,
+            Nfreqs=nf,
+            jd_min=jd_min,
+            jd_idx_min=jd_idx_min,
+            jd_center=jd_center,
+            Ntimes=nt,
+            form_pI=form_pI,
+            pI_norm=pI_norm,
+            pol=pol,
+            redundant_avg=redundant_avg,
+            uniform_redundancy=uniform_redundancy,
+            phase=phase,
+            phase_time=phase_time,
+            calc_noise=calc_noise
+        )
+        extra = dict(pyuvdata_version=pyuvdata_version)
+    vis_dict = get_vis_data(
+        data_path=data_path,
+        ant_str=ant_str,
+        bl_cutoff=bl_cutoff,
+        freq_idx_min=freq_idx_min,
+        freq_min=freq_min,
+        freq_center=freq_center,
+        nf=nf,
+        df=df,
+        jd_idx_min=jd_idx_min,
+        jd_min=jd_min,
+        jd_center=jd_center,
+        nt=nt,
+        dt=dt,
+        form_pI=form_pI,
+        pI_norm=pI_norm,
+        pol=pol,
+        redundant_avg=redundant_avg,
+        uniform_redundancy=uniform_redundancy,
+        phase=phase,
+        phase_time=phase_time,
+        calc_noise=calc_noise,
+        sigma=sigma,
+        noise_seed=noise_seed,
+        noise_data_path=noise_data_path,
+        inst_model=inst_model,
+        return_uvd=return_uvd,
+        verbose=verbose,
+        rank=rank,
+    )
+    vis_noisy = vis_dict["vis_noisy"]
+    noise = vis_dict["noise"]
+    uvws = vis_dict["uvws"]
+    redundancy = vis_dict["redundancy"]
+    nf = len(vis_dict["freqs"])
+    nu_min_MHz = (vis_dict["freqs"][0] * units.Hz).to("MHz").value
+    channel_width_MHz = (vis_dict["df"] * units.Hz).to("MHz").value
+    nt = len(vis_dict["jds"])
+    jd_center = vis_dict["jds"][nt//2]
+    dt = vis_dict["dt"]
+    if "phasor" in vis_dict:
+        phasor = vis_dict["phasor"]
+    else:
+        phasor = None
+
     # Assign optional kwargs if None
     # Model k cube params
     if neta is None:
@@ -540,8 +621,39 @@ def run_setup(
             raise ValueError("nu_sh is required if using the subharmonic grid")
         if nv_sh is None:
             nv_sh = nu_sh
-    
-    mpiprint("\n", Panel("Output Directory"), rank=print_rank)
+
+    # Derived params
+    cosmo = Cosmology()
+    redshift = cosmo.f2z(vis_dict["freqs"].mean() * units.Hz)
+    bandwidth = (vis_dict["df"] * units.Hz) * nf
+    # EoR model
+    # Spacing along the eta axis (line-of-sight Fourier dual to frequency)
+    # defined as one over the bandwidth in Hz [1/Hz].
+    deta = 1 / bandwidth.to("Hz").value
+    # Spacing along the u-axis of the EoR model uv-plane [1/rad]
+    du_eor = 1 / np.deg2rad(fov_ra_eor)
+    # Spacing along the v-axis of the EoR model uv-plane [1/rad]
+    dv_eor = 1 / np.deg2rad(fov_dec_eor)
+    # Comoving line-of-sight size of the EoR volume [Mpc]
+    ps_box_size_para_Mpc = cosmo.dL_df(redshift) * bandwidth.to("Hz").value
+    # Comoving transverse size of the EoR volume along RA [Mpc]
+    ps_box_size_ra_Mpc = cosmo.dL_dth(redshift) * np.deg2rad(fov_ra_eor)
+    # Comoving transverse size of the EoR volume along Dec [Mpc]
+    ps_box_size_dec_Mpc = cosmo.dL_dth(redshift) * np.deg2rad(fov_dec_eor)
+    # Foreground model
+    # Spacing along the u-axis of the model uv-plane [1/rad]
+    du_fg = 1 / np.deg2rad(fov_ra_fg)
+    # Spacing along the v-axis of the model uv-plane [1/rad]
+    dv_fg = 1 / np.deg2rad(fov_dec_fg)
+    # Beam model
+    if achromatic_beam:
+        if beam_ref_freq is None:
+            beam_ref_freq = nu_min_MHz
+        else:
+            # Hz -> MHz for compatibility with BuildMatrices
+            beam_ref_freq = (beam_ref_freq * units.Hz).to("MHz").value
+
+    # Output directory generation
     if not isinstance(output_dir, Path):
         output_dir = Path(output_dir)
 
@@ -575,7 +687,6 @@ def run_setup(
     sampler_dir = output_dir / file_root
     if mkdir:
         sampler_dir.mkdir(exist_ok=True, parents=True)
-    mpiprint(f"\n{sampler_dir.absolute().as_posix()}", rank=print_rank)
 
     if save_vis or save_model:
         if save_dir is None:
@@ -583,87 +694,55 @@ def run_setup(
         elif not isinstance(save_dir, Path):
             save_dir = Path(save_dir)
         save_dir.mkdir(exist_ok=True, parents=True)
+    if save_vis:
+        vis_path = save_dir / "vis_noisy.npy"
+        mpiprint(f"\nSaving data vector(s) to disk:", rank=print_rank)
+        mpiprint(f"\tVisibility vector: {vis_path}", rank=print_rank)
+        save_numpy_dict(
+            vis_path,
+            vis_dict["vis_noisy"],
+            vis_args,
+            extra=extra,
+            clobber=clobber
+        )
+        noise_path = save_dir / "noise.npy"
+        mpiprint(f"\tNoise vector: {noise_path}", rank=print_rank)
+        save_numpy_dict(
+            noise_path, noise, vis_args, extra=extra, clobber=clobber
+        )
+    if save_model:
+        mpiprint(f"\nSaving instrument model to disk:", rank=print_rank)
+        # If data_path points to a numpy-compatible file, then an instrument
+        # model is required as input and there's no reason to save the
+        # instrument model to disk. If data_path points to a
+        # pyuvdata-compatible file, we will always have antpairs, uvws, and
+        # a redundancy model. The phasor is the only optional quantity to save.
+        ants_path = save_dir / "antpairs.npy"
+        mpiprint(f"\tAntpairs: {ants_path}", rank=print_rank)
+        save_numpy_dict(
+            ants_path,
+            vis_dict["antpairs"],
+            vis_args,
+            extra=extra,
+            clobber=clobber
+        )
+        uvw_path = save_dir / "uvw_model.npy"
+        mpiprint(f"\t(u, v, w) model: {uvw_path}", rank=print_rank)
+        save_numpy_dict(uvw_path, uvws, vis_args, extra=extra, clobber=clobber)
+        red_path = save_dir / "redundancy_model.npy"
+        mpiprint(f"\tRedundancy model: {red_path}", rank=print_rank)
+        save_numpy_dict(
+            red_path, redundancy, vis_args, extra=extra, clobber=clobber
+        )
+        if phase:
+            phasor_path = save_dir / "phasor_vector.npy"
+            mpiprint(f"\tPhasor vector: {phasor_path}", rank=print_rank)
+            save_numpy_dict(
+                phasor_path, phasor, vis_args, extra=extra, clobber=clobber
+            )
 
-    mpiprint("\n", Panel("Data and Noise"), rank=print_rank)
-    vis_dict = get_vis_data(
-        data_path=data_path,
-        ant_str=ant_str,
-        bl_cutoff=bl_cutoff,
-        freq_idx_min=freq_idx_min,
-        freq_min=freq_min,
-        freq_center=freq_center,
-        nf=nf,
-        df=df,
-        jd_idx_min=jd_idx_min,
-        jd_min=jd_min,
-        jd_center=jd_center,
-        nt=nt,
-        dt=dt,
-        form_pI=form_pI,
-        pI_norm=pI_norm,
-        pol=pol,
-        redundant_avg=redundant_avg,
-        uniform_redundancy=uniform_redundancy,
-        phase=phase,
-        phase_time=phase_time,
-        calc_noise=calc_noise,
-        sigma=sigma,
-        noise_seed=noise_seed,
-        save_vis=save_vis,
-        save_model=save_model,
-        save_dir=save_dir,
-        clobber=clobber,
-        noise_data_path=noise_data_path,
-        inst_model=inst_model,
-        return_uvd=return_uvd,
-        verbose=verbose,
-        rank=rank,
-    )
-    vis_noisy = vis_dict["vis_noisy"]
-    noise = vis_dict["noise"]
-    uvws = vis_dict["uvws"]
-    redundancy = vis_dict["redundancy"]
-    nf = len(vis_dict["freqs"])
-    nu_min_MHz = (vis_dict["freqs"][0] * units.Hz).to("MHz").value
-    channel_width_MHz = (vis_dict["df"] * units.Hz).to("MHz").value
-    nt = len(vis_dict["jds"])
-    jd_center = vis_dict["jds"][nt//2]
-    dt = vis_dict["dt"]
-    if "phasor" in vis_dict:
-        phasor = vis_dict["phasor"]
-    else:
-        phasor = None
-
-    # Derived params
-    cosmo = Cosmology()
-    redshift = cosmo.f2z(vis_dict["freqs"].mean() * units.Hz)
-    bandwidth = (vis_dict["df"] * units.Hz) * nf
-    # EoR model
-    # Spacing along the eta axis (line-of-sight Fourier dual to frequency)
-    # defined as one over the bandwidth in Hz [1/Hz].
-    deta = 1 / bandwidth.to("Hz").value
-    # Spacing along the u-axis of the EoR model uv-plane [1/rad]
-    du_eor = 1 / np.deg2rad(fov_ra_eor)
-    # Spacing along the v-axis of the EoR model uv-plane [1/rad]
-    dv_eor = 1 / np.deg2rad(fov_dec_eor)
-    # Comoving line-of-sight size of the EoR volume [Mpc]
-    ps_box_size_para_Mpc = cosmo.dL_df(redshift) * bandwidth.to("Hz").value
-    # Comoving transverse size of the EoR volume along RA [Mpc]
-    ps_box_size_ra_Mpc = cosmo.dL_dth(redshift) * np.deg2rad(fov_ra_eor)
-    # Comoving transverse size of the EoR volume along Dec [Mpc]
-    ps_box_size_dec_Mpc = cosmo.dL_dth(redshift) * np.deg2rad(fov_dec_eor)
-    # Foreground model
-    # Spacing along the u-axis of the model uv-plane [1/rad]
-    du_fg = 1 / np.deg2rad(fov_ra_fg)
-    # Spacing along the v-axis of the model uv-plane [1/rad]
-    dv_fg = 1 / np.deg2rad(fov_dec_fg)
-    # Beam model
-    if achromatic_beam:
-        if beam_ref_freq is None:
-            beam_ref_freq = nu_min_MHz
-        else:
-            # Hz -> MHz for compatibility with BuildMatrices
-            beam_ref_freq = (beam_ref_freq * units.Hz).to("MHz").value
+    mpiprint("\n", Panel("Output Directory"), rank=print_rank)
+    mpiprint(f"\n{sampler_dir.absolute().as_posix()}", rank=print_rank)
 
     mpiprint("\n", Panel("Model k Cube"), rank=print_rank)
     k_vals, k_cube_voxels_in_bin = build_k_cube(
@@ -1326,10 +1405,12 @@ def get_vis_data(
             if trim_nspws_ax:
                 freqs = freqs[0]
             df = freqs[1] - freqs[0]
+            nf = freqs.size
 
             jds = Time(np.unique(uvd.time_array), format="jd")
             dt = (jds[1] - jds[0]).to("s").value
             jds = jds.jd
+            nt = jds.size
 
             try:
                 # Old versions of pyuvdata use telescope_name atribute which
