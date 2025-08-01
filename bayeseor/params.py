@@ -423,8 +423,8 @@ class BayesEoRParser(ArgumentParser):
         self.add_argument(
             "--array-dir-prefix",
             type=str,
-            default="./array-storage/",
-            help="Directory for matrix storage. Defaults to './array-storage/'."
+            default="./matrices/",
+            help="Directory for matrix storage. Defaults to './matrices/'."
         )
         self.add_argument(
             "--sparse-mats",
