@@ -6,7 +6,6 @@ BayesEoRParser
 
 .. autoclass:: bayeseor.params.BayesEoRParser
     :members:
-    :noindex:
 
 BuildMatrices
 --------------
