@@ -133,7 +133,7 @@ If using a configuration file (recommended), the driver script can be run to bui
 
 Note that with ``jsonargparse``, command line arguments that come after the ``--config`` flag overwrite the value of the argument in the configuration file.  In the example above, the ``--cpu`` flag placed after the ``--config`` flag will force the code to use CPUs only.
 
-BayesEoR automatically creates a directory in which to store the matrix stack if one does not already exist.  The name of the matrix stack directory is set automatically based on the chosen analysis parameters.  The prefix for this matrix stack directory can be set via the ``array_dir_prefix`` argument in the configuration yaml or the ``--array-dir-prefix`` flag on the command line.  The matrix stack is saved in a subdirectory within ``array_dir_prefix``.  The default matrix stack prefix is `./array-storage/`.
+BayesEoR automatically creates a directory in which to store the matrix stack if one does not already exist.  The name of the matrix stack directory is set automatically based on the chosen analysis parameters.  The prefix for this matrix stack directory can be set via the ``array_dir_prefix`` (``--array-dir-prefix``) argument in the configuration yaml (on the command line).  The matrix stack is saved in a subdirectory within ``array_dir_prefix``.  The default matrix stack prefix is `./matrices/`.
 
 .. tip::
 
@@ -161,7 +161,7 @@ Outputs
 
 The location for the outputs of a BayesEoR analysis can be set via the ``output_dir`` argument in the configuration yaml or the ``--output-dir`` flag on the command line.  The output files from BayesEoR will be placed in a subdirectory of ``output_dir``, which we refer to internally as ``file_root``, and the name of ``file_root`` is set automatically based on the chosen analysis parameters.  The default output directory prefix is `./chains/`.
 
-In the output directory, BayesEoR outputs a few key files:
+In the sampler output directory, i.e. ``Path(output_dir) / file_root``, BayesEoR outputs a few key files:
 
 #. ``version.txt``: simple text file with the ``bayeseor`` version used in the analysis
 
@@ -175,9 +175,9 @@ In the output directory, BayesEoR outputs a few key files:
 
     * ``k-vals-nsamples.txt``: number of :math:`\vec{k}` in each :math:`k` bin
 
-#.  ``data-*``: These files contain the outputs of the sampler, the most important being ``data-.txt``.  This file contains the sampler output and has the power spectrum amplitude samples for each iteration.  For MultiNest outputs, this file has `Nkbins` + 2 columns where `Nkbins` is the number of spherically-averaged :math:`k` bins.  The columns of interest in this file are the columns with index 0 and >= 2.  The 0th column contains the joint posterior probability value per iteration.  The columns with index >= 2 contain the power spectrum amplitude samples for each :math:`k` bin.
+#.  ``data-*``: These files contain the outputs of the sampler, the most important being ``data-.txt``.  This file contains the sampler output and has the power spectrum amplitude samples for each iteration.  For MultiNest outputs, this file has :math:`N_k` + 2 columns where :math:`N_k` is the number of spherically-averaged :math:`k` bins.  The columns of interest in this file are the columns with index 0 and >= 2.  The 0th column contains the joint posterior probability value per iteration.  The columns with index >= 2 contain the power spectrum amplitude samples for each :math:`k` bin.
 
-For convenience, we have provided a class to aid in analyzing the aforementioned outputs of BayesEoR.  For more information on this class, please see :ref:`post-analysis-class`.
+For convenience, we have provided a class to aid in analyzing these outputs.  For more information on this class, please see :ref:`post-analysis-class`.
 
 
 
@@ -194,11 +194,11 @@ To build the matrices (which will require ~17 GB of RAM and ~17 GB of disk space
 
     python scripts/run-analysis.py --config example-config.yaml --cpu
 
-Note that, by default, the matrices will be stored in ``array-storage/`` inside the BayesEoR repository.  If you wish to change the location in which the matrices (or outputs) are stored, please see :ref:`setting-parameters`.  Once the matrices are built, you can run the power spectrum analysis (which will require ~12 GB of RAM) via
+Note that, by default, the matrices will be stored in ``matrices/`` inside the BayesEoR repository.  If you wish to change the location in which the matrices (or outputs) are stored, please see :ref:`setting-parameters`.  Once the matrices are built, you can run the power spectrum analysis (which will require ~12 GB of RAM) via
 
 .. code-block:: Bash
 
-    python scripts/run-analysis.py --config example-config.yaml --gpu
+    python scripts/run-analysis.py --config example-config.yaml --gpu --run
 
 The mock EoR signal in the provided test data was generated as Gaussian white noise which has a flat power spectrum, `P(k) = 214777.66068216303 mK^2 Mpc^3`.  BayesEoR outputs the dimensionless power spectrum, :math:`\Delta^2(k)`, which can be obtained from :math:`P(k)` via
 
@@ -224,18 +224,18 @@ As an example, let us consider the case of the outputs of an analysis using the 
     from pathlib import Path
     from bayeseor.utils.analyze_results import DataContainer
 
-    dir_prefix = Path('./chains/')
-    dirnames = ['MN-Test-15-15-38-0-2-6.2E-03-2.63-2.82-lp-dPS-v1']
+    dir_prefix = Path("./chains/")
+    dirnames = ["MN-15-15-38-0-2.63-2.82-6.2E-03-lp-dPS-v1/"]
     expected_ps = 214777.66068216303  # mK^2 Mpc^3
 
     data = DataContainer(
-        dirnames, dir_prefix=dir_prefix, expected_ps=expected_ps, labels=['v1']
+        dirnames, dir_prefix=dir_prefix, expected_ps=expected_ps, labels=["v1"]
     )
     fig = data.plot_power_spectra_and_posteriors(
-        suptitle='Test Data Analysis', plot_fracdiff=True
+        suptitle="Test Data Analysis", plot_fracdiff=True
     )
 
-In this example, we've assumed the default output location `./chains/`.  The subdirectory containing the BayesEoR output files is `./chains/MN-Test-15-15-38-0-2-6.2E-03-2.63-2.82-lp-dPS-v1/`.  Here, we are only analyzing the output from a single analysis.
+In this example, we've assumed the default output location `./chains/`.  The subdirectory containing the BayesEoR output files is `./chains/MN-15-15-38-0-2.63-2.82-6.2E-03-lp-dPS-v1/`.  Here, we are only analyzing the output from a single analysis.
 
 .. tip::
 
@@ -243,9 +243,9 @@ In this example, we've assumed the default output location `./chains/`.  The sub
 
     .. code-block:: python
 
-        dirnames = ['MN-Test-15-15-38-0-2-6.2E-03-2.63-2.82-lp-dPS-v1',
-                    'MN-Test-15-15-38-0-2-6.2E-03-2.63-2.82-lp-dPS-v2',
-                    'MN-Test-15-15-38-0-2-6.2E-03-2.63-2.82-lp-dPS-v3']
+        dirnames = ['MN-15-15-38-0-2.63-2.82-6.2E-03-lp-dPS-v1',
+                    'MN-15-15-38-0-2.63-2.82-6.2E-03-lp-dPS-v2',
+                    'MN-15-15-38-0-2.63-2.82-6.2E-03-lp-dPS-v3']
 
 The variable ``expected_ps`` in the example above has been set specifically for the test dataset.  The mock EoR signal in the test dataset has a flat power spectrum, :math:`P(k)` (more info in the section above on the :ref:`test-data`).  We thus only need to specify a floating point number for the expected :math:`P(k)`.  The class will internally convert this :math:`P(k)` into the dimensionless power spectrum, :math:`\Delta^2(k)`, or vice versa, based on the combination of the ``ps_kind`` kwarg (``'ps'`` for power spectrum or ``'dmps'`` for the dimensionless power spectrum) and the ``expected_ps`` or ``expected_dmps`` kwargs.  The default value of ``ps_kind`` is ``'dmps'``, but we've passed the class the ``expected_ps`` kwarg corresponding to the power spectrum.  The class will thus automatically convert this floating point :math:`P(k)` into the corresponding :math:`\Delta^2(k)` using the :math:`k` bins files in each output directory.
 

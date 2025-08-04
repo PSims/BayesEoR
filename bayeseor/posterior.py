@@ -19,6 +19,12 @@ class PriorC(object):
     """
     Prior class for MultiNest and PolyChord sampler compatibility.
 
+    Parameters
+    ----------
+    sequence of float
+        Prior [min, max] for each k bin as a a sequence, e.g. [[min1, max1],
+        [min2, max2], ...].
+
     """
     def __init__(self, priors_min_max):
         self.priors_min_max = priors_min_max
