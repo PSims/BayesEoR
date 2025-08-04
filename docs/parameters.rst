@@ -7,6 +7,7 @@ All user-definable analysis parameters in BayesEoR are handled via the :class:`b
 
 .. autoclass:: bayeseor.params.BayesEoRParser
     :members:
+    :noindex:
 
 
 .. _setting-parameters:
