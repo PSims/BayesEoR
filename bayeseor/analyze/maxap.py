@@ -310,7 +310,7 @@ class MaximumAPosteriori(object):
         time. In this ordering, a visibility waterfall for the i-th indexed
         baseline, `i_bl`, with shape `(nt, nf)` can be obtained via
 
-        .. code_block:: python
+        .. code-block:: python
 
             bl_vis = vis_vec[i_bl::nbls].reshape(nt, nf)
 
