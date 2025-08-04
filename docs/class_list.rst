@@ -4,16 +4,12 @@ Full Class List
 BayesEoRParser
 --------------
 
-Parameter parsing of command line arguments and/or configuration files.
-
 .. autoclass:: bayeseor.params.BayesEoRParser
     :members:
     :noindex:
 
 BuildMatrices
 --------------
-
-Main class for building all of the necessary matrices used by BayesEoR.
 
 .. autoclass:: bayeseor.matrices.build.BuildMatrices
     :members:
@@ -49,7 +45,7 @@ Class containing HEALPix functions for the image domain model.
 MaximumAPosteriori
 ------------------
 
-.. autoclass:: bayeseor.maxap.MaximumAPosteriori
+.. autoclass:: bayeseor.analyze.maxap.MaximumAPosteriori
     :members:
 
 PowerSpectrumPosteriorProbability
