@@ -41,6 +41,8 @@ Class containing HEALPix functions for the image domain model.
 .. autoclass:: bayeseor.model.healpix.Healpix
     :members:
 
+.. _maxap-class:
+
 MaximumAPosteriori
 ------------------
 
