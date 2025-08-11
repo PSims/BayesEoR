@@ -53,7 +53,7 @@ pyuvdata-Compatible File
 
 *This is the recommended format for input data*
 
-Visibilities can be read via ``pyuvdata`` in ``.uvh5``, ``.uvfits``, or ``.ms`` format (measurement set funcationality in ``pyuvdata`` requires an `optional dependency <https://pyuvdata.readthedocs.io/en/latest/index.html#dependencies>`_ of ``casacore``).  This is the recommended method for specifying input visibilities as no data preprocessing step is required (more on this in the subsection below).  The data can be downselected via a suite of configuration file (command line) arguments, a subset of which is presented here:
+Visibilities can be read via ``pyuvdata`` in ``.uvh5``, ``.uvfits``, or ``.ms`` format (measurement set functionality in ``pyuvdata`` requires an `optional dependency <https://pyuvdata.readthedocs.io/en/latest/index.html#dependencies>`_ of ``casacore``).  This is the recommended method for specifying input visibilities as no data preprocessing step is required (more on this in the subsection below).  The data can be downselected via a suite of configuration file (command line) arguments, a subset of which is presented here:
 
 1. ``ant_str`` (``--ant-str``): antenna downselect string
 2. ``bl_cutoff`` (``--bl-cutoff``): maximum baseline length, :math:`b=\sqrt{u^2 + v^2}`, in meters
@@ -149,7 +149,7 @@ Once the matrices are built, you can run the power spectrum analysis (for which 
     
     python scripts/run-analysis.py --config /path/to/config.yaml --gpu --run
 
-The ``--run`` flag (or ``run: True`` in the configuration yaml) is required to run the power spectrum analysis.  Otherwise, only the :class:`bayeseor.posterior.PowerSpectrumPosteriorProbability` class will be instantitated (which can be useful for testing in an interactive python environment).  As above, the trailing ``--gpu`` flag will force the code to use GPUs.  When passing ``--gpu`` (or setting ``use_gpu: True`` in the configuration yaml), the power spectrum analysis will only run if at least one GPU is found and the GPU initialization is succesful.
+The ``--run`` flag (or ``run: True`` in the configuration yaml) is required to run the power spectrum analysis.  Otherwise, only the :class:`bayeseor.posterior.PowerSpectrumPosteriorProbability` class will be instantiated (which can be useful for testing in an interactive python environment).  As above, the trailing ``--gpu`` flag will force the code to use GPUs.  When passing ``--gpu`` (or setting ``use_gpu: True`` in the configuration yaml), the power spectrum analysis will only run if at least one GPU is found and the GPU initialization is successful.
 
 
 
@@ -222,7 +222,7 @@ As an example, let us consider the case of the outputs of an analysis using the 
 .. code-block:: python
 
     from pathlib import Path
-    from bayeseor.utils.analyze_results import DataContainer
+    from bayeseor.analyze import DataContainer
 
     dir_prefix = Path("./chains/")
     dirnames = ["MN-15-15-38-0-2.63-2.82-6.2E-03-lp-dPS-v1/"]
