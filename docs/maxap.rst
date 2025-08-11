@@ -69,7 +69,7 @@ In the code block below, we compute the MAP visibilities for the test data provi
 
 The above code will produce the following simple plot of the absolute value of the MAP visibilities for baseline (1, 0).
 
-.. image:: ../test_data/map-vis.png
+.. image:: ../test_data/eor/map_vis.png
     :width: 600
 
 
