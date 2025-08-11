@@ -22,7 +22,7 @@ BayesEoR is written primarily in python.  It also uses a small wrapper to interf
 
 On CPUs, the linear algebra functionality is implemented via ``scipy`` and thus ``MAGMA`` and ``CUDA`` are not required.  However, as mentioned above, we recommend running BayesEoR on GPUs due to their speed and precision.
 
-All of the required dependencies can be installed via ``magma`` (recommended, more info `here <https://mamba.readthedocs.io/en/latest/>`_) or ``conda`` using the provided ``environment.yaml`` file:
+All of the required dependencies can be installed via ``mamba`` (recommended, more info `here <https://mamba.readthedocs.io/en/latest/>`_) or ``conda`` using the provided ``environment.yaml`` file:
 
 .. literalinclude:: ../environment.yaml
     :language: yaml
@@ -35,9 +35,11 @@ You can install all of these dependencies with ``mamba`` from the root directory
 
 If you use ``conda``, simply replace ``conda`` with ``mamba`` in the above command.
 
-If you have a pre-configure installation of CUDA, we suggest commenting out ``cuda`` and ``pycuda`` in the ``environment.yaml`` file prior to executing the above ``conda`` command.  Similarly, to use a pre-configured MPI installation, comment out ``mpi4py`` (and ``pymultinest`` as it also installs a ``conda`` binary, see the paragraph below for installation instructions for ``pymultinest`` in this case) in the ``environment.yaml`` file.  You can then install ``mpi4py`` via ``pip``.  If you install these dependencies with ``conda``, ``conda`` will install its own CUDA and MPI binaries which may not be desirable.  For ``pycuda``, you need only have the path to your cuda binaries in your bash ``PATH`` variable prior to ``pip`` installation.  For ``mpi4py``, see `this article <https://researchcomputing.princeton.edu/support/knowledge-base/mpi4py>`_ to ensure ``mpi4py`` points to the desired MPI installation.
+If you wish to use an existing installation of ``CUDA``, please comment out ``cuda`` in ``environment.yaml`` before installing the dependencies with ``mamba`` / ``conda``.  As long as a valid path to the existing ``CUDA`` binaries, e.g. ``/usr/local/cuda/bin``, is present in your bash ``PATH`` variable, ``pycuda`` will be automatically configured to point to the existing ``CUDA``.
 
-Similarly, if using a pre-configured implementation of MultiNest, pymultinest can also be installed with ``pip`` and forced to point to a particular installation by including the MultiNest installation in your ``LD_LIBRARY_PATH``.  See the `pymultinest documentation <https://johannesbuchner.github.io/PyMultiNest/install.html>`_ for more details.
+If you wish to use an existing installation of ``MPI``, please comment out ``mpi4py`` and ``pymultinest`` in ``environment.yaml`` before installing the dependencies with ``mamba`` / ``conda``.  ``pymultinest`` requires ``mpi4py`` as a dependency, so it too must be commented out.  You can then install ``mpi4py`` via ``pip``.  For ``mpi4py``, see `this article <https://researchcomputing.princeton.edu/support/knowledge-base/mpi4py>`_ to ensure ``mpi4py`` points to the desired ``MPI`` installation.  Once ``mpi4py`` has been installed with ``pip``, you can proceed with installing ``pymultinest`` via ``mamba`` / ``conda``.
+
+If you wish to use an existing installation of ``MultiNest``, please comment out ``pymultinest`` in ``environment.yaml`` before installing the dependencies with ``mamba`` / ``conda``.  ``pymultinest`` can be installed with ``pip`` and forced to point to a particular installation by including the ``MultiNest`` installation in your ``LD_LIBRARY_PATH``.  See the `pymultinest documentation <https://johannesbuchner.github.io/PyMultiNest/install.html>`_ for more details.
 
 
 
