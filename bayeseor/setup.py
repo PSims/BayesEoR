@@ -669,6 +669,7 @@ def run_setup(
             nq=nq,
             npl=npl,
             sigma=sigma,
+            fit_for_monopole=fit_for_monopole,
             beta=beta,
             log_priors=log_priors,
             dimensionless_PS=dimensionless_PS,
@@ -938,6 +939,7 @@ def generate_file_root(
     neta : int,
     nq : int,
     sigma : float,
+    fit_for_monopole : bool = False,
     beta : list[float] | None = None,
     log_priors : bool = False,
     dimensionless_PS : bool = True,
@@ -965,6 +967,8 @@ def generate_file_root(
         Number of large spectral scale model quadratic basis vectors.
     sigma : float
         Standard deviation of the visibility noise in mK sr.
+    fit_for_monopole : bool, optional
+        Fit for the (u, v) = (0, 0) pixel in the model uv-plane.
     beta : list of float, optional
         Brightness temperature power law spectral index/indices used in the
         large spectral scale model. Defaults to None.
@@ -1007,6 +1011,8 @@ def generate_file_root(
         output_dir = Path(output_dir)
 
     file_root = f"{nu}-{nv}-{neta}-{nq}"
+    if fit_for_monopole:
+        file_root += "-ffm"
     if beta is not None:
         beta_str = ""
         for b in beta:
