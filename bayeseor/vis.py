@@ -200,7 +200,7 @@ def preprocess_uvdata(
 
     # Preprocess metadata
     uvd = UVData()
-    mpiprint(f"\nReading data from: {fp}", rank=print_rank)
+    mpiprint(f"\nReading data from: {fp}", rank=rank)
     uvd.read(fp, read_data=False)
     uvd.select(ant_str=ant_str)
 

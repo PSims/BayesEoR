@@ -33,8 +33,8 @@ class BayesEoRParser(ArgumentParser):
         To specify the array directory prefix in the configuration yaml file,
         use `array_dir_prefix` instead.  For an example, please see the
         provided configuration yaml file `BayesEoR/example-config.yaml`.
-    verbose : bool, optional
-        Verbose output. Defaults to False.
+    quiet : bool, optional
+        Quiet mode where only a few statements are printed. Defaults to False.
     clobber : bool, optional
         Overwrite files if they exist. This includes the matrix stack, any
         existing preprocessed data/noise vectors, and instrument model files.
@@ -393,10 +393,9 @@ class BayesEoRParser(ArgumentParser):
                  "provided configuration yaml file `BayesEoR/example-config.yaml`."
         )
         self.add_argument(
-            "-v", "--verbose",
+            "--quiet",
             action="store_true",
-            dest="verbose",
-            help="Verbose output."
+            help="Quiet mode where only a few statements are printed."
         )
         self.add_argument(
             "--clobber",

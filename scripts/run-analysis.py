@@ -1,5 +1,4 @@
 """ Example driver script for running BayesEoR """
-import numpy as np
 import os
 from pathlib import Path
 from pprint import pprint
@@ -27,7 +26,7 @@ mpiprint(f"\n{mpi_size = }", rank=rank, end="\n\n")
 
 parser = BayesEoRParser()
 args = parser.parse_args()
-if rank == 0 and args.verbose:
+if rank == 0 and not args.quiet:
     mpiprint(Panel("Parameters"))
     if rank == 0 and args.config:
         mpiprint(
@@ -39,7 +38,7 @@ if rank == 0 and args.verbose:
 
 # Run all steps required to instantiate the
 # PowerSpectrumPosteriorProbability class
-pspp, out_dir = run_setup(**args)
+pspp, out_dir = run_setup(**args, verbose=(not args.quiet))
 
 if "SLURM_JOB_ID" in os.environ:
     # Create empty file named with the SLURM Job ID
@@ -48,7 +47,7 @@ if "SLURM_JOB_ID" in os.environ:
 if not args.run:
     mpiprint("\nSkipping sampling, exiting...", rank=rank, end="\n\n")
 else:
-    if rank == 0 and args.verbose:
+    if rank == 0 and not args.quiet:
         mpiprint("\n", Panel("Analysis"))
     if args.use_gpu and not pspp.gpu.gpu_initialized:
         mpiprint(
@@ -65,7 +64,7 @@ else:
     if rank == 0:
         # Write log files containing analysis parameters
         # and git version info for posterity
-        write_log_files(parser, args, out_dir=out_dir, verbose=args.verbose)
+        write_log_files(parser, args, out_dir=out_dir, verbose=(not args.quiet))
     
     if args.use_Multinest:
         sampler = "multinest"

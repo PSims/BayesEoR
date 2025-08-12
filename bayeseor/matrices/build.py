@@ -968,6 +968,8 @@ class BuildMatrices():
             dst = self.prepare_matrix_stack_for_deletion(
                 self.array_dir, self.clobber_matrices
             )
+        else:
+            print("Building matrix stack...")
         # Build matrices
         self.build_matrix_if_it_doesnt_already_exist("T_Ninv_T")
         if not self.include_instrumental_effects:
@@ -984,8 +986,7 @@ class BuildMatrices():
             self.delete_old_matrix_stack(dst, confirm_deletion)
 
         self.write_version_info()
-        if self.verbose:
-            print("Matrix stack complete")
+        print("Matrix stack complete")
 
     # Finv functions
     def build_taper_matrix(self):

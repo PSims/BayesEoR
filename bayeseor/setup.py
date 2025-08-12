@@ -742,8 +742,14 @@ def run_setup(
                 phasor_path, phasor, vis_args, extra=extra, clobber=clobber
             )
 
-    mpiprint("\n", Panel("Output Directory"), rank=print_rank)
-    mpiprint(f"\n{sampler_dir.absolute().as_posix()}", rank=print_rank)
+    if verbose and rank == 0:
+        mpiprint("\n", Panel("Output Directory"))
+        mpiprint(f"\n{sampler_dir.absolute().as_posix()}")
+    elif rank == 0:
+        mpiprint(
+            "\n[bold]Output directory:[/bold] "
+            f"{sampler_dir.absolute().as_posix()}"
+        )
 
     mpiprint("\n", Panel("Model k Cube"), rank=print_rank)
     k_vals, k_cube_voxels_in_bin = build_k_cube(
@@ -886,12 +892,10 @@ def run_setup(
     else:
         uprior_inds = None
 
-    mpiprint(
-        "\nInstantiating posterior class:",
-        style="bold",
-        rank=print_rank,
-        end="\n\n"
+    posterior_msg = (
+        "\nInstantiating posterior class" + (verbose and rank == 0)*":"
     )
+    mpiprint(posterior_msg, style="bold", rank=rank, end="\n\n")
     pspp = build_posterior(
         k_vals=k_vals,
         k_cube_voxels_in_bin=k_cube_voxels_in_bin,
@@ -1327,17 +1331,12 @@ def get_vis_data(
                 )
 
             mpiprint(
-                "\nLoading numpy-compatible data:",
-                style="bold",
-                rank=print_rank
+                "\nLoading numpy-compatible data:", style="bold", rank=rank
             )
-            mpiprint(f"\nReading data from: {data_path}", rank=print_rank)
+            mpiprint(f"\nReading data from: {data_path}", rank=rank)
             vis = load_numpy_dict(data_path)
 
-            mpiprint(
-                f"Reading instrument model from: {inst_model}",
-                rank=print_rank
-            )
+            mpiprint(f"Reading instrument model from: {inst_model}", rank=rank)
             uvws, redundancy, antpairs, phasor = load_inst_model(inst_model)
 
             if noise_data_path is not None:
@@ -1373,7 +1372,7 @@ def get_vis_data(
             mpiprint(
                 "\nPreprocessing pyuvdata-compatibile data:",
                 style="bold",
-                rank=print_rank
+                rank=rank
             )
             vis, antpairs, uvws, redundancy, phasor, noise, uvd = \
                 preprocess_uvdata(
@@ -1426,12 +1425,8 @@ def get_vis_data(
                 tele_name = uvd.telescope.name
 
         if simulate_noise:
-            mpiprint(
-                "\nGenerating visibility noise:", style="bold", rank=print_rank
-            )
-            mpiprint(
-                f"\nNoise std. dev. = {sigma:.2e} mK sr", rank=print_rank
-            )
+            mpiprint("\nGenerating visibility noise:", style="bold", rank=rank)
+            mpiprint(f"\nNoise std. dev. = {sigma:.2e} mK sr", rank=rank)
             vis_noisy, noise, bl_conj_pairs_map = generate_gaussian_noise(
                 sigma,
                 vis,
@@ -2176,7 +2171,7 @@ def build_matrices(
     mpiprint(
         f"\n[bold]Matrix stack directory:[/bold] {array_dir}",
         end="\n\n",
-        rank=print_rank
+        rank=rank
     )
 
     if not Path(array_dir).exists() and build_stack and rank > 0:
@@ -2250,7 +2245,7 @@ def build_matrices(
     if build_stack:
         if clobber:
             mpiprint(
-                "\nWARNING: Overwriting matrix stack\n", rank=print_rank,
+                "\nWARNING: Overwriting matrix stack\n", rank=rank,
                 style="bold red", justify="center"
             )
         bm.build_minimum_sufficient_matrix_stack(
