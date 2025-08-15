@@ -10,7 +10,7 @@ There are currently two steps involved in a BayesEoR analysis
 1. Build the required matrices (CPUs only, no GPUs or MPI required)
 2. Run the power spectrum analysis (double precision GPUs recommended)
 
-Below, we provide some useful information about the required :ref:`inputs` and :ref:`analysis-steps`.  For additional help with running BayesEoR and setting analysis parameters, please see :ref:`setting-parameters`.  More information on running BayesEoR can also be found below in the :ref:`test-data` section.
+Below, we provide some useful information about the required :ref:`inputs` and :ref:`analysis-steps`.  For additional help with running BayesEoR and setting analysis parameters, please see :ref:`setting-parameters`.  More information on running BayesEoR can also be found in :ref:`test-data`.
 
 
 
@@ -181,34 +181,6 @@ For convenience, we have provided a class to aid in analyzing these outputs.  Fo
 
 
 
-.. _test-data:
-
-Test Dataset
-------------
-
-The BayesEoR repository provides a set of test data and an example yaml configuration file.  The test data contain mock EoR only simulated visibilities with a Gaussian beam and a full width at half maximum of 9.3 degrees.  For more information on the test data, see Section 3 of `Burba et al. 2023 <https://ui.adsabs.harvard.edu/abs/2023MNRAS.520.4443B/abstract>`_.
-
-To build the matrices (which will require ~17 GB of RAM and ~17 GB of disk space) using the provided example configuration yaml and test data, first navigate to the root directory of the BayesEoR repository and run
-
-.. code-block:: Bash
-
-    python scripts/run-analysis.py --config example-config.yaml --cpu
-
-Note that, by default, the matrices will be stored in ``matrices/`` inside the BayesEoR repository.  If you wish to change the location in which the matrices (or outputs) are stored, please see :ref:`setting-parameters`.  Once the matrices are built, you can run the power spectrum analysis (which will require ~12 GB of RAM) via
-
-.. code-block:: Bash
-
-    python scripts/run-analysis.py --config example-config.yaml --gpu --run
-
-The mock EoR signal in the provided test data was generated as Gaussian white noise which has a flat power spectrum, `P(k) = 214777.66068216303 mK^2 Mpc^3`.  BayesEoR outputs the dimensionless power spectrum, :math:`\Delta^2(k)`, which can be obtained from :math:`P(k)` via
-
-.. math::
-
-    \Delta^2(k) = \frac{k^3}{2\pi^2}\,P(k)
-
-The :math:`k` bin values required to obtain the dimensionless power spectrum are written to disk automatically by BayesEoR in the same directory as the sampler outputs (please see :ref:`output-location` or :ref:`post-analysis-class` for more information).
-
-
 
 .. _post-analysis-class:
 
@@ -217,19 +189,18 @@ Analyzing BayesEoR Outputs
 
 We have provided a basic class for analyzing the outputs of BayesEoR.  The minimum requirement to instantiate the class is a list of directory names containing the BayesEoR output directories.  There are also several kwargs you can set to calculate various quantities, compare the results with an expected power spectrum, and/or modify the attributes of the created plots.  Please see :ref:`datacontainer-class-def` for more information.
 
-As an example, let us consider the case of the outputs of an analysis using the provided test data.
+As an example, let us consider the case of the outputs of an analysis using the provided EoR only test data.
 
 .. code-block:: python
 
-    from pathlib import Path
     from bayeseor.analyze import DataContainer
 
-    dir_prefix = Path("./chains/")
+    dir_prefix = "./chains/"
     dirnames = ["MN-15-15-38-0-2.63-2.82-6.2E-03-lp-dPS-v1/"]
     expected_ps = 214777.66068216303  # mK^2 Mpc^3
 
     data = DataContainer(
-        dirnames, dir_prefix=dir_prefix, expected_ps=expected_ps, labels=["v1"]
+        dirnames, dir_prefix=dir_prefix, expected_ps=expected_ps, labels=["EoR Only"]
     )
     fig = data.plot_power_spectra_and_posteriors(
         suptitle="Test Data Analysis", plot_fracdiff=True

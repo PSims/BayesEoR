@@ -23,5 +23,6 @@ Table of Contents
    installation
    parameters
    usage
+   test_data
    maxap
    class_list
