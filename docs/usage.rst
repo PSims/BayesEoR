@@ -135,9 +135,11 @@ Note that with ``jsonargparse``, command line arguments that come after the ``--
 
 BayesEoR automatically creates a directory in which to store the matrix stack if one does not already exist.  The name of the matrix stack directory is set automatically based on the chosen analysis parameters.  The prefix for this matrix stack directory can be set via the ``array_dir_prefix`` (``--array-dir-prefix``) argument in the configuration yaml (on the command line).  The matrix stack is saved in a subdirectory within ``array_dir_prefix``.  The default matrix stack prefix is `./matrices/`.
 
+.. warning::
+    The matrix stack build methods do not support MPI.  MPI is only supported during power spectrum analysis.  If the matrix stack is built using multiple MPI processes, all processes except rank 0 will raise an error and exit.  The matrix stack will continue building on rank 0.
+    
 .. tip::
-
-    The matrix stack build methods do not support MPI.  MPI is only supported during power spectrum analysis.  Please run the matrix construction using a single process.  Using multiple CPUs will speed up the matrix construction as, for dense-dense matrix operations, we can take advantage of ``numpy``'s built-in threading.
+    Using multiple CPUs will speed up the matrix construction as, for dense-dense matrix operations, we can take advantage of ``numpy``'s built-in threading.
 
 
 Running the Power Spectrum Analysis
