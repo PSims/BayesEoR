@@ -189,9 +189,9 @@ For convenience, we have provided a class to aid in analyzing these outputs.  Fo
 Analyzing BayesEoR Outputs
 --------------------------
 
-We have provided a basic class for analyzing the outputs of BayesEoR.  The minimum requirement to instantiate the class is a list of directory names containing the BayesEoR output directories.  There are also several kwargs you can set to calculate various quantities, compare the results with an expected power spectrum, and/or modify the attributes of the created plots.  Please see :ref:`datacontainer-class-def` for more information.
+We have provided a basic class for analyzing the outputs of BayesEoR.  The minimum requirement to instantiate the class is a list of directory names containing the BayesEoR output directories.  There are also several kwargs you can set to calculate various quantities, compare the results with an expected power spectrum, and/or modify the attributes of the created plots.  Please see :class:`bayeseor.analyze.analyze.DataContainer` for more information.
 
-As an example, let us consider the case of the outputs of an analysis using the provided EoR only test data.
+As an example, let us consider the case of the outputs of an analysis using the provided EoR-only test data (see :ref:`eor-only` for more details).
 
 .. code-block:: python
 
@@ -202,17 +202,22 @@ As an example, let us consider the case of the outputs of an analysis using the 
     expected_ps = 214777.66068216303  # mK^2 Mpc^3
 
     data = DataContainer(
-        dirnames, dir_prefix=dir_prefix, expected_ps=expected_ps, labels=["EoR Only"]
+        dirnames,
+        dir_prefix=dir_prefix,
+        expected_ps=expected_ps,
+        labels=["EoR Only"]
     )
     fig = data.plot_power_spectra_and_posteriors(
-        suptitle="Test Data Analysis", plot_fracdiff=True
+        suptitle="Test Data Analysis",
+        plot_fracdiff=True,
+        cred_interval=95
     )
 
-In this example, we've assumed the default output location `./chains/`.  The subdirectory containing the BayesEoR output files is `./chains/MN-15-15-38-0-2.63-2.82-6.2E-03-lp-dPS-v1/`.  Here, we are only analyzing the output from a single analysis.
+In this example, we've assumed the default output location ``./chains/`` and that the subdirectory containing the sampler outputs is ``MN-15-15-38-0-2.63-2.82-6.2E-03-lp-dPS-v1/``.
 
 .. tip::
 
-    If you wish to compare multiple analyses within the same directory, i.e. you have multiple subdirectories containing output files in `./chains/`, you can add more entries to `dirnames` e.g.
+    If you wish to compare multiple analyses within the same directory, i.e. you have multiple subdirectories containing output files in ``./chains/``, you can add more entries to the ``dirnames`` kwarg e.g.
 
     .. code-block:: python
 
