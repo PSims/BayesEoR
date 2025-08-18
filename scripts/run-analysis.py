@@ -38,7 +38,7 @@ if rank == 0 and not args.quiet:
 
 # Run all steps required to instantiate the
 # PowerSpectrumPosteriorProbability class
-pspp, out_dir = run_setup(**args, verbose=(not args.quiet))
+pspp, out_dir = run_setup(**args, verbose=(not args.quiet), rank=rank)
 
 if "SLURM_JOB_ID" in os.environ:
     # Create empty file named with the SLURM Job ID
