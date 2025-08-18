@@ -107,7 +107,7 @@ We can use the :class:`bayeseor.analyze.analyze.DataContainer` class to quickly 
     fig = data.plot_power_spectra_and_posteriors(
         suptitle="Test Data Analysis",
         plot_fracdiff=True,
-        conf_interval=95
+        cred_interval=95
     )
 
 .. attention::
@@ -196,7 +196,7 @@ We can use the :class:`bayeseor.analyze.analyze.DataContainer` class to quickly 
     fig = data.plot_power_spectra_and_posteriors(
         suptitle="Test Data Analysis",
         plot_fracdiff=True,
-        conf_interval=95,
+        cred_interval=95,
         uplim_inds=uplim_inds
     )
 

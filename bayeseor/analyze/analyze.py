@@ -26,10 +26,10 @@ class DataContainer(object):
     store_samples : bool, optional
         If `store_samples` is True, store all samples as an attribute,
         `self.samples`.  Defaults to False.
-    conf_intervals : float or list of float, optional
-        Confidence intervals as percentages used for uncertainty calculations
+    cred_intervals : float or list of float, optional
+        Credibility intervals as percentages used for uncertainty calculations
         and errorbars on plots.  Defaults to [68, 95], i.e. compute 68% and 95%
-        confidence intervals.
+        credibility intervals.
     calc_uplims : bool, optional
         If `calc_uplims` is True, calculate the upper limit of each k bin's
         posterior as the 95th percentile.  Defaults to False.
@@ -89,7 +89,7 @@ class DataContainer(object):
         dir_prefix=None,
         sampler="multinest",
         store_samples=False,
-        conf_intervals=[68, 95],
+        cred_intervals=[68, 95],
         calc_uplims=True,
         uplim_quantile=0.95,
         uplim_inds=None,
@@ -114,8 +114,8 @@ class DataContainer(object):
             self.sampler_filename = "data-.txt"
         self.labels = labels
 
-        if not isinstance(conf_intervals, Iterable):
-            conf_intervals = [conf_intervals]
+        if not isinstance(cred_intervals, Iterable):
+            cred_intervals = [cred_intervals]
         if uplim_inds is not None:
             self.calc_uplims = True
         else:
@@ -147,7 +147,7 @@ class DataContainer(object):
         self.posterior_bins = []
         self.avgs = []
         self.medians = []
-        self.conf_intervals = []
+        self.cred_intervals = []
         if self.calc_uplims:
             self.uplims = []
         if self.calc_kurtosis:
@@ -178,7 +178,7 @@ class DataContainer(object):
                 path / self.sampler_filename,
                 len(k_vals),
                 posterior_weighted=posterior_weighted,
-                conf_intervals=conf_intervals,
+                cred_intervals=cred_intervals,
                 uplim_quantile=self.uplim_quantile,
                 Nhistbins=Nhistbins,
                 density=density,
@@ -189,7 +189,7 @@ class DataContainer(object):
             self.posterior_bins.append(out[1])
             self.avgs.append(out[2])
             self.medians.append(out[3])
-            self.conf_intervals.append(out[4])
+            self.cred_intervals.append(out[4])
             if self.calc_uplims:
                 self.uplims.append(out[5])
             if self.calc_kurtosis:
@@ -217,7 +217,7 @@ class DataContainer(object):
         fp,
         Nkbins,
         posterior_weighted=False,
-        conf_intervals=[68, 95],
+        cred_intervals=[68, 95],
         uplim_quantile=0.95,
         Nhistbins=31,
         density=False,
@@ -238,9 +238,9 @@ class DataContainer(object):
             probability as weights in the calculation of the individual power
             spectrum coefficient posteriors and the associated estimates,
             uncertainties, and upper limits.  Defaults to False.
-        conf_intervals : float or list of floats, optional
-            Confidence intervals as percentages.  Defaults to [68, 95], i.e.
-            compute 68% and 95% confidence intervals.
+        cred_intervals : float or list of floats, optional
+            Credibility intervals as percentages.  Defaults to [68, 95], i.e.
+            compute 68% and 95% credibility intervals.
         uplim_quantile : float, optional
             Quantile in [0, 1].  Defaults to 0.95.  Only used if
             `self.calc_uplims` is True.
@@ -260,26 +260,29 @@ class DataContainer(object):
         
         Returns
         -------
-        posteriors : ndarray
+        posteriors : numpy.ndarray
             Posterior distributions for each k bin with shape
             ``(Nkbins, Nhistbins)`` where `Nkbins` is the number of spherically
             averaged k bins in `fp`.
-        avgs : ndarray
+        avgs : numpy.ndarray
             Average of each k bin.
-        medians : ndarray
+        medians : numpy.ndarray
             Median value of each k bin.
         ci_dict : dict
-            Dictionary with the confidence interval(s) as key(s) and nested
-            dictionaries for each confidence interval indexed by 'lo' and 'hi'
-            for the low and high bounds of the confidence inverval,
+            Dictionary with the credibility interval(s) as key(s) and nested
+            dictionaries for each credibility interval indexed by 'lo' and 'hi'
+            for the low and high bounds of the credibility interval,
             respectively.
-        uplims : ndarray (returned only if `self.calc_uplims` is True)
-            `uplim_quantile`-th quantile of each k bin.
-        kurtoses : ndarray (returned only if `self.calc_kurtosis` is True)
-            Kurtosis of each k bin's posterior.
-        samples : ndarray (returned only if `return_samples` is True)
+        uplims : numpy.ndarray
+            `uplim_quantile`-th quantile of each k bin. Returned only if
+            `self.calc_uplims` is True.
+        kurtoses : numpy.ndarray
+            Kurtosis of each k bin's posterior. Returned only if
+            `self.calc_kurtosis` is True.
+        samples : numpy.ndarray
             Samples for each power power spectrum coefficient with shape
-            ``(Nsamples, Nkbins + 2)``.
+            ``(Nsamples, Nkbins + 2)``. Returned only if `return_samples` is
+            True.
 
         """
         if not isinstance(fp, Path):
@@ -302,7 +305,7 @@ class DataContainer(object):
                 data[:, 2:], 0.5, weights=weights
             )
             ci_dict = {}
-            for ci in conf_intervals:
+            for ci in cred_intervals:
                 quantile = (ci/2 + 50) / 100
                 lobounds = self._weighted_quantiles(
                     data[:, 2:], 1 - quantile, weights=weights
@@ -402,54 +405,54 @@ class DataContainer(object):
         elif expected_ps is not None and self.ps_kind == "dmps":
             # Convert from P(k) to \Delta^2(k)
             if self.k_vals_identical:
-                expected_dmps = self._ps_to_dmps(expected_ps, self.k_vals[0])
+                expected_dmps = self.ps_to_dmps(expected_ps, self.k_vals[0])
                 expected_dmps = [expected_dmps]
             else:
                 expected_dmps = []
                 for i in range(self.Ndirs):
-                    expected_dmps.append(self._ps_to_dmps(
+                    expected_dmps.append(self.ps_to_dmps(
                             expected_ps, self.k_vals[i]
                     ))
             self.expected_dmps = expected_dmps
         elif expected_dmps is not None and self.ps_kind == "ps":
             # Convert from \Delta^2(k) to P(k)
             if self.k_vals_identical:
-                expected_ps = self._dmps_to_ps(expected_dmps, self.k_vals[0])
+                expected_ps = self.dmps_to_ps(expected_dmps, self.k_vals[0])
                 expected_ps = [expected_dmps]
             else:
                 expected_ps = []
                 for i in range(self.Ndirs):
-                    expected_ps.append(self._dmps_to_ps(
+                    expected_ps.append(self.dmps_to_ps(
                         expected_dmps, self.k_vals[i]
                     ))
             self.expected_ps = expected_ps
     
-    def _ps_to_dmps(self, ps, ks):
+    def ps_to_dmps(self, ps, ks):
         """
         Convert :math:`P(k)` to :math:`\\Delta^2(k)`.
 
         Parameters
         ----------
-        ps : float or ndarray
+        ps : float or numpy.ndarray
             Float or ndarray of floats containing the power spectrum
             amplitude(s).  If an ndarray, must have the same shape as `ks`.
-        ks : ndarray
+        ks : numpy.ndarray
             Array of k values.
 
         """
         return ps * ks**3 / (2 * np.pi**2)
     
-    def _dmps_to_ps(self, dmps, ks):
+    def dmps_to_ps(self, dmps, ks):
         """
         Convert :math:`\\Delta^2(k)` to :math:`P(k)`.
 
         Parameters
         ----------
-        dmps : float or ndarray
+        dmps : float or numpy.ndarray
             Float or ndarray of floats containing the dimensionless power
             spectrum amplitude(s).  If an ndarray, must have the same shape as
             `ks`.
-        ks : ndarray
+        ks : numpy.ndarray
             Array of k values.
 
         """
@@ -457,7 +460,7 @@ class DataContainer(object):
 
     def plot_power_spectra(
         self,
-        conf_interval=68,
+        cred_interval=68,
         uplim_inds=None,
         plot_height=4.0,
         plot_width=7.0,
@@ -486,12 +489,12 @@ class DataContainer(object):
         axs=None
     ):
         """
-        Plot the power spectrum as the average with a confidence interval.
+        Plot the power spectrum as the median with a credibility interval.
 
         Parameters
         ----------
-        conf_interval : float, optional
-            Confidence interval as a percentage to plot as the uncertainty.
+        cred_interval : float, optional
+            Credibility interval as a percentage to plot as the uncertainty.
             Defaults to 68.
         uplim_inds : array-like, optional
             Array-like of True for non-detections and False for detections.
@@ -504,7 +507,7 @@ class DataContainer(object):
             use `uplim_inds` in place of `self.uplim_inds`.
         plot_height : float, optional
             Subplot height.  Defaults to 4.0.
-        plot_width : float, optioanl
+        plot_width : float, optional
             Subplot width.  Defaults to 7.0.
         hspace : float, optional
             matplotlib gridspec height space.  Defaults to 0.05.  Only used if
@@ -695,10 +698,10 @@ class DataContainer(object):
             )
             yerr_lo = (
                 self.medians[i_dir]
-                - self.conf_intervals[i_dir][conf_interval]['lo']
+                - self.cred_intervals[i_dir][cred_interval]['lo']
             )
             yerr_hi = (
-                self.conf_intervals[i_dir][conf_interval]['hi']
+                self.cred_intervals[i_dir][cred_interval]['hi']
                 - self.medians[i_dir]
             )
             yerr = np.array([yerr_lo, yerr_hi])
@@ -867,7 +870,7 @@ class DataContainer(object):
         ----------
         plot_height : float, optional
             Subplot height.  Defaults to 1.0.
-        plot_width : float, optioanl
+        plot_width : float, optional
             Subplot width.  Defaults to 7.0.
         hspace : float, optional
             matplotlib gridspec height space.  Defaults to 0.05.  Only used if
@@ -1000,7 +1003,7 @@ class DataContainer(object):
 
     def plot_power_spectra_and_posteriors(
         self,
-        conf_interval=68,
+        cred_interval=68,
         uplim_inds=None,
         plot_height_ps=4.0,
         plot_width=7.0,
@@ -1039,8 +1042,8 @@ class DataContainer(object):
 
         Parameters
         ----------
-        conf_interval : float, optional
-            Confidence interval as a percentage to plot as the uncertainty.
+        cred_interval : float, optional
+            Credibility interval as a percentage to plot as the uncertainty.
             Defaults to 68.
         uplim_inds : array-like, optional
             Array-like of True for non-detections and False for detections.
@@ -1053,7 +1056,7 @@ class DataContainer(object):
             use `uplim_inds` in place of `self.uplim_inds`.
         plot_height_ps : float, optional
             Subplot height for the power spectra subplot(s).  Defaults to 4.0.
-        plot_width : float, optioanl
+        plot_width : float, optional
             Subplot width for both the power spectra subplot(s) and the 
             posterior subplots.  Defaults to 7.0.
         hspace_ps : float, optional
@@ -1200,7 +1203,7 @@ class DataContainer(object):
         if not isinstance(axs_ps, Iterable):
             axs_ps = [axs_ps]
         axs_ps = self.plot_power_spectra(
-            conf_interval=conf_interval,
+            cred_interval=cred_interval,
             uplim_inds=uplim_inds,
             x_offset=x_offset,
             zorder_offset=zorder_offset,
