@@ -15,11 +15,11 @@ All user-definable analysis parameters in BayesEoR are handled via the :class:`b
 Setting Parameters
 ==================
 
-The ``jsonargparse`` package allows for all of these parameters to be set via the command line or a yaml configuration file.  An example yaml file has been provided (``example-config.yaml``)
+The ``jsonargparse`` package allows for all of these parameters to be set via the command line or a yaml configuration file.  Two example yaml files have been provided, one for each test dataset.  Here, we provide an example of the configuration yaml for the :ref:`eor-only` test data, ``test_data/eor/config.yaml``:
 
-.. literalinclude:: ../example-config.yaml
+.. literalinclude:: ../test_data/eor/config.yaml
     :language: yaml
 
-Any variable that can be set via a command line argument can also be set in this yaml configuration file (command line arguments containing dashes in the variable name must be replaced with underscores, i.e. the command line argument ``--data-path`` can be set in the configuration file via ``data_path: "/path/to/data.npy"``).  Please also note that any command line argument with a ``dest`` attribute is referenced by the corresponding ``dest`` variable name in the configuration yaml.  For example, to request the code use GPUs, you can set this via ``--gpu`` on the command line or via ``use_gpu: True`` in the configuration file.
+Any variable that can be set via a command line argument can also be set in this yaml configuration file (command line arguments containing dashes in the variable name must be replaced with underscores, i.e. the command line argument ``--data-path`` can be set in the configuration file via ``data_path: "/path/to/data.uvh5"``).  Please also note that any command line argument with a ``dest`` attribute is referenced by the corresponding ``dest`` variable name in the configuration yaml.  For example, to request the code use GPUs, you can set this via ``--gpu`` on the command line or via ``use_gpu: True`` in the configuration file.
 
 The command line interface in BayesEoR uses several classes from the ``jsonargparse`` package, notably the ``ArgumentParser`` and ``ActionYesNo`` classes.  For more information on these classes, please refer to the ``jsonargparse`` `documentation <https://jsonargparse.readthedocs.io/en/stable/>`_.

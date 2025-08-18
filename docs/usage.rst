@@ -32,7 +32,7 @@ More information about each of these components can be found below.
 Analysis Parameters
 ^^^^^^^^^^^^^^^^^^^
 
-BayesEoR is configured via a set of analysis parameters which can be set via a configuration yaml file (recommended) or the command line.  The provided configuration file (`example-config.yaml`) provides an example of the minimum sufficient set of analysis parameters for a power spectrum analysis when using a ``numpy``-compatible file as input (more on this in the section below on :ref:`vis`).  Please see :ref:`setting-parameters` for the contents of this file and :class:`bayeseor.params.BayesEoRParser` for a description of each of the user-definable analysis parameters.  The full list of parameters can also be displayed by running
+BayesEoR is configured via a set of analysis parameters which can be set via a configuration yaml file (recommended) or the command line.  The provided configuration file (``test_data/eor/config.yaml``) provides an example of the minimum sufficient set of analysis parameters for a power spectrum analysis when using a ``pyuvdata``-compatible file as input (more on this in the section below on :ref:`vis`).  Please see :ref:`setting-parameters` for the contents of this file and :class:`bayeseor.params.BayesEoRParser` for a description of each of the user-definable analysis parameters.  The full list of parameters can also be displayed by running
 
 .. code-block:: Bash
 
