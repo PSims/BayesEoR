@@ -113,6 +113,9 @@ We can use the :class:`bayeseor.analyze.analyze.DataContainer` class to quickly 
 .. attention::
     If you changed the location in which the sampler outputs are stored, you will need to update ``dir_prefix`` in the above code block to point to your specified output directory.
 
+.. tip::
+    The :class:`bayeseor.analyze.analyze.DataContainer` class calculates credibility intervals via the ``cred_intervals`` kwarg.  You can specify any credibility intervals of interest as an e.g. list of percentages.  By default, the 68% and 95% credibility intervals are calculated for each :math:`k` bin.  You can choose which credibility interval to plot as the uncertainty on each :math:`k` bin in :meth:`bayeseor.analyze.analyze.DataContainer.plot_power_spectra_and_posteriors` via the ``cred_interval`` kwarg.
+
 This should produce the following figure if the analysis has been run correctly:
 
 .. image:: ../test_data/eor/test_data_results.png
@@ -202,6 +205,9 @@ We can use the :class:`bayeseor.analyze.analyze.DataContainer` class to quickly 
 
 .. attention::
     If you changed the location in which the sampler outputs are stored, you will need to update ``dir_prefix`` in the above code block to point to your specified output directory.
+
+.. tip::
+    The :class:`bayeseor.analyze.analyze.DataContainer` class calculates credibility intervals via the ``cred_intervals`` kwarg.  You can specify any credibility intervals of interest as an e.g. list of percentages.  By default, the 68% and 95% credibility intervals are calculated for each :math:`k` bin.  You can choose which credibility interval to plot as the uncertainty on each :math:`k` bin in :meth:`bayeseor.analyze.analyze.DataContainer.plot_power_spectra_and_posteriors` via the ``cred_interval`` kwarg.
 
 This should produce the following figure if the analysis has been run correctly:
 
