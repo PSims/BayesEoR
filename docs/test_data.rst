@@ -34,7 +34,13 @@ Instructions on using each test dataset are described below.
 EoR Only
 --------
 
-The EoR-only test data, ``test_data/eor/eor.uvh5``, contain simulated visibilities of a mock EoR signal drawn as a Gaussian-random field with a flat power spectrum :math:`P(k)= 214777.66068216303 \rm{mK}^2 \rm{Mpc}^3`.  BayesEoR outputs the dimensionless power spectrum, :math:`\Delta^2(k)`, which can be obtained from :math:`P(k)` via
+The EoR-only test data, ``test_data/eor/eor.uvh5``, contain simulated visibilities of a mock EoR signal drawn as a Gaussian-random field with a flat power spectrum
+
+.. math::
+
+    P(k) = 214777.66068216303\ \rm{mK}^2\,\rm{Mpc}^3
+
+BayesEoR outputs the dimensionless power spectrum, :math:`\Delta^2(k)`, which can be obtained from :math:`P(k)` via
 
 .. math::
 
@@ -66,8 +72,10 @@ To build the matrices (which will require ~17 GB of RAM and ~12 GB of disk space
 
     python scripts/run-analysis.py --config test_data/eor/config.yaml --cpu
 
+The matrices will be stored in ``matrices/`` in the current working directory.
+
 .. tip::
-    By default, the matrices will be stored in ``matrices/`` in the current working directory.  If you wish to change the location in which the matrices are stored, specify the ``array_dir_prefix`` (``--array-dir-prefix``) argument in the configuration yaml (on the command line).  Please see :ref:`setting-parameters` for more details.
+    If you wish to change the location in which the matrices are stored, specify the ``array_dir_prefix`` (``--array-dir-prefix``) argument in the configuration yaml (on the command line).  Please see :ref:`setting-parameters` for more details.
 
 
 Run the Power Spectrum Analysis
@@ -137,7 +145,9 @@ A yaml configuration file has been provided which can be used to run the EoR + f
 .. literalinclude:: ../test_data/eor_fgs/config.yaml
     :language: yaml
 
-This yaml contains the minimum sufficient set of parameters to run a joint EoR + foreground analysis.  The only additional inputs that differ from the corresponding EoR-only configuration yaml are the inclusion of ``nq`` (``-nq``), ``beta`` (``--beta``), and ``fit_for_monopole`` (``--fit-for-monopole``).  These arguments specify the number of Large Spectral Scale Model (LSSM) basis vectors, the brightness temperature power law spectral indices for the LSSM basis vectors, and to fit for the :math:`(u, v) = (0, 0)` coefficient for each :math:`\eta`, respectively.  These three parameters comprise the minimum sufficient set of parameters to model foregrounds.
+This yaml contains the minimum sufficient set of parameters to run a joint EoR + foreground analysis.  The only additional inputs that differ from the corresponding EoR-only configuration yaml are the inclusion of ``nq`` (``--nq``), ``beta`` (``--beta``), and ``fit_for_monopole`` (``--fit-for-monopole``).  These arguments specify the number of Large Spectral Scale Model (LSSM) basis vectors, the brightness temperature power law spectral indices for the LSSM basis vectors, and to fit for the :math:`(u, v) = (0, 0)` coefficient for each :math:`\eta`, respectively.  These three parameters comprise the minimum sufficient set of parameters to model foregrounds.
+
+Like the :ref:`eor-only` case above, the frequency and time axis parameters and the instrument model will be created at runtime because we are reading the input data from a ``pyuvdata``-compatible file.
 
 .. warning:: 
     The provided test data are simulated from a rectangular patch of sky with an arc length of 12.9 deg on each side.  In the provided configuration yaml, we thus set ``simple_za_filter = False`` to use a rectangular FoV in the BayesEoR image-space model.  In general, we discourage using a rectangular FoV in the image-space model (please see BayesEoR issue `#11 <https://github.com/PSims/BayesEoR/issues/11>`_ for more details).  In this particular case, the rectangular FoV is not an issue.  When analyzing other datasets, we highly recommend setting ``simple_za_filter = True``, its default value, to avoid any issues with rectangular FoV pixel selections.  Please see Section 3 of `Burba et al. 2023a <https://ui.adsabs.harvard.edu/abs/2023MNRAS.520.4443B/abstract>`_ for more details.
@@ -155,8 +165,10 @@ To build the matrices (which will require ~17 GB of RAM and ~12 GB of disk space
 
     python scripts/run-analysis.py --config test_data/eor_fgs/config.yaml --cpu
 
+The matrices will be stored in ``matrices/`` in the current working directory.
+
 .. tip::
-    By default, the matrices will be stored in ``matrices/`` in the current working directory.  If you wish to change the location in which the matrices are stored, specify the ``array_dir_prefix`` (``--array-dir-prefix``) argument in the configuration yaml (on the command line).  Please see :ref:`setting-parameters` for more details.
+    If you wish to change the location in which the matrices are stored, specify the ``array_dir_prefix`` (``--array-dir-prefix``) argument in the configuration yaml (on the command line).  Please see :ref:`setting-parameters` for more details.
 
 
 Run the Power Spectrum Analysis
@@ -202,6 +214,8 @@ We can use the :class:`bayeseor.analyze.analyze.DataContainer` class to quickly 
         cred_interval=95,
         uplim_inds=uplim_inds
     )
+
+Note that, in the code block above, we added an additional kwarg, ``uplim_inds``.  For the provided EoR + foregrounds test dataset, the posterior in the lowest :math:`k` bin produces a non-detection.  For any non-detections, we can plot the upper limit, as the 95-th percentile, by using ``uplim_inds`` which acts like a mask.  Any entries in ``uplim_inds`` which are True (False) will be plotted as an upper limit (detection: median plus credibility interval).  ``uplim_inds`` must be a boolean ``numpy.ndarray`` with shape ``(len(dirnames), Nkbins)`` where ``Nkbins`` is the number of :math:`k` bins in the analysis.
 
 .. attention::
     If you changed the location in which the sampler outputs are stored, you will need to update ``dir_prefix`` in the above code block to point to your specified output directory.
