@@ -1,13 +1,13 @@
 # data_path can point to either a pyuvdata-compatible file (recommended) or
 # a preprocessed numpy-compatible file generated via `bayeseor.setup.run_setup`
-data_path: test_data/eor/eor.uvh5
+data_path: test_data/eor_fgs/eor_and_fgs.uvh5
 
 # EoR model params
 # Number of pixels along the u-axis of the model uv-plane
 nu: 15
 # nv can be set independently, but if None (default), nv will be set to nu
 # nv: 15
-# FoV of the image-space model in degrees along right ascension
+# FoV (diameter) of the image-space model in degrees along right ascension
 fov_ra_eor: 12.9080728652
 # The FoV of the declination axis of the image-space model, fov_dec_eor, can
 # be set independently, buf it None (default), fov_dec_eor will be set to
@@ -20,6 +20,31 @@ fov_ra_eor: 12.9080728652
 simple_za_filter: False
 # HEALPix nside parameter for the image-space model
 nside: 128
+
+# Foreground model params
+# By default, the foreground model uv-plane will be built using nu and nv
+# from the EoR model.  If you wish to specify a different nu or nv for the
+# foreground model, you can do so via the nu_fg and nv_fg arguments below.
+# If nv_fg is None (default), nv_fg will be set to nu_fg.
+# nu_fg: 15
+# nv_fg: 15
+# The FoV parameters for the foreground model can also be set indepdently.
+# If they are None (default), they will default to the corresponding EoR
+# FoV parameters, i.e. fov_ra_fg = fov_ra_eor and fov_dec_fg = fov_dec_eor.
+# fov_ra_fg: 12.9080728652
+# fov_dec_fg: 12.9080728652
+# Number of Large Spectral Scale Model (LSSM) basis vectors.  If beta is set
+# to None, these basis vectors will be polynomials, e.g. for nq=2 the basis
+# vectors would be freq and freq^2.  Note that the monopole eta=0 term is
+# always modelled even if nq=0, thus there are nq+1 basis vectors in the LSSM.
+# If beta is not None, as below, then the polynomial basis vectors are
+# replaced with power laws where the entries in beta determine the _brightness
+# temperature_ spectral indices.
+nq: 2
+# LSSM power law brightness temperature spectral indices
+beta: [2.63, 2.82]
+# Fit for a (u, v) = (0, 0) coefficient in the model uv-plane for each eta
+fit_for_monopole: True
 
 # Noise model params
 # The input data are noise free, so we need to simulate and add noise to the

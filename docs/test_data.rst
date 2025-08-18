@@ -31,10 +31,10 @@ Instructions on using each test dataset are described below.
 
 .. _eor-only:
 
-EoR only
+EoR Only
 --------
 
-The EoR-only test data, ``test_data/eor/eor.uvh5``, contain simulated visibilities of a mock EoR signal drawn as a Gaussian random field with a flat power spectrum :math:`P(k)= 214777.66068216303 \rm{mK}^2 \rm{Mpc}^3`.  BayesEoR outputs the dimensionless power spectrum, :math:`\Delta^2(k)`, which can be obtained from :math:`P(k)` via
+The EoR-only test data, ``test_data/eor/eor.uvh5``, contain simulated visibilities of a mock EoR signal drawn as a Gaussian-random field with a flat power spectrum :math:`P(k)= 214777.66068216303 \rm{mK}^2 \rm{Mpc}^3`.  BayesEoR outputs the dimensionless power spectrum, :math:`\Delta^2(k)`, which can be obtained from :math:`P(k)` via
 
 .. math::
 
@@ -51,10 +51,10 @@ A yaml configuration file has been provided which can be used to run the EoR-onl
 .. literalinclude:: ../test_data/eor/config.yaml
     :language: yaml
 
-This yaml contains the minimum sufficient set of parameters to run an EoR only analysis.  The input data in this case are visibilities in a ``pyuvdata``-compatible file (``test_data/eor/eor.uvh5``).  The frequency axis parameters, ``freq_min``, ``nf``, and ``df``, and time axis parameters, ``jd_min``, ``nt``, and ``dt``, will all be extracted directly from the input ``pyuvdata``-compatible file, so they need not be explicitly specified in the configuration yaml.  Because we are analyzing a ``pyuvdata``-compatible file, there is also no need to specify an instrument model directory, ``inst_model``.  The instrument model will be generated at runtime.
+This yaml contains the minimum sufficient set of parameters to run an EoR only analysis.  The input data in this case are visibilities in a ``pyuvdata``-compatible file (``test_data/eor/eor.uvh5``).  The frequency-axis parameters, ``freq_min`` (``--freq-min``), ``nf`` (``--nf``), and ``df`` (``-df``), and time-axis parameters, ``jd_min`` (``--jd-min``), ``nt`` (``--nt``), and ``dt`` (``--dt``), will all be extracted automatically from the input ``pyuvdata``-compatible file, so they need not be explicitly specified in the configuration yaml.  Because we are analyzing a ``pyuvdata``-compatible file, there is also no need to specify an instrument model directory, ``inst_model`` (``--inst-model``).  The instrument model will be generated at runtime using the baselines in ``test_data/eor/eor.uvh5``.
 
 .. warning::
-    The provided test data are simulated from a rectangular patch of sky with an arc length of 12.9 deg on each side.  In the provided configuration yaml, we thus set ``simple_za_filter = False`` to use a rectangular FoV in the BayesEoR image-space model.  In general, we discourage using a rectangular FoV in the image-space model (please see BayesEoR issue `#11 <https://github.com/PSims/BayesEoR/issues/11>`_ for more details).  In this particular case, the rectangular FoV is not an issue.  When analyzing other datasets, we recommend setting ``simple_za_filter = True``, the default value, to avoid any issues with rectangular FoV pixel selections.
+    The provided test data are simulated from a rectangular patch of sky with an arc length of 12.9 deg on each side.  In the provided configuration yaml, we thus set ``simple_za_filter = False`` to use a rectangular FoV in the BayesEoR image-space model.  In general, we discourage using a rectangular FoV in the image-space model (please see BayesEoR issue `#11 <https://github.com/PSims/BayesEoR/issues/11>`_ for more details).  In this particular case, the rectangular FoV is not an issue.  When analyzing other datasets, we highly recommend setting ``simple_za_filter = True``, its default value, to avoid any issues with rectangular FoV pixel selections.  Please see Section 3 of `Burba et al. 2023a <https://ui.adsabs.harvard.edu/abs/2023MNRAS.520.4443B/abstract>`_ for more details.
 
 
 Build the Matrix Stack
@@ -77,7 +77,7 @@ Once the matrices are built, you can run the power spectrum analysis (which will
 
 .. code-block:: Bash
 
-    python scripts/run-analysis.py --config test_data/eor/cconfig.yaml --gpu --run
+    python scripts/run-analysis.py --config test_data/eor/config.yaml --gpu --run
 
 The sampler outputs will be stored in ``chains/MN-15-15-38-0-2.63-2.82-6.2E-03-lp-dPS-v1/``.
 
@@ -85,10 +85,10 @@ The sampler outputs will be stored in ``chains/MN-15-15-38-0-2.63-2.82-6.2E-03-l
     If you wish to change the location in which the sampler outputs are stored, specify the ``output_dir`` (``--output-dir``) argument in the configuration yaml (on the command line).  Please see :ref:`setting-parameters` for more details.
 
 
-Analyzing the Outputs
-^^^^^^^^^^^^^^^^^^^^^
+Analyze the Outputs
+^^^^^^^^^^^^^^^^^^^
 
-We can use the :class:`bayeseor.analyze.analyze.DataContainer` to quickly analyze the outputs of the power spectrum analysis via
+We can use the :class:`bayeseor.analyze.analyze.DataContainer` class to quickly analyze the outputs of the power spectrum analysis via
 
 .. code-block:: python
 
@@ -106,7 +106,8 @@ We can use the :class:`bayeseor.analyze.analyze.DataContainer` to quickly analyz
     )
     fig = data.plot_power_spectra_and_posteriors(
         suptitle="Test Data Analysis",
-        plot_fracdiff=True
+        plot_fracdiff=True,
+        conf_interval=95
     )
 
 .. attention::
@@ -133,13 +134,13 @@ A yaml configuration file has been provided which can be used to run the EoR + f
 .. literalinclude:: ../test_data/eor_fgs/config.yaml
     :language: yaml
 
-This yaml contains the minimum sufficient set of parameters to run a joint EoR + foreground analysis.  The only additional inputs that differ from the corresponding EoR-only configuration yaml are the inclusion of ``nq``, ``beta``, and ``fit_for_monopole``.  These arguments specify the number of Large Spectral Scale Model (LSSM) basis vectors, the brightness tempature power law spectral indices for the LSSM basis vectors, and to fit for the :math:`(u, v) = (0, 0)` coefficient for each :math:`\eta`, respectively.  These three parameters comprise the minimum sufficient set of parameters to model foregrounds.
-
-.. tip::
-    The EoR and foreground models need not have the same FoV values in image space or ``nu`` and ``nv`` in the model uv-plane.  The foreground model has its own set of specifiable analysis parameters for the FoV in the image-space model (``fov_ra_fg`` of ``--fov-ra-fg``, ``fov_dec_fg`` or ``--fov-dec-fg``) and the foreground model uv-plane (``nu_fg`` or ``--nu-fg``, ``nv_fg`` or ``--nv-fg``).  In this way, we can model the EoR component within e.g. the primary FoV of the telescope and foregrounds out to higher zenith angles.  Please see `Burba et al. 2023b <https://ui.adsabs.harvard.edu/abs/2023ursi.confE.259B/abstract>`_ for a demonstration of BayesEoR configured with separate FoV values for the EoR and foreground models.
+This yaml contains the minimum sufficient set of parameters to run a joint EoR + foreground analysis.  The only additional inputs that differ from the corresponding EoR-only configuration yaml are the inclusion of ``nq`` (``-nq``), ``beta`` (``--beta``), and ``fit_for_monopole`` (``--fit-for-monopole``).  These arguments specify the number of Large Spectral Scale Model (LSSM) basis vectors, the brightness temperature power law spectral indices for the LSSM basis vectors, and to fit for the :math:`(u, v) = (0, 0)` coefficient for each :math:`\eta`, respectively.  These three parameters comprise the minimum sufficient set of parameters to model foregrounds.
 
 .. warning:: 
-    The provided test data are simulated from a rectangular patch of sky with an arc length of 12.9 deg on each side.  In the provided configuration yaml, we thus set ``simple_za_filter = False`` to use a rectangular FoV in the BayesEoR image-space model.  In general, we discourage using a rectangular FoV in the image-space model (please see BayesEoR issue `#11 <https://github.com/PSims/BayesEoR/issues/11>`_ for more details).  In this particular case, the rectangular FoV is not an issue.  When analyzing other datasets, we recommend setting ``simple_za_filter = True``, the default value, to avoid any issues with rectangular FoV pixel selections.
+    The provided test data are simulated from a rectangular patch of sky with an arc length of 12.9 deg on each side.  In the provided configuration yaml, we thus set ``simple_za_filter = False`` to use a rectangular FoV in the BayesEoR image-space model.  In general, we discourage using a rectangular FoV in the image-space model (please see BayesEoR issue `#11 <https://github.com/PSims/BayesEoR/issues/11>`_ for more details).  In this particular case, the rectangular FoV is not an issue.  When analyzing other datasets, we highly recommend setting ``simple_za_filter = True``, its default value, to avoid any issues with rectangular FoV pixel selections.  Please see Section 3 of `Burba et al. 2023a <https://ui.adsabs.harvard.edu/abs/2023MNRAS.520.4443B/abstract>`_ for more details.
+
+.. tip::
+    The EoR and foreground models need not have the same FoV values in model image space or ``nu`` and ``nv`` in the model uv-plane.  The foreground model has its own set of specifiable analysis parameters for the FoV in the image-space model ``fov_ra_fg`` (``--fov-ra-fg``) and ``fov_dec_fg`` (``--fov-dec-fg``), and the foreground model uv-plane, ``nu_fg`` (``--nu-fg``) and ``nv_fg`` (``--nv-fg``).  In this way, we can model the EoR component within e.g. the primary FoV of the telescope and foregrounds out to higher zenith angles.  Please see `Burba et al. 2023b <https://ui.adsabs.harvard.edu/abs/2023ursi.confE.259B/abstract>`_ for a demonstration of BayesEoR configured with separate FoV values for the EoR and foreground models.
 
 
 Build the Matrix Stack
@@ -162,7 +163,7 @@ Once the matrices are built, you can run the power spectrum analysis (which will
 
 .. code-block:: Bash
 
-    python scripts/run-analysis.py --config test_data/eor_fgs/cconfig.yaml --gpu --run
+    python scripts/run-analysis.py --config test_data/eor_fgs/config.yaml --gpu --run
 
 The sampler outputs will be stored in ``chains/MN-15-15-38-2-ffm-2.63-2.82-6.2E-03-lp-dPS-v1/``.
 
@@ -170,10 +171,10 @@ The sampler outputs will be stored in ``chains/MN-15-15-38-2-ffm-2.63-2.82-6.2E-
     If you wish to change the location in which the sampler outputs are stored, specify the ``output_dir`` (``--output-dir``) argument in the configuration yaml (on the command line).  Please see :ref:`setting-parameters` for more details.
 
 
-Analyzing the Outputs
-^^^^^^^^^^^^^^^^^^^^^
+Analyze the Outputs
+^^^^^^^^^^^^^^^^^^^
 
-We can use the :class:`bayeseor.analyze.analyze.DataContainer` to quickly analyze the outputs of the power spectrum analysis via
+We can use the :class:`bayeseor.analyze.analyze.DataContainer` class to quickly analyze the outputs of the power spectrum analysis via
 
 .. code-block:: python
 
@@ -189,9 +190,14 @@ We can use the :class:`bayeseor.analyze.analyze.DataContainer` to quickly analyz
         expected_ps=expected_ps,
         labels=["EoR + Foregrounds"]
     )
+
+    uplim_inds = np.zeros((1, data.k_vals[0].size), dtype=bool)
+    uplim_inds[0, 0] = True
     fig = data.plot_power_spectra_and_posteriors(
         suptitle="Test Data Analysis",
-        plot_fracdiff=True
+        plot_fracdiff=True,
+        conf_interval=95,
+        uplim_inds=uplim_inds
     )
 
 .. attention::
