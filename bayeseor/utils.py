@@ -1,0 +1,235 @@
+import numpy as np
+import pickle
+from pathlib import Path
+from copy import deepcopy
+
+from rich.console import Console
+
+from . import __version__
+
+cns = Console()
+cns.is_jupyter = False
+
+def mpiprint(*args, rank=0, highlight=False, soft_wrap=True, **kwargs):
+    """
+    Prints only if root worker.
+
+    """
+    if rank == 0:
+        cns.print(*args, highlight=highlight, soft_wrap=soft_wrap, **kwargs)
+
+
+def parse_uprior_inds(upriors_str, nkbins):
+    """
+    Parse an array indexing string.
+
+    `upriors_str` must follow standard array slicing syntax and include no
+    spaces.  Examples of valid strings:
+    * '1:4': equivalent to `slice(1, 4)`
+    * '1,3,4': equivalent to indexing with `[1, 3, 4]`
+    * '3' or '-3'
+    * 'all': all bins use a uniform prior
+    * '': no bins use a uniform prior
+
+    Parameters
+    ----------
+    upriors_str : str
+        String containing array indexes (follows array slicing syntax).
+    nkbins : int
+        Number of k-bins.
+
+    Returns
+    -------
+    uprior_inds : numpy.ndarray
+        Boolean array that is True for any k bins using a uniform prior.
+        False entries use a log-uniform prior.
+
+    """
+    if upriors_str.lower() == "all":
+        uprior_inds = np.ones(nkbins, dtype=bool)
+    else:
+        uprior_inds = np.zeros(nkbins, dtype=bool)
+        if upriors_str != "":
+            if ":" in upriors_str:
+                bounds = list(map(int, upriors_str.split(":")))
+                uprior_inds[slice(*bounds)] = True
+            elif "," in upriors_str:
+                up_inds = list(map(int, upriors_str.split(",")))
+                uprior_inds[up_inds] = True
+            else:
+                uprior_inds[int(upriors_str)] = True
+
+    return uprior_inds
+
+
+def write_log_files(parser, args, out_dir=Path("./"), verbose=False):
+    """
+    Write log files containing the current version and analysis parameters.
+
+    Parameters
+    ----------
+    parser : :class:`..params.BayesEoRParser`
+        BayesEoRParser instance.
+    args : Namespace
+        Namespace object containing parsed command line arguments.
+    out_dir : Path or str, optional
+        Path to output directory for log files. Defaults to ``Path('./')``.
+    verbose : bool, optional
+        Verbose output. Defaults to False.
+
+    """
+    # Make log file directory if it doesn't exist
+    if not isinstance(out_dir, Path):
+        out_dir = Path(out_dir)
+    out_dir.mkdir(exist_ok=True, parents=False)
+
+    # Write version info
+    ver_file = out_dir / "version.txt"
+    if not ver_file.exists():
+        with open(ver_file, "w") as f:
+            f.write(f"{__version__}\n")
+
+    # Write args to disk
+    args_file = out_dir / "args.json"
+    if not args_file.exists():
+        parser.save(args, args_file, format="json", skip_none=False)
+
+    if verbose:
+        print(f"Log files written successfully to {out_dir.absolute()}\n")
+
+
+def save_numpy_dict(
+    fp,
+    arr,
+    args,
+    version=__version__,
+    extra=None,
+    clobber=False
+):
+    """
+    Save array to disk with metadata as dictionary.
+
+    Parameters
+    ----------
+    fp : :class:`pathlib.Path` or str
+        File path for dictionary.
+    arr : array_like
+        Data to write to disk.
+    args : dict
+        Dictionary of associated metadata.
+    version : str
+        Version string. Defaults to ``__version__``.
+    extra : dict
+        Dictionary of extra info. Defaults to None.
+    clobber : bool, optional
+        Clobber file if it exists. Defaults to False.
+
+    """
+    if not isinstance(fp, Path):
+        fp = Path(fp)
+    if fp.exists() and not clobber:
+        raise ValueError(
+            f"clobber is false but file already exists: {fp}"
+        )
+    if extra is not None:
+        if not isinstance(extra, dict):
+            raise ValueError("extra must be a dictionary")
+
+    if not fp.parent.exists():
+        fp.parent.mkdir(exist_ok=True, parents=True)
+
+    out_dict = {"data": arr, "args": args, "version": version}
+    if extra is not None:
+        out_dict.update({"extra": extra})
+
+    np.save(fp, out_dict)
+
+
+def load_numpy_dict(fp):
+    """
+    Load data array from disk saved via :func:`.save_numpy_dict`.
+
+    Parameters
+    ----------
+    fp : :class:`pathlib.Path` or str
+        File path for dictionary with contents from
+        `bayeseor.vis.save_numpy_dict`.
+
+    """
+    if not isinstance(fp, Path):
+        fp = Path(fp)
+    if not fp.exists():
+        raise FileNotFoundError(f"{fp} does not exist")
+
+    return np.load(fp, allow_pickle=True).item()["data"]
+
+
+def vector_is_hermitian(data, conj_map, nt, nf, nbls, rtol=0, atol=1e-14):
+    """
+    Checks if the data in the vector `data` is Hermitian symmetric
+    based on the mapping contained in `conj_map`.
+
+    Parameters
+    ----------
+    data : array-like
+        Array of values.
+    conj_map : dictionary
+        Dictionary object which contains the indices in the data vector
+        per time and frequency corresponding to baselines and their
+        conjugates.
+
+    """
+    hermitian = np.zeros(data.size)
+    for i_t in range(nt):
+        time_ind = i_t * nbls * nf
+        for i_freq in range(nf):
+            freq_ind = i_freq * nbls
+            start_ind = time_ind + freq_ind
+            for bl_ind in conj_map.keys():
+                conj_bl_ind = conj_map[bl_ind]
+                close = np.allclose(
+                    data[start_ind+conj_bl_ind],
+                    data[start_ind+bl_ind].conjugate(),
+                    rtol=rtol,
+                    atol=atol
+                )
+                if close:
+                    hermitian[start_ind+bl_ind] = 1
+                    hermitian[start_ind+conj_bl_ind] = 1
+    return np.all(hermitian)
+
+
+def write_map_dict(dir, pspp, bm, n, clobber=False, fn="map-dict.npy"):
+    """
+    Writes a python dictionary with minimum sufficient info for maximum a
+    posteriori (MAP) calculations.  Memory intensive attributes are popped
+    before writing to disk since they can be easily loaded later.
+
+    Parameters
+    ----------
+    dir : str
+        Directory in which to save the dictionary.
+    pspp : PowerSpectrumPosteriorProbability
+        Class containing posterior calculation variables and functions.
+    bm : BuildMatrices
+        Class containing matrix creation and retrieval functions.
+    n : array-like
+        Noise vector.
+    clobber : bool
+        If True, overwrite existing dictionary on disk.
+    fn : str
+        Filename for dictionary.
+    
+    """
+    fp = Path(dir) / fn
+    if not fp.exists() or clobber:
+        pspp_copy = deepcopy(pspp)
+        del pspp.T_Ninv_T, pspp.dbar, pspp.Ninv
+        map_dict = {
+            "pspp": pspp_copy,
+            "bm": bm,
+            "n": n
+        }
+        print(f"\nWriting MAP dict to {fp}\n")
+        with open(fp, "wb") as f:
+            pickle.dump(map_dict, f, protocol=4)

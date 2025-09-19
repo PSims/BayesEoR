@@ -5,8 +5,13 @@ from ..utils import mpiprint
 
 
 def generate_k_cube_in_physical_coordinates(
-        nu, nv, neta, ps_box_size_ra_Mpc,
-        ps_box_size_dec_Mpc, ps_box_size_para_Mpc):
+    nu,
+    nv,
+    neta,
+    ps_box_size_ra_Mpc,
+    ps_box_size_dec_Mpc,
+    ps_box_size_para_Mpc
+):
     """
     Generates rectilinear k-space cubes in units of inverse Mpc.
 
@@ -174,8 +179,12 @@ def generate_k_cube_model_spherical_binning(mod_k_vo, ps_box_size_para_Mpc):
 
 
 def calc_mean_binned_k_vals(
-    mod_k_vo, k_cube_voxels_in_bin, save_k_vals=False, clobber=False,
-    k_vals_file="k-vals.txt", k_vals_dir="k_vals", rank=0
+    mod_k_vo,
+    k_cube_voxels_in_bin,
+    save_k_vals=False,
+    clobber=False,
+    k_vals_file="k-vals.txt",
+    k_vals_dir="k_vals"
 ):
     """
     Calculates the mean of all |k| that fall within a k-bin.
@@ -196,8 +205,6 @@ def calc_mean_binned_k_vals(
         Filename for saved k values.  Defaults to 'k-vals.txt'.
     k_vals_dir : str
         Directory in which to save k values.  Defaults to './k_vals/'.
-    rank : int
-        MPI rank.
 
     Returns
     -------
@@ -208,26 +215,19 @@ def calc_mean_binned_k_vals(
     k_vals = []
     kbin_edges = []
     nsamples = []
-    mpiprint("\n---Calculating k-vals---", rank=rank)
     for i_bin in range(len(k_cube_voxels_in_bin)):
         mean_mod_k = mod_k_vo[k_cube_voxels_in_bin[i_bin]].mean()
         min_k = mod_k_vo[k_cube_voxels_in_bin[i_bin]].min()
         kbin_edges.append(min_k)
         nsamples.append(len(k_cube_voxels_in_bin[i_bin][0]))
         k_vals.append(mean_mod_k)
-        mpiprint(i_bin, mean_mod_k, rank=rank)
     max_k = mod_k_vo[k_cube_voxels_in_bin[i_bin]].max()
     kbin_edges.append(max_k)
-    mpiprint("", rank=rank)
 
     k_vals_dir = Path(k_vals_dir)
     save = save_k_vals * (not (k_vals_dir / k_vals_file).exists() or clobber)
     if save:
-        if not k_vals_dir.exists():
-            mpiprint(f"Directory not found: \n\n{k_vals_dir}\n", rank=rank)
-            mpiprint("Creating required directory structure...", rank=rank)
-            k_vals_dir.mkdir()
-
+        k_vals_dir.mkdir(parents=True, exist_ok=True)
         np.savetxt(k_vals_dir / k_vals_file, k_vals)
         np.savetxt(
             k_vals_dir / k_vals_file.replace(".txt", "-bins.txt"), kbin_edges
@@ -240,8 +240,13 @@ def calc_mean_binned_k_vals(
 
 
 def generate_k_cube_model_cylindrical_binning(
-        mod_k_masked, k_z_masked, k_y_masked, k_x_masked, n_k_perp_bins,
-        ps_box_size_para_Mpc):
+    mod_k_masked,
+    k_z_masked,
+    k_y_masked,
+    k_x_masked,
+    n_k_perp_bins,
+    ps_box_size_para_Mpc
+):
     """
     Generates a set of cylindrical k-space bins from which the 2D power
     spectrum is calculated.

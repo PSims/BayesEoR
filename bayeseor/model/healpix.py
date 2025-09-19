@@ -1,6 +1,5 @@
 """
-    Create a class used to store and manipulate healpix maps using
-    astropy_healpix.
+Interface for the HEALPix image domain model in BayesEoR.
 """
 
 import numpy as np
@@ -16,7 +15,7 @@ from scipy.special import j1
 from pyuvdata import UVBeam
 from pyuvdata import utils as uvutils
 
-c_ms = c.to('m/s').value
+c_ms = c.to("m/s").value
 
 SECS_PER_HOUR = 60 * 60
 SECS_PER_DAY = SECS_PER_HOUR * 24
@@ -58,54 +57,63 @@ class Healpix(HEALPix):
         telescope in degrees, degrees, and meters, respectively.  Defaults
         to the location of the HERA telescope, i.e. (-30.72152777777791, 
         21.428305555555557, 1073.0000000093132).
-    central_jd : float
+    jd_center : float
         Central time step of the observation in JD2000 format.
     nt : int, optional
         Number of time integrations. Defaults to 1.
-    int_time : float, optional
+    dt : float, optional
         Integration time in seconds. Required if ``nt > 1``.
     beam_type : str, optional
-        Can be either a path to a pyuvdata.UVBeam compatible
-        file or one of {'uniform', 'gaussian', 'airy'}.  Defaults to 'uniform'.
+        Can be either a path to a pyuvdata-compatible beam file or one of
+        'uniform', 'gaussian', or 'airy'.  Defaults to 'uniform'.
     peak_amp : float, optional
         Peak amplitude of the beam.  Defaults to 1.0.
     fwhm_deg : float, optional
-        Required if ``beam_type = 'gaussian'``. Sets the full width at half
-        maximum of the beam in degrees.
+        Full width at half maximum of the beam in degrees.  Required if
+        `beam_type` is 'gaussian' or 'gausscosine'.
     diam : float, optional
-        Antenna (aperture) diameter in meters.  Used if ``beam_type = 'airy'``.
+        Antenna (aperture) diameter in meters.  Used if `beam_type` is 'airy'.
     cosfreq : float, optional
-        Cosine frequency in inverse radians.  Used if
-        ``beam_type = 'gausscosine'``.
+        Cosine frequency in inverse radians.  Used if `beam_type` is
+        'gausscosine'.
     tanh_freq : float, optional
         Exponential frequency (rate parameter) in inverse radians.  Used if
-        ``beam_type = 'tanhairy'``.
+        `beam_type` is 'tanhairy'.
     tanh_sl_red : float, optional
         Airy sidelobe amplitude reduction as a fractional percent.  For
         example, passing 0.99 reduces the sidelobes by 0.01, i.e. two orders
-        of magnitude.  Used if ``beam_type = 'tanhairy'``.
+        of magnitude.  Used if `beam_type` is 'tanhairy'.
+    pol : str, optional
+        Polarization string.  Can be 'xx', 'yy', or 'pI'.  Only used if
+        `beam_type` is a path to a pyuvdata-compatible beam file.  Defaults to
+        'xx'.
+    freq_interp_kind : str, optional
+        Frequency interpolation kind. Please see `scipy.interpolate.interp1d`
+        for valid options and more details.  Defaults to 'cubic'.
 
     """
     def __init__(
-            self,
-            fov_ra_eor=None,
-            fov_dec_eor=None,
-            fov_ra_fg=None,
-            fov_dec_fg=None,
-            simple_za_filter=False,
-            nside=256,
-            telescope_latlonalt=HERA_LAT_LON_ALT,
-            central_jd=None,
-            nt=1,
-            int_time=None,
-            beam_type=None,
-            peak_amp=1.0,
-            fwhm_deg=None,
-            diam=None,
-            cosfreq=None,
-            tanh_freq=None,
-            tanh_sl_red=None
-            ):
+        self,
+        fov_ra_eor=None,
+        fov_dec_eor=None,
+        fov_ra_fg=None,
+        fov_dec_fg=None,
+        simple_za_filter=False,
+        nside=256,
+        telescope_latlonalt=HERA_LAT_LON_ALT,
+        jd_center=None,
+        nt=1,
+        dt=None,
+        beam_type=None,
+        peak_amp=1.0,
+        fwhm_deg=None,
+        diam=None,
+        cosfreq=None,
+        tanh_freq=None,
+        tanh_sl_red=None,
+        pol="xx",
+        freq_interp_kind="cubic"
+    ):
         # Use HEALPix as parent class to get useful astropy_healpix functions
         super().__init__(nside, frame=ICRS())
 
@@ -135,7 +143,7 @@ class Healpix(HEALPix):
                 self.fov_dec_eor == self.fov_dec_fg
             )
 
-        self.pixel_area_sr = self.pixel_area.to('sr').value
+        self.pixel_area_sr = self.pixel_area.to("sr").value
         self.tele_lat, self.tele_lon, self.tele_alt = telescope_latlonalt
         # Set telescope location
         telescope_xyz = uvutils.XYZ_from_LatLonAlt(
@@ -144,15 +152,15 @@ class Healpix(HEALPix):
             self.tele_alt
         )
         self.telescope_location = EarthLocation.from_geocentric(
-            *telescope_xyz, unit='m'
+            *telescope_xyz, unit="m"
         )
 
         # Calculate field center in (RA, DEC)
-        self.central_jd = central_jd
-        t = Time(self.central_jd, scale='utc', format='jd')
+        self.jd_center = jd_center
+        t = Time(self.jd_center, scale="utc", format="jd")
         zen = AltAz(
-            alt=Angle('90d'),
-            az=Angle('0d'),
+            alt=Angle("90d"),
+            az=Angle("0d"),
             obstime=t,
             location=self.telescope_location
         )
@@ -161,26 +169,26 @@ class Healpix(HEALPix):
 
         # Set time axis params for calculating (l(t),  m(t))
         self.nt = nt
-        self.int_time = int_time
+        self.dt = dt
         if self.nt % 2:
             self.time_inds = np.arange(-(self.nt // 2), self.nt // 2 + 1)
         else:
             self.time_inds = np.arange(-(self.nt // 2), self.nt // 2)
-        # Calculate JD per integration from `central_jd`
-        if self.int_time is not None:
+        # Calculate JD per integration from `jd_center`
+        if self.dt is not None:
             self.jds = (
-                self.central_jd
-                + self.time_inds * self.int_time * DAYS_PER_SEC
+                self.jd_center
+                + self.time_inds * self.dt * DAYS_PER_SEC
             )
         else:
-            self.jds = np.array([self.central_jd])
+            self.jds = np.array([self.jd_center])
         # Calculate pointing center per integration
         self.pointing_centers = []
         for jd in self.jds:
-            t = Time(jd, scale='utc', format='jd')
+            t = Time(jd, scale="utc", format="jd")
             zen = AltAz(
-                alt=Angle('90d'),
-                az=Angle('0d'),
+                alt=Angle("90d"),
+                az=Angle("0d"),
                 obstime=t,
                 location=self.telescope_location
             )
@@ -189,11 +197,11 @@ class Healpix(HEALPix):
 
         # Beam params
         if beam_type is not None:
-            if not '.' in str(beam_type):
+            if not "." in str(beam_type):
                 beam_type = beam_type.lower()
                 allowed_types = [
-                    'uniform', 'gaussian', 'airy', 'gausscosine', 'taperairy',
-                    'tanhairy'
+                    "uniform", "gaussian", "airy", "gausscosine", "taperairy",
+                    "tanhairy"
                 ]
                 assert beam_type in allowed_types, \
                     f"Only {', '.join(allowed_types)} beams are supported."
@@ -203,51 +211,44 @@ class Healpix(HEALPix):
                 # assume beam_type is a path to a UVBeam compatible file
                 uvb = UVBeam()
                 uvb.read_beamfits(beam_type)
-                assert uvb.beam_type == 'power', (
-                    "UVBeam.beam_type must be 'power', not '{}'.".format(
-                        uvb.beam_type
-                    )
-                )
-                if 1 in uvb.polarization_array:
-                    uvb.select(polarizations=[1])
-                elif -5 in uvb.polarization_array:
-                    # this works for now, but if we're analyzing different
-                    # polarizations in the future, we need to add a param
-                    # specifying polarization (in params.py and as a CLA)
-                    uvb.select(polarizations=[-5])
-                uvb.freq_interp_kind = 'quadratic'
-                if uvb.pixel_coordinate_system == 'healpix':
-                    uvb.interpolation_function = 'healpix_simple'
+                if uvb.beam_type == "efield" and pol in ["xx", "yy"]:
+                    uvb.efield_to_power()
+                elif uvb.beam_type == "efield" and pol == "pI":
+                    uvb.efield_to_pstokes()
+                uvb.select(polarizations=[uvutils.polstr2num(pol)])
+                uvb.freq_interp_kind = freq_interp_kind
+                if uvb.pixel_coordinate_system == "healpix":
+                    uvb.interpolation_function = "healpix_simple"
                 else:
-                    uvb.interpolation_function = 'az_za_simple'
-                self.beam_type = 'uvbeam'
+                    uvb.interpolation_function = "az_za_simple"
+                self.beam_type = "uvbeam"
                 self.uvb = uvb
         else:
-            self.beam_type = 'uniform'
+            self.beam_type = "uniform"
             self.uvb = None
         self.peak_amp = peak_amp
 
-        if beam_type == 'gaussian':
+        if beam_type == "gaussian":
             required_params = [diam, fwhm_deg]
             assert self._check_required_params(required_params, all_req=False),\
                 "If using a Gaussian beam, must pass either " \
                 "'fwhm_deg' or 'diam'."
-        elif beam_type == 'airy':
+        elif beam_type == "airy":
             required_params = [diam, fwhm_deg]
             assert self._check_required_params(required_params, all_req=False),\
                 "If using an Airy beam, must pass either " \
                 "'fwhm_deg' or 'diam'."
-        elif beam_type == 'taperairy':
+        elif beam_type == "taperairy":
             required_params = [diam, fwhm_deg]
             assert self._check_required_params(required_params), \
                 "If using a taperairy beam, must pass " \
                 "'diam' and 'fwhm_deg'."
-        elif beam_type == 'gausscosine':
+        elif beam_type == "gausscosine":
             required_params = [fwhm_deg, cosfreq]
             assert self._check_required_params(required_params), \
                 "If using a gausscosine beam, must pass " \
                 "'fwhm_deg' and 'cosfreq'."
-        elif beam_type == 'tanhairy':
+        elif beam_type == "tanhairy":
             required_params = [diam, tanh_freq, tanh_sl_red]
             assert self._check_required_params(required_params), \
                 "If using a tanhairy beam, must pass " \
@@ -295,8 +296,13 @@ class Healpix(HEALPix):
         self.eor_to_fg_pix = np.in1d(self.pix_fg, self.pix_eor)
 
     def get_pixel_filter(
-            self, fov_ra, fov_dec, return_radec=False, inverse=False,
-            simple_za_filter=False):
+        self,
+        fov_ra,
+        fov_dec,
+        return_radec=False,
+        inverse=False,
+        simple_za_filter=True
+    ):
         """
         Return HEALPix pixel indices lying inside an observed region.
 
@@ -304,8 +310,8 @@ class Healpix(HEALPix):
         lying inside
 
             - a rectangle with equal arc length on all sides if
-              ``simple_za_filter = True``
-            - a circle with radius `fov_ra` if ``simple_za_filter = False``
+              `simple_za_filter` is True
+            - a circle with radius `fov_ra` if `simple_za_filter` is False
 
         Parameters
         ----------
@@ -317,24 +323,34 @@ class Healpix(HEALPix):
             Return the (RA, DEC) coordinates associated with each pixel center.
             Defaults to False.
         inverse : boolean, optional
-            If `False`, return the pixels within the observed region.
-            If `True`, return the pixels outside the observed region.
+            If False, return the pixels within the observed region.
+            If True, return the pixels outside the observed region.
         simple_za_filter : boolean, optional
-            If `True`, return the pixels inside a circular region defined by
-            ``za <= fov_ra/2``.  Otherwise, return the pixels inside a
-            rectangular region with equal arc length on all sides.
+            If True (default), return the pixels inside a circular region
+            defined by ``za <= fov_ra/2`` where `za` is the zenith angle.
+            Otherwise, return the pixels inside a rectangular region with equal
+            arc length on all sides.
 
         Returns
         -------
-        pix : array
+        pix : numpy.ndarray
             HEALPix pixel numbers lying within the observed region set by
             `fov_ra` and `fov_dec`.
-        ra : array
-            Array of RA values for each pixel center.  Only returned if
-            ``return_radec = True``.
-        dec : array
-            Array of DEC values for each pixel center.  Only returned if
-            ``return_radec = True``.
+        ra : numpy.ndarray
+            RA values for each pixel center.  Only returned if `return_radec`
+            is True.
+        dec : numpy.ndarray
+            DEC values for each pixel center.  Only returned if `return_radec`
+            is True.
+        
+        Notes
+        -----
+        * The rectangular pixel selection (`simple_za_filter` is False) has
+          been left for posterity.  It has been found to be flawed when the
+          field of view along right ascension becomes large (see issue #11
+          in the BayesEoR repo for more details).  We advise setting
+          `simple_za_filter` to True (the default) to avoid any potential
+          issues with the rectangular pixel selections.
 
         """
         lons, lats = hp.pix2ang(
@@ -344,7 +360,7 @@ class Healpix(HEALPix):
         )
         if simple_za_filter:
             _, _, _, _, za = self.calc_lmn_from_radec(
-                self.central_jd, lons, lats, return_azza=True
+                self.jd_center, lons, lats, return_azza=True
             )
             max_za = np.deg2rad(fov_ra) / 2
             pix = np.where(za <= max_za)[0]
@@ -410,10 +426,10 @@ class Healpix(HEALPix):
         ----------
         time : float
             Julian date used in ICRS to AltAz coordinate frame conversion.
-        ra : array
-            Array of RA values in degrees.
-        dec : array
-            Array of DEC values in degrees.
+        ra : numpy.ndarray
+            RA values in degrees.
+        dec : numpy.ndarray
+            DEC values in degrees.
         return_azza : boolean
             If True, return both (l, m, n) and (az, za) coordinate arrays.
             Otherwise return only (l, m, n).  Defaults to 'False'.
@@ -422,11 +438,11 @@ class Healpix(HEALPix):
 
         Returns
         -------
-        l : np.ndarray of floats
+        l : numpy.ndarray of floats
             Array containing the EW direction cosine of each HEALPix pixel.
-        m : np.ndarray of floats
+        m : numpy.ndarray of floats
             Array containing the NS direction cosine of each HEALPix pixel.
-        n : np.ndarray of floats
+        n : numpy.ndarray of floats
             Array containing the radial direction cosine of each HEALPix pixel.
 
         Notes
@@ -436,9 +452,9 @@ class Healpix(HEALPix):
 
         """
         if not isinstance(time, Time):
-            time = Time(time, format='jd')
+            time = Time(time, format="jd")
 
-        skycoord = SkyCoord(ra*u.deg, dec*u.deg, frame='icrs')
+        skycoord = SkyCoord(ra*u.deg, dec*u.deg, frame="icrs")
         altaz = skycoord.transform_to(
             AltAz(obstime=time, location=self.telescope_location)
         )
@@ -459,66 +475,65 @@ class Healpix(HEALPix):
         """
         Get an array of beam values from (az, za) coordinates.
         
-        If ``self.beam_type = 'gaussian'``, this function assumes that the
+        If `self.beam_type` is 'gaussian', this function assumes that the
         beam width is symmetric along the l and m axes.
 
         Parameters
         ----------
-        az : np.ndarray of floats
+        az : numpy.ndarray of floats
             Azimuthal angle of each pixel in radians.
-        za : np.ndarray of floats
+        za : numpy.ndarray of floats
             Zenith angle of each pixel in radians.
         freq : float, optional
             Frequency in Hz.
 
         Returns
         -------
-        beam_vals : np.ndarray
+        beam_vals : numpy.ndarray
             Array containing beam amplitude values at each (az, za).
 
         """
-        if self.beam_type == 'uniform':
+        if self.beam_type == "uniform":
             beam_vals = np.ones(self.npix_fov)
 
-        # elif self.beam_type == 'gaussian':
-        elif self.beam_type in ['gaussian', 'gausscosine']:
+        elif self.beam_type in ["gaussian", "gausscosine"]:
             if self.fwhm_deg is not None:
                 stddev_rad = np.deg2rad(
                     self._fwhm_to_stddev(self.fwhm_deg)
                 )
             else:
                 stddev_rad = self._diam_to_stddev(self.diam, freq)
-            if self.beam_type == 'gaussian':
+            if self.beam_type == "gaussian":
                 beam_vals = self._gaussian_za(za, stddev_rad, self.peak_amp)
             else:
                 beam_vals = self._gausscosine(
                     za, stddev_rad, self.peak_amp, self.cosfreq
                 )
 
-        elif self.beam_type == 'airy':
+        elif self.beam_type == "airy":
             if self.diam is not None:
                 beam_vals = self._airy_disk(za, self.diam, freq)
             else:
                 diam_eff = self._fwhm_to_diam(self.fwhm_deg, freq)
                 beam_vals = self._airy_disk(za, diam_eff, freq)
         
-        elif self.beam_type == 'taperairy':
+        elif self.beam_type == "taperairy":
             stddev_rad = np.deg2rad(self._fwhm_to_stddev(self.fwhm_deg))
             beam_vals = (
                 self._airy_disk(za, self.diam, freq)
                 * self._gaussian_za(za, stddev_rad, self.peak_amp)
             )
         
-        elif self.beam_type == 'tanhairy':
+        elif self.beam_type == "tanhairy":
             beam_vals = (
                 self._airy_disk(za, self.diam, freq)
                 * self._tanh_taper(za, self.tanh_freq, self.tanh_sl_red)
             )
         
-        elif self.beam_type == 'uvbeam':
+        elif self.beam_type == "uvbeam":
             beam_vals, _ = self.uvb.interp(
                 az_array=az, za_array=za, freq_array=np.array([freq]),
-                reuse_spline=False
+                reuse_spline=True
             )
             beam_vals = beam_vals[0, 0, 0, 0].real
 
@@ -530,16 +545,16 @@ class Healpix(HEALPix):
 
         Parameters
         ----------
-        za : np.ndarray
+        za : numpy.ndarray
             Zenith angle of each pixel in radians.
         sigma : float
             Standard deviation in radians.
         amp : float
-            Peak amplitude at ``za=0``.
+            Peak amplitude at zenith.
 
         Returns
         -------
-        beam_vals : np.ndarray
+        beam_vals : numpy.ndarray
             Array of Gaussian beam amplitudes for each zenith angle in `za`.
 
         """
@@ -552,18 +567,18 @@ class Healpix(HEALPix):
 
         Parameters
         ----------
-        za : np.ndarray
+        za : numpy.ndarray
             Zenith angle of each pixel in radians.
         sigma : float
             Standard deviation in radians.
         amp : float
-            Peak amplitude at ``za=0``.
+            Peak amplitude at zenith.
         cosfreq : float
             Cosine squared frequency in inverse radians.
 
         Returns
         -------
-        beam_vals : np.ndarray
+        beam_vals : numpy.ndarray
             Array of Gaussian beam amplitudes for each zenith angle in `za`.
 
         """
@@ -589,7 +604,7 @@ class Healpix(HEALPix):
 
         Parameters
         ----------
-        za : np.ndarray of floats
+        za : numpy.ndarray of floats
             Zenith angle of each pixel in radians.
         diam : float
             Antenna (aperture) diameter in meters.
@@ -598,7 +613,7 @@ class Healpix(HEALPix):
 
         Returns
         -------
-        beam_vals : np.ndarray
+        beam_vals : numpy.ndarray
             Array of Airy disk amplitudes for each zenith angle in `za`.
 
         """
@@ -619,7 +634,7 @@ class Healpix(HEALPix):
 
         Parameters
         ----------
-        za : np.ndarray of floats
+        za : numpy.ndarray of floats
             Zenith angle of each pixel in radians.
         tanh_freq : float, optional
             Exponential frequency (rate parameter) in inverse radians.
@@ -630,7 +645,7 @@ class Healpix(HEALPix):
         
         Returns
         -------
-        taper_vals : np.ndarray
+        taper_vals : numpy.ndarray
             Array of tanh taper amplitudes for each zenith angle in `za`.
 
         """

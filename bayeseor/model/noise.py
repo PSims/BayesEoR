@@ -3,10 +3,19 @@ import numpy as np
 from ..utils import mpiprint
 
 
-def generate_data_and_noise_vector_instrumental(
-        sigma, s, nf, nt, uvw_array_meters, bl_redundancy_array,
-        random_seed='', rank=0):
+def generate_gaussian_noise(
+    sigma,
+    s,
+    nf,
+    nt,
+    uvw_array_meters,
+    bl_redundancy_array,
+    random_seed='',
+    rank=0
+):
     """
+    Generate and add Hermitian, Gaussian noise to noise-free visibilities.
+
     Creates a noise vector (n), with Hermitian structure based upon the
     uv sampling in the instrument model, and adds this noise to the input,
     noiseless visibilities (s) to form the data vector d = s + n.
@@ -16,15 +25,15 @@ def generate_data_and_noise_vector_instrumental(
     sigma : float
         Noise amplitude of |n|^2.  The complex amplitude is calculated as
         sigma/sqrt(2).
-    s : np.ndarray of complex floats
-        Input signal (visibilities).
+    s : numpy.ndarray
+        Noise free visibility vector with shape (len(uvw_array_meters)*nf*nt,).
     nf : int
         Number of frequency channels.
     nt : int
         Number of times.
-    uvw_array_meters : np.ndarray of floats
+    uvw_array_meters : numpy.ndarray
         Instrument model uv-sampling with shape (nbls, 3).
-    bl_redundancy_array : np.ndarray of floats
+    bl_redundancy_array : numpy.ndarray
         Number of baselines per redundant baseline group.
     random_seed : int
         Used to seed `np.random` when generating the noise vector.
@@ -33,9 +42,9 @@ def generate_data_and_noise_vector_instrumental(
 
     Returns
     -------
-    d : np.ndarray of complex floats
+    d : numpy.ndarray
         Data vector of complex signal + noise visibilities.
-    complex_noise_hermitian : np.ndarray of complex floats
+    complex_noise_hermitian : numpy.ndarray
         Vector of complex noise amplitudes.
     bl_conjugate_pairs_map : dictionary
         Dictionary containing the array index mapping of conjugate baseline

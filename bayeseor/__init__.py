@@ -8,5 +8,3 @@ except ModuleNotFoundError:  # pragma: no cover
     except PackageNotFoundError:
         # package is not installed
         __version__ = "unknown"
-
-from . import matrices, model, params, posterior, utils
