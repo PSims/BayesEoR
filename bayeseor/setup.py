@@ -684,6 +684,8 @@ def run_setup(
             beam_ref_freq = (beam_ref_freq * units.Hz).to("MHz").value
 
     # Output directory generation
+    if verbose and rank == 0:
+        mpiprint("\n", Panel("Output Directory"))
     if not isinstance(output_dir, Path):
         output_dir = Path(output_dir)
 
@@ -720,8 +722,9 @@ def run_setup(
             output_dir=output_dir,
         )
     else:
-        print(
-            f"Resuming analysis from existing output directory: \n{file_root_dir=}"
+        mpiprint(
+            f"Resuming analysis from existing output directory: \n{file_root_dir=}",
+            rank=print_rank,
         )
 
     # This is the full path to the sampler output chains directory
@@ -783,7 +786,6 @@ def run_setup(
             )
 
     if verbose and rank == 0:
-        mpiprint("\n", Panel("Output Directory"))
         mpiprint(f"\n{sampler_dir.absolute().as_posix()}")
     elif rank == 0:
         mpiprint(
