@@ -912,7 +912,6 @@ class BayesEoRParser(ArgumentParser):
         self.add_argument(
             "--form-pI",
             action="store_true",
-            default=True,
             help="Form pseudo-Stokes I visibilities. Otherwise, use the polarization "
             "specified by `pol`. Used only if `data_path` points to a "
             "pyuvdata-compatible visibility file.",
@@ -928,7 +927,6 @@ class BayesEoRParser(ArgumentParser):
         self.add_argument(
             "--pol",
             type=str,
-            default="xx",
             help="Case-insensitive polarization string. Can be one of 'xx', 'yy', or 'pI' "
             "for XX, YY, or pseudo-Stokes I polarization, respectively. Used only if "
             "`data_path` points to a pyuvdata-compatible visibility file and "
