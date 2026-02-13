@@ -529,7 +529,9 @@ def run_setup(
             "If data_path points to a pyuvdata-compatible visibility "
             "file and form_pI is False, pol must not be None"
         )
-    if "." in beam_type and pol is None or uvbeam_norm is None:
+    if (
+        "." in beam_type and (not form_pI and pol is None) or uvbeam_norm is None
+    ):
         raise ValueError(
             "If beam_type points to a pyuvdata-compatible beam file, "
             "both pol and uvbeam_norm must not be None"
