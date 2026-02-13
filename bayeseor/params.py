@@ -996,7 +996,8 @@ class BayesEoRParser(ArgumentParser):
         args = super().parse_args(args_str)
 
         if args.beam_type:
-            args.beam_type = args.beam_type.lower()
+            if not "." in args.beam_type:
+                args.beam_type = args.beam_type.lower()
         if args.taper_func:
             args.taper_func = args.taper_func.lower()
 
