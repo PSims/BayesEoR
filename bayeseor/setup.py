@@ -524,20 +524,16 @@ def run_setup(
             "telescope_latlonalt cannot be None if include_instrumental_effects is true"
         )
 
-    if Path(data_path).suffix != ".npy":
-        if not form_pI and pol is None:
-            raise ValueError(
-                "If data_path points to a pyuvdata-compatible visibility file "
-                "and form_pI is False, pol must not be None"
-            )
-        else:
-            pol = "pI"
+    if Path(data_path).suffix != ".npy" and not form_pI and pol is None:
+        raise ValueError(
+            "If data_path points to a pyuvdata-compatible visibility "
+            "file and form_pI is False, pol must not be None"
+        )
     if "." in beam_type and pol is None or uvbeam_norm is None:
-        if pol is None:
-            raise ValueError(
-                "If beam_type points to a pyuvdata-compatible beam file, "
-                "both pol and uvbeam_norm must not be None"
-            )
+        raise ValueError(
+            "If beam_type points to a pyuvdata-compatible beam file, "
+            "both pol and uvbeam_norm must not be None"
+        )
     
     # print_rank will only trigger print if verbose is True and rank == 0
     print_rank = 1 - (verbose and rank == 0)
@@ -619,6 +615,8 @@ def run_setup(
         phasor = vis_dict["phasor"]
     else:
         phasor = None
+    if form_pI and pol != "pI":
+        pol = "pI"
 
     # Assign optional kwargs if None
     # Model k cube params
@@ -854,6 +852,7 @@ def run_setup(
         jd_center=jd_center,
         dt=dt,
         beam_type=beam_type,
+        pol=pol,
         beam_center=beam_center,
         achromatic_beam=achromatic_beam,
         beam_peak_amplitude=beam_peak_amplitude,
@@ -1333,10 +1332,10 @@ def get_vis_data(
             data_path = Path(data_path)
         if not data_path.exists():
             raise FileNotFoundError(f"{data_path} does not exist")
-        if data_path.suffix != ".npy" and pol is None:
+        if data_path.suffix != ".npy" and not form_pI and pol is None:
             raise ValueError(
-                "If data_path points to a pyuvdata-compatible visibility file,"
-                " pol must not be None"
+                "If data_path points to a pyuvdata-compatible visibility file "
+                "and form_pI is False, pol must not be None"
             )
         if data_path.suffix == ".npy":
             required_freq = np.all(
