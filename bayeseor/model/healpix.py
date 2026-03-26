@@ -3,7 +3,9 @@ Interface for the HEALPix image domain model in BayesEoR.
 """
 
 import numpy as np
-import astropy_healpix as ahp
+from typing import Literal, Sequence, TypeAlias, overload
+
+from numpy.typing import NDArray
 from astropy_healpix import HEALPix
 from astropy_healpix import healpy as hp
 from astropy.coordinates import\
@@ -28,6 +30,10 @@ HERA_LAT_LON_ALT = (
     21.428305555555557,  # deg
     1073.0000000093132  # meters
 )
+
+FloatArray: TypeAlias = NDArray[np.float64]
+IntArray: TypeAlias = NDArray[np.int_]
+BoolArray: TypeAlias = NDArray[np.bool_]
 
 class Healpix(HEALPix):
     """
@@ -55,7 +61,7 @@ class Healpix(HEALPix):
     telescope_latlonalt : tuple, optional
         Tuple containing the latitude, longitude, and altitude of the
         telescope in degrees, degrees, and meters, respectively.  Defaults
-        to the location of the HERA telescope, i.e. (-30.72152777777791, 
+        to the location of the HERA telescope, i.e. (-30.72152777777791,
         21.428305555555557, 1073.0000000093132).
     jd_center : float
         Central time step of the observation in JD2000 format.
@@ -94,38 +100,42 @@ class Healpix(HEALPix):
     """
     def __init__(
         self,
-        fov_ra_eor=None,
-        fov_dec_eor=None,
-        fov_ra_fg=None,
-        fov_dec_fg=None,
-        simple_za_filter=False,
-        nside=256,
-        telescope_latlonalt=HERA_LAT_LON_ALT,
-        jd_center=None,
-        nt=1,
-        dt=None,
-        beam_type=None,
-        peak_amp=1.0,
-        fwhm_deg=None,
-        diam=None,
-        cosfreq=None,
-        tanh_freq=None,
-        tanh_sl_red=None,
-        pol="xx",
-        freq_interp_kind="cubic"
-    ):
+        fov_ra_eor: float | None = None,
+        fov_dec_eor: float | None = None,
+        fov_ra_fg: float | None = None,
+        fov_dec_fg: float | None = None,
+        simple_za_filter: bool = False,
+        nside: int = 256,
+        telescope_latlonalt: tuple[float, float, float] = HERA_LAT_LON_ALT,
+        jd_center: float | None = None,
+        nt: int = 1,
+        dt: float | None = None,
+        beam_type: str | None = None,
+        peak_amp: float = 1.0,
+        fwhm_deg: float | None = None,
+        diam: float | None = None,
+        cosfreq: float | None = None,
+        tanh_freq: float | None = None,
+        tanh_sl_red: float | None = None,
+        pol: str = "xx",
+        freq_interp_kind: str = "cubic"
+    ) -> None:
         # Use HEALPix as parent class to get useful astropy_healpix functions
         super().__init__(nside, frame=ICRS())
 
         assert fov_ra_eor is not None, \
             "Missing required keyword argument: fov_ra_eor ."
+        assert jd_center is not None, \
+            "Missing required keyword argument: jd_center."
+        assert nt == 1 or dt is not None, \
+            "If nt > 1, dt must not be None."
 
         self.fov_ra_eor = fov_ra_eor
         if fov_dec_eor is None:
             self.fov_dec_eor = self.fov_ra_eor
         else:
             self.fov_dec_eor = fov_dec_eor
-        
+
         if fov_ra_fg is None:
             self.fov_ra_fg = self.fov_ra_eor
             self.fov_dec_fg = self.fov_dec_eor
@@ -183,7 +193,7 @@ class Healpix(HEALPix):
         else:
             self.jds = np.array([self.jd_center])
         # Calculate pointing center per integration
-        self.pointing_centers = []
+        self.pointing_centers: list[tuple[float, float]] = []
         for jd in self.jds:
             t = Time(jd, scale="utc", format="jd")
             zen = AltAz(
@@ -196,8 +206,9 @@ class Healpix(HEALPix):
             self.pointing_centers.append((zen_radec.ra.deg, zen_radec.dec.deg))
 
         # Beam params
+        self.uvb: UVBeam | None
         if beam_type is not None:
-            if not "." in str(beam_type):
+            if "." not in beam_type:
                 beam_type = beam_type.lower()
                 allowed_types = [
                     "uniform", "gaussian", "airy", "gausscosine", "taperairy",
@@ -293,16 +304,39 @@ class Healpix(HEALPix):
         # If the FoV values of the two models are different, so to are their
         # HEALPix pixel index arrays.  This mask allows you to take a set of
         # pixel values for the EoR model and propagate them into the FG model.
-        self.eor_to_fg_pix = np.in1d(self.pix_fg, self.pix_eor)
+        # self.eor_to_fg_pix = np.in1d(self.pix_fg, self.pix_eor)
+        self.eor_to_fg_pix = np.isin(self.pix_fg, self.pix_eor)
+
+    @overload
+    def get_pixel_filter(
+        self,
+        fov_ra: float,
+        fov_dec: float,
+        return_radec: Literal[False] = False,
+        inverse: bool = False,
+        simple_za_filter: bool = True
+    ) -> IntArray:
+        ...
+
+    @overload
+    def get_pixel_filter(
+        self,
+        fov_ra: float,
+        fov_dec: float,
+        return_radec: Literal[True] = True,
+        inverse: bool = False,
+        simple_za_filter: bool = True
+    ) -> tuple[IntArray, FloatArray, FloatArray]:
+        ...
 
     def get_pixel_filter(
         self,
-        fov_ra,
-        fov_dec,
-        return_radec=False,
-        inverse=False,
-        simple_za_filter=True
-    ):
+        fov_ra: float,
+        fov_dec: float,
+        return_radec: bool = False,
+        inverse: bool = False,
+        simple_za_filter: bool = True
+    ) -> IntArray | tuple[IntArray, FloatArray, FloatArray]:
         """
         Return HEALPix pixel indices lying inside an observed region.
 
@@ -342,7 +376,7 @@ class Healpix(HEALPix):
         dec : numpy.ndarray
             DEC values for each pixel center.  Only returned if `return_radec`
             is True.
-        
+
         Notes
         -----
         * The rectangular pixel selection (`simple_za_filter` is False) has
@@ -376,17 +410,23 @@ class Healpix(HEALPix):
                 lats >= self.field_center[1] - fov_dec / 2,
                 lats <= self.field_center[1] + fov_dec / 2
                 )
+            pixel_mask: BoolArray = np.logical_and(lons_inds, lats_inds)
             if inverse:
-                pix = np.where(np.logical_not(lons_inds * lats_inds))[0]
+                pix = np.where(np.logical_not(pixel_mask))[0]
             else:
-                pix = np.where(lons_inds * lats_inds)[0]
+                pix = np.where(pixel_mask)[0]
             lons[lons < 0] += 360  # RA in [0, 360)
         if not return_radec:
             return pix
         else:
             return pix, lons[pix], lats[pix]
-    
-    def get_extent_ra_dec(self, fov_ra, fov_dec, fov_fac=1.0):
+
+    def get_extent_ra_dec(
+        self,
+        fov_ra: float,
+        fov_dec: float,
+        fov_fac: float = 1.0
+    ) -> tuple[list[float], list[float]]:
         """
         Get the sampled extent of the sky in RA and DEC.
 
@@ -417,8 +457,38 @@ class Healpix(HEALPix):
         ]
         return range_ra, range_dec
 
+    @overload
     def calc_lmn_from_radec(
-            self, time, ra, dec, return_azza=False, radec_offset=None):
+        self,
+        time: float | Time,
+        ra: FloatArray,
+        dec: FloatArray,
+        return_azza: Literal[False] = False,
+        radec_offset: tuple[float, float] | None = None
+    ) -> tuple[FloatArray, FloatArray, FloatArray]:
+        ...
+
+    @overload
+    def calc_lmn_from_radec(
+        self,
+        time: float | Time,
+        ra: FloatArray,
+        dec: FloatArray,
+        return_azza: Literal[True] = True,
+        radec_offset: tuple[float, float] | None = None
+    ) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray, FloatArray]:
+        ...
+
+    def calc_lmn_from_radec(
+            self,
+            time: float | Time,
+            ra: FloatArray,
+            dec: FloatArray,
+            return_azza: bool = False,
+            radec_offset: tuple[float, float] | None = None
+    ) -> tuple[FloatArray, FloatArray, FloatArray] | tuple[
+        FloatArray, FloatArray, FloatArray, FloatArray, FloatArray
+    ]:
         """
         Return arrays of (l, m, n) coordinates in radians for all (RA, DEC).
 
@@ -447,7 +517,7 @@ class Healpix(HEALPix):
 
         Notes
         -----
-        * Adapted from `pyradiosky.skymodel.update_positions` 
+        * Adapted from `pyradiosky.skymodel.update_positions`
           (https://github.com/RadioAstronomySoftwareGroup/pyradiosky).
 
         """
@@ -471,10 +541,15 @@ class Healpix(HEALPix):
         else:
             return ls, ms, ns
 
-    def get_beam_vals(self, az, za, freq=None):
+    def get_beam_vals(
+        self,
+        az: FloatArray,
+        za: FloatArray,
+        freq: float | None = None
+    ) -> FloatArray:
         """
         Get an array of beam values from (az, za) coordinates.
-        
+
         If `self.beam_type` is 'gaussian', this function assumes that the
         beam width is symmetric along the l and m axes.
 
@@ -502,44 +577,60 @@ class Healpix(HEALPix):
                     self._fwhm_to_stddev(self.fwhm_deg)
                 )
             else:
+                assert self.diam is not None
+                assert freq is not None
                 stddev_rad = self._diam_to_stddev(self.diam, freq)
             if self.beam_type == "gaussian":
                 beam_vals = self._gaussian_za(za, stddev_rad, self.peak_amp)
             else:
+                assert self.cosfreq is not None
                 beam_vals = self._gausscosine(
                     za, stddev_rad, self.peak_amp, self.cosfreq
                 )
 
         elif self.beam_type == "airy":
+            assert freq is not None
             if self.diam is not None:
                 beam_vals = self._airy_disk(za, self.diam, freq)
             else:
+                assert self.fwhm_deg is not None
                 diam_eff = self._fwhm_to_diam(self.fwhm_deg, freq)
                 beam_vals = self._airy_disk(za, diam_eff, freq)
-        
+
         elif self.beam_type == "taperairy":
+            assert self.fwhm_deg is not None
+            assert self.diam is not None
+            assert freq is not None
             stddev_rad = np.deg2rad(self._fwhm_to_stddev(self.fwhm_deg))
             beam_vals = (
                 self._airy_disk(za, self.diam, freq)
                 * self._gaussian_za(za, stddev_rad, self.peak_amp)
             )
-        
+
         elif self.beam_type == "tanhairy":
+            assert self.diam is not None
+            assert freq is not None
+            assert self.tanh_freq is not None
+            assert self.tanh_sl_red is not None
             beam_vals = (
                 self._airy_disk(za, self.diam, freq)
                 * self._tanh_taper(za, self.tanh_freq, self.tanh_sl_red)
             )
-        
+
         elif self.beam_type == "uvbeam":
+            assert self.uvb is not None
+            assert freq is not None
             beam_vals, _ = self.uvb.interp(
                 az_array=az, za_array=za, freq_array=np.array([freq]),
                 reuse_spline=True
             )
             beam_vals = beam_vals[0, 0, 0, 0].real
+        else:
+            raise RuntimeError(f"Unsupported beam type: {self.beam_type}")
 
         return beam_vals
 
-    def _gaussian_za(self, za, sigma, amp):
+    def _gaussian_za(self, za: FloatArray, sigma: float, amp: float) -> FloatArray:
         """
         Calculate azimuthally symmetric Gaussian beam amplitudes.
 
@@ -560,8 +651,14 @@ class Healpix(HEALPix):
         """
         beam_vals = amp * np.exp(-za ** 2 / (2 * sigma ** 2))
         return beam_vals
-    
-    def _gausscosine(self, za, sigma, amp, cosfreq):
+
+    def _gausscosine(
+        self,
+        za: FloatArray,
+        sigma: float,
+        amp: float,
+        cosfreq: float
+    ) -> FloatArray:
         """
         Calculate azimuthally symmetric Gaussian * cosine^2 beam amplitudes.
 
@@ -586,7 +683,7 @@ class Healpix(HEALPix):
         beam_vals *= np.cos(2 * np.pi * za * cosfreq/2)**2
         return beam_vals
 
-    def _fwhm_to_stddev(self, fwhm):
+    def _fwhm_to_stddev(self, fwhm: float) -> float:
         """
         Calculate standard deviation from full width at half maximum.
 
@@ -598,7 +695,7 @@ class Healpix(HEALPix):
         """
         return fwhm / 2.355
 
-    def _airy_disk(self, za, diam, freq):
+    def _airy_disk(self, za: FloatArray, diam: float, freq: float) -> FloatArray:
         """
         Calculate Airy disk amplitudes.
 
@@ -627,8 +724,13 @@ class Healpix(HEALPix):
         beam_vals[nz] = 2. * j1(xvals[nz]) / xvals[nz]
         beam_vals[ze] = 1.
         return beam_vals ** 2
-    
-    def _tanh_taper(self, za, tanh_freq, tanh_sl_red):
+
+    def _tanh_taper(
+        self,
+        za: FloatArray,
+        tanh_freq: float,
+        tanh_sl_red: float
+    ) -> FloatArray:
         """
         Calculate a tanh tapering function.
 
@@ -642,7 +744,7 @@ class Healpix(HEALPix):
             Airy sidelobe amplitude reduction as a fractional percent.  For
             example, passing 0.99 reduces the sidelobes by 0.01, i.e. two
             orders of magnitude.
-        
+
         Returns
         -------
         taper_vals : numpy.ndarray
@@ -652,7 +754,7 @@ class Healpix(HEALPix):
         taper_vals = 1 - tanh_sl_red * np.tanh(tanh_freq * za)
         return taper_vals
 
-    def _fwhm_to_diam(self, fwhm, freq):
+    def _fwhm_to_diam(self, fwhm: float, freq: float) -> float:
         """
         Calculates the effective diameter of an Airy disk from a FWHM.
 
@@ -683,7 +785,7 @@ class Healpix(HEALPix):
         diam = scalar * wavelength / (np.pi * np.sin(fwhm / np.sqrt(2)))
         return diam
 
-    def _diam_to_stddev(self, diam, freq):
+    def _diam_to_stddev(self, diam: float, freq: float) -> float:
         """
         Calculate an effective standard deviation of an Airy disk.
 
@@ -712,7 +814,11 @@ class Healpix(HEALPix):
         sigma *= np.sqrt(2) / 2.355
         return sigma
 
-    def _check_required_params(self, required_params, all_req=True):
+    def _check_required_params(
+        self,
+        required_params: Sequence[object | None],
+        all_req: bool = True
+    ) -> bool:
         """
         Check if params in required_params are not None.
 
@@ -726,6 +832,6 @@ class Healpix(HEALPix):
 
         """
         if not all_req:
-            return np.any([p is not None for p in required_params])
+            return bool(np.any([p is not None for p in required_params]))
         else:
-            return np.all([p is not None for p in required_params])
+            return bool(np.all([p is not None for p in required_params]))

@@ -12,8 +12,15 @@
 !scripts/
 !test_data/
 !README.md
+!CONTRIBUTING.md
 !.readthedocs.yaml
+!pyrightconfig.json
 !pyproject.toml
 !environment.yaml
 !example-config.yaml
 !run-analysis.py
+!.github/
+!.github/workflows/
+!.github/workflows/*.yml
+!tests/
+!tests/*.py

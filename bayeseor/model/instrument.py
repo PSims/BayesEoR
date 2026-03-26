@@ -1,5 +1,4 @@
 import numpy as np
-import os
 from pathlib import Path
 
 from ..utils import load_numpy_dict
