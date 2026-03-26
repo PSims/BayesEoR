@@ -1,8 +1,6 @@
 import numpy as np
 from pathlib import Path
 
-from ..utils import mpiprint
-
 
 def generate_k_cube_in_physical_coordinates(
     nu,
