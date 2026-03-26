@@ -3,21 +3,21 @@ Interface for the HEALPix image domain model in BayesEoR.
 """
 
 import numpy as np
-from typing import Literal, Sequence, TypeAlias, overload
+from typing import Any, Literal, Sequence, TypeAlias, cast, overload
 
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 from astropy_healpix import HEALPix
 from astropy_healpix import healpy as hp
 from astropy.coordinates import\
     EarthLocation, AltAz, ICRS, Angle, SkyCoord
 from astropy.time import Time
+from astropy import constants as const
 import astropy.units as u
-from astropy.constants import c
 from scipy.special import j1
 from pyuvdata import UVBeam
 from pyuvdata import utils as uvutils
 
-c_ms = c.to("m/s").value
+c_ms = float(const.c.to_value(u.m / u.s))  # pyright: ignore
 
 SECS_PER_HOUR = 60 * 60
 SECS_PER_DAY = SECS_PER_HOUR * 24
@@ -153,7 +153,8 @@ class Healpix(HEALPix):
                 self.fov_dec_eor == self.fov_dec_fg
             )
 
-        self.pixel_area_sr = self.pixel_area.to("sr").value
+        pixel_area = cast(Any, self.pixel_area)
+        self.pixel_area_sr = float(pixel_area.to_value(u.sr))
         self.tele_lat, self.tele_lon, self.tele_alt = telescope_latlonalt
         # Set telescope location
         telescope_xyz = uvutils.XYZ_from_LatLonAlt(
@@ -387,11 +388,13 @@ class Healpix(HEALPix):
           issues with the rectangular pixel selections.
 
         """
-        lons, lats = hp.pix2ang(
+        lons_raw, lats_raw = hp.pix2ang(
             self.nside,
-            np.arange(self.npix),
+            np.arange(int(self.npix)),
             lonlat=True
         )
+        lons: FloatArray = np.asarray(lons_raw, dtype=float)
+        lats: FloatArray = np.asarray(lats_raw, dtype=float)
         if simple_za_filter:
             _, _, _, _, za = self.calc_lmn_from_radec(
                 self.jd_center, lons, lats, return_azza=True
@@ -461,8 +464,8 @@ class Healpix(HEALPix):
     def calc_lmn_from_radec(
         self,
         time: float | Time,
-        ra: FloatArray,
-        dec: FloatArray,
+        ra: ArrayLike,
+        dec: ArrayLike,
         return_azza: Literal[False] = False,
         radec_offset: tuple[float, float] | None = None
     ) -> tuple[FloatArray, FloatArray, FloatArray]:
@@ -472,8 +475,8 @@ class Healpix(HEALPix):
     def calc_lmn_from_radec(
         self,
         time: float | Time,
-        ra: FloatArray,
-        dec: FloatArray,
+        ra: ArrayLike,
+        dec: ArrayLike,
         return_azza: Literal[True] = True,
         radec_offset: tuple[float, float] | None = None
     ) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray, FloatArray]:
@@ -482,8 +485,8 @@ class Healpix(HEALPix):
     def calc_lmn_from_radec(
             self,
             time: float | Time,
-            ra: FloatArray,
-            dec: FloatArray,
+            ra: ArrayLike,
+            dec: ArrayLike,
             return_azza: bool = False,
             radec_offset: tuple[float, float] | None = None
     ) -> tuple[FloatArray, FloatArray, FloatArray] | tuple[
@@ -525,16 +528,17 @@ class Healpix(HEALPix):
             time = Time(time, format="jd")
 
         skycoord = SkyCoord(ra*u.deg, dec*u.deg, frame="icrs")
-        altaz = skycoord.transform_to(
+        altaz = cast(Any, skycoord.transform_to(
             AltAz(obstime=time, location=self.telescope_location)
-        )
-        az = altaz.az.rad
-        za = np.pi/2 - altaz.alt.rad
+        ))
+        az: FloatArray = np.asarray(altaz.az.to_value(u.rad), dtype=float)
+        alt: FloatArray = np.asarray(altaz.alt.to_value(u.rad), dtype=float)
+        za: FloatArray = np.pi / 2 - alt
 
         # Convert from (az, za) to (l, m, n)
-        ls = np.sin(za) * np.sin(az)
-        ms = np.sin(za) * np.cos(az)
-        ns = np.cos(za)
+        ls: FloatArray = np.sin(za) * np.sin(az)
+        ms: FloatArray = np.sin(za) * np.cos(az)
+        ns: FloatArray = np.cos(za)
 
         if return_azza:
             return ls, ms, ns, az, za

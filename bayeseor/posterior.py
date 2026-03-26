@@ -1,4 +1,6 @@
 import time
+from typing import Any, cast
+
 import numpy as np
 import scipy
 from pdb import set_trace as brk
@@ -316,6 +318,18 @@ class PowerSpectrumPosteriorProbability(object):
         dmps_norm *= self.inst_to_cosmo_vol**2
 
         return dmps_norm
+
+    def calc_Npix_physical_power_spectrum_normalisation(self, i_bin):
+        """
+        Physical power spectrum normalization in voxel units.
+
+        This path is not currently implemented. The code base currently
+        supports modelling the dimensionless power spectrum only.
+        """
+        raise NotImplementedError(
+            "Physical P(k) normalization is not currently implemented. "
+            "Use dimensionless_PS=True."
+        )
 
     def calc_PowerI(self, x):
         """
@@ -759,7 +773,7 @@ class PowerSpectrumPosteriorProbability(object):
                          rank=self.rank)
             start = time.time()
             with h5py.File(T_Ninv_T_file_path, 'r') as hf:
-                T_Ninv_T = hf[T_Ninv_T_dataset_name][:]
+                T_Ninv_T = cast(Any, hf[T_Ninv_T_dataset_name])[:]
                 # This is only valid if the data is uniformly weighted
                 # T_Ninv_T = T_Ninv_T/(alpha_prime**2.0)
                 if self.count % self.print_rate == 0:
@@ -777,7 +791,7 @@ class PowerSpectrumPosteriorProbability(object):
                          rank=self.rank)
             start = time.time()
             with h5py.File(dbar_file_path, 'r') as hf:
-                dbar = hf[dbar_dataset_name][:]
+                dbar = cast(Any, hf[dbar_dataset_name])[:]
                 # This is only valid if the data is uniformly weighted
                 # dbar = dbar/(alpha_prime**2.0)
                 # if self.count % self.print_rate == 0:
