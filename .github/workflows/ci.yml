@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Install package and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --no-deps -e ".[dev]"
+          python -m pip install astropy astropy-healpix h5py jsonargparse numpy pyuvdata pytest rich ruff scipy
+
+      - name: Lint
+        run: ruff check bayeseor/model tests
+
+      - name: Test
+        run: python -m pytest

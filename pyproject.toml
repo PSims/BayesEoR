@@ -10,7 +10,9 @@ readme = "README.md"
 classifiers = [
     "Programming Language :: Python :: 3",
 ]
-requires-python = ">= 3.10"
+# requires-python = ">= 3.10"
+requires-python = "== 3.13"
+
 dependencies = [
     "astropy",
     "astropy-healpix",
@@ -30,6 +32,17 @@ doc = [
     "sphinx",
     "matplotlib"
 ]
+test = [
+    "pytest"
+]
+dev = [
+    "pytest",
+    "ruff"
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
 
 [tool.setuptools_scm]
 write_to = "bayeseor/_version.py"
