@@ -27,7 +27,10 @@ def sampled_uv_vectors(nu, nv, du=1.0, dv=1.0, exclude_mean=True):
         Spacing between adjacent v, i.e. :math:`\\Delta v`.  Defaults to 1.
     exclude_mean : bool
         If True, remove the (u, v) = (0, 0) pixel from the model
-        uv-plane coordinate arrays. Defaults to True.
+        uv-plane coordinate arrays. If False, keep the (u, v) = (0, 0)
+        pixel and move it to the rightmost column so it sits next to the
+        LSSM components in the model vector, since the monopole acts as the
+        constant term. Defaults to True.
 
     Returns
     -------
@@ -41,9 +44,17 @@ def sampled_uv_vectors(nu, nv, du=1.0, dv=1.0, exclude_mean=True):
     us_vec = du * us.reshape(1, nu*nv)
     vs_vec = dv * vs.reshape(1, nu*nv)
 
-    if exclude_mean:
-        us_vec = np.delete(us_vec, (nu*nv)//2, axis=1)
-        vs_vec = np.delete(vs_vec, (nu*nv)//2, axis=1)
+    is_monopole = (us_vec == 0) & (vs_vec == 0)
+    if np.any(is_monopole):
+        mask = ~is_monopole[0]
+        if exclude_mean:
+            us_vec = us_vec[:, mask]
+            vs_vec = vs_vec[:, mask]
+        else:
+            us_mp = us_vec[:, is_monopole[0]]
+            vs_mp = vs_vec[:, is_monopole[0]]
+            us_vec = np.hstack((us_vec[:, mask], us_mp))
+            vs_vec = np.hstack((vs_vec[:, mask], vs_mp))
 
     return us_vec, vs_vec
 
