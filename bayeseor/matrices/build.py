@@ -720,12 +720,6 @@ class BuildMatrices():
 
                 # Load prerequisite matrix into
                 # prerequisite_matrices_dictionary
-                if matrix_available == 1:
-                    file_extension = ".h5"
-                elif matrix_available == 2:
-                    file_extension = ".npz"
-                else:
-                    file_extension = ".h5"
                 if self.verbose:
                     start = time.time()
                 data = self.read_data(child_matrix)
@@ -1102,7 +1096,7 @@ class BuildMatrices():
 
         """
         matrix_name = "multi_chan_nudft"
-        pmd = self.load_prerequisites(matrix_name)
+        self.load_prerequisites(matrix_name)
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
@@ -1181,7 +1175,7 @@ class BuildMatrices():
 
         """
         matrix_name = "multi_chan_beam"
-        pmd = self.load_prerequisites(matrix_name)
+        self.load_prerequisites(matrix_name)
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
@@ -1293,7 +1287,7 @@ class BuildMatrices():
 
         """
         matrix_name = "nuidft_array"
-        pmd = self.load_prerequisites(matrix_name)
+        self.load_prerequisites(matrix_name)
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
@@ -1366,7 +1360,7 @@ class BuildMatrices():
 
         """
         matrix_name = "multi_chan_nuidft_fg"
-        pmd = self.load_prerequisites(matrix_name)
+        self.load_prerequisites(matrix_name)
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
@@ -1413,7 +1407,7 @@ class BuildMatrices():
         """
         # FIXME: add support for the SHG uv-plane (issue #50)
         matrix_name = "nuidft_array_sh"
-        pmd = self.load_prerequisites(matrix_name)
+        self.load_prerequisites(matrix_name)
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
@@ -1431,7 +1425,9 @@ class BuildMatrices():
 
         nuidft_array_sh_block = IDFT_Array_IDFT_2D_ZM_SH(
             self.nu_sh, self.nv_sh,
-            sampled_lm_coords_radians
+            sampled_lm_coords_radians,
+            delta_u_irad=self.du_eor,
+            delta_v_irad=self.dv_eor,
         )
         nuidft_array_sh_block *= self.Fprime_normalization_eor / (self.nu * self.nv)
         nuidft_array_sh = self.sd_block_diag(
@@ -1486,7 +1482,7 @@ class BuildMatrices():
         """
         # FIXME: add support for the SHG uv-plane (issue #50)
         matrix_name = "idft_array_1d_sh"
-        pmd = self.load_prerequisites(matrix_name)
+        self.load_prerequisites(matrix_name)
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
@@ -1646,7 +1642,7 @@ class BuildMatrices():
 
         """
         matrix_name = "gridding_matrix_vo2co"
-        pmd = self.load_prerequisites(matrix_name)
+        self.load_prerequisites(matrix_name)
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
@@ -1694,7 +1690,7 @@ class BuildMatrices():
 
         """
         matrix_name = "gridding_matrix_vo2co_fg"
-        pmd = self.load_prerequisites(matrix_name)
+        self.load_prerequisites(matrix_name)
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
@@ -1892,7 +1888,7 @@ class BuildMatrices():
         # this might change in the future if we add a kwarg for writing out
         # intermediate matrices to disk (e.g. the dense blocks that comprise
         # Fprime).
-        pmd = self.load_prerequisites(matrix_name)
+        self.load_prerequisites(matrix_name)
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
@@ -2030,7 +2026,7 @@ class BuildMatrices():
 
         """
         matrix_name = "Ninv"
-        pmd = self.load_prerequisites(matrix_name)
+        self.load_prerequisites(matrix_name)
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
@@ -2103,7 +2099,7 @@ class BuildMatrices():
 
         """
         matrix_name = "N"
-        pmd = self.load_prerequisites(matrix_name)
+        self.load_prerequisites(matrix_name)
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
@@ -2231,9 +2227,8 @@ class BuildMatrices():
                         sky_inds = slice(
                             i_f*self.hpx.npix_fov, (i_f + 1)*self.hpx.npix_fov
                         )
-                        inds = [vis_inds, sky_inds]
                         T[time_inds][vis_inds] = np.dot(
-                            pmd["Finv"][time_inds][*inds].toarray(),
+                            pmd["Finv"][time_inds][vis_inds, sky_inds].toarray(),
                             pmd["Fprime_Fz"][sky_inds]
                         )
         if self.verbose:

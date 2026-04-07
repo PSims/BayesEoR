@@ -1,13 +1,6 @@
 """Analysis settings"""
-
-from copy import deepcopy
-
-import numpy as np
-from astropy import constants, units
 from jsonargparse import ActionConfigFile, ActionYesNo, ArgumentParser
-from jsonargparse.typing import List, Path_fr, path_type
-
-from .cosmology import Cosmology
+from jsonargparse.typing import Path_fr, path_type
 
 
 class BayesEoRParser(ArgumentParser):
@@ -449,7 +442,7 @@ class BayesEoRParser(ArgumentParser):
         # Prior Parameters
         self.add_argument(
             "--priors",
-            type=List[list],
+            type=list[list],
             help="Power spectrum prior range [min, max] for each k bin.",
         )
         self.add_argument(
@@ -569,7 +562,7 @@ class BayesEoRParser(ArgumentParser):
         )
         self.add_argument(
             "--beta",
-            type=List[float],
+            type=list[float],
             default=[2.63, 2.82],
             help="Brightness temperature power law spectral index/indices used in the "
             "large spectral scale model. Can be a single spectral index, '[2.63]', "
@@ -768,7 +761,7 @@ class BayesEoRParser(ArgumentParser):
         )
         self.add_argument(
             "--tele-latlonalt",
-            type=List[float],
+            type=list[float],
             dest="telescope_latlonalt",  # FIXME: remove need for dest
             help="Telescope location in latitude (deg), longitude (deg), and altitude "
             "(meters). Passed as a list of floats, e.g. '[30.1,125.6,80.4]'. Do not "
@@ -832,7 +825,7 @@ class BayesEoRParser(ArgumentParser):
         )
         self.add_argument(
             "--beam-center",
-            type=List[float],
+            type=list[float],
             help="Beam center offsets from the phase center in RA and Dec in degrees. "
             "Default behavior is the beam center aligns with the phase center. "
             "Passed as a list of floats, e.g. '[-1.3,0.01]'. Do not include a space "

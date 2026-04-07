@@ -1,5 +1,5 @@
-from numpy import *  # don't know if this will be an issue
-import os  # can be removed after astropy_healpix fixes
+from collections.abc import Sequence
+
 import numpy as np
 from scipy import sparse
 
@@ -307,7 +307,8 @@ def nuidft_matrix_2d(nu, nv, du, dv, l_vec, m_vec, exclude_mean=True):
 # FIXME: IDFT_Array_IDFT_2D_ZM_SH needs to be updated to support the
 # subharmonic grid (see BayesEoR issue #50)
 def IDFT_Array_IDFT_2D_ZM_SH(
-        nu_sh, nv_sh, sampled_lm_coords_radians, spacing='linear'):
+        nu_sh, nv_sh, sampled_lm_coords_radians, spacing='linear',
+        delta_u_irad=None, delta_v_irad=None):
     """
     Generates a non-uniform (might want to update the function name)
     inverse DFT matrix that goes from subharmonic grid (SHG) model (u, v) to
@@ -332,6 +333,12 @@ def IDFT_Array_IDFT_2D_ZM_SH(
         SHG modes is the coarse grid spacing `delta_u_irad` divided by the
         number of SHG modes `nu_sh`.  If log, the SHG modes are determined via
         `np.logspace`.
+    delta_u_irad : float, optional
+        Coarse-grid spacing along the u-axis in inverse radians. Required for
+        SHG spacing calculations.
+    delta_v_irad : float, optional
+        Coarse-grid spacing along the v-axis in inverse radians. Required for
+        SHG spacing calculations.
 
     Returns
     -------
@@ -349,15 +356,17 @@ def IDFT_Array_IDFT_2D_ZM_SH(
     # linear spacing and will need to be reworked if using a log spacing.
     # This also needs to be updated to account for a FoV which differs
     # along the l and m axes.
+    assert delta_u_irad is not None, "delta_u_irad must not be None."
+    assert delta_v_irad is not None, "delta_v_irad must not be None."
     if spacing == 'linear':
         u_vec, v_vec = Produce_Coordinate_Arrays_ZM_SH(nu_sh, nv_sh)
-        du_sh = p.delta_u_irad / nu_sh
-        dv_sh = p.delta_v_irad / nv_sh
+        du_sh = delta_u_irad / nu_sh
+        dv_sh = delta_v_irad / nv_sh
         u_vec = u_vec.astype('float') * du_sh
         v_vec = v_vec.astype('float') * dv_sh
     else:
-        max_u_sh = p.delta_u_irad
-        max_v_sh = p.delta_v_irad
+        max_u_sh = delta_u_irad
+        max_v_sh = delta_v_irad
         min_u_sh = 1 / 2  # horizon to horizon period in l-units
         min_v_sh = 1 / 2  # horizon to horizon period in m-units
         u_sh = np.logspace(
@@ -386,7 +395,13 @@ def IDFT_Array_IDFT_2D_ZM_SH(
 
 # Fz functions
 def build_lssm_basis_vectors(
-    nf, nq=2, npl=0, f_min=159.0, df=0.2, beta=2.63, verbose=False
+    nf,
+    nq=2,
+    npl=0,
+    f_min=159.0,
+    df=0.2,
+    beta: float | Sequence[float] | np.ndarray = 2.63,
+    verbose=False,
 ):
     """
     Construct the Large Spectral Scale Model (LSSM) basis vectors.
@@ -421,12 +436,13 @@ def build_lssm_basis_vectors(
     """
     basis_vectors = np.zeros([nq, nf]) + 0j
     freq_array = f_min + np.arange(nf) * df
+    beta_values = np.atleast_1d(np.asarray(beta, dtype=float))
     if nq == 1:
         x = np.arange(nf) - nf/2.
         basis_vectors[0] = x
         if npl == 1:
             m_pl = np.array(
-                [(freq_array[i_f] / f_min)**-beta
+                [(freq_array[i_f] / f_min)**-float(beta_values[0])
                  for i_f in range(len(freq_array))]
                 )
             basis_vectors[0] = m_pl
@@ -442,7 +458,7 @@ def build_lssm_basis_vectors(
         basis_vectors[1] = x**2
         if npl == 1:
             m_pl = np.array(
-                [(freq_array[i_f] / f_min)**-beta
+                [(freq_array[i_f] / f_min)**-float(beta_values[0])
                  for i_f in range(len(freq_array))]
                 )
             basis_vectors[1] = m_pl
@@ -453,15 +469,15 @@ def build_lssm_basis_vectors(
                 print('beta = ', beta, '\n')
         if npl == 2:
             m_pl1 = np.array(
-                [(freq_array[i_f] / f_min)**-beta[0]
+                [(freq_array[i_f] / f_min)**-float(beta_values[0])
                  for i_f in range(len(freq_array))]
                 )
             basis_vectors[0] = m_pl1
             if verbose:
                 print('\nLinear LW mode replaced with power-law model')
-                print('beta1 = ', beta[0], '\n')
+                print('beta1 = ', beta_values[0], '\n')
             m_pl2 = np.array(
-                [(freq_array[i_f] / f_min)**-beta[1]
+                [(freq_array[i_f] / f_min)**-float(beta_values[1])
                  for i_f in range(len(freq_array))]
                 )
             basis_vectors[1] = m_pl2
@@ -469,16 +485,16 @@ def build_lssm_basis_vectors(
                 print('\nQuadratic LW mode replaced with power-law model')
                 print('f_min = ', f_min)
                 print('df = ', df)
-                print('beta2 = ', beta[1], '\n')
+                print('beta2 = ', beta_values[1], '\n')
 
     if nq == 3:
         x = np.arange(nf) - nf/2.
         basis_vectors[0] = x
         basis_vectors[1] = x**2
-        basis_vectors[1] = x**3
+        basis_vectors[2] = x**3
         if npl == 1:
             m_pl = np.array(
-                [(freq_array[i_f] / f_min)**-beta
+                [(freq_array[i_f] / f_min)**-float(beta_values[0])
                  for i_f in range(len(freq_array))]
                 )
             basis_vectors[1] = m_pl
@@ -490,15 +506,15 @@ def build_lssm_basis_vectors(
 
         if npl == 2:
             m_pl1 = np.array(
-                [(freq_array[i_f] / f_min)**-beta[0]
+                [(freq_array[i_f] / f_min)**-float(beta_values[0])
                  for i_f in range(len(freq_array))]
                 )
             basis_vectors[0] = m_pl1
             if verbose:
                 print('\nLinear LW mode replaced with power-law model')
-                print('beta1 = ', beta[0], '\n')
+                print('beta1 = ', beta_values[0], '\n')
             m_pl2 = np.array(
-                [(freq_array[i_f] / f_min)**-beta[1]
+                [(freq_array[i_f] / f_min)**-float(beta_values[1])
                  for i_f in range(len(freq_array))]
                 )
             basis_vectors[1] = m_pl2
@@ -506,29 +522,27 @@ def build_lssm_basis_vectors(
                 print('\nQuadratic LW mode replaced with power-law model')
                 print('f_min = ', f_min)
                 print('df = ', df)
-                print('beta2 = ', beta[1], '\n')
+                print('beta2 = ', beta_values[1], '\n')
 
         if npl == 3:
             m_pl1 = np.array(
-                [(freq_array[i_f] / f_min)**-beta[0]
+                [(freq_array[i_f] / f_min)**-float(beta_values[0])
                  for i_f in range(len(freq_array))]
                 )
             basis_vectors[0] = m_pl1
             if verbose:
                 print('\nLinear LW mode replaced with power-law model')
-                print('beta1 = ', beta[0], '\n')
+                print('beta1 = ', beta_values[0], '\n')
             m_pl2 = np.array(
-                [(freq_array[i_f] / f_min)**-beta[1]
+                [(freq_array[i_f] / f_min)**-float(beta_values[1])
                  for i_f in range(len(freq_array))]
                 )
-            # Potential bug if passing len(beta) == 3
-            # Should this call beta[2] instead of beta[1]?
             basis_vectors[1] = m_pl2
             if verbose:
                 print('\nQuadratic LW mode replaced with power-law model')
-                print('beta2 = ', beta[1], '\n')
+                print('beta2 = ', beta_values[1], '\n')
             m_pl3 = np.array(
-                [(freq_array[i_f] / f_min)**-beta[1]
+                [(freq_array[i_f] / f_min)**-float(beta_values[2])
                  for i_f in range(len(freq_array))]
                 )
             basis_vectors[2] = m_pl3
@@ -536,7 +550,7 @@ def build_lssm_basis_vectors(
                 print('\nCubic LW mode replaced with power-law model')
                 print('f_min = ', f_min)
                 print('df = ', df)
-                print('beta3 = ', beta[2], '\n')
+                print('beta3 = ', beta_values[2], '\n')
 
     if nq == 4:
         basis_vectors[0] = np.arange(nf)
@@ -592,8 +606,13 @@ def idft_matrix_1d(
     idft_array = np.exp(-2.0*np.pi*1j*(i_eta*i_f / nf))
 
     if nq > 0:
+        lssm_npl = 0 if npl is None else npl
+        lssm_f_min = 159.0 if f_min is None else f_min
+        lssm_df = 0.2 if df is None else df
+        lssm_beta = 2.63 if beta is None else beta
         lssm_basis_vectors = build_lssm_basis_vectors(
-            nf, nq=nq, npl=npl, f_min=f_min, df=df, beta=beta
+            nf, nq=nq, npl=lssm_npl, f_min=lssm_f_min, df=lssm_df,
+            beta=lssm_beta
         )
         idft_array = np.hstack(
             (idft_array, lssm_basis_vectors)
@@ -653,11 +672,15 @@ def idft_array_idft_1d_sh(
     idft_array_sh /= nf
 
     if nq_sh > 0:
+        lssm_f_min = 159.0 if f_min is None else f_min
+        lssm_df = 0.2 if df is None else df
+        lssm_beta = 2.63 if beta is None else beta
         # Construct large spectral scale model (LSSM) for the SHG modes
         lssm_sh = build_lssm_basis_vectors(
-            nf, nq=nq_sh, npl=npl_sh, f_min=f_min, df=df, beta=beta
+            nf, nq=nq_sh, npl=npl_sh, f_min=lssm_f_min, df=lssm_df,
+            beta=lssm_beta
         )
-        idft_array_sh = np.hstack([idft_array_sh, lssm_sh.T])
+        idft_array_sh = np.hstack([idft_array_sh, lssm_sh])
 
     return idft_array_sh
 

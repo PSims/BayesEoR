@@ -343,10 +343,13 @@ def test_build_nuidft_array_sh_uses_eor_normalization(
     bm.nv = 2
     bm.nu_sh = 1
     bm.nv_sh = 1
+    bm.du_eor = 3.0
+    bm.dv_eor = 4.0
     bm.Fprime_normalization_eor = 0.5
     bm.use_sparse_matrices = False
     bm.load_prerequisites = lambda matrix_name: {}
     captured: dict[str, Any] = {}
+    called: dict[str, Any] = {}
 
     def fake_output_data(matrix: np.ndarray[Any, Any], name: str) -> None:
         captured["matrix"] = matrix
@@ -355,12 +358,15 @@ def test_build_nuidft_array_sh_uses_eor_normalization(
     setattr(bm, "output_data", fake_output_data)
 
     def fake_idft_array(*args: Any, **kwargs: Any) -> np.ndarray[Any, Any]:
+        called["kwargs"] = kwargs
         return np.full((2, 1), 4.0, dtype=float)
 
     monkeypatch.setattr(build_module, "IDFT_Array_IDFT_2D_ZM_SH", fake_idft_array)
 
     build_module.BuildMatrices.build_nuidft_array_sh(bm)
 
+    assert called["kwargs"]["delta_u_irad"] == 3.0
+    assert called["kwargs"]["delta_v_irad"] == 4.0
     assert captured["name"] == "nuidft_array_sh"
     expected_block = np.full((2, 1), 0.5, dtype=float)
     expected = np.block(

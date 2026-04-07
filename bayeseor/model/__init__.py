@@ -1,4 +1,17 @@
 from importlib import import_module
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .healpix import Healpix
+    from .instrument import load_inst_model
+    from .k_cube import (
+        calc_mean_binned_k_vals,
+        generate_k_cube_in_physical_coordinates,
+        generate_k_cube_model_cylindrical_binning,
+        generate_k_cube_model_spherical_binning,
+        mask_k_cube,
+    )
+    from .noise import generate_gaussian_noise
 
 __all__ = [
     "Healpix",
