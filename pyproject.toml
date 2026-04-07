@@ -10,8 +10,7 @@ readme = "README.md"
 classifiers = [
     "Programming Language :: Python :: 3",
 ]
-# requires-python = ">= 3.10"
-requires-python = ">=3.13,<3.14"
+requires-python = ">=3.10,<3.13"
 
 dependencies = [
     "astropy",
@@ -36,6 +35,7 @@ test = [
     "pytest"
 ]
 dev = [
+    "pre-commit",
     "pytest",
     "ruff"
 ]
