@@ -346,7 +346,9 @@ def test_preprocess_uvdata_downselects_frequency_and_time(
 
     assert uvd is fake_uvd
     np.testing.assert_allclose(fake_uvd.freq_array, np.array([110e6, 120e6, 130e6]))
-    np.testing.assert_allclose(np.unique(fake_uvd.time_array), np.array([20.0, 30.0, 40.0]))
+    np.testing.assert_allclose(
+        np.unique(fake_uvd.time_array), np.array([20.0, 30.0, 40.0])
+    )
     assert len(antpairs) == 4
     assert uvws.shape == (3, 4, 3)
     assert redundancy.shape == (3, 4, 1)

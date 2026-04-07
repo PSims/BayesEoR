@@ -11,6 +11,7 @@ class Cosmology:
     calculations using `astropy.cosmology.Planck18`.
 
     """
+
     def __init__(self) -> None:
         self.cosmo: Any = Planck18
         self.Om0: float = float(cast(Any, self.cosmo).Om0)
@@ -125,5 +126,5 @@ class Cosmology:
             Volume conversion factor for sr Hz --> Mpc^3 at redshift `z`.
 
         """
-        i2cV = self.dL_dth(z)**2 * self.dL_df(z)
+        i2cV = self.dL_dth(z) ** 2 * self.dL_df(z)
         return i2cV

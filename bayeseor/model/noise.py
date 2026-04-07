@@ -12,7 +12,7 @@ def generate_gaussian_noise(
     uvw_array_meters: np.ndarray,
     bl_redundancy_array: np.ndarray,
     random_seed: int | Literal[""] = "",
-    rank: int = 0
+    rank: int = 0,
 ):
     """
     Generate and add Hermitian, Gaussian noise to noise-free visibilities.
@@ -60,13 +60,13 @@ def generate_gaussian_noise(
         if isinstance(random_seed, int) and random_seed != 0:
             mpiprint(f"Seeding numpy.random with {random_seed}", rank=rank)
             np.random.seed(random_seed)
-        real_noise = np.random.normal(0, sigma/2.**0.5, ndata)
+        real_noise = np.random.normal(0, sigma / 2.0**0.5, ndata)
 
         if isinstance(random_seed, int) and random_seed != 0:
-            np.random.seed(random_seed*123)
-        imag_noise = np.random.normal(0, sigma/2.**0.5, ndata)
-        complex_noise = real_noise + 1j*imag_noise
-        complex_noise = complex_noise * sigma/complex_noise.std()
+            np.random.seed(random_seed * 123)
+        imag_noise = np.random.normal(0, sigma / 2.0**0.5, ndata)
+        complex_noise = real_noise + 1j * imag_noise
+        complex_noise = complex_noise * sigma / complex_noise.std()
         complex_noise_hermitian = complex_noise.copy()
 
     """
@@ -83,8 +83,8 @@ def generate_gaussian_noise(
     # Only account for uv-redundancy for now so use
     # uvw_array_meters[:,:2] and exclude w-coordinate
     for i, uvw in enumerate(uvw_array_meters[:, :2]):
-        if tuple(uvw*-1) in bl_conjugate_pairs_dict.keys():
-            key = bl_conjugate_pairs_dict[tuple(uvw*-1)]
+        if tuple(uvw * -1) in bl_conjugate_pairs_dict.keys():
+            key = bl_conjugate_pairs_dict[tuple(uvw * -1)]
             bl_conjugate_pairs_dict[tuple(uvw)] = key
             bl_conjugate_pairs_map[key] = i
         else:
@@ -97,10 +97,12 @@ def generate_gaussian_noise(
             start_ind = time_ind + freq_ind
             for bl_ind in bl_conjugate_pairs_map.keys():
                 conj_bl_ind = bl_conjugate_pairs_map[bl_ind]
-                complex_noise_hermitian[start_ind+conj_bl_ind] =\
-                    complex_noise_hermitian[start_ind+bl_ind].conjugate()
-            complex_noise_hermitian[start_ind:start_ind+nbls] /=\
-                bl_redundancy_array[:, 0]**0.5
+                complex_noise_hermitian[start_ind + conj_bl_ind] = (
+                    complex_noise_hermitian[start_ind + bl_ind].conjugate()
+                )
+            complex_noise_hermitian[start_ind : start_ind + nbls] /= (
+                bl_redundancy_array[:, 0] ** 0.5
+            )
 
         d = s + complex_noise_hermitian.flatten()
 

@@ -91,7 +91,7 @@ python scripts/run-analysis.py --config /path/to/config.yaml
 
 # Citation
 
-Users of the code are requested to cite the BayesEoR papers: 
+Users of the code are requested to cite the BayesEoR papers:
 
 - [Sims et al. 2016](https://ui.adsabs.harvard.edu/abs/2016MNRAS.462.3069S/abstract)
 - [Sims et al. 2019a](https://ui.adsabs.harvard.edu/abs/2019MNRAS.484.4152S/abstract)

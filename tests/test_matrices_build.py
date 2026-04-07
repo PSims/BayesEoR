@@ -106,7 +106,9 @@ def test_build_matrices_constructor_registers_optional_matrix_helpers(
     assert "taper_matrix" in bm.matrix_prereqs["Finv"]
 
 
-def test_build_matrices_constructor_without_instrumental_effects_skips_healpix() -> None:
+def test_build_matrices_constructor_without_instrumental_effects_skips_healpix() -> (
+    None
+):
     bm = build_module.BuildMatrices(
         **_base_build_kwargs(),
         include_instrumental_effects=False,
@@ -409,7 +411,9 @@ def test_build_idft_array_1d_sh_uses_funcs_signature(
         called["kwargs"] = kwargs
         return np.full((3, 2), 2.0, dtype=float)
 
-    monkeypatch.setattr(build_module, "idft_array_idft_1d_sh", fake_idft_array_idft_1d_sh)
+    monkeypatch.setattr(
+        build_module, "idft_array_idft_1d_sh", fake_idft_array_idft_1d_sh
+    )
 
     build_module.BuildMatrices.build_idft_array_1d_sh(bm)
 
@@ -419,9 +423,21 @@ def test_build_idft_array_1d_sh_uses_funcs_signature(
     expected_block = np.full((3, 2), 2.0 * 0.5 * 2, dtype=float)
     expected = np.block(
         [
-            [expected_block, np.zeros_like(expected_block), np.zeros_like(expected_block)],
-            [np.zeros_like(expected_block), expected_block, np.zeros_like(expected_block)],
-            [np.zeros_like(expected_block), np.zeros_like(expected_block), expected_block],
+            [
+                expected_block,
+                np.zeros_like(expected_block),
+                np.zeros_like(expected_block),
+            ],
+            [
+                np.zeros_like(expected_block),
+                expected_block,
+                np.zeros_like(expected_block),
+            ],
+            [
+                np.zeros_like(expected_block),
+                np.zeros_like(expected_block),
+                expected_block,
+            ],
         ]
     )
     np.testing.assert_allclose(captured["matrix"], expected)
@@ -451,7 +467,9 @@ def test_build_idft_array_1d_fg_handles_monopole_block(
 
     setattr(bm, "output_data", fake_output_data)
 
-    def fake_build_lssm_basis_vectors(*args: Any, **kwargs: Any) -> np.ndarray[Any, Any]:
+    def fake_build_lssm_basis_vectors(
+        *args: Any, **kwargs: Any
+    ) -> np.ndarray[Any, Any]:
         return np.array([[1.0], [2.0], [3.0]], dtype=complex)
 
     def fake_idft_matrix_1d(*args: Any, **kwargs: Any) -> np.ndarray[Any, Any]:
@@ -460,7 +478,9 @@ def test_build_idft_array_1d_fg_handles_monopole_block(
             dtype=complex,
         )
 
-    monkeypatch.setattr(build_module, "build_lssm_basis_vectors", fake_build_lssm_basis_vectors)
+    monkeypatch.setattr(
+        build_module, "build_lssm_basis_vectors", fake_build_lssm_basis_vectors
+    )
     monkeypatch.setattr(build_module, "idft_matrix_1d", fake_idft_matrix_1d)
 
     build_module.BuildMatrices.build_idft_array_1d_fg(bm)

@@ -4,7 +4,9 @@ import pytest
 from bayeseor.posterior import PowerSpectrumPosteriorProbability, PriorC
 
 
-def _build_minimal_pspp(*, dimensionless_PS: bool = True) -> PowerSpectrumPosteriorProbability:
+def _build_minimal_pspp(
+    *, dimensionless_PS: bool = True
+) -> PowerSpectrumPosteriorProbability:
     return PowerSpectrumPosteriorProbability(
         T_Ninv_T=np.eye(2, dtype=complex),
         dbar=np.zeros(2, dtype=complex),

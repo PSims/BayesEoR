@@ -118,9 +118,7 @@ def write_log_files(parser, args, out_dir=Path("./"), verbose=False):
         print(f"Log files written successfully to {out_dir.absolute()}\n")
 
 
-def save_numpy_dict(
-    fp, arr, args, version=__version__, extra=None, clobber=False
-):
+def save_numpy_dict(fp, arr, args, version=__version__, extra=None, clobber=False):
     """
     Save array to disk with metadata as dictionary.
 
@@ -358,9 +356,9 @@ class ShortTempPathManager:
         try:
             resolved = path.resolve()
             tmp_resolved = self.tmp_dir.resolve()
-            return str(resolved) == str(tmp_resolved) or str(
-                resolved
-            ).startswith(str(tmp_resolved) + os.sep)
+            return str(resolved) == str(tmp_resolved) or str(resolved).startswith(
+                str(tmp_resolved) + os.sep
+            )
         except Exception:
             return False
 
@@ -478,9 +476,7 @@ class MultiNestPathManager:
     ```
     """
 
-    def __init__(
-        self, out_dir: Path, rank: int, mpi_comm: Optional[MPIComm] = None
-    ):
+    def __init__(self, out_dir: Path, rank: int, mpi_comm: Optional[MPIComm] = None):
         """
         Initializes the MultiNestPathManager.
 
@@ -499,9 +495,7 @@ class MultiNestPathManager:
         # Step 1.
         self.long_out_dir = out_dir
         # Step 2a.
-        self.short_path_manager = ShortTempPathManager(
-            out_dir, mpi_comm=mpi_comm
-        )
+        self.short_path_manager = ShortTempPathManager(out_dir, mpi_comm=mpi_comm)
         # Step 2b.
         self.short_out_dir = self.short_path_manager.short_out_dir
 
