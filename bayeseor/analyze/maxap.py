@@ -1,17 +1,21 @@
 """ Class and functions for performing maximum a posteriori calculations. """
 import numpy as np
 from numpy.typing import ArrayLike
+from typing import Literal, cast, overload
 from astropy import units
 from astropy.time import Time
 from pathlib import Path
 from pprint import pprint
-import matplotlib.pyplot as plt
 
 from rich.panel import Panel
 
 from ..params import BayesEoRParser
 from ..setup import run_setup
 from ..utils import mpiprint
+
+FloatArray = np.ndarray[tuple[int], np.dtype[np.float64]]
+ComplexArray = np.ndarray[tuple[int], np.dtype[np.complex128]]
+
 
 class MaximumAPosteriori(object):
     """
@@ -88,7 +92,7 @@ class MaximumAPosteriori(object):
             )
             if array_dirs_differ:
                 mpiprint(
-                    f"\nReplacing array_dir:",
+                    "\nReplacing array_dir:",
                     style="bold",
                     end="\n\n",
                     rank=print_rank
@@ -137,6 +141,22 @@ class MaximumAPosteriori(object):
         if "antpairs" in vis_dict:
             self.antpairs = vis_dict["antpairs"]
     
+    @overload
+    def map_estimate(
+        self,
+        ps: float | ArrayLike | None = None,
+        dmps: float | ArrayLike | None = None,
+        return_prior_cov: Literal[False] = False,
+    ) -> tuple[FloatArray, ComplexArray, float]: ...
+
+    @overload
+    def map_estimate(
+        self,
+        ps: float | ArrayLike | None = None,
+        dmps: float | ArrayLike | None = None,
+        return_prior_cov: Literal[True] = True,
+    ) -> tuple[FloatArray, ComplexArray, float, FloatArray]: ...
+
     def map_estimate(
         self,
         ps : float | ArrayLike | None = None,
@@ -183,11 +203,11 @@ class MaximumAPosteriori(object):
         """
         if ps is None and dmps is None:
             raise ValueError("One of 'ps' or 'dmps' must not be None")
-        dmps = self.calculate_dmps(ps=ps, dmps=dmps)
+        dmps_array = self.calculate_dmps(ps=ps, dmps=dmps)
 
         map_coeffs, dbar_SigmaI_dbar, prior_cov, log_det_Sigma = \
             self.pspp.calc_SigmaI_dbar_wrapper(
-                dmps,
+                dmps_array,
                 self.pspp.T_Ninv_T,
                 self.pspp.dbar
             )
@@ -200,7 +220,7 @@ class MaximumAPosteriori(object):
             + 0.5*dbar_SigmaI_dbar
         )
         if self.pspp.uprior_inds is not None:
-            log_post += np.sum(np.log(dmps[self.pspp.uprior_inds]))
+            log_post += np.sum(np.log(dmps_array[self.pspp.uprior_inds]))
         log_post = log_post.real
 
         if not return_prior_cov:
@@ -212,7 +232,7 @@ class MaximumAPosteriori(object):
         self,
         ps : float | ArrayLike | None = None,
         dmps : float | ArrayLike | None = None
-    ):
+    ) -> FloatArray:
         r"""
         Calculate the prior covariance matrix :math:`\Phi^{-1}`.
 
@@ -236,16 +256,16 @@ class MaximumAPosteriori(object):
         """
         if ps is None and dmps is None:
             raise ValueError("One of 'ps' or 'dmps' must not be None")
-        dmps = self.calculate_dmps(ps=ps, dmps=dmps)
-        PhiI = self.pspp.calc_PowerI(dmps)
+        dmps_array = self.calculate_dmps(ps=ps, dmps=dmps)
+        PhiI = self.pspp.calc_PowerI(dmps_array)
 
-        return PhiI
+        return np.asarray(PhiI, dtype=float)
     
     def calculate_dmps(
         self,
         ps : float | ArrayLike | None = None,
         dmps : float | ArrayLike | None = None
-    ):
+    ) -> FloatArray:
         r"""
         Calculated the expected dimensionless power spectrum.
 
@@ -273,27 +293,38 @@ class MaximumAPosteriori(object):
 
         if ps is not None:
             if hasattr(ps, "__iter__"):
-                ps = np.array(ps)
-                assert ps.size == self.k_vals.size, (
-                    f"'ps' has a size {ps.size} which is not "
+                ps_array = np.asarray(ps, dtype=float)
+                assert ps_array.size == self.k_vals.size, (
+                    f"'ps' has a size {ps_array.size} which is not "
                     f"equal to the number of k bins, {self.k_vals.size}"
                 )
             else:
                 # Flat P(k)
-                ps *= np.ones_like(self.k_vals)
-            dmps = self.k_vals**3 / (2 * np.pi**2) * ps
-        if dmps is not None:
-            if hasattr(dmps, "__iter__"):
-                dmps = np.array(dmps)
-                assert dmps.size == self.k_vals.size, (
-                    f"'dmps' has a size {dmps.size} which is "
-                    f"not equal to the number of k bins, {self.k_vals.size}"
+                ps_array = float(cast(float, ps)) * np.ones_like(
+                    self.k_vals,
+                    dtype=float,
                 )
-            else:
-                # Flat \Delta^2(k)
-                dmps *= np.ones_like(self.k_vals)
+            dmps_array = np.asarray(
+                self.k_vals**3 / (2 * np.pi**2) * ps_array,
+                dtype=float,
+            )
+            return dmps_array
 
-        return dmps
+        assert dmps is not None
+        if hasattr(dmps, "__iter__"):
+            dmps_array = np.asarray(dmps, dtype=float)
+            assert dmps_array.size == self.k_vals.size, (
+                f"'dmps' has a size {dmps_array.size} which is "
+                f"not equal to the number of k bins, {self.k_vals.size}"
+            )
+        else:
+            # Flat \Delta^2(k)
+            dmps_array = float(cast(float, dmps)) * np.ones_like(
+                self.k_vals,
+                dtype=float,
+            )
+
+        return dmps_array
 
     def extract_bl_vis(self, vis_vec : np.ndarray):
         """

@@ -3,9 +3,25 @@ import numpy as np
 import scipy as sp
 from pathlib import Path
 import json
+from typing import TypeAlias, cast
 from jsonargparse import Namespace
 from collections.abc import Iterable
 import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
+from numpy.typing import NDArray
+
+PosteriorIntervalBounds: TypeAlias = dict[str, NDArray[np.float64]]
+PosteriorCredibleIntervals: TypeAlias = dict[float, PosteriorIntervalBounds]
+PosteriorDataReturn: TypeAlias = tuple[
+    NDArray[np.float64],
+    NDArray[np.float64],
+    NDArray[np.float64],
+    NDArray[np.float64],
+    PosteriorCredibleIntervals,
+    NDArray[np.float64] | None,
+    NDArray[np.float64] | None,
+    NDArray[np.float64] | None,
+]
 
 
 class DataContainer(object):
@@ -191,10 +207,13 @@ class DataContainer(object):
             self.medians.append(out[3])
             self.cred_intervals.append(out[4])
             if self.calc_uplims:
+                assert out[5] is not None
                 self.uplims.append(out[5])
             if self.calc_kurtosis:
+                assert out[6] is not None
                 self.kurtoses.append(out[6])
             if store_samples:
+                assert out[7] is not None
                 self.samples.append(out[7][:, 2:])
                 self.log_joint_posteriors.append(out[7][:, 0])
         
@@ -211,6 +230,14 @@ class DataContainer(object):
             self.calculate_expected_ps(
                 expected_ps=expected_ps, expected_dmps=expected_dmps
             )
+
+    @staticmethod
+    def _normalize_axes(axs: Axes | NDArray[np.object_] | Iterable[Axes]) -> list[Axes]:
+        if isinstance(axs, np.ndarray):
+            return [cast(Axes, ax) for ax in axs.flat]
+        if isinstance(axs, Iterable) and not isinstance(axs, Axes):
+            return [cast(Axes, ax) for ax in axs]
+        return [axs]
     
     def get_posterior_data(
         self,
@@ -223,7 +250,7 @@ class DataContainer(object):
         density=False,
         log_priors=True,
         return_samples=False
-    ):
+    ) -> PosteriorDataReturn:
         """
         Load sampler output and form posteriors for each k bin.
 
@@ -300,30 +327,46 @@ class DataContainer(object):
                 weights = data[:, 0]
             else:
                 weights = None
-            avgs = np.average(data[:, 2:], axis=0, weights=weights)
-            medians = self._weighted_quantiles(
-                data[:, 2:], 0.5, weights=weights
+            avgs = np.asarray(
+                np.average(data[:, 2:], axis=0, weights=weights),
+                dtype=float,
             )
-            ci_dict = {}
+            medians = np.asarray(
+                self._weighted_quantiles(data[:, 2:], 0.5, weights=weights),
+                dtype=float,
+            )
+            ci_dict: PosteriorCredibleIntervals = {}
             for ci in cred_intervals:
                 quantile = (ci/2 + 50) / 100
-                lobounds = self._weighted_quantiles(
-                    data[:, 2:], 1 - quantile, weights=weights
+                lobounds = np.asarray(
+                    self._weighted_quantiles(
+                        data[:, 2:], 1 - quantile, weights=weights
+                    ),
+                    dtype=float,
                 )
-                hibounds = self._weighted_quantiles(
-                    data[:, 2:], quantile, weights=weights
+                hibounds = np.asarray(
+                    self._weighted_quantiles(
+                        data[:, 2:], quantile, weights=weights
+                    ),
+                    dtype=float,
                 )
                 ci_dict[ci] = {'lo': lobounds, 'hi': hibounds}
+            uplims: NDArray[np.float64] | None = None
             if self.calc_uplims:
-                uplims = self._weighted_quantiles(
-                    data[:, 2:],
-                    uplim_quantile,
-                    weights=weights
+                uplims = np.asarray(
+                    self._weighted_quantiles(
+                        data[:, 2:],
+                        uplim_quantile,
+                        weights=weights
+                    ),
+                    dtype=float,
                 )
 
             posteriors = np.zeros((Nkbins, Nhistbins), dtype=float)
             bins = np.zeros((Nkbins, Nhistbins + 1), dtype=float)
-            kurtoses = np.zeros(Nkbins, dtype=float)
+            kurtoses: NDArray[np.float64] | None = None
+            if self.calc_kurtosis:
+                kurtoses = np.zeros(Nkbins, dtype=float)
             for i_k in range(data[0, 2:].size):
                 bins_min = data[:, 2 + i_k].min()
                 bins_max = data[:, 2 + i_k].max()
@@ -337,26 +380,24 @@ class DataContainer(object):
                     density=density,
                     weights=weights
                 )
-                if self.calc_kurtosis:
+                if self.calc_kurtosis and kurtoses is not None:
                     kurtoses[i_k] = sp.stats.kurtosis(posteriors[i_k])
         else:
-            print("'multinest' is currently the only supported sampler.")
-            return
+            raise NotImplementedError(
+                "'multinest' is currently the only supported sampler."
+            )
         
-        return_vals = (posteriors, bins, avgs, medians, ci_dict)
-        if self.calc_uplims:
-            return_vals += (uplims,)
-        else:
-            return_vals += (None,)
-        if self.calc_kurtosis:
-            return_vals += (kurtoses,)
-        else:
-            return_vals += (None,)
-        if return_samples:
-            return_vals += (data,)
-        else:
-            return_vals += (None,)
-        return return_vals
+        samples = data if return_samples else None
+        return (
+            posteriors,
+            bins,
+            avgs,
+            medians,
+            ci_dict,
+            uplims,
+            kurtoses,
+            samples,
+        )
 
     def calculate_expected_ps(self, expected_ps=None, expected_dmps=None):
         """
@@ -615,10 +656,12 @@ class DataContainer(object):
                         np.zeros(self.k_vals[i_dir].shape, dtype=bool)
                     )
 
-        external_call = np.all([x is not None for x in [fig, axs]])
+        external_call = fig is not None and axs is not None
         if external_call:
             # Being used by `self.plot_power_spectra_and_posteriors`
-            subplots = len(axs) > 1
+            assert axs is not None
+            axs_list = self._normalize_axes(axs)
+            subplots = len(axs_list) > 1
         else:
             subplots = plot_diff or plot_fracdiff and self.has_expected
             if subplots:
@@ -637,6 +680,8 @@ class DataContainer(object):
                 figsize = (fig_width, fig_height)
                 fig, ax = plt.subplots(figsize=figsize)
                 axs = [ax]
+            axs_list = self._normalize_axes(axs)
+        assert fig is not None
         
         if cmap is not None:
             colors = cmap(np.linspace(0, 1, self.Ndirs))
@@ -646,17 +691,23 @@ class DataContainer(object):
         if self.Ndirs > 1 and x_offset == 0 and zorder_offset == 0:
             zorder_offset = 1
 
-        ax = axs[0]
+        ax = axs_list[0]
         ax.set_yscale("log")
         if subplots:
-            ax_diff = axs[1]
+            ax_diff = axs_list[1]
         if self.has_expected:
             if self.ps_kind == "ps":
                 expected = self.expected_ps
             else:
                 expected = self.expected_dmps
+            assert expected is not None
             plot_expected = True
             i_exp = 0
+        assert uplim_inds is not None
+        diff_uplim_yerr = (
+            np.abs(np.asarray(ylim_diff if ylim_diff is not None else [-1, 1])).max()
+            / 2
+        )
 
         for i_dir in range(self.Ndirs):
             if self.has_expected:
@@ -732,7 +783,7 @@ class DataContainer(object):
                                 self.uplims[i_dir][upl_inds]
                                 - expected[i_exp][upl_inds]
                             )
-                            diff_err[1, upl_inds] = np.abs(ylim_diff).max() / 2
+                            diff_err[1, upl_inds] = diff_uplim_yerr
                     else:
                         diff = self.medians[i_dir] / expected[i_exp] - 1
                         diff_err = yerr / expected[i_exp]
@@ -742,7 +793,7 @@ class DataContainer(object):
                                 / expected[i_exp][upl_inds]
                             )
                             diff[upl_inds] -= 1
-                            diff_err[1, upl_inds] = np.abs(ylim_diff).max() / 2
+                            diff_err[1, upl_inds] = diff_uplim_yerr
 
                     ax_diff.errorbar(
                         xs[upl_inds],
@@ -815,7 +866,7 @@ class DataContainer(object):
         if subplots and ylim_diff is not None:
             ax_diff.set_ylim(ylim_diff)
         
-        for ax_i in axs:
+        for ax_i in axs_list:
             ax_i.grid()
             ax_i.set_xscale("log")
         
@@ -844,7 +895,7 @@ class DataContainer(object):
         
             return fig
         else:
-            return axs
+            return axs_list
 
     def plot_posteriors(
         self,
@@ -913,7 +964,7 @@ class DataContainer(object):
             `self.plot_power_spectra_and_posteriors`.
 
         """
-        external_call = np.all([x is not None for x in [fig, axs]])
+        external_call = fig is not None and axs is not None
         if not external_call:
             # Not being used by `self.plot_power_spectra_and_posteriors`
             # This plot is only useful for comparing power spectrum analyses
@@ -927,6 +978,9 @@ class DataContainer(object):
                 Nkbins, 1, figsize=figsize, sharex=True,
                 gridspec_kw=gridspec_kw
             )
+        assert fig is not None
+        assert axs is not None
+        axs_list = self._normalize_axes(axs)
 
         if cmap is not None:
             colors = cmap(np.linspace(0, 1, self.Ndirs))
@@ -938,9 +992,10 @@ class DataContainer(object):
                 expected = self.expected_ps
             else:
                 expected = self.expected_dmps
+            assert expected is not None
 
         for i_dir in range(self.Ndirs):
-            for i_k, ax in enumerate(axs):
+            for i_k, ax in enumerate(axs_list):
                 ax.stairs(
                     self.posteriors[i_dir][i_k],
                     self.posterior_bins[i_dir][i_k],
@@ -973,7 +1028,7 @@ class DataContainer(object):
                         )
                     ax.set_xscale("log")
                     if log_y:
-                        ax.set_ylim([ymin, ax.get_ylim()[1]])
+                        ax.set_ylim((ymin, ax.get_ylim()[1]))
                         ax.set_yscale("log")
                 if plot_priors:
                     prior_lo = self.args[i_dir].priors[i_k][0]
@@ -988,7 +1043,7 @@ class DataContainer(object):
                         alpha=0.3,
                         zorder=0
                     )
-        ax.set_xlabel(fr"{self.ps_label} [{self.ps_units}]")
+        axs_list[-1].set_xlabel(fr"{self.ps_label} [{self.ps_units}]")
 
         if not external_call:
             ylabel = "Power Spectrum Coefficient Posterior Distributions"
@@ -999,7 +1054,7 @@ class DataContainer(object):
                 fig.suptitle(suptitle)
             return fig
         else:
-            return axs
+            return axs_list
 
     def plot_power_spectra_and_posteriors(
         self,
@@ -1160,8 +1215,8 @@ class DataContainer(object):
             Figure suptitle string.  Defaults to None.
 
         """
-        subplots_ps = np.any([plot_diff, plot_fracdiff])
-        Nplots_ps = 1 + subplots_ps
+        subplots_ps = bool(np.any([plot_diff, plot_fracdiff]))
+        Nplots_ps = 1 + int(subplots_ps)
         Nkbins = self.k_vals[0].size
         plots_height_ps = (
             plot_height_ps

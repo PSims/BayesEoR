@@ -2,10 +2,12 @@ import numpy as np
 from astropy import units
 from astropy.units import Quantity
 from astropy.time import Time
+from numpy.typing import NDArray
 from pathlib import Path
 from pyuvdata import __version__ as pyuvdata_version
 from pyuvdata import UVData
 from pyuvdata.utils import polstr2num
+from typing import Any, cast
 import warnings
 
 from .model.healpix import Healpix
@@ -30,7 +32,7 @@ def preprocess_uvdata(
     redundant_avg=False,
     uniform_redundancy=False,
     phase=False,
-    phase_time=False,
+    phase_time: Time | float | None = None,
     calc_noise=False,
     return_uvd=False,
     save_vis=False,
@@ -203,17 +205,19 @@ def preprocess_uvdata(
     mpiprint(f"\nReading data from: {fp}", rank=rank)
     uvd.read(fp, read_data=False)
     uvd.select(ant_str=ant_str)
+    uvd_vis_units = cast(str, getattr(uvd, "vis_units"))
+    freq_array = np.asarray(uvd.freq_array, dtype=float)
 
-    if uvd.vis_units not in ["Jy", "K str"]:
+    if uvd_vis_units not in ["Jy", "K str"]:
         raise ValueError(
             "This code requires calibrated input visibilities in units of "
             "Janskys or kelvin steradians. The input UVData object has "
-            f"incompatible units of {uvd.vis_units}."
+            f"incompatible units of {uvd_vis_units}."
         )
 
     # Check if the frequency array has the Nspws axis for
     # backwards compatibility with old versions of pyuvdata
-    trim_nspws_ax = len(uvd.freq_array.shape) > 1
+    trim_nspws_ax = freq_array.ndim > 1
 
     if bl_cutoff is not None:
         if not isinstance(bl_cutoff, Quantity):
@@ -222,9 +226,10 @@ def preprocess_uvdata(
             f"\nBaseline downselect: keeping |b| <= {bl_cutoff} m",
             rank=print_rank
         )
+        uvw_array = np.asarray(uvd.uvw_array, dtype=float)
         bl_lengths = Quantity(
-            np.sqrt(np.sum(uvd.uvw_array[:, :2]**2, axis=1)),
-            unit="m"
+            np.sqrt(np.sum(uvw_array[:, :2] ** 2, axis=1)),
+            unit="m",
         )
         blt_inds = np.where(bl_lengths <= bl_cutoff)[0]
         mpiprint(f"\tBaselines before length select: {uvd.Nbls}", rank=print_rank)
@@ -234,34 +239,32 @@ def preprocess_uvdata(
     
     # Frequency downselect
     if np.any([param is not None for param in [freq_min, freq_idx_min, freq_center]]):
-        freqs = Quantity(uvd.freq_array, unit="Hz")
-        if trim_nspws_ax:
-            freqs = freqs[0]
+        freqs_hz = np.asarray(freq_array[0] if trim_nspws_ax else freq_array, dtype=float)
         if freq_center is not None:
             if Nfreqs is None:
                 raise ValueError("Must pass Nfreqs with freq_center")
             if not isinstance(freq_center, Quantity):
                 freq_center = Quantity(freq_center, unit="Hz")
-            if freq_center.to("Hz") < freqs[0].to("Hz"):
+            freq_center = cast(Quantity, freq_center)
+            freq_center_hz = float(cast(Any, freq_center).to_value("Hz"))
+            if freq_center_hz < float(freqs_hz[0]):
                 raise ValueError(
                     f"freq_center ({freq_center.to('MHz')}) < minimum frequency "
-                    f"in data ({freqs[0].to('MHz')})"
+                    f"in data ({Quantity(freqs_hz[0], 'Hz').to('MHz')})"
                 )
-            if freq_center.to("Hz") > freqs[-1].to("Hz"):
+            if freq_center_hz > float(freqs_hz[-1]):
                 raise ValueError(
                     f"freq_center ({freq_center.to('MHz')}) > maximum frequency "
-                    f"in data ({freqs[-1].to('MHz')})"
+                    f"in data ({Quantity(freqs_hz[-1], 'Hz').to('MHz')})"
                 )
-            freq_idx_center = np.argmin(
-                np.abs(freqs.to("Hz") - freq_center.to("Hz"))
-            )
+            freq_idx_center = int(np.argmin(np.abs(freqs_hz - freq_center_hz)))
             if freq_idx_center - (Nfreqs//2) < 0:
                 raise ValueError(
                     f"Invalid combination of freq_center ({freq_center}) "
                     f"and Nfreqs ({Nfreqs}).  There are fewer than Nfreqs//2 "
                     "frequencies less than or equal to freq_center."
                 )
-            if freq_idx_center + Nfreqs//2 > freqs.size:
+            if freq_idx_center + Nfreqs//2 > freqs_hz.size:
                 warnings.warn(
                     "There are less than Nfreqs//2 frequencies "
                     "greater than or equal to freq_center.  This combination "
@@ -275,87 +278,94 @@ def preprocess_uvdata(
                 rank=print_rank
             )
             freq_idx_min = freq_idx_center - (Nfreqs//2)
-            freq_min = freqs[freq_idx_min]
+            freq_min_hz = float(freqs_hz[freq_idx_min])
         elif freq_min is not None:
             if not isinstance(freq_min, Quantity):
                 freq_min = Quantity(freq_min, unit="Hz")
-            if freq_min.to("Hz") < freqs[0].to("Hz"):
+            freq_min = cast(Quantity, freq_min)
+            freq_min_hz = float(cast(Any, freq_min).to_value("Hz"))
+            if freq_min_hz < float(freqs_hz[0]):
                 warnings.warn(
                     f"freq_min ({freq_min.to('MHz')}) < minimum frequency "
-                    f"in data ({freqs[0].to('MHz')}).  All frequencies will "
+                    f"in data ({Quantity(freqs_hz[0], 'Hz').to('MHz')}).  All frequencies will "
                     "kept in the data vector if Nfreqs is not specified."
                 )
-            if freq_min.to("Hz") > freqs[-1].to("Hz"):
+            if freq_min_hz > float(freqs_hz[-1]):
                 raise ValueError(
                     f"freq_min ({freq_min.to('MHz')}) > maximum frequency "
-                    f"in data ({freqs[-1].to('MHz')})"
+                    f"in data ({Quantity(freqs_hz[-1], 'Hz').to('MHz')})"
                 )
-            freq_idx_min = np.where(freqs.to("Hz") >= freq_min.to("Hz"))[0][0]
+            freq_idx_min = int(np.where(freqs_hz >= freq_min_hz)[0][0])
         else:
+            assert freq_idx_min is not None
             if freq_idx_min < 0:
                 raise ValueError("freq_idx_min must be positive")
-            if freq_idx_min >= freqs.size:
+            if freq_idx_min >= freqs_hz.size:
                 raise ValueError(
                     "freq_idx_min cannot exceed the number of "
                     "frequencies in the data"
                 )
-            freq_min = freqs[freq_idx_min]
+            freq_min_hz = float(freqs_hz[freq_idx_min])
+        assert freq_idx_min is not None
         if Nfreqs is None:
-            Nfreqs = freqs.size - freq_idx_min
+            Nfreqs = int(freqs_hz.size - freq_idx_min)
         else:
             if Nfreqs <= 0:
                 raise ValueError("Nfreqs must be positive")
         if freq_center is None:
+            assert freq_min_hz is not None
             mpiprint(
                 f"\nFrequency downselect: keeping {Nfreqs} frequencies "
-                + f">= {freq_min.to('MHz'):.2f}",
+                + f">= {Quantity(freq_min_hz, 'Hz').to_value('MHz'):.2f} MHz",
                 rank=print_rank
             )
-        if Nfreqs > freqs[freq_idx_min : freq_idx_min+Nfreqs].size:
+        selected_freqs_hz = freqs_hz[freq_idx_min : freq_idx_min+Nfreqs]
+        if Nfreqs > selected_freqs_hz.size:
             warnings.warn(
                 "this combination of freq_min or freq_idx_min and "
                 "Nfreqs will result in fewer than Nfreqs frequencies being "
                 "kept in the data vector."
             )
-        freqs = freqs[freq_idx_min : freq_idx_min+Nfreqs]
+        freqs = np.asarray(selected_freqs_hz, dtype=float)
         mpiprint(f"\tNfreqs before frequency select: {uvd.Nfreqs}", rank=print_rank)
         mpiprint(f"\tNfreqs after frequency select:  {freqs.size}", rank=print_rank)
         mpiprint(
-            f"\tMinimum frequency in data vector: {freqs[0].to('MHz'):.2f}",
+            f"\tMinimum frequency in data vector: {Quantity(freqs[0], 'Hz').to_value('MHz'):.2f}",
             rank=print_rank
         )
         mpiprint(
             "\tCentral frequency in data vector: "
-            + f"{freqs[freqs.size//2].to('MHz'):.2f}",
+            + f"{Quantity(freqs[freqs.size//2], 'Hz').to_value('MHz'):.2f}",
             rank=print_rank
         )
         mpiprint(
-            f"\tMaximum frequency in data vector: {freqs[-1].to('MHz'):.2f}",
+            f"\tMaximum frequency in data vector: {Quantity(freqs[-1], 'Hz').to_value('MHz'):.2f}",
             rank=print_rank
         )
-        freqs = freqs.to("Hz").value
     else:
         freqs = None
     
     # Time downselect
     if np.any([param is not None for param in [jd_min, jd_idx_min, jd_center]]):
-        jds = Time(np.unique(uvd.time_array), format="jd")
+        jds = np.unique(np.asarray(uvd.time_array, dtype=float))
         if jd_center is not None:
             if Ntimes is None:
                 raise ValueError("Must pass Ntimes with jd_center")
             if not isinstance(jd_center, Time):
                 jd_center = Time(jd_center, format="jd")
-            if jd_center.jd < jds[0].jd:
+            jd_center = cast(Time, jd_center)
+            jd_center_value = float(cast(Any, jd_center).jd)
+            if jd_center_value < float(jds[0]):
                 raise ValueError(
                     f"jd_center ({jd_center.jd}) < minimum time "
-                    f"in data ({jds[0].jd})"
+                    f"in data ({jds[0]})"
                 )
-            if jd_center.jd > jds[-1].jd:
+            if jd_center_value > float(jds[-1]):
                 raise ValueError(
                     f"jd_center ({jd_center.jd}) > maximum time "
-                    f"in data ({jds[-1].jd})"
+                    f"in data ({jds[-1]})"
                 )
-            jd_idx_center = np.argmin(np.abs(jds.jd - jd_center.jd))
+            jd_idx_center = int(np.argmin(np.abs(jds - jd_center_value)))
             if jd_idx_center - (Ntimes//2) < 0:
                 raise ValueError(
                     f"Invalid combination of jd_center ({jd_center}) and "
@@ -376,54 +386,59 @@ def preprocess_uvdata(
                 rank=print_rank
             )
             jd_idx_min = jd_idx_center - (Ntimes//2)
-            jd_min = jds[jd_idx_min]
+            jd_min_value = float(jds[jd_idx_min])
         elif jd_min is not None:
             if not isinstance(jd_min, Time):
                 jd_min = Time(jd_min, format="jd")
-            if jd_min.jd < jds[0].jd:
+            jd_min = cast(Time, jd_min)
+            jd_min_value = float(cast(Any, jd_min).jd)
+            if jd_min_value < float(jds[0]):
                 warnings.warn(
-                    f"jd_min ({jd_min.jd}) < minimum time in data ({jds[0].jd}). "
+                    f"jd_min ({jd_min.jd}) < minimum time in data ({jds[0]}). "
                     "All times will be kept in the data vector if Ntimes is "
                     "not specified."
                 )
-            if jd_min.jd > jds[-1].jd:
+            if jd_min_value > float(jds[-1]):
                 raise ValueError(
-                    f"jd_min ({jd_min.jd}) > maximum time in data ({jds[-1].jd})"
+                    f"jd_min ({jd_min.jd}) > maximum time in data ({jds[-1]})"
                 )
-            jd_idx_min = np.where(jds.jd >= jd_min.jd)[0][0]
+            jd_idx_min = int(np.where(jds >= jd_min_value)[0][0])
         else:
+            assert jd_idx_min is not None
             if jd_idx_min < 0:
                 raise ValueError("jd_idx_min must be positive")
             if jd_idx_min >= jds.size:
                 raise ValueError(
                     "jd_idx_min cannot exceed the number of times in the data"
                 )
-            jd_min = jds[jd_idx_min]
+            jd_min_value = float(jds[jd_idx_min])
+        assert jd_idx_min is not None
         if Ntimes is None:
-            Ntimes = jds.size - jd_idx_min
+            Ntimes = int(jds.size - jd_idx_min)
         else:
             if Ntimes <= 0:
                 raise ValueError("Ntimes must be positive")
         if jd_center is None:
+            assert jd_min_value is not None
             mpiprint(
-                f"\nTime downselect: keeping {Ntimes} times >= {jd_center}",
+                f"\nTime downselect: keeping {Ntimes} times >= {jd_min_value}",
                 rank=print_rank
             )
-        if Ntimes > jds[jd_idx_min : jd_idx_min+Ntimes].size:
+        selected_jds = jds[jd_idx_min : jd_idx_min+Ntimes]
+        if Ntimes > selected_jds.size:
             warnings.warn(
                 "this combination of jd_min or jd_idx_min and Ntimes "
                 "will result in fewer than Ntimes times being kept in the "
                 "data vector."
             )
-        jds = jds[jd_idx_min : jd_idx_min+Ntimes]
+        jds = np.asarray(selected_jds, dtype=float)
         mpiprint(f"\tNtimes before time select: {uvd.Ntimes}", rank=print_rank)
         mpiprint(f"\tNtimes after time select:  {jds.size}", rank=print_rank)
-        mpiprint(f"\tMinimum time in data vector: {jds[0].jd}", rank=print_rank)
+        mpiprint(f"\tMinimum time in data vector: {jds[0]}", rank=print_rank)
         mpiprint(
-            f"\tCentral time in data vector: {jds[jds.size//2].jd}", rank=print_rank
+            f"\tCentral time in data vector: {jds[jds.size//2]}", rank=print_rank
         )
-        mpiprint(f"\tMaximum time in data vector: {jds[-1].jd}", rank=print_rank)
-        jds = jds.jd
+        mpiprint(f"\tMaximum time in data vector: {jds[-1]}", rank=print_rank)
     else:
         jds = None
 
@@ -455,13 +470,13 @@ def preprocess_uvdata(
         uvd = form_pI_vis(uvd, norm=pI_norm)
         pol = "pI"
     else:
-        if not polstr2num(pol) in uvd.polarization_array:
+        if polstr2num(pol) not in uvd.polarization_array:
             raise ValueError(
                 f"Polarization {pol} not present in uvd.polarization_array"
             )
         uvd.select(polarizations=[pol])
     
-    if uvd.vis_units == "K str":
+    if uvd_vis_units == "K str":
         uvd.data_array *= 1e3
     else:
         if trim_nspws_ax:
@@ -506,13 +521,15 @@ def preprocess_uvdata(
     # (u, v, w) coordinates instead of the phasor vector.
     uvws = np.zeros((uvd.Ntimes, Nbls_vec, 3), dtype=float)
     redundancy = np.ones((uvd.Ntimes, Nbls_vec, 1), dtype=float)
+    uvw_array = np.asarray(uvd.uvw_array, dtype=float)
     for i_bl, antpair in enumerate(antpairs):
         uvw_ind = uvd.antpair2ind(antpair)
         if isinstance(uvw_ind, slice):
-            uvw_ind = uvw_ind.start
+            assert uvw_ind.start is not None
+            uvw_index = int(uvw_ind.start)
         else:
-            uvw_ind = uvw_ind[0]
-        uvw = uvd.uvw_array[uvw_ind]
+            uvw_index = int(np.asarray(uvw_ind).reshape(-1)[0])
+        uvw = uvw_array[uvw_index]
         uvws[:, i_bl] = uvw
         uvws[:, Nbls+i_bl] = -1*uvw
         if redundant_avg and not uniform_redundancy:
@@ -561,7 +578,7 @@ def preprocess_uvdata(
         )
         extra = dict(pyuvdata_version=pyuvdata_version)
     if save_vis:
-        mpiprint(f"\nSaving data vector(s) to disk:", rank=print_rank)
+        mpiprint("\nSaving data vector(s) to disk:", rank=print_rank)
         mpiprint(f"\tVisibility vector: {vis_path}", rank=print_rank)
         save_numpy_dict(vis_path, vis, args, extra=extra, clobber=clobber)
         if calc_noise:
@@ -570,7 +587,7 @@ def preprocess_uvdata(
                 noise_path, noise, args, extra=extra, clobber=clobber
             )
     if save_model:
-        mpiprint(f"\nSaving instrument model to disk:", rank=print_rank)
+        mpiprint("\nSaving instrument model to disk:", rank=print_rank)
         mpiprint(f"\tAntpairs: {ants_path}", rank=print_rank)
         save_numpy_dict(
             ants_path, antpairs, args, extra=extra, clobber=clobber
@@ -599,11 +616,11 @@ def uvd_to_vector(
     antpairs,
     pol="xx",
     phase=False,
-    phase_time=False,
+    phase_time: Time | float | None = None,
     calc_noise=False,
     verbose=False,
     rank=0
-):
+) -> tuple[NDArray[np.complex128], NDArray[np.complex128] | None, NDArray[np.complex128] | None]:
     """
     Form a one-dimensional data vector from a pyuvdata.UVData object.
 
@@ -668,16 +685,21 @@ def uvd_to_vector(
         uvd_phasor.data_array = np.ones_like(uvd_phasor.data_array)
 
         jds = Time(np.unique(uvd.time_array), format="jd")
+        jd_min = jds[0]
+        jd_max = jds[-1]
+        assert isinstance(jd_min, Time)
+        assert isinstance(jd_max, Time)
         if phase_time is not None:
             if not isinstance(phase_time, Time):
                 phase_time = Time(phase_time, format="jd")
-            if phase_time.jd < jds[0].jd:
+            assert isinstance(phase_time, Time)
+            if phase_time.jd < jd_min.jd:
                 warnings.warn(
-                    f"phase_time ({phase_time}) < minimum time in data ({jds[0]})"
+                    f"phase_time ({phase_time}) < minimum time in data ({jd_min})"
                 )
-            if phase_time.jd > jds[-1].jd:
+            if phase_time.jd > jd_max.jd:
                 warnings.warn(
-                    f"phase_time ({phase_time}) > maximum time in data ({jds[-1]})"
+                    f"phase_time ({phase_time}) > maximum time in data ({jd_max})"
                 )
         else:
             warnings.warn(
@@ -685,11 +707,12 @@ def uvd_to_vector(
                 "the central time step."
             )
             phase_time = jds[jds.size//2]
+        assert isinstance(phase_time, Time)
         mpiprint(f"Phasing data to time {phase_time}", rank=print_rank)
         uvd_phasor.phase_to_time(phase_time)
 
     if calc_noise:
-        mpiprint(f"\nEstimating noise", rank=print_rank)
+        mpiprint("\nEstimating noise", rank=print_rank)
         uvd_noise = uvd.copy()
         for antpair in antpairs:
             vis = uvd_noise.get_data(antpair + (pol,), force_copy=True)
@@ -730,7 +753,7 @@ def uvd_to_vector(
     # at the 0th time.
     Nbls = uvd.Nbls
     Nbls_vec = 2*Nbls
-    mpiprint(f"\nForming data vector(s)", rank=print_rank)
+    mpiprint("\nForming data vector(s)", rank=print_rank)
     for i_bl, antpair in enumerate(antpairs):
         antpairpol = antpair + (pol,)
         vis = uvd.get_data(antpairpol)
@@ -745,16 +768,9 @@ def uvd_to_vector(
             noise_vec[i_bl :: Nbls_vec] = noise.flatten()
             noise_vec[Nbls+i_bl :: Nbls_vec] = noise.flatten().conj()
 
-    return_vals = (vis_vec,)
-    if phase:
-        return_vals += (phasor_vec,)
-    else:
-        return_vals += (None,)
-    if calc_noise:
-        return_vals += (noise_vec,)
-    else:
-        return_vals += (None,)
-    return return_vals
+    phasor_out = phasor_vec if phase else None
+    noise_out = noise_vec if calc_noise else None
+    return (vis_vec, phasor_out, noise_out)
 
 def form_pI_vis(uvd, norm=1.0):
     """
@@ -788,7 +804,11 @@ def form_pI_vis(uvd, norm=1.0):
 
     return uvd
 
-def jy_to_ksr(data, freqs, mK=False):
+def jy_to_ksr(
+    data: NDArray[np.complex128] | NDArray[np.float64],
+    freqs: Quantity | NDArray[np.float64],
+    mK: bool = False,
+) -> NDArray[np.complex128] | NDArray[np.float64]:
     """
     Convert visibilities from units of Janskys to kelvin steradians.
 
@@ -817,10 +837,17 @@ def jy_to_ksr(data, freqs, mK=False):
         temp_unit = units.mK
     else:
         temp_unit = units.K
-    conv_factor = (1*units.Jy).to(temp_unit, equivalencies=equiv)
-    conv_factor *= units.sr / units.Jy
+    conversion_unit = cast(Any, temp_unit * units.sr / units.Jy)
+    conv_factor = Quantity(
+        Quantity(1.0, unit=units.Jy).to_value(temp_unit, equivalencies=equiv),
+        unit=conversion_unit,
+    )
+    conv_factor_values: NDArray[np.float64] = np.asarray(
+        conv_factor.to_value(conversion_unit),
+        dtype=float,
+    )
 
-    return data * conv_factor[np.newaxis, :].value
+    return data * conv_factor_values[np.newaxis, :]
 
 def mock_data_from_eor_cube(
     nu,
@@ -870,6 +897,7 @@ def mock_data_from_eor_cube(
 
     """
     mpiprint("Using use_EoR_cube data", rank=rank)
+    assert eor_npz_path is not None, "eor_npz_path must not be None."
     eor_cube = np.load(eor_npz_path)["arr_0"]
 
     axes_tuple = (1, 2)
@@ -957,14 +985,14 @@ def generate_mock_eor_signal_instrumental(
     """
     mpiprint("Generating white noise sky signal...", rank=rank)
     hpx = Healpix(
-        fov_ra_deg=fov_ra_deg,
-        fov_dec_deg=fov_dec_deg,
+        fov_ra_eor=fov_ra_deg,
+        fov_dec_eor=fov_dec_deg,
         nside=nside,
         telescope_latlonalt=telescope_latlonalt,
-        central_jd=central_jd,
+        jd_center=central_jd,
         nt=nt,
-        int_time=int_time,
-        beam_type=beam_type
+        dt=int_time,
+        beam_type=beam_type,
     )
     # RMS scaled to hold the power spectrum amplitude constant
     wn_rms *= nside / 256

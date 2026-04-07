@@ -1,5 +1,5 @@
 import numpy as np
-from subprocess import os
+import os
 import shutil
 import time
 import h5py
@@ -7,7 +7,8 @@ from scipy.linalg import block_diag
 from scipy import sparse
 from scipy.signal import windows
 from pathlib import Path
-from astropy.constants import c
+from astropy import constants as const
+from typing import Any, cast
 
 from .funcs import (
     nuidft_matrix_2d, idft_matrix_1d,
@@ -32,8 +33,10 @@ DEGREES_PER_MIN = DEGREES_PER_SEC * 60
 try:
     from threadpoolctl import threadpool_info
     NTHREADS = threadpool_info()[0]["num_threads"]
-except:
+except Exception:
     NTHREADS = 1
+
+LIGHT_SPEED_M_PER_S = float(cast(Any, getattr(const, "c")).to_value("m/s"))
 
 
 class BuildMatrices():
@@ -251,7 +254,7 @@ class BuildMatrices():
         beam_type=None,
         beam_center=None,
         achromatic_beam=False,
-        beam_peak_amplitude=1,
+        beam_peak_amplitude=1.0,
         fwhm_deg=None,
         antenna_diameter=None,
         cosfreq=None,
@@ -268,6 +271,19 @@ class BuildMatrices():
         verbose=False
     ):
         # FIXME: add check for required args/kwargs
+        assert nu is not None, "nu must not be None."
+        assert nv is not None, "nv must not be None."
+        assert nu_fg is not None, "nu_fg must not be None."
+        assert nv_fg is not None, "nv_fg must not be None."
+        assert nf is not None, "nf must not be None."
+        assert deta is not None, "deta must not be None."
+        assert du_eor is not None, "du_eor must not be None."
+        assert dv_eor is not None, "dv_eor must not be None."
+        assert du_fg is not None, "du_fg must not be None."
+        assert dv_fg is not None, "dv_fg must not be None."
+        assert f_min is not None, "f_min must not be None."
+        assert df is not None, "df must not be None."
+
         self.nu = nu
         self.nv = nv
         self.nu_fg = nu_fg
@@ -281,8 +297,12 @@ class BuildMatrices():
         self.dt = dt
         self.sigma = sigma
         self.fit_for_monopole = fit_for_monopole
+        self.phasor = phasor
+        self.effective_noise = effective_noise
 
-        self.freqs_hertz = (self.f_min + np.arange(self.nf)*self.df) * 1e6
+        self.freqs_hertz = (
+            self.f_min + np.arange(int(self.nf), dtype=float) * self.df
+        ) * 1e6
 
         self.array_dir = array_save_directory
         self.include_instrumental_effects = include_instrumental_effects
@@ -291,11 +311,16 @@ class BuildMatrices():
         self.verbose = verbose
 
         if self.include_instrumental_effects:
+            assert uvw_array_m is not None, "uvw_array_m must not be None."
+            assert bl_red_array is not None, "bl_red_array must not be None."
+            assert nside is not None, "nside must not be None."
+            assert nt is not None, "nt must not be None."
+            assert jd_center is not None, "jd_center must not be None."
+            self.nt = nt
             self.uvw_array_m = uvw_array_m
             self.nbls = uvw_array_m.shape[1]
             self.bl_red_array = bl_red_array
             self.bl_red_array_vec = bl_red_array.reshape(-1, 1).flatten()
-            self.phasor = phasor
             self.fov_ra_eor = fov_ra_eor
             if fov_dec_eor is None:
                 self.fov_dec_eor = self.fov_ra_eor
@@ -321,7 +346,6 @@ class BuildMatrices():
             self.cosfreq = cosfreq
             self.achromatic_beam = achromatic_beam
             self.beam_ref_freq = beam_ref_freq
-            self.effective_noise = effective_noise
 
             self.hpx = Healpix(
                 fov_ra_eor=self.fov_ra_eor,
@@ -342,6 +366,9 @@ class BuildMatrices():
             )
 
             self.drift_scan = drift_scan
+            self.Finv_normalisation = self.hpx.pixel_area_sr
+        else:
+            self.Finv_normalisation = 1.0
 
         # FG model params
         self.nuv_fg = self.nu_fg*self.nv_fg - (not self.fit_for_monopole)
@@ -375,9 +402,6 @@ class BuildMatrices():
             self.nu_fg * self.nv_fg * self.du_fg * self.dv_fg
         )
 
-        # Finv normalization
-        self.Finv_normalisation = self.hpx.pixel_area_sr
-
         # Dictionary with keys for each parent matrix required to build the
         # full matrix stack and values of list containing names of child
         # matrices required to build each parent matrix
@@ -403,6 +427,30 @@ class BuildMatrices():
             self.matrix_prereqs.update(
                 {"Fprime_Fz": ["Fprime", "Fz"], "T": ["Finv", "Fprime_Fz"]}
             )
+        self.matrix_methods = {
+            "idft_array_1d": self.build_idft_array_1d,
+            "multi_vis_idft_array_1d": self.build_multi_vis_idft_array_1d,
+            "gridding_matrix_vo2co": self.build_gridding_matrix_vo2co,
+            "gridding_matrix_co2vo": self.build_gridding_matrix_co2vo,
+            "idft_array_1d_fg": self.build_idft_array_1d_fg,
+            "gridding_matrix_vo2co_fg": self.build_gridding_matrix_vo2co_fg,
+            "Fz": self.build_Fz,
+            "nuidft_array": self.build_nuidft_array,
+            "multi_chan_nuidft": self.build_multi_chan_nuidft,
+            "multi_chan_nuidft_fg": self.build_multi_chan_nuidft_fg,
+            "Fprime": self.build_Fprime,
+            "multi_chan_nudft": self.build_multi_chan_nudft,
+            "multi_chan_beam": self.build_multi_chan_beam,
+            "Finv": self.build_Finv,
+            "Fprime_Fz": self.build_Fprime_Fz,
+            "Finv_Fprime": self.build_Finv_Fprime,
+            "T": self.build_T,
+            "N": self.build_N,
+            "Ninv": self.build_Ninv,
+            "Ninv_T": self.build_Ninv_T,
+            "T_Ninv_T": self.build_T_Ninv_T,
+            "block_T_Ninv_T": self.build_block_T_Ninv_T,
+        }
         if self.phasor is not None:
             self.matrix_prereqs.update(
                 {"Finv": ["phasor_matrix"] + self.matrix_prereqs["Finv"]}
@@ -431,31 +479,6 @@ class BuildMatrices():
             self.matrix_methods.update(
                 {"taper_matrix": self.build_taper_matrix}
             )
-
-        self.matrix_methods = {
-            "idft_array_1d": self.build_idft_array_1d,
-            "multi_vis_idft_array_1d": self.build_multi_vis_idft_array_1d,
-            "gridding_matrix_vo2co": self.build_gridding_matrix_vo2co,
-            "gridding_matrix_co2vo": self.build_gridding_matrix_co2vo,
-            "idft_array_1d_fg": self.build_idft_array_1d_fg,
-            "gridding_matrix_vo2co_fg": self.build_gridding_matrix_vo2co_fg,
-            "Fz": self.build_Fz,
-            "nuidft_array": self.build_nuidft_array,
-            "multi_chan_nuidft": self.build_multi_chan_nuidft,
-            "multi_chan_nuidft_fg": self.build_multi_chan_nuidft_fg,
-            "Fprime": self.build_Fprime,
-            "multi_chan_nudft": self.build_multi_chan_nudft,
-            "multi_chan_beam": self.build_multi_chan_beam,
-            "Finv": self.build_Finv,
-            "Fprime_Fz": self.build_Fprime_Fz,
-            "Finv_Fprime": self.build_Finv_Fprime,
-            "T": self.build_T,
-            "N": self.build_N,
-            "Ninv": self.build_Ninv,
-            "Ninv_T": self.build_Ninv_T,
-            "T_Ninv_T": self.build_T_Ninv_T,
-            "block_T_Ninv_T": self.build_block_T_Ninv_T,
-        }
 
     def check_for_prerequisites(self, parent_matrix):
         """
@@ -1078,7 +1101,7 @@ class BuildMatrices():
         sampled_uvw_coords_m = self.uvw_array_m.copy()
         # Convert uv-coordinates from meters to wavelengths per frequency
         sampled_uvw_coords_wavelengths = np.array([
-            sampled_uvw_coords_m / (c.to("m/s").value / freq)
+            sampled_uvw_coords_m / (LIGHT_SPEED_M_PER_S / freq)
             for freq in self.freqs_hertz
         ])
         if not self.drift_scan:
@@ -1753,7 +1776,7 @@ class BuildMatrices():
         inst_uvw_m = self.uvw_array_m.copy()
         # Convert from meters to inverse radians per frequency
         inst_uvw_irad = [
-            inst_uvw_m / (c.to("m/s").value / freq)
+            inst_uvw_m / (LIGHT_SPEED_M_PER_S / freq)
             for freq in self.freqs_hertz
         ]
         # Shape (nf, nt, nbls, 3)
