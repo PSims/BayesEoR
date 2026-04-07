@@ -30,6 +30,9 @@ Install BayesEoR in editable mode with development tools:
 python -m pip install -e ".[dev]"
 ```
 
+The `dev` and `test` extras include the plotting dependency needed by the
+analysis-related tests.
+
 Install the local git hooks with:
 
 ```bash

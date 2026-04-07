@@ -32,9 +32,11 @@ doc = [
     "matplotlib"
 ]
 test = [
+    "matplotlib",
     "pytest"
 ]
 dev = [
+    "matplotlib",
     "pre-commit",
     "pytest",
     "ruff"
