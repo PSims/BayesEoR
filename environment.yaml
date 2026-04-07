@@ -11,12 +11,12 @@ dependencies:
   - magma
   - matplotlib
   - mpi4py>=3.0.0
-  - numpy==2.2.6
+  - numpy>=1.26,<2
   - pip
   - pycuda
   - pymultinest
   - pytest
-  - python==3.13
+  - python==3.12
   - pyuvdata
   - rich
   - ruff

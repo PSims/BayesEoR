@@ -8,6 +8,6 @@
     "docs",
     "test_data"
   ],
-  "pythonVersion": "3.13",
+  "pythonVersion": "3.12",
   "typeCheckingMode": "basic"
 }
