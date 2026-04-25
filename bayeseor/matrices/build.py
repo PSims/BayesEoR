@@ -1,5 +1,5 @@
 import numpy as np
-from subprocess import os
+import os
 import shutil
 import time
 import h5py
@@ -7,7 +7,8 @@ from scipy.linalg import block_diag
 from scipy import sparse
 from scipy.signal import windows
 from pathlib import Path
-from astropy.constants import c
+from astropy import constants as const
+from typing import Any, cast
 
 from .funcs import (
     nuidft_matrix_2d, idft_matrix_1d,
@@ -32,8 +33,10 @@ DEGREES_PER_MIN = DEGREES_PER_SEC * 60
 try:
     from threadpoolctl import threadpool_info
     NTHREADS = threadpool_info()[0]["num_threads"]
-except:
+except Exception:
     NTHREADS = 1
+
+LIGHT_SPEED_M_PER_S = float(cast(Any, getattr(const, "c")).to_value("m/s"))
 
 
 class BuildMatrices():
@@ -251,7 +254,7 @@ class BuildMatrices():
         beam_type=None,
         beam_center=None,
         achromatic_beam=False,
-        beam_peak_amplitude=1,
+        beam_peak_amplitude=1.0,
         fwhm_deg=None,
         antenna_diameter=None,
         cosfreq=None,
@@ -268,6 +271,19 @@ class BuildMatrices():
         verbose=False
     ):
         # FIXME: add check for required args/kwargs
+        assert nu is not None, "nu must not be None."
+        assert nv is not None, "nv must not be None."
+        assert nu_fg is not None, "nu_fg must not be None."
+        assert nv_fg is not None, "nv_fg must not be None."
+        assert nf is not None, "nf must not be None."
+        assert deta is not None, "deta must not be None."
+        assert du_eor is not None, "du_eor must not be None."
+        assert dv_eor is not None, "dv_eor must not be None."
+        assert du_fg is not None, "du_fg must not be None."
+        assert dv_fg is not None, "dv_fg must not be None."
+        assert f_min is not None, "f_min must not be None."
+        assert df is not None, "df must not be None."
+
         self.nu = nu
         self.nv = nv
         self.nu_fg = nu_fg
@@ -281,8 +297,12 @@ class BuildMatrices():
         self.dt = dt
         self.sigma = sigma
         self.fit_for_monopole = fit_for_monopole
+        self.phasor = phasor
+        self.effective_noise = effective_noise
 
-        self.freqs_hertz = (self.f_min + np.arange(self.nf)*self.df) * 1e6
+        self.freqs_hertz = (
+            self.f_min + np.arange(int(self.nf), dtype=float) * self.df
+        ) * 1e6
 
         self.array_dir = array_save_directory
         self.include_instrumental_effects = include_instrumental_effects
@@ -291,11 +311,16 @@ class BuildMatrices():
         self.verbose = verbose
 
         if self.include_instrumental_effects:
+            assert uvw_array_m is not None, "uvw_array_m must not be None."
+            assert bl_red_array is not None, "bl_red_array must not be None."
+            assert nside is not None, "nside must not be None."
+            assert nt is not None, "nt must not be None."
+            assert jd_center is not None, "jd_center must not be None."
+            self.nt = nt
             self.uvw_array_m = uvw_array_m
             self.nbls = uvw_array_m.shape[1]
             self.bl_red_array = bl_red_array
             self.bl_red_array_vec = bl_red_array.reshape(-1, 1).flatten()
-            self.phasor = phasor
             self.fov_ra_eor = fov_ra_eor
             if fov_dec_eor is None:
                 self.fov_dec_eor = self.fov_ra_eor
@@ -321,7 +346,6 @@ class BuildMatrices():
             self.cosfreq = cosfreq
             self.achromatic_beam = achromatic_beam
             self.beam_ref_freq = beam_ref_freq
-            self.effective_noise = effective_noise
 
             self.hpx = Healpix(
                 fov_ra_eor=self.fov_ra_eor,
@@ -342,6 +366,9 @@ class BuildMatrices():
             )
 
             self.drift_scan = drift_scan
+            self.Finv_normalisation = self.hpx.pixel_area_sr
+        else:
+            self.Finv_normalisation = 1.0
 
         # FG model params
         self.nuv_fg = self.nu_fg*self.nv_fg - (not self.fit_for_monopole)
@@ -375,9 +402,6 @@ class BuildMatrices():
             self.nu_fg * self.nv_fg * self.du_fg * self.dv_fg
         )
 
-        # Finv normalization
-        self.Finv_normalisation = self.hpx.pixel_area_sr
-
         # Dictionary with keys for each parent matrix required to build the
         # full matrix stack and values of list containing names of child
         # matrices required to build each parent matrix
@@ -403,6 +427,30 @@ class BuildMatrices():
             self.matrix_prereqs.update(
                 {"Fprime_Fz": ["Fprime", "Fz"], "T": ["Finv", "Fprime_Fz"]}
             )
+        self.matrix_methods = {
+            "idft_array_1d": self.build_idft_array_1d,
+            "multi_vis_idft_array_1d": self.build_multi_vis_idft_array_1d,
+            "gridding_matrix_vo2co": self.build_gridding_matrix_vo2co,
+            "gridding_matrix_co2vo": self.build_gridding_matrix_co2vo,
+            "idft_array_1d_fg": self.build_idft_array_1d_fg,
+            "gridding_matrix_vo2co_fg": self.build_gridding_matrix_vo2co_fg,
+            "Fz": self.build_Fz,
+            "nuidft_array": self.build_nuidft_array,
+            "multi_chan_nuidft": self.build_multi_chan_nuidft,
+            "multi_chan_nuidft_fg": self.build_multi_chan_nuidft_fg,
+            "Fprime": self.build_Fprime,
+            "multi_chan_nudft": self.build_multi_chan_nudft,
+            "multi_chan_beam": self.build_multi_chan_beam,
+            "Finv": self.build_Finv,
+            "Fprime_Fz": self.build_Fprime_Fz,
+            "Finv_Fprime": self.build_Finv_Fprime,
+            "T": self.build_T,
+            "N": self.build_N,
+            "Ninv": self.build_Ninv,
+            "Ninv_T": self.build_Ninv_T,
+            "T_Ninv_T": self.build_T_Ninv_T,
+            "block_T_Ninv_T": self.build_block_T_Ninv_T,
+        }
         if self.phasor is not None:
             self.matrix_prereqs.update(
                 {"Finv": ["phasor_matrix"] + self.matrix_prereqs["Finv"]}
@@ -431,31 +479,6 @@ class BuildMatrices():
             self.matrix_methods.update(
                 {"taper_matrix": self.build_taper_matrix}
             )
-
-        self.matrix_methods = {
-            "idft_array_1d": self.build_idft_array_1d,
-            "multi_vis_idft_array_1d": self.build_multi_vis_idft_array_1d,
-            "gridding_matrix_vo2co": self.build_gridding_matrix_vo2co,
-            "gridding_matrix_co2vo": self.build_gridding_matrix_co2vo,
-            "idft_array_1d_fg": self.build_idft_array_1d_fg,
-            "gridding_matrix_vo2co_fg": self.build_gridding_matrix_vo2co_fg,
-            "Fz": self.build_Fz,
-            "nuidft_array": self.build_nuidft_array,
-            "multi_chan_nuidft": self.build_multi_chan_nuidft,
-            "multi_chan_nuidft_fg": self.build_multi_chan_nuidft_fg,
-            "Fprime": self.build_Fprime,
-            "multi_chan_nudft": self.build_multi_chan_nudft,
-            "multi_chan_beam": self.build_multi_chan_beam,
-            "Finv": self.build_Finv,
-            "Fprime_Fz": self.build_Fprime_Fz,
-            "Finv_Fprime": self.build_Finv_Fprime,
-            "T": self.build_T,
-            "N": self.build_N,
-            "Ninv": self.build_Ninv,
-            "Ninv_T": self.build_Ninv_T,
-            "T_Ninv_T": self.build_T_Ninv_T,
-            "block_T_Ninv_T": self.build_block_T_Ninv_T,
-        }
 
     def check_for_prerequisites(self, parent_matrix):
         """
@@ -633,7 +656,7 @@ class BuildMatrices():
 
         """
         with h5py.File(file_path, "r") as hf:
-            data = hf[dataset_name][:]
+            data = cast(Any, hf[dataset_name])[:]
         return data
 
     def read_data_from_npz(self, file_path):
@@ -697,12 +720,6 @@ class BuildMatrices():
 
                 # Load prerequisite matrix into
                 # prerequisite_matrices_dictionary
-                if matrix_available == 1:
-                    file_extension = ".h5"
-                elif matrix_available == 2:
-                    file_extension = ".npz"
-                else:
-                    file_extension = ".h5"
                 if self.verbose:
                     start = time.time()
                 data = self.read_data(child_matrix)
@@ -1007,10 +1024,16 @@ class BuildMatrices():
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
-        taper = windows.get_window(self.taper_func, self.nf)
-        nbls = self.uvw_array_m.shape[1]
-        taper = np.repeat(taper[None, :], nbls, axis=0).flatten(order="F")
-        taper = np.tile(taper, self.nt)
+        assert self.taper_func is not None, "taper_func must not be None."
+        assert self.uvw_array_m is not None, "uvw_array_m must not be None."
+        assert self.nt is not None, "nt must not be None."
+        taper = np.asarray(
+            windows.get_window(self.taper_func, int(self.nf)),
+            dtype=float,
+        )
+        nbls = int(self.uvw_array_m.shape[1])
+        taper = np.repeat(taper[np.newaxis, :], nbls, axis=0).flatten(order="F")
+        taper = np.tile(taper, int(self.nt))
         if self.use_sparse_matrices:
             taper_matrix = sparse.diags(taper)
         else:
@@ -1042,10 +1065,12 @@ class BuildMatrices():
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
+        assert self.phasor is not None, "phasor must not be None."
+        phasor = np.asarray(self.phasor, dtype=complex)
         if self.use_sparse_matrices:
-            phasor_matrix = sparse.diags(self.phasor)
+            phasor_matrix = sparse.diags(phasor)
         else:
-            phasor_matrix = np.diag(self.phasor)
+            phasor_matrix = np.diag(phasor)
         if self.verbose:
             print(f"Time taken: {time.time() - start}")
         self.output_data(phasor_matrix, matrix_name)
@@ -1071,21 +1096,27 @@ class BuildMatrices():
 
         """
         matrix_name = "multi_chan_nudft"
-        pmd = self.load_prerequisites(matrix_name)
+        self.load_prerequisites(matrix_name)
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
+        assert self.uvw_array_m is not None, "uvw_array_m must not be None."
+        assert self.hpx is not None, "hpx must not be None."
+        assert self.nt is not None, "nt must not be None."
+        nf = int(self.nf)
+        nt = int(self.nt)
+        hpx_jds = np.asarray(self.hpx.jds, dtype=float)
         sampled_uvw_coords_m = self.uvw_array_m.copy()
         # Convert uv-coordinates from meters to wavelengths per frequency
         sampled_uvw_coords_wavelengths = np.array([
-            sampled_uvw_coords_m / (c.to("m/s").value / freq)
+            sampled_uvw_coords_m / (LIGHT_SPEED_M_PER_S / freq)
             for freq in self.freqs_hertz
         ])
         if not self.drift_scan:
             # Used if self.drift_scan = False
             # Get (l, m, n) coordinates from Healpix object
             ls_rad, ms_rad, ns_rad = self.hpx.calc_lmn_from_radec(
-                self.hpx.jds[self.nt//2],
+                float(hpx_jds[nt // 2]),
                 self.hpx.ra_fg,
                 self.hpx.dec_fg,
                 radec_offset=self.beam_center
@@ -1097,7 +1128,7 @@ class BuildMatrices():
                     sampled_lmn_coords_radians,
                     sampled_uvw_coords_wavelengths[i_f, 0].reshape(-1, 3)
                 )
-                for i_f in range(self.nf)
+                for i_f in range(nf)
             ])
         else:
             # This will be used if a drift scan primary beam is included in
@@ -1107,7 +1138,7 @@ class BuildMatrices():
                     nuDFT_Array_DFT_2D_v2d0(
                         np.vstack(
                             self.hpx.calc_lmn_from_radec(
-                                self.hpx.jds[i_t],
+                                float(hpx_jds[i_t]),
                                 self.hpx.ra_fg,
                                 self.hpx.dec_fg,
                                 radec_offset=self.beam_center
@@ -1115,9 +1146,9 @@ class BuildMatrices():
                         ).T,
                         sampled_uvw_coords_wavelengths[i_f, i_t].reshape(-1, 3)
                     )
-                    for i_f in range(self.nf)
+                    for i_f in range(nf)
                 ])
-                for i_t in range(self.nt)
+                for i_t in range(nt)
             ])
 
         # Multiply by sky model pixel area to get the units of the
@@ -1144,11 +1175,16 @@ class BuildMatrices():
 
         """
         matrix_name = "multi_chan_beam"
-        pmd = self.load_prerequisites(matrix_name)
+        self.load_prerequisites(matrix_name)
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
+        assert self.hpx is not None, "hpx must not be None."
+        assert self.nt is not None, "nt must not be None."
+        nt = int(self.nt)
+        hpx_jds = np.asarray(self.hpx.jds, dtype=float)
         if self.achromatic_beam:
+            assert self.beam_ref_freq is not None, "beam_ref_freq must not be None."
             freq_array = np.ones_like(self.freqs_hertz) * self.beam_ref_freq
             freq_array *= 1e6  # MHz --> Hz
         else:
@@ -1158,7 +1194,7 @@ class BuildMatrices():
                 np.diag(
                     self.hpx.get_beam_vals(
                         *self.hpx.calc_lmn_from_radec(
-                            self.hpx.jds[self.nt//2],
+                            float(hpx_jds[nt // 2]),
                             self.hpx.ra_fg,
                             self.hpx.dec_fg,
                             radec_offset=self.beam_center,
@@ -1178,7 +1214,7 @@ class BuildMatrices():
                     self.sd_diags(
                         self.hpx.get_beam_vals(
                             *self.hpx.calc_lmn_from_radec(
-                                self.hpx.jds[i_t],
+                                float(hpx_jds[i_t]),
                                 self.hpx.ra_fg,
                                 self.hpx.dec_fg,
                                 radec_offset=self.beam_center,
@@ -1189,7 +1225,7 @@ class BuildMatrices():
                     )
                     for freq in freq_array
                 ])
-                for i_t in range(self.nt)
+                for i_t in range(nt)
             ])
 
         if self.verbose:
@@ -1251,13 +1287,17 @@ class BuildMatrices():
 
         """
         matrix_name = "nuidft_array"
-        pmd = self.load_prerequisites(matrix_name)
+        self.load_prerequisites(matrix_name)
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
+        assert self.hpx is not None, "hpx must not be None."
+        assert self.nt is not None, "nt must not be None."
+        nt = int(self.nt)
+        hpx_jds = np.asarray(self.hpx.jds, dtype=float)
         # Get (l, m) coordinates from Healpix object
         ls_rad, ms_rad, _ = self.hpx.calc_lmn_from_radec(
-            self.hpx.jds[self.nt//2],
+            float(hpx_jds[nt // 2]),
             self.hpx.ra_eor,
             self.hpx.dec_eor
         )
@@ -1320,12 +1360,16 @@ class BuildMatrices():
 
         """
         matrix_name = "multi_chan_nuidft_fg"
-        pmd = self.load_prerequisites(matrix_name)
+        self.load_prerequisites(matrix_name)
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
+        assert self.hpx is not None, "hpx must not be None."
+        assert self.nt is not None, "nt must not be None."
+        nt = int(self.nt)
+        hpx_jds = np.asarray(self.hpx.jds, dtype=float)
         ls_rad, ms_rad, _ = self.hpx.calc_lmn_from_radec(
-            self.hpx.jds[self.nt//2],
+            float(hpx_jds[nt // 2]),
             self.hpx.ra_fg,
             self.hpx.dec_fg
         )
@@ -1363,21 +1407,29 @@ class BuildMatrices():
         """
         # FIXME: add support for the SHG uv-plane (issue #50)
         matrix_name = "nuidft_array_sh"
-        pmd = self.load_prerequisites(matrix_name)
+        self.load_prerequisites(matrix_name)
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
+        assert self.hpx is not None, "hpx must not be None."
+        assert self.nt is not None, "nt must not be None."
+        nt = int(self.nt)
+        hpx_jds = np.asarray(self.hpx.jds, dtype=float)
         # Get (l, m) coordinates from Healpix object
         ls_rad, ms_rad, _ = self.hpx.calc_lmn_from_radec(
-            self.hpx.jds[self.nt//2]
+            float(hpx_jds[nt // 2]),
+            self.hpx.ra_fg,
+            self.hpx.dec_fg,
         )
         sampled_lm_coords_radians = np.vstack((ls_rad, ms_rad)).T
 
         nuidft_array_sh_block = IDFT_Array_IDFT_2D_ZM_SH(
             self.nu_sh, self.nv_sh,
-            sampled_lm_coords_radians
+            sampled_lm_coords_radians,
+            delta_u_irad=self.du_eor,
+            delta_v_irad=self.dv_eor,
         )
-        nuidft_array_sh_block *= self.Fprime_normalization / (self.nu*self.nv)
+        nuidft_array_sh_block *= self.Fprime_normalization_eor / (self.nu * self.nv)
         nuidft_array_sh = self.sd_block_diag(
             [nuidft_array_sh_block for i in range(self.nf)]
         )
@@ -1430,22 +1482,24 @@ class BuildMatrices():
         """
         # FIXME: add support for the SHG uv-plane (issue #50)
         matrix_name = "idft_array_1d_sh"
-        pmd = self.load_prerequisites(matrix_name)
+        self.load_prerequisites(matrix_name)
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
+        assert self.nu_sh is not None, "nu_sh must not be None."
+        assert self.nv_sh is not None, "nv_sh must not be None."
         idft_array_1d_sh_block = idft_array_idft_1d_sh(
             self.nf,
             self.neta,
             self.nq_sh,
             self.npl_sh,
             fit_for_shg_amps=self.fit_for_shg_amps,
-            nu_min_MHz=self.f_min,
-            channel_width_MHz=self.df,
-            beta=self.beta
+            f_min=self.f_min,
+            df=self.df,
+            beta=cast(Any, self.beta),
         )
         idft_array_1d_sh_block *= self.Fz_normalization * self.neta
-        nuv_sh = self.nu_sh*self.nv_sh - 1
+        nuv_sh = self.nu_sh * self.nv_sh - 1
         idft_array_1d_sh = self.sd_block_diag(
             [idft_array_1d_sh_block for _ in range(nuv_sh)]
         )
@@ -1523,8 +1577,10 @@ class BuildMatrices():
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
+        assert self.neta is not None, "neta must not be None."
+        neta = int(self.neta)
         eta0_to_frequency = np.ones((self.nf, 1), dtype=complex)
-        eta0_to_frequency *= self.deta * self.neta
+        eta0_to_frequency *= self.deta * neta
         neta0_blocks = self.nuv_fg - self.fit_for_monopole
         idft_array_1d_eta0 = self.sd_block_diag(
             [eta0_to_frequency for _ in range(neta0_blocks)]
@@ -1533,9 +1589,9 @@ class BuildMatrices():
         if self.nq > 0:
             lssm_basis_vecs = build_lssm_basis_vectors(
                 self.nf, nq=self.nq, npl=self.npl, f_min=self.f_min,
-                df=self.df, beta=self.beta, verbose=self.verbose
+                df=self.df, beta=cast(Any, self.beta), verbose=self.verbose
             )
-            lssm_basis_vecs *= self.deta * self.neta
+            lssm_basis_vecs *= self.deta * neta
             lssm_array = self.sd_block_diag(
                 [lssm_basis_vecs for _ in range(neta0_blocks)]
             )
@@ -1545,11 +1601,11 @@ class BuildMatrices():
         if self.fit_for_monopole:
             idft_array_1d_mp = idft_matrix_1d(
                 self.nf, self.neta, nq=self.nq, npl=self.npl,
-                f_min=self.f_min, df=self.df, beta=self.beta
+                f_min=self.f_min, df=self.df, beta=cast(Any, self.beta)
             )
             idft_array_1d_mp *= self.deta
-            idft_array_1d_mp[:, self.neta//2] *= self.neta
-            idft_array_1d_mp[:, self.neta:] *= self.neta
+            idft_array_1d_mp[:, neta // 2] *= neta
+            idft_array_1d_mp[:, neta:] *= neta
             idft_array_1d_fg = self.sd_block_diag(
                 [idft_array_1d_fg, idft_array_1d_mp]
             )
@@ -1586,7 +1642,7 @@ class BuildMatrices():
 
         """
         matrix_name = "gridding_matrix_vo2co"
-        pmd = self.load_prerequisites(matrix_name)
+        self.load_prerequisites(matrix_name)
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
@@ -1634,7 +1690,7 @@ class BuildMatrices():
 
         """
         matrix_name = "gridding_matrix_vo2co_fg"
-        pmd = self.load_prerequisites(matrix_name)
+        self.load_prerequisites(matrix_name)
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
@@ -1709,6 +1765,9 @@ class BuildMatrices():
         # eta=0 is not included in the EoR model, so it's lumped in with
         # the foreground model.
         nuv_fg = self.nu_fg*self.nv_fg - (not self.fit_for_monopole)
+        assert self.nt is not None, "nt must not be None."
+        assert self.hpx is not None, "hpx must not be None."
+        nt = int(self.nt)
         # FIXME: add support for the SHG uv-plane (issue #50)
         # if self.use_shg:
         #     nuv_sh = self.nu_sh*self.nv_sh - 1
@@ -1716,7 +1775,7 @@ class BuildMatrices():
         Finv_Fprime_shape = [
             # Measurement space axis
             # Number of visibilities
-            self.nbls * self.nt * self.nf,
+            self.nbls * nt * self.nf,
             # Combined EoR + FG model (u, v, f) cube axis
             # Number of EoR model parameters
             nuv_eor * self.nf
@@ -1738,7 +1797,7 @@ class BuildMatrices():
                 return_azza=True,
                 radec_offset=self.beam_center,
             )
-            for i_t in range(self.nt)
+            for i_t in range(nt)
         ]
         # Shape (nt, nax, npix)
         # nax index mapping:
@@ -1753,7 +1812,7 @@ class BuildMatrices():
         inst_uvw_m = self.uvw_array_m.copy()
         # Convert from meters to inverse radians per frequency
         inst_uvw_irad = [
-            inst_uvw_m / (c.to("m/s").value / freq)
+            inst_uvw_m / (LIGHT_SPEED_M_PER_S / freq)
             for freq in self.freqs_hertz
         ]
         # Shape (nf, nt, nbls, 3)
@@ -1774,7 +1833,7 @@ class BuildMatrices():
         model_uv_eor_irad = np.vstack((model_us_eor_irad, model_vs_eor_irad))
         nuidft_uv_to_lm_eor = build_nudft_array(
             model_uv_eor_irad,
-            model_lmnazza_rad[self.nt//2, :2, self.hpx.eor_to_fg_pix].T,
+            model_lmnazza_rad[nt // 2, :2, self.hpx.eor_to_fg_pix].T,
             sign=-1
         )
         # FIXME: Fprime normalization no longer needs to include nu*nv norm
@@ -1797,7 +1856,7 @@ class BuildMatrices():
         model_uv_fg_irad = np.vstack((model_us_fg_irad, model_vs_fg_irad))
         nuidft_uv_to_lm_fg = build_nudft_array(
             model_uv_fg_irad,
-            model_lmnazza_rad[self.nt//2, :2],
+            model_lmnazza_rad[nt // 2, :2],
             sign=-1
         )
         # FIXME: Fprime normalization no longer needs to include nu*nv norm
@@ -1829,7 +1888,7 @@ class BuildMatrices():
         # this might change in the future if we add a kwarg for writing out
         # intermediate matrices to disk (e.g. the dense blocks that comprise
         # Fprime).
-        pmd = self.load_prerequisites(matrix_name)
+        self.load_prerequisites(matrix_name)
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
@@ -1848,7 +1907,7 @@ class BuildMatrices():
             #         self.nf*(nuv_eor + nuv_fg) + i_f*?,
             #         self.nf*(nuv_eor + nuv_fg) + (i_f + 1)*?
             #     )
-            for i_t in range(self.nt):
+            for i_t in range(nt):
                 vis_inds = slice(
                     i_t*self.nf*self.nbls + i_f*self.nbls,
                     i_t*self.nf*self.nbls + (i_f + 1)*self.nbls
@@ -1865,9 +1924,9 @@ class BuildMatrices():
                     # For modelling phased observations, the beam is always
                     # phased to the center of the model FoV.  The (l, m, n)
                     # coordinates in this case are independent of time.
-                    lmn_rad = model_lmnazza_rad[self.nt//2, :3]
-                    az_rad = model_lmnazza_rad[self.nt//2, 3]
-                    za_rad = model_lmnazza_rad[self.nt//2, 4]
+                    lmn_rad = model_lmnazza_rad[nt // 2, :3]
+                    az_rad = model_lmnazza_rad[nt // 2, 3]
+                    za_rad = model_lmnazza_rad[nt // 2, 4]
 
                 # NUDFT matrix for image space (l, m, n) to measurement
                 # space (u, v, w) sampled by the instrument
@@ -1967,11 +2026,13 @@ class BuildMatrices():
 
         """
         matrix_name = "Ninv"
-        pmd = self.load_prerequisites(matrix_name)
+        self.load_prerequisites(matrix_name)
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
+        assert self.sigma is not None, "sigma must not be None."
         if self.include_instrumental_effects:
+            assert self.nt is not None, "nt must not be None."
             if not self.drift_scan:
                 # This array is channel_ordered and the covariance
                 # matrix assumes a channel_ordered data set
@@ -2038,11 +2099,13 @@ class BuildMatrices():
 
         """
         matrix_name = "N"
-        pmd = self.load_prerequisites(matrix_name)
+        self.load_prerequisites(matrix_name)
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
+        assert self.sigma is not None, "sigma must not be None."
         if self.include_instrumental_effects:
+            assert self.nt is not None, "nt must not be None."
             if not self.drift_scan:
                 # This array is channel_ordered and the covariance
                 # matrix assumes a channel_ordered data set
@@ -2122,6 +2185,8 @@ class BuildMatrices():
         if self.verbose:
             start = time.time()
             print("Performing matrix algebra")
+        assert self.nt is not None, "nt must not be None."
+        nt = int(self.nt)
         if self.Finv_Fprime:
             if self.verbose:
                 print("Constructing T = Finv_Fprime * Fz")
@@ -2153,7 +2218,7 @@ class BuildMatrices():
                     (pmd["Finv"].shape[0], pmd["Fprime_Fz"].shape[1]),
                     dtype=complex
                 )
-                for i_t in range(self.nt):
+                for i_t in range(nt):
                     time_inds = slice(
                         i_t*self.nbls*self.nf, (i_t + 1)*self.nbls*self.nf
                     )
@@ -2162,9 +2227,8 @@ class BuildMatrices():
                         sky_inds = slice(
                             i_f*self.hpx.npix_fov, (i_f + 1)*self.hpx.npix_fov
                         )
-                        inds = [vis_inds, sky_inds]
                         T[time_inds][vis_inds] = np.dot(
-                            pmd["Finv"][time_inds][*inds].toarray(),
+                            pmd["Finv"][time_inds][vis_inds, sky_inds].toarray(),
                             pmd["Fprime_Fz"][sky_inds]
                         )
         if self.verbose:

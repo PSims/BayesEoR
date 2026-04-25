@@ -3,21 +3,20 @@ Interface for the HEALPix image domain model in BayesEoR.
 """
 
 import numpy as np
-from typing import Literal, Sequence, TypeAlias, overload
+from typing import Any, Literal, Sequence, TypeAlias, cast, overload
 
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 from astropy_healpix import HEALPix
 from astropy_healpix import healpy as hp
-from astropy.coordinates import\
-    EarthLocation, AltAz, ICRS, Angle, SkyCoord
+from astropy.coordinates import EarthLocation, AltAz, ICRS, Angle, SkyCoord
 from astropy.time import Time
+from astropy import constants as const
 import astropy.units as u
-from astropy.constants import c
 from scipy.special import j1
 from pyuvdata import UVBeam
 from pyuvdata import utils as uvutils
 
-c_ms = c.to("m/s").value
+c_ms = float(const.c.to_value(u.m / u.s))  # pyright: ignore
 
 SECS_PER_HOUR = 60 * 60
 SECS_PER_DAY = SECS_PER_HOUR * 24
@@ -28,12 +27,13 @@ DEGREES_PER_SEC = DEGREES_PER_HOUR * 1 / SECS_PER_HOUR
 HERA_LAT_LON_ALT = (
     -30.72152777777791,  # deg
     21.428305555555557,  # deg
-    1073.0000000093132  # meters
+    1073.0000000093132,  # meters
 )
 
 FloatArray: TypeAlias = NDArray[np.float64]
 IntArray: TypeAlias = NDArray[np.int_]
 BoolArray: TypeAlias = NDArray[np.bool_]
+
 
 class Healpix(HEALPix):
     """
@@ -98,6 +98,7 @@ class Healpix(HEALPix):
         for valid options and more details.  Defaults to 'cubic'.
 
     """
+
     def __init__(
         self,
         fov_ra_eor: float | None = None,
@@ -118,17 +119,14 @@ class Healpix(HEALPix):
         tanh_freq: float | None = None,
         tanh_sl_red: float | None = None,
         pol: str = "xx",
-        freq_interp_kind: str = "cubic"
+        freq_interp_kind: str = "cubic",
     ) -> None:
         # Use HEALPix as parent class to get useful astropy_healpix functions
         super().__init__(nside, frame=ICRS())
 
-        assert fov_ra_eor is not None, \
-            "Missing required keyword argument: fov_ra_eor ."
-        assert jd_center is not None, \
-            "Missing required keyword argument: jd_center."
-        assert nt == 1 or dt is not None, \
-            "If nt > 1, dt must not be None."
+        assert fov_ra_eor is not None, "Missing required keyword argument: fov_ra_eor ."
+        assert jd_center is not None, "Missing required keyword argument: jd_center."
+        assert nt == 1 or dt is not None, "If nt > 1, dt must not be None."
 
         self.fov_ra_eor = fov_ra_eor
         if fov_dec_eor is None:
@@ -141,25 +139,24 @@ class Healpix(HEALPix):
             self.fov_dec_fg = self.fov_dec_eor
             self.fovs_match = True
         else:
-            assert fov_ra_fg >= fov_ra_eor, \
+            assert fov_ra_fg >= fov_ra_eor, (
                 "fov_ra_fg must be greater than or equal to fov_ra_eor."
+            )
             self.fov_ra_fg = fov_ra_fg
             if fov_dec_fg is None:
                 self.fov_dec_fg = self.fov_ra_fg
             else:
                 self.fov_dec_fg = fov_dec_fg
             self.fovs_match = np.logical_and(
-                self.fov_ra_eor == self.fov_ra_fg,
-                self.fov_dec_eor == self.fov_dec_fg
+                self.fov_ra_eor == self.fov_ra_fg, self.fov_dec_eor == self.fov_dec_fg
             )
 
-        self.pixel_area_sr = self.pixel_area.to("sr").value
+        pixel_area = cast(Any, self.pixel_area)
+        self.pixel_area_sr = float(pixel_area.to_value(u.sr))
         self.tele_lat, self.tele_lon, self.tele_alt = telescope_latlonalt
         # Set telescope location
         telescope_xyz = uvutils.XYZ_from_LatLonAlt(
-            self.tele_lat * np.pi / 180,
-            self.tele_lon * np.pi / 180,
-            self.tele_alt
+            self.tele_lat * np.pi / 180, self.tele_lon * np.pi / 180, self.tele_alt
         )
         self.telescope_location = EarthLocation.from_geocentric(
             *telescope_xyz, unit="m"
@@ -172,7 +169,7 @@ class Healpix(HEALPix):
             alt=Angle("90d"),
             az=Angle("0d"),
             obstime=t,
-            location=self.telescope_location
+            location=self.telescope_location,
         )
         zen_radec = zen.transform_to(ICRS())
         self.field_center = (zen_radec.ra.deg, zen_radec.dec.deg)
@@ -186,10 +183,7 @@ class Healpix(HEALPix):
             self.time_inds = np.arange(-(self.nt // 2), self.nt // 2)
         # Calculate JD per integration from `jd_center`
         if self.dt is not None:
-            self.jds = (
-                self.jd_center
-                + self.time_inds * self.dt * DAYS_PER_SEC
-            )
+            self.jds = self.jd_center + self.time_inds * self.dt * DAYS_PER_SEC
         else:
             self.jds = np.array([self.jd_center])
         # Calculate pointing center per integration
@@ -200,7 +194,7 @@ class Healpix(HEALPix):
                 alt=Angle("90d"),
                 az=Angle("0d"),
                 obstime=t,
-                location=self.telescope_location
+                location=self.telescope_location,
             )
             zen_radec = zen.transform_to(ICRS())
             self.pointing_centers.append((zen_radec.ra.deg, zen_radec.dec.deg))
@@ -211,11 +205,16 @@ class Healpix(HEALPix):
             if "." not in beam_type:
                 beam_type = beam_type.lower()
                 allowed_types = [
-                    "uniform", "gaussian", "airy", "gausscosine", "taperairy",
-                    "tanhairy"
+                    "uniform",
+                    "gaussian",
+                    "airy",
+                    "gausscosine",
+                    "taperairy",
+                    "tanhairy",
                 ]
-                assert beam_type in allowed_types, \
+                assert beam_type in allowed_types, (
                     f"Only {', '.join(allowed_types)} beams are supported."
+                )
                 self.beam_type = beam_type
                 self.uvb = None
             else:
@@ -241,29 +240,30 @@ class Healpix(HEALPix):
 
         if beam_type == "gaussian":
             required_params = [diam, fwhm_deg]
-            assert self._check_required_params(required_params, all_req=False),\
-                "If using a Gaussian beam, must pass either " \
-                "'fwhm_deg' or 'diam'."
+            assert self._check_required_params(required_params, all_req=False), (
+                "If using a Gaussian beam, must pass either 'fwhm_deg' or 'diam'."
+            )
         elif beam_type == "airy":
             required_params = [diam, fwhm_deg]
-            assert self._check_required_params(required_params, all_req=False),\
-                "If using an Airy beam, must pass either " \
-                "'fwhm_deg' or 'diam'."
+            assert self._check_required_params(required_params, all_req=False), (
+                "If using an Airy beam, must pass either 'fwhm_deg' or 'diam'."
+            )
         elif beam_type == "taperairy":
             required_params = [diam, fwhm_deg]
-            assert self._check_required_params(required_params), \
-                "If using a taperairy beam, must pass " \
-                "'diam' and 'fwhm_deg'."
+            assert self._check_required_params(required_params), (
+                "If using a taperairy beam, must pass 'diam' and 'fwhm_deg'."
+            )
         elif beam_type == "gausscosine":
             required_params = [fwhm_deg, cosfreq]
-            assert self._check_required_params(required_params), \
-                "If using a gausscosine beam, must pass " \
-                "'fwhm_deg' and 'cosfreq'."
+            assert self._check_required_params(required_params), (
+                "If using a gausscosine beam, must pass 'fwhm_deg' and 'cosfreq'."
+            )
         elif beam_type == "tanhairy":
             required_params = [diam, tanh_freq, tanh_sl_red]
-            assert self._check_required_params(required_params), \
-                "If using a tanhairy beam, must pass " \
+            assert self._check_required_params(required_params), (
+                "If using a tanhairy beam, must pass "
                 "'diam', 'tanh_freq', and 'tanh_sl_red'."
+            )
         self.fwhm_deg = fwhm_deg
         self.diam = diam
         self.cosfreq = cosfreq
@@ -273,8 +273,10 @@ class Healpix(HEALPix):
         # Pixel filters
         self.simple_za_filter = simple_za_filter
         pix_eor, ra_eor, dec_eor = self.get_pixel_filter(
-            self.fov_ra_eor, self.fov_dec_eor, return_radec=True,
-            simple_za_filter=self.simple_za_filter
+            self.fov_ra_eor,
+            self.fov_dec_eor,
+            return_radec=True,
+            simple_za_filter=self.simple_za_filter,
         )
         self.pix_eor = pix_eor
         self.ra_eor = ra_eor
@@ -288,8 +290,10 @@ class Healpix(HEALPix):
             self.npix_fov_fg = self.pix_fg.size
         else:
             pix_fg, ra_fg, dec_fg = self.get_pixel_filter(
-                self.fov_ra_fg, self.fov_dec_fg, return_radec=True,
-                simple_za_filter=self.simple_za_filter
+                self.fov_ra_fg,
+                self.fov_dec_fg,
+                return_radec=True,
+                simple_za_filter=self.simple_za_filter,
             )
             self.pix_fg = pix_fg
             self.npix_fov_fg = self.pix_fg.size
@@ -314,9 +318,8 @@ class Healpix(HEALPix):
         fov_dec: float,
         return_radec: Literal[False] = False,
         inverse: bool = False,
-        simple_za_filter: bool = True
-    ) -> IntArray:
-        ...
+        simple_za_filter: bool = True,
+    ) -> IntArray: ...
 
     @overload
     def get_pixel_filter(
@@ -325,9 +328,8 @@ class Healpix(HEALPix):
         fov_dec: float,
         return_radec: Literal[True] = True,
         inverse: bool = False,
-        simple_za_filter: bool = True
-    ) -> tuple[IntArray, FloatArray, FloatArray]:
-        ...
+        simple_za_filter: bool = True,
+    ) -> tuple[IntArray, FloatArray, FloatArray]: ...
 
     def get_pixel_filter(
         self,
@@ -335,7 +337,7 @@ class Healpix(HEALPix):
         fov_dec: float,
         return_radec: bool = False,
         inverse: bool = False,
-        simple_za_filter: bool = True
+        simple_za_filter: bool = True,
     ) -> IntArray | tuple[IntArray, FloatArray, FloatArray]:
         """
         Return HEALPix pixel indices lying inside an observed region.
@@ -387,11 +389,11 @@ class Healpix(HEALPix):
           issues with the rectangular pixel selections.
 
         """
-        lons, lats = hp.pix2ang(
-            self.nside,
-            np.arange(self.npix),
-            lonlat=True
+        lons_raw, lats_raw = hp.pix2ang(
+            self.nside, np.arange(int(self.npix)), lonlat=True
         )
+        lons: FloatArray = np.asarray(lons_raw, dtype=float)
+        lats: FloatArray = np.asarray(lats_raw, dtype=float)
         if simple_za_filter:
             _, _, _, _, za = self.calc_lmn_from_radec(
                 self.jd_center, lons, lats, return_azza=True
@@ -400,16 +402,16 @@ class Healpix(HEALPix):
             pix = np.where(za <= max_za)[0]
         else:
             thetas = (90 - lats) * np.pi / 180
-            if self.field_center[0] - fov_ra/2 < 0:
+            if self.field_center[0] - fov_ra / 2 < 0:
                 lons[lons > 180] -= 360  # lons in (-180, 180]
             lons_inds = np.logical_and(
-                (lons - self.field_center[0])*np.sin(thetas) >= -fov_ra/2,
-                (lons - self.field_center[0])*np.sin(thetas) <= fov_ra/2,
-                )
+                (lons - self.field_center[0]) * np.sin(thetas) >= -fov_ra / 2,
+                (lons - self.field_center[0]) * np.sin(thetas) <= fov_ra / 2,
+            )
             lats_inds = np.logical_and(
                 lats >= self.field_center[1] - fov_dec / 2,
-                lats <= self.field_center[1] + fov_dec / 2
-                )
+                lats <= self.field_center[1] + fov_dec / 2,
+            )
             pixel_mask: BoolArray = np.logical_and(lons_inds, lats_inds)
             if inverse:
                 pix = np.where(np.logical_not(pixel_mask))[0]
@@ -422,10 +424,7 @@ class Healpix(HEALPix):
             return pix, lons[pix], lats[pix]
 
     def get_extent_ra_dec(
-        self,
-        fov_ra: float,
-        fov_dec: float,
-        fov_fac: float = 1.0
+        self, fov_ra: float, fov_dec: float, fov_fac: float = 1.0
     ) -> tuple[list[float], list[float]]:
         """
         Get the sampled extent of the sky in RA and DEC.
@@ -448,12 +447,12 @@ class Healpix(HEALPix):
 
         """
         range_ra = [
-            self.field_center[0] - fov_fac*fov_ra/2,
-            self.field_center[0] + fov_fac*fov_ra/2
+            self.field_center[0] - fov_fac * fov_ra / 2,
+            self.field_center[0] + fov_fac * fov_ra / 2,
         ]
         range_dec = [
-            self.field_center[1] - fov_fac*fov_dec/2,
-            self.field_center[1] + fov_fac*fov_dec/2
+            self.field_center[1] - fov_fac * fov_dec / 2,
+            self.field_center[1] + fov_fac * fov_dec / 2,
         ]
         return range_ra, range_dec
 
@@ -461,34 +460,33 @@ class Healpix(HEALPix):
     def calc_lmn_from_radec(
         self,
         time: float | Time,
-        ra: FloatArray,
-        dec: FloatArray,
+        ra: ArrayLike,
+        dec: ArrayLike,
         return_azza: Literal[False] = False,
-        radec_offset: tuple[float, float] | None = None
-    ) -> tuple[FloatArray, FloatArray, FloatArray]:
-        ...
+        radec_offset: tuple[float, float] | None = None,
+    ) -> tuple[FloatArray, FloatArray, FloatArray]: ...
 
     @overload
     def calc_lmn_from_radec(
         self,
         time: float | Time,
-        ra: FloatArray,
-        dec: FloatArray,
+        ra: ArrayLike,
+        dec: ArrayLike,
         return_azza: Literal[True] = True,
-        radec_offset: tuple[float, float] | None = None
-    ) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray, FloatArray]:
-        ...
+        radec_offset: tuple[float, float] | None = None,
+    ) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray, FloatArray]: ...
 
     def calc_lmn_from_radec(
-            self,
-            time: float | Time,
-            ra: FloatArray,
-            dec: FloatArray,
-            return_azza: bool = False,
-            radec_offset: tuple[float, float] | None = None
-    ) -> tuple[FloatArray, FloatArray, FloatArray] | tuple[
-        FloatArray, FloatArray, FloatArray, FloatArray, FloatArray
-    ]:
+        self,
+        time: float | Time,
+        ra: ArrayLike,
+        dec: ArrayLike,
+        return_azza: bool = False,
+        radec_offset: tuple[float, float] | None = None,
+    ) -> (
+        tuple[FloatArray, FloatArray, FloatArray]
+        | tuple[FloatArray, FloatArray, FloatArray, FloatArray, FloatArray]
+    ):
         """
         Return arrays of (l, m, n) coordinates in radians for all (RA, DEC).
 
@@ -524,17 +522,21 @@ class Healpix(HEALPix):
         if not isinstance(time, Time):
             time = Time(time, format="jd")
 
-        skycoord = SkyCoord(ra*u.deg, dec*u.deg, frame="icrs")
-        altaz = skycoord.transform_to(
-            AltAz(obstime=time, location=self.telescope_location)
+        skycoord = SkyCoord(ra * u.deg, dec * u.deg, frame="icrs")
+        altaz = cast(
+            Any,
+            skycoord.transform_to(
+                AltAz(obstime=time, location=self.telescope_location)
+            ),
         )
-        az = altaz.az.rad
-        za = np.pi/2 - altaz.alt.rad
+        az: FloatArray = np.asarray(altaz.az.to_value(u.rad), dtype=float)
+        alt: FloatArray = np.asarray(altaz.alt.to_value(u.rad), dtype=float)
+        za: FloatArray = np.pi / 2 - alt
 
         # Convert from (az, za) to (l, m, n)
-        ls = np.sin(za) * np.sin(az)
-        ms = np.sin(za) * np.cos(az)
-        ns = np.cos(za)
+        ls: FloatArray = np.sin(za) * np.sin(az)
+        ms: FloatArray = np.sin(za) * np.cos(az)
+        ns: FloatArray = np.cos(za)
 
         if return_azza:
             return ls, ms, ns, az, za
@@ -542,10 +544,7 @@ class Healpix(HEALPix):
             return ls, ms, ns
 
     def get_beam_vals(
-        self,
-        az: FloatArray,
-        za: FloatArray,
-        freq: float | None = None
+        self, az: FloatArray, za: FloatArray, freq: float | None = None
     ) -> FloatArray:
         """
         Get an array of beam values from (az, za) coordinates.
@@ -573,9 +572,7 @@ class Healpix(HEALPix):
 
         elif self.beam_type in ["gaussian", "gausscosine"]:
             if self.fwhm_deg is not None:
-                stddev_rad = np.deg2rad(
-                    self._fwhm_to_stddev(self.fwhm_deg)
-                )
+                stddev_rad = np.deg2rad(self._fwhm_to_stddev(self.fwhm_deg))
             else:
                 assert self.diam is not None
                 assert freq is not None
@@ -602,9 +599,8 @@ class Healpix(HEALPix):
             assert self.diam is not None
             assert freq is not None
             stddev_rad = np.deg2rad(self._fwhm_to_stddev(self.fwhm_deg))
-            beam_vals = (
-                self._airy_disk(za, self.diam, freq)
-                * self._gaussian_za(za, stddev_rad, self.peak_amp)
+            beam_vals = self._airy_disk(za, self.diam, freq) * self._gaussian_za(
+                za, stddev_rad, self.peak_amp
             )
 
         elif self.beam_type == "tanhairy":
@@ -612,17 +608,15 @@ class Healpix(HEALPix):
             assert freq is not None
             assert self.tanh_freq is not None
             assert self.tanh_sl_red is not None
-            beam_vals = (
-                self._airy_disk(za, self.diam, freq)
-                * self._tanh_taper(za, self.tanh_freq, self.tanh_sl_red)
+            beam_vals = self._airy_disk(za, self.diam, freq) * self._tanh_taper(
+                za, self.tanh_freq, self.tanh_sl_red
             )
 
         elif self.beam_type == "uvbeam":
             assert self.uvb is not None
             assert freq is not None
             beam_vals, _ = self.uvb.interp(
-                az_array=az, za_array=za, freq_array=np.array([freq]),
-                reuse_spline=True
+                az_array=az, za_array=za, freq_array=np.array([freq]), reuse_spline=True
             )
             beam_vals = beam_vals[0, 0, 0, 0].real
         else:
@@ -649,15 +643,11 @@ class Healpix(HEALPix):
             Array of Gaussian beam amplitudes for each zenith angle in `za`.
 
         """
-        beam_vals = amp * np.exp(-za ** 2 / (2 * sigma ** 2))
+        beam_vals = amp * np.exp(-(za**2) / (2 * sigma**2))
         return beam_vals
 
     def _gausscosine(
-        self,
-        za: FloatArray,
-        sigma: float,
-        amp: float,
-        cosfreq: float
+        self, za: FloatArray, sigma: float, amp: float, cosfreq: float
     ) -> FloatArray:
         """
         Calculate azimuthally symmetric Gaussian * cosine^2 beam amplitudes.
@@ -679,8 +669,8 @@ class Healpix(HEALPix):
             Array of Gaussian beam amplitudes for each zenith angle in `za`.
 
         """
-        beam_vals = amp * np.exp(-za ** 2 / (2 * sigma ** 2))
-        beam_vals *= np.cos(2 * np.pi * za * cosfreq/2)**2
+        beam_vals = amp * np.exp(-(za**2) / (2 * sigma**2))
+        beam_vals *= np.cos(2 * np.pi * za * cosfreq / 2) ** 2
         return beam_vals
 
     def _fwhm_to_stddev(self, fwhm: float) -> float:
@@ -714,22 +704,16 @@ class Healpix(HEALPix):
             Array of Airy disk amplitudes for each zenith angle in `za`.
 
         """
-        xvals = (
-                diam / 2. * np.sin(za)
-                * 2. * np.pi * freq / c_ms
-        )
+        xvals = diam / 2.0 * np.sin(za) * 2.0 * np.pi * freq / c_ms
         beam_vals = np.zeros_like(xvals)
-        nz = xvals != 0.
-        ze = xvals == 0.
-        beam_vals[nz] = 2. * j1(xvals[nz]) / xvals[nz]
-        beam_vals[ze] = 1.
-        return beam_vals ** 2
+        nz = xvals != 0.0
+        ze = xvals == 0.0
+        beam_vals[nz] = 2.0 * j1(xvals[nz]) / xvals[nz]
+        beam_vals[ze] = 1.0
+        return beam_vals**2
 
     def _tanh_taper(
-        self,
-        za: FloatArray,
-        tanh_freq: float,
-        tanh_sl_red: float
+        self, za: FloatArray, tanh_freq: float, tanh_sl_red: float
     ) -> FloatArray:
         """
         Calculate a tanh tapering function.
@@ -815,9 +799,7 @@ class Healpix(HEALPix):
         return sigma
 
     def _check_required_params(
-        self,
-        required_params: Sequence[object | None],
-        all_req: bool = True
+        self, required_params: Sequence[object | None], all_req: bool = True
     ) -> bool:
         """
         Check if params in required_params are not None.

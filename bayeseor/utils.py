@@ -4,20 +4,30 @@ import pickle
 import shutil
 from copy import deepcopy
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import Any, Optional, Protocol, cast
 
 import numpy as np
-from mpi4py import MPI
 from rich.console import Console
-
-if TYPE_CHECKING:
-    from mpi4py import MPI
 
 
 from . import __version__
 
 cns = Console()
 cns.is_jupyter = False
+
+
+class MPIComm(Protocol):
+    def Get_rank(self) -> int: ...
+
+    def bcast(self, value: Any, root: int = 0) -> Any: ...
+
+    def Barrier(self) -> None: ...
+
+
+def _get_default_mpi_comm() -> MPIComm:
+    from mpi4py import MPI
+
+    return cast(MPIComm, MPI.COMM_WORLD)
 
 
 def mpiprint(*args, rank=0, highlight=False, soft_wrap=True, **kwargs):
@@ -108,9 +118,7 @@ def write_log_files(parser, args, out_dir=Path("./"), verbose=False):
         print(f"Log files written successfully to {out_dir.absolute()}\n")
 
 
-def save_numpy_dict(
-    fp, arr, args, version=__version__, extra=None, clobber=False
-):
+def save_numpy_dict(fp, arr, args, version=__version__, extra=None, clobber=False):
     """
     Save array to disk with metadata as dictionary.
 
@@ -145,7 +153,7 @@ def save_numpy_dict(
     if extra is not None:
         out_dict.update({"extra": extra})
 
-    np.save(fp, out_dict)
+    np.save(fp, np.array(out_dict, dtype=object))
 
 
 def load_numpy_dict(fp):
@@ -264,7 +272,7 @@ class ShortTempPathManager:
         self,
         output_dir: str | Path,
         tmp_dir: str | Path | None = None,
-        mpi_comm: Optional[MPI.Comm] = None,
+        mpi_comm: Optional[MPIComm] = None,
     ) -> None:
         """
         Initialise the ShortTempPathManager and create the symbolic link.
@@ -300,7 +308,7 @@ class ShortTempPathManager:
         if tmp_dir is None:
             tmp_dir = "./.mn_chains_symlinks/"
         self.tmp_dir: Path = Path(tmp_dir)
-        self.mpi_comm: MPI.Comm = mpi_comm or MPI.COMM_WORLD
+        self.mpi_comm: MPIComm = mpi_comm or _get_default_mpi_comm()
         self.mpi_rank: int = self.mpi_comm.Get_rank()
 
         # Generate the short path using a stronger hash to reduce collision risk
@@ -348,9 +356,9 @@ class ShortTempPathManager:
         try:
             resolved = path.resolve()
             tmp_resolved = self.tmp_dir.resolve()
-            return str(resolved) == str(tmp_resolved) or str(
-                resolved
-            ).startswith(str(tmp_resolved) + os.sep)
+            return str(resolved) == str(tmp_resolved) or str(resolved).startswith(
+                str(tmp_resolved) + os.sep
+            )
         except Exception:
             return False
 
@@ -468,9 +476,7 @@ class MultiNestPathManager:
     ```
     """
 
-    def __init__(
-        self, out_dir: Path, rank: int, mpi_comm: Optional["MPI.Comm"] = None
-    ):
+    def __init__(self, out_dir: Path, rank: int, mpi_comm: Optional[MPIComm] = None):
         """
         Initializes the MultiNestPathManager.
 
@@ -489,9 +495,7 @@ class MultiNestPathManager:
         # Step 1.
         self.long_out_dir = out_dir
         # Step 2a.
-        self.short_path_manager = ShortTempPathManager(
-            out_dir, mpi_comm=mpi_comm
-        )
+        self.short_path_manager = ShortTempPathManager(out_dir, mpi_comm=mpi_comm)
         # Step 2b.
         self.short_out_dir = self.short_path_manager.short_out_dir
 

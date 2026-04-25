@@ -1,0 +1,36 @@
+repos:
+  - repo: local
+    hooks:
+      - id: trim-trailing-whitespace
+        name: trim trailing whitespace
+        entry: python scripts/precommit_trim_trailing_whitespace.py
+        language: system
+        types: [text]
+        files: ^(bayeseor/(model/|utils\.py|cosmology\.py|gpu\.py|posterior\.py)|tests/|scripts/precommit_.*\.py|CONTRIBUTING\.md|README\.md|environment\.yaml|pyproject\.toml|pyrightconfig\.json|\.pre-commit-config\.yaml|\.readthedocs\.yaml|\.github/.*\.(yml|yaml))
+
+      - id: fix-end-of-file
+        name: fix end of file
+        entry: python scripts/precommit_fix_end_of_file.py
+        language: system
+        types: [text]
+        files: ^(bayeseor/(model/|utils\.py|cosmology\.py|gpu\.py|posterior\.py)|tests/|scripts/precommit_.*\.py|CONTRIBUTING\.md|README\.md|environment\.yaml|pyproject\.toml|pyrightconfig\.json|\.pre-commit-config\.yaml|\.readthedocs\.yaml|\.github/.*\.(yml|yaml))
+
+      - id: check-yaml-local
+        name: check yaml
+        entry: python scripts/precommit_check_yaml.py
+        language: system
+        files: \.(yaml|yml)$
+
+      - id: ruff-check
+        name: ruff check
+        entry: ruff check --fix
+        language: system
+        types: [python]
+        files: ^(bayeseor/(model/|utils\.py|cosmology\.py|gpu\.py|posterior\.py)|tests/)
+
+      - id: ruff-format
+        name: ruff format
+        entry: ruff format
+        language: system
+        types: [python]
+        files: ^(bayeseor/(model/|utils\.py|cosmology\.py|gpu\.py|posterior\.py)|tests/)

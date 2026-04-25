@@ -1,12 +1,13 @@
 from pathlib import Path
 from sysconfig import get_paths
+from typing import Any, cast
 
 import numpy as np
 
 from .utils import mpiprint
 
 
-class GPUInterface(object):
+class GPUInterface:
     """
     Class to interface with GPUs.
 
@@ -22,7 +23,12 @@ class GPUInterface(object):
 
     """
 
-    def __init__(self, base_dir=None, rank=0, verbose=True):
+    def __init__(
+        self,
+        base_dir: str | Path | None = None,
+        rank: int = 0,
+        verbose: bool = True,
+    ) -> None:
         if base_dir is None:
             # Look for MAGMA .so files in environment's lib directory
             self.base_dir = Path(get_paths()["stdlib"]).parent
@@ -33,11 +39,13 @@ class GPUInterface(object):
 
         try:
             import ctypes
+            import importlib
 
-            import pycuda.autoinit
             import pycuda.driver as cuda
             from numpy import ctypeslib
 
+            importlib.import_module("pycuda.autoinit")
+            cuda_driver = cast(Any, cuda)
             so_path = self.base_dir / "libmagma.so"
             if self.verbose:
                 mpiprint(
@@ -74,10 +82,11 @@ class GPUInterface(object):
             ]
             if self.verbose:
                 mpiprint("Computing on GPU(s)", rank=self.rank)
-                Ngpus = cuda.Device.count()
+                device_cls = cuda_driver.Device
+                ngpus = int(device_cls.count())
                 print(
-                    f"Rank {self.rank}: {cuda.Device.count()} GPUs ("
-                    + ", ".join([cuda.Device(i).name() for i in range(Ngpus)])
+                    f"Rank {self.rank}: {ngpus} GPUs ("
+                    + ", ".join([device_cls(i).name() for i in range(ngpus)])
                     + ")"
                 )
             self.gpu_initialized = True
@@ -85,4 +94,4 @@ class GPUInterface(object):
         except Exception as e:
             self.gpu_initialized = False
             print(f"\nException loading GPU encountered on rank {rank}...")
-            print(repr(e), rank=self.rank)
+            print(f"Rank {self.rank}: {e!r}")

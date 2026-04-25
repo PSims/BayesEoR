@@ -3,12 +3,7 @@ from pathlib import Path
 
 
 def generate_k_cube_in_physical_coordinates(
-    nu,
-    nv,
-    neta,
-    ps_box_size_ra_Mpc,
-    ps_box_size_dec_Mpc,
-    ps_box_size_para_Mpc
+    nu, nv, neta, ps_box_size_ra_Mpc, ps_box_size_dec_Mpc, ps_box_size_para_Mpc
 ):
     """
     Generates rectilinear k-space cubes in units of inverse Mpc.
@@ -50,23 +45,23 @@ def generate_k_cube_in_physical_coordinates(
 
     """
     # Generate k_cube pixel coordinates
-    eta_ind_min = -(neta//2)
-    eta_ind_max = neta//2
+    eta_ind_min = -(neta // 2)
+    eta_ind_max = neta // 2
     if neta % 2 == 1:
         # neta is odd
         eta_ind_max += 1
-    z, y, x = np.mgrid[eta_ind_min:eta_ind_max,
-                       -(nv//2):(nv//2)+1,
-                       -(nu//2):(nu//2)+1]
+    z, y, x = np.mgrid[
+        eta_ind_min:eta_ind_max, -(nv // 2) : (nv // 2) + 1, -(nu // 2) : (nu // 2) + 1
+    ]
 
     # Setup k-space arrays
-    deltakx = 2.*np.pi / ps_box_size_ra_Mpc
-    deltaky = 2.*np.pi / ps_box_size_dec_Mpc
-    deltakz = 2.*np.pi / ps_box_size_para_Mpc
+    deltakx = 2.0 * np.pi / ps_box_size_ra_Mpc
+    deltaky = 2.0 * np.pi / ps_box_size_dec_Mpc
+    deltakz = 2.0 * np.pi / ps_box_size_para_Mpc
     k_z = z * deltakz
     k_y = y * deltaky
     k_x = x * deltakx
-    mod_k_physical = (k_z**2. + k_y**2. + k_x**2.)**0.5
+    mod_k_physical = (k_z**2.0 + k_y**2.0 + k_x**2.0) ** 0.5
 
     return mod_k_physical, k_x, k_y, k_z, x, y, z
 
@@ -90,16 +85,16 @@ def mask_k_cube(mod_k):
     neta, nv, nu = mod_k.shape
 
     # Remove the eta=0 mode from the EoR k-cube
-    mod_k = np.delete(mod_k, neta//2, axis=0)
+    mod_k = np.delete(mod_k, neta // 2, axis=0)
 
     # Flatten along k_x then k_y
-    mod_k = mod_k.reshape((neta - 1, nu*nv))
+    mod_k = mod_k.reshape((neta - 1, nu * nv))
 
     # Remove (u, v) = (0, 0)
-    mod_k = np.delete(mod_k, (nu*nv)//2, axis=1)
+    mod_k = np.delete(mod_k, (nu * nv) // 2, axis=1)
 
     # Flattened arrays move first along k_z, then k_x, and lastly k_y
-    mod_k_vo = mod_k.flatten(order='F')
+    mod_k_vo = mod_k.flatten(order="F")
 
     return mod_k_vo
 
@@ -129,7 +124,7 @@ def generate_k_cube_model_spherical_binning(mod_k_vo, ps_box_size_para_Mpc):
 
     """
     modkscaleterm = 1.35
-    deltakpara = 2.*np.pi / ps_box_size_para_Mpc
+    deltakpara = 2.0 * np.pi / ps_box_size_para_Mpc
     binsize = deltakpara * 2.0
 
     numKbins = 50
@@ -139,7 +134,7 @@ def generate_k_cube_model_spherical_binning(mod_k_vo, ps_box_size_para_Mpc):
 
     for m1 in range(1, numKbins, 1):
         binsize = binsize * modkscaleterm
-        modkbins[m1, 0] = modkbins[m1-1, 1]
+        modkbins[m1, 0] = modkbins[m1 - 1, 1]
         modkbins[m1, 1] = modkscaleterm * modkbins[m1, 0]
 
     total_elements = 0
@@ -151,10 +146,9 @@ def generate_k_cube_model_spherical_binning(mod_k_vo, ps_box_size_para_Mpc):
         # explicitly with the quadratic modes, then k_z==0 should be
         # added to the quadratic selector mask
         n_elements = np.sum(
-            np.logical_and.reduce((
-                mod_k_vo > modkbins[i_bin, 0],
-                mod_k_vo <= modkbins[i_bin, 1]
-            ))
+            np.logical_and.reduce(
+                (mod_k_vo > modkbins[i_bin, 0], mod_k_vo <= modkbins[i_bin, 1])
+            )
         )
         if n_elements > 0:
             n_bins += 1
@@ -165,10 +159,12 @@ def generate_k_cube_model_spherical_binning(mod_k_vo, ps_box_size_para_Mpc):
     count = 0
     for i_bin in range(len(modkbins_containing_voxels)):
         relevant_voxels = np.where(
-            np.logical_and.reduce((
-                mod_k_vo > modkbins_containing_voxels[i_bin][0][0],
-                mod_k_vo <= modkbins_containing_voxels[i_bin][0][1]
-            ))
+            np.logical_and.reduce(
+                (
+                    mod_k_vo > modkbins_containing_voxels[i_bin][0][0],
+                    mod_k_vo <= modkbins_containing_voxels[i_bin][0][1],
+                )
+            )
         )
         count += len(relevant_voxels[0])
         k_cube_voxels_in_bin.append(relevant_voxels)
@@ -182,7 +178,7 @@ def calc_mean_binned_k_vals(
     save_k_vals=False,
     clobber=False,
     k_vals_file="k-vals.txt",
-    k_vals_dir="k_vals"
+    k_vals_dir="k_vals",
 ):
     """
     Calculates the mean of all |k| that fall within a k-bin.
@@ -227,12 +223,8 @@ def calc_mean_binned_k_vals(
     if save:
         k_vals_dir.mkdir(parents=True, exist_ok=True)
         np.savetxt(k_vals_dir / k_vals_file, k_vals)
-        np.savetxt(
-            k_vals_dir / k_vals_file.replace(".txt", "-bins.txt"), kbin_edges
-        )
-        np.savetxt(
-            k_vals_dir / k_vals_file.replace(".txt", "-nsamples.txt"), nsamples
-        )
+        np.savetxt(k_vals_dir / k_vals_file.replace(".txt", "-bins.txt"), kbin_edges)
+        np.savetxt(k_vals_dir / k_vals_file.replace(".txt", "-nsamples.txt"), nsamples)
 
     return np.array(k_vals)
 
@@ -243,7 +235,7 @@ def generate_k_cube_model_cylindrical_binning(
     k_y_masked,
     k_x_masked,
     n_k_perp_bins,
-    ps_box_size_para_Mpc
+    ps_box_size_para_Mpc,
 ):
     """
     Generates a set of cylindrical k-space bins from which the 2D power
@@ -282,7 +274,7 @@ def generate_k_cube_model_cylindrical_binning(
     """
     # define mod_k binning
     modkscaleterm = 1.5  # Value used in BEoRfgs and in 21cmFAST binning
-    deltakperp = 2.*np.pi / ps_box_size_para_Mpc
+    deltakperp = 2.0 * np.pi / ps_box_size_para_Mpc
     binsize = deltakperp * 2  # Value used in BEoRfgs
 
     numKbins = 50
@@ -292,7 +284,7 @@ def generate_k_cube_model_cylindrical_binning(
 
     for m1 in range(1, numKbins, 1):
         binsize = binsize * modkscaleterm
-        modkbins[m1, 0] = modkbins[m1-1, 1]
+        modkbins[m1, 0] = modkbins[m1 - 1, 1]
         modkbins[m1, 1] = modkscaleterm * modkbins[m1, 0]
 
     total_elements = 0
@@ -305,26 +297,30 @@ def generate_k_cube_model_cylindrical_binning(
         # added to the quadratic selector mask
         n_elements = np.sum(
             np.logical_and.reduce(
-                (mod_k_masked > modkbins[i_bin, 0],
-                 mod_k_masked <= modkbins[i_bin, 1],
-                 k_z_masked > 0)
+                (
+                    mod_k_masked > modkbins[i_bin, 0],
+                    mod_k_masked <= modkbins[i_bin, 1],
+                    k_z_masked > 0,
                 )
             )
+        )
         if n_elements > 0:
             n_bins += 1
             total_elements += n_elements
             modkbins_containing_voxels.append((modkbins[i_bin], n_elements))
 
     # define k_perp binning
-    k_perp_3D = (k_x_masked**2. + k_y_masked**2)**0.5
+    k_perp_3D = (k_x_masked**2.0 + k_y_masked**2) ** 0.5
     k_perp_min = k_perp_3D[np.isfinite(k_perp_3D)].min()
     k_perp_max = k_perp_3D[np.isfinite(k_perp_3D)].max()
 
     def output_k_perp_bins(k_perp_min, k_perp_max, n_k_perp_bins):
         k_perp_bins = np.vstack(
-            (np.linspace(k_perp_min*0.99, k_perp_max*1.01, n_k_perp_bins)[:-1],
-             np.linspace(k_perp_min*0.99, k_perp_max*1.01, n_k_perp_bins)[1:])
-            ).T
+            (
+                np.linspace(k_perp_min * 0.99, k_perp_max * 1.01, n_k_perp_bins)[:-1],
+                np.linspace(k_perp_min * 0.99, k_perp_max * 1.01, n_k_perp_bins)[1:],
+            )
+        ).T
         return k_perp_bins
 
     def return_k_perp_bins_with_voxels(k_perp_bins):
@@ -337,8 +333,8 @@ def generate_k_cube_model_cylindrical_binning(
             # included explicitly with the quadratic modes, then k_z==0
             # should be added to the quadratic selector mask
             k_perp_constraint = np.logical_and.reduce(
-                (k_perp_3D > k_perp_bins[i_bin][0],
-                 k_perp_3D <= k_perp_bins[i_bin][1]))
+                (k_perp_3D > k_perp_bins[i_bin][0], k_perp_3D <= k_perp_bins[i_bin][1])
+            )
             n_elements = np.sum(k_perp_constraint)
             if n_elements > 0:
                 n_bins += 1
@@ -350,16 +346,20 @@ def generate_k_cube_model_cylindrical_binning(
 
         return k_perp_bins_containing_voxels
 
-    n_k_perp_bins_array = [n_k_perp_bins
-                           for _ in range(len(modkbins_containing_voxels))]
+    n_k_perp_bins_array = [
+        n_k_perp_bins for _ in range(len(modkbins_containing_voxels))
+    ]
 
     # Currently using equal bin widths for all k_z but can make the
     # number of bins / the bin width a function of k_z if that turns out
     # to be useful (i.e. use larger bins at larger k_z where there is
     # less power).
-    k_perp_bins = [return_k_perp_bins_with_voxels(
-        output_k_perp_bins(k_perp_min, k_perp_max, n_k_perp_bins_val))
-        for n_k_perp_bins_val in n_k_perp_bins_array]
+    k_perp_bins = [
+        return_k_perp_bins_with_voxels(
+            output_k_perp_bins(k_perp_min, k_perp_max, n_k_perp_bins_val)
+        )
+        for n_k_perp_bins_val in n_k_perp_bins_array
+    ]
 
     k_cube_voxels_in_bin = []
     count = 0
@@ -371,17 +371,21 @@ def generate_k_cube_model_cylindrical_binning(
             # consistency with previous results when calculating the
             # cylindrical power spectrum with HERA 37.
             k_z_constraint = np.logical_and.reduce(
-                (abs(k_z_masked)
-                 > modkbins_containing_voxels[i_mod_k_bin][0][0],
-                 abs(k_z_masked)
-                 <= modkbins_containing_voxels[i_mod_k_bin][0][1],
-                 k_z_masked != 0)
+                (
+                    abs(k_z_masked) > modkbins_containing_voxels[i_mod_k_bin][0][0],
+                    abs(k_z_masked) <= modkbins_containing_voxels[i_mod_k_bin][0][1],
+                    k_z_masked != 0,
                 )
+            )
             k_perp_constraint = np.logical_and.reduce(
-                (k_perp_3D > k_perp_bins[i_mod_k_bin][j_k_perp_bin][0],
-                 k_perp_3D <= k_perp_bins[i_mod_k_bin][j_k_perp_bin][1]))
+                (
+                    k_perp_3D > k_perp_bins[i_mod_k_bin][j_k_perp_bin][0],
+                    k_perp_3D <= k_perp_bins[i_mod_k_bin][j_k_perp_bin][1],
+                )
+            )
             relevant_voxels = np.where(
-                np.logical_and(k_z_constraint, k_perp_constraint))
+                np.logical_and(k_z_constraint, k_perp_constraint)
+            )
             count += len(relevant_voxels[0])
             k_cube_voxels_in_bin.append(relevant_voxels)
 

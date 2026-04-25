@@ -3,16 +3,17 @@ from pathlib import Path
 
 from ..utils import load_numpy_dict
 
+
 def load_inst_model(
     inst_model_dir,
     uvw_file="uvw_model.npy",
     red_file="redundancy_model.npy",
     antpairs_file="antpairs.npy",
-    phasor_file="phasor_vector.npy"
+    phasor_file="phasor_vector.npy",
 ):
     """
     Load a BayesEoR instrument model.
-    
+
     The instrument model consists of:
     - (u, v, w) array with shape `(nt, nbls, 3)` where `nt` is the number of
       times and `nbls` is the number of baselines
@@ -63,8 +64,7 @@ def load_inst_model(
 
     if (inst_model_dir / "instrument_model.npy").exists():
         data_dict = np.load(
-            inst_model_dir / "instrument_model.npy",
-            allow_pickle=True
+            inst_model_dir / "instrument_model.npy", allow_pickle=True
         ).item()
         uvw_array_m = data_dict["uvw_model"]
         bl_red_array = data_dict["redundancy_model"]

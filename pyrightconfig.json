@@ -8,6 +8,16 @@
     "docs",
     "test_data"
   ],
+  "venvPath": "/home/ps550/miniforge3/envs",
+  "venv": "bayeseor",
   "pythonVersion": "3.12",
-  "typeCheckingMode": "basic"
+  "typeCheckingMode": "basic",
+  "executionEnvironments": [
+    {
+      "root": ".",
+      "extraPaths": [
+        "/home/ps550/miniforge3/envs/bayeseor/lib/python3.12/site-packages"
+      ]
+    }
+  ]
 }

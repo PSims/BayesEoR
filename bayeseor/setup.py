@@ -3,11 +3,21 @@
 import warnings
 from collections.abc import Sequence
 from pathlib import Path
+from typing import (
+    Any,
+    Literal,
+    NotRequired,
+    TypeAlias,
+    TypedDict,
+    cast,
+    overload,
+)
 
 import numpy as np
 from astropy import units
 from astropy.time import Time
 from astropy.units import Quantity
+from numpy.typing import NDArray
 from pyuvdata import __version__ as pyuvdata_version
 from rich.panel import Panel
 from scipy import sparse
@@ -30,6 +40,173 @@ from .utils import (
     save_numpy_dict,
 )
 from .vis import preprocess_uvdata
+
+FloatArray: TypeAlias = NDArray[np.float64]
+ComplexArray: TypeAlias = NDArray[np.complex128]
+KCubeVoxels: TypeAlias = list[Any]
+
+
+class VisibilityData(TypedDict):
+    vis_noisy: ComplexArray
+    noise: ComplexArray
+    bl_conj_pairs_map: Any
+    uvws: FloatArray
+    redundancy: FloatArray
+    freqs: FloatArray
+    df: float
+    jds: FloatArray
+    dt: float
+    vis: NotRequired[ComplexArray]
+    antpairs: NotRequired[Any]
+    phasor: NotRequired[ComplexArray | None]
+    tele_name: NotRequired[str]
+    uvd: NotRequired[Any]
+
+
+RunSetupBaseReturn: TypeAlias = tuple[
+    PowerSpectrumPosteriorProbability,
+    Path,
+]
+RunSetupWithVisReturn: TypeAlias = tuple[
+    PowerSpectrumPosteriorProbability,
+    Path,
+    VisibilityData,
+]
+RunSetupWithKsReturn: TypeAlias = tuple[
+    PowerSpectrumPosteriorProbability,
+    Path,
+    FloatArray,
+    KCubeVoxels,
+]
+RunSetupWithBmReturn: TypeAlias = tuple[
+    PowerSpectrumPosteriorProbability,
+    Path,
+    BuildMatrices,
+]
+RunSetupWithVisBmReturn: TypeAlias = tuple[
+    PowerSpectrumPosteriorProbability,
+    Path,
+    VisibilityData,
+    BuildMatrices,
+]
+RunSetupWithVisKsReturn: TypeAlias = tuple[
+    PowerSpectrumPosteriorProbability,
+    Path,
+    VisibilityData,
+    FloatArray,
+    KCubeVoxels,
+]
+RunSetupWithKsBmReturn: TypeAlias = tuple[
+    PowerSpectrumPosteriorProbability,
+    Path,
+    FloatArray,
+    KCubeVoxels,
+    BuildMatrices,
+]
+RunSetupWithVisKsBmReturn: TypeAlias = tuple[
+    PowerSpectrumPosteriorProbability,
+    Path,
+    VisibilityData,
+    FloatArray,
+    KCubeVoxels,
+    BuildMatrices,
+]
+
+
+@overload
+def run_setup(
+    *,
+    return_bm_immediately: Literal[True],
+    **kwargs: Any,
+) -> BuildMatrices: ...
+
+
+@overload
+def run_setup(
+    *,
+    return_vis: Literal[False] = False,
+    return_ks: Literal[False] = False,
+    return_bm: Literal[False] = False,
+    return_bm_immediately: Literal[False] = False,
+    **kwargs: Any,
+) -> RunSetupBaseReturn: ...
+
+
+@overload
+def run_setup(
+    *,
+    return_vis: Literal[True],
+    return_ks: Literal[False] = False,
+    return_bm: Literal[False] = False,
+    return_bm_immediately: Literal[False] = False,
+    **kwargs: Any,
+) -> RunSetupWithVisReturn: ...
+
+
+@overload
+def run_setup(
+    *,
+    return_vis: Literal[False] = False,
+    return_ks: Literal[True],
+    return_bm: Literal[False] = False,
+    return_bm_immediately: Literal[False] = False,
+    **kwargs: Any,
+) -> RunSetupWithKsReturn: ...
+
+
+@overload
+def run_setup(
+    *,
+    return_vis: Literal[False] = False,
+    return_ks: Literal[False] = False,
+    return_bm: Literal[True],
+    return_bm_immediately: Literal[False] = False,
+    **kwargs: Any,
+) -> RunSetupWithBmReturn: ...
+
+
+@overload
+def run_setup(
+    *,
+    return_vis: Literal[True],
+    return_ks: Literal[True],
+    return_bm: Literal[False] = False,
+    return_bm_immediately: Literal[False] = False,
+    **kwargs: Any,
+) -> RunSetupWithVisKsReturn: ...
+
+
+@overload
+def run_setup(
+    *,
+    return_vis: Literal[True],
+    return_ks: Literal[False] = False,
+    return_bm: Literal[True],
+    return_bm_immediately: Literal[False] = False,
+    **kwargs: Any,
+) -> RunSetupWithVisBmReturn: ...
+
+
+@overload
+def run_setup(
+    *,
+    return_vis: Literal[False] = False,
+    return_ks: Literal[True],
+    return_bm: Literal[True],
+    return_bm_immediately: Literal[False] = False,
+    **kwargs: Any,
+) -> RunSetupWithKsBmReturn: ...
+
+
+@overload
+def run_setup(
+    *,
+    return_vis: Literal[True],
+    return_ks: Literal[True],
+    return_bm: Literal[True],
+    return_bm_immediately: Literal[False] = False,
+    **kwargs: Any,
+) -> RunSetupWithVisKsBmReturn: ...
 
 
 def run_setup(
@@ -57,7 +234,7 @@ def run_setup(
     drift_scan: bool = True,
     include_instrumental_effects: bool = True,
     beam_type: str,
-    beam_center: list[float, float] | None = None,
+    beam_center: Sequence[float] | None = None,
     achromatic_beam: bool = False,
     beam_peak_amplitude: float = 1.0,
     fwhm_deg: float | None = None,
@@ -100,7 +277,7 @@ def run_setup(
     output_dir: Path | str = "./",
     mkdir: bool = True,
     file_root_dir: str | None = None,
-    priors: Sequence[float],
+    priors: Sequence[Sequence[float]],
     log_priors: bool = False,
     uprior_bins: str = "",
     uprior_inds: np.ndarray | None = None,
@@ -117,8 +294,18 @@ def run_setup(
     return_bm: bool = False,
     return_bm_immediately: bool = False,
     verbose: bool = False,
-    rank: bool = 0,
+    rank: int = 0,
     **kwargs,
+) -> (
+    BuildMatrices
+    | RunSetupBaseReturn
+    | RunSetupWithVisReturn
+    | RunSetupWithKsReturn
+    | RunSetupWithBmReturn
+    | RunSetupWithVisKsReturn
+    | RunSetupWithVisBmReturn
+    | RunSetupWithKsBmReturn
+    | RunSetupWithVisKsBmReturn
 ):
     """
     Run setup steps.
@@ -489,6 +676,8 @@ def run_setup(
         Matrix building class instance. Returned only if `return_bm` is True.
 
     """
+    prior_list = [list(prior) for prior in priors]
+
     if use_intrinsic_noise_fitting:
         # FIXME
         raise NotImplementedError(
@@ -515,6 +704,10 @@ def run_setup(
         raise ValueError(
             "telescope_latlonalt cannot be None if include_instrumental_effects is true"
         )
+    if not isinstance(data_path, Path):
+        data_path = Path(data_path)
+    if sigma is None:
+        raise ValueError("sigma cannot be None")
 
     # print_rank will only trigger print if verbose is True and rank == 0
     print_rank = 1 - (verbose and rank == 0)
@@ -586,16 +779,17 @@ def run_setup(
     noise = vis_dict["noise"]
     uvws = vis_dict["uvws"]
     redundancy = vis_dict["redundancy"]
-    nf = len(vis_dict["freqs"])
-    nu_min_MHz = (vis_dict["freqs"][0] * units.Hz).to("MHz").value
-    channel_width_MHz = (vis_dict["df"] * units.Hz).to("MHz").value
-    nt = len(vis_dict["jds"])
-    jd_center = vis_dict["jds"][nt // 2]
-    dt = vis_dict["dt"]
-    if "phasor" in vis_dict:
-        phasor = vis_dict["phasor"]
-    else:
-        phasor = None
+    freqs_hz = np.asarray(vis_dict["freqs"], dtype=float)
+    df_hz = float(vis_dict["df"])
+    jds_array = np.asarray(vis_dict["jds"], dtype=float)
+    dt_seconds = float(vis_dict["dt"])
+    nf = len(freqs_hz)
+    nu_min_MHz = float(freqs_hz[0] / 1e6)
+    channel_width_MHz = float(df_hz / 1e6)
+    nt = len(jds_array)
+    jd_center = float(jds_array[nt // 2])
+    dt = dt_seconds
+    phasor = vis_dict.get("phasor")
 
     # Assign optional kwargs if None
     # Model k cube params
@@ -624,7 +818,7 @@ def run_setup(
     if nq > npl:
         nq = npl
     # Subharmonic grid params
-    use_shg = np.any([kwarg is not None for kwarg in [nu_sh, nv_sh]])
+    use_shg = bool(np.any([kwarg is not None for kwarg in [nu_sh, nv_sh]]))
     if use_shg:
         if nu_sh is None:
             raise ValueError("nu_sh is required if using the subharmonic grid")
@@ -633,18 +827,18 @@ def run_setup(
 
     # Derived params
     cosmo = Cosmology()
-    redshift = cosmo.f2z(vis_dict["freqs"].mean() * units.Hz)
-    bandwidth = (vis_dict["df"] * units.Hz) * nf
+    redshift = cosmo.f2z(freqs_hz.mean() * units.Hz)
+    bandwidth_hz = df_hz * nf
     # EoR model
     # Spacing along the eta axis (line-of-sight Fourier dual to frequency)
     # defined as one over the bandwidth in Hz [1/Hz].
-    deta = 1 / bandwidth.to("Hz").value
+    deta = 1.0 / bandwidth_hz
     # Spacing along the u-axis of the EoR model uv-plane [1/rad]
     du_eor = 1 / np.deg2rad(fov_ra_eor)
     # Spacing along the v-axis of the EoR model uv-plane [1/rad]
     dv_eor = 1 / np.deg2rad(fov_dec_eor)
     # Comoving line-of-sight size of the EoR volume [Mpc]
-    ps_box_size_para_Mpc = cosmo.dL_df(redshift) * bandwidth.to("Hz").value
+    ps_box_size_para_Mpc = cosmo.dL_df(redshift) * bandwidth_hz
     # Comoving transverse size of the EoR volume along RA [Mpc]
     ps_box_size_ra_Mpc = cosmo.dL_dth(redshift) * np.deg2rad(fov_ra_eor)
     # Comoving transverse size of the EoR volume along Dec [Mpc]
@@ -660,7 +854,7 @@ def run_setup(
             beam_ref_freq = nu_min_MHz
         else:
             # Hz -> MHz for compatibility with BuildMatrices
-            beam_ref_freq = (beam_ref_freq * units.Hz).to("MHz").value
+            beam_ref_freq = Quantity(beam_ref_freq, units.Hz).to("MHz").value
 
     # Output directory generation
     if not isinstance(output_dir, Path):
@@ -713,8 +907,10 @@ def run_setup(
             save_dir = sampler_dir
         elif not isinstance(save_dir, Path):
             save_dir = Path(save_dir)
+        assert isinstance(save_dir, Path)
         save_dir.mkdir(exist_ok=True, parents=True)
     if save_vis:
+        assert isinstance(save_dir, Path)
         vis_path = save_dir / "vis_noisy.npy"
         mpiprint("\nSaving data vector(s) to disk.", rank=print_rank)
         mpiprint(f"\tVisibility vector: {vis_path}", rank=print_rank)
@@ -731,6 +927,8 @@ def run_setup(
             noise_path, noise, vis_args, extra=extra, clobber=clobber
         )
     if save_model:
+        assert isinstance(save_dir, Path)
+        assert "antpairs" in vis_dict
         mpiprint("\nSaving instrument model to disk.", rank=print_rank)
         # If data_path points to a numpy-compatible file, then an instrument
         # model is required as input and there's no reason to save the
@@ -790,6 +988,9 @@ def run_setup(
     vox_per_bin = [len(kinds[0]) for kinds in k_cube_voxels_in_bin]
     mpiprint(f"Voxels per bin: {vox_per_bin}", rank=print_rank)
 
+    jd_center_float = float(vis_dict["jds"][nt // 2])
+    dt_seconds = float(vis_dict["dt"])
+
     mpiprint("\n", Panel("Matrices"), rank=print_rank)
     bm = build_matrices(
         nu=nu,
@@ -828,12 +1029,12 @@ def run_setup(
         redundancy=redundancy,
         phasor=phasor,
         nt=nt,
-        jd_center=jd_center,
-        dt=dt,
+        jd_center=jd_center_float,
+        dt=dt_seconds,
         beam_type=beam_type,
         beam_center=beam_center,
         achromatic_beam=achromatic_beam,
-        beam_peak_amplitude=beam_peak_amplitude,
+        beam_peak_amplitude=float(beam_peak_amplitude),
         fwhm_deg=fwhm_deg,
         antenna_diameter=antenna_diameter,
         cosfreq=cosfreq,
@@ -859,16 +1060,16 @@ def run_setup(
     # Temporarily suppress output from bm.dot_product
     bm_verbose = bm.verbose
     bm.verbose = False
-    Ninv = bm.read_data("Ninv")
-    T = bm.read_data("T")
+    Ninv = cast(np.ndarray[Any, Any] | sparse.spmatrix, bm.read_data("Ninv"))
+    T = cast(np.ndarray[Any, Any], bm.read_data("T"))
     Ninv_d = bm.dot_product(Ninv, vis_noisy)
     dbar = bm.dot_product(T.conj().T, Ninv_d)
     d_Ninv_d = np.dot(vis_noisy.conj(), Ninv_d)
-    T_Ninv_T = bm.read_data("T_Ninv_T")
+    T_Ninv_T = cast(np.ndarray[Any, Any], bm.read_data("T_Ninv_T"))
     if include_instrumental_effects:
         block_T_Ninv_T = []
     else:
-        block_T_Ninv_T = bm.read_data("block_T_Ninv_T")
+        block_T_Ninv_T = cast(list[Any], bm.read_data("block_T_Ninv_T"))
     n_dims = k_vals.size
     bm.verbose = bm_verbose
 
@@ -888,16 +1089,16 @@ def run_setup(
         fg_log_priors_max = 6.0
         # priors[0] = [fg_log_priors_min, 8.0] # Set
         # Calibrate LW model priors using white noise fitting
-        priors[0] = [fg_log_priors_min, fg_log_priors_max]
-        priors[1] = [fg_log_priors_min, fg_log_priors_max]
-        priors[2] = [fg_log_priors_min, fg_log_priors_max]
+        prior_list[0] = [fg_log_priors_min, fg_log_priors_max]
+        prior_list[1] = [fg_log_priors_min, fg_log_priors_max]
+        prior_list[2] = [fg_log_priors_min, fg_log_priors_max]
         if use_intrinsic_noise_fitting:
-            priors[1] = priors[0]
-            priors[2] = priors[1]
-            priors[3] = priors[2]
-            priors[0] = [1.0, 2.0]  # Linear alpha_prime range
+            prior_list[1] = prior_list[0]
+            prior_list[2] = prior_list[1]
+            prior_list[3] = prior_list[2]
+            prior_list[0] = [1.0, 2.0]  # Linear alpha_prime range
     elif use_intrinsic_noise_fitting:
-        priors[0] = [1.0, 2.0]  # Linear alpha_prime range
+        prior_list[0] = [1.0, 2.0]  # Linear alpha_prime range
 
     cosmo = Cosmology()
     redshift = cosmo.f2z(bm.freqs_hertz.mean())
@@ -939,7 +1140,7 @@ def run_setup(
         block_T_Ninv_T=block_T_Ninv_T,
         use_shg=use_shg,
         use_gpu=use_gpu,
-        priors=priors,
+        priors=prior_list,
         uprior_inds=uprior_inds,
         use_intrinsic_noise_fitting=use_intrinsic_noise_fitting,
         use_LWM_Gaussian_prior=use_LWM_Gaussian_prior,
@@ -947,14 +1148,21 @@ def run_setup(
         rank=rank,
     )
 
-    return_vals = (pspp, sampler_dir)
+    if return_vis and return_ks and return_bm:
+        return (pspp, sampler_dir, vis_dict, k_vals, k_cube_voxels_in_bin, bm)
+    if return_vis and return_ks:
+        return (pspp, sampler_dir, vis_dict, k_vals, k_cube_voxels_in_bin)
+    if return_vis and return_bm:
+        return (pspp, sampler_dir, vis_dict, bm)
+    if return_ks and return_bm:
+        return (pspp, sampler_dir, k_vals, k_cube_voxels_in_bin, bm)
     if return_vis:
-        return_vals += (vis_dict,)
+        return (pspp, sampler_dir, vis_dict)
     if return_ks:
-        return_vals += (k_vals, k_cube_voxels_in_bin)
+        return (pspp, sampler_dir, k_vals, k_cube_voxels_in_bin)
     if return_bm:
-        return_vals += (bm,)
-    return return_vals
+        return (pspp, sampler_dir, bm)
+    return (pspp, sampler_dir)
 
 
 def generate_file_root_directory(
@@ -1116,7 +1324,7 @@ def get_vis_data(
     verbose: bool = False,
     rank: int = 0,
     **kwargs,
-):
+) -> VisibilityData:
     """
     Load or generate a one-dimensional visibility vector.
 
@@ -1341,6 +1549,10 @@ def get_vis_data(
                     "inst_model is required when loading a preprocessed data "
                     "vector (data_path has a .npy suffix)"
                 )
+            assert nf is not None
+            assert df is not None
+            assert nt is not None
+            assert dt is not None
 
             if not isinstance(inst_model, Path):
                 inst_model = Path(inst_model)
@@ -1358,37 +1570,99 @@ def get_vis_data(
                 "\nLoading numpy-compatible data:", style="bold", rank=rank
             )
             mpiprint(f"\nReading data from: {data_path}", rank=rank)
-            vis = load_numpy_dict(data_path)
+            vis = cast(ComplexArray, load_numpy_dict(data_path))
 
             mpiprint(f"Reading instrument model from: {inst_model}", rank=rank)
             uvws, redundancy, antpairs, phasor = load_inst_model(inst_model)
+            uvws = cast(FloatArray, uvws)
+            redundancy = cast(FloatArray, redundancy)
 
             if noise_data_path is not None:
                 if not isinstance(noise_data_path, Path):
                     noise_data_path = Path(noise_data_path)
                 if not noise_data_path.exists():
                     raise FileNotFoundError(f"{noise_data_path} does not exist")
-                noise = load_numpy_dict(noise_data_path)
+                noise = cast(ComplexArray, load_numpy_dict(noise_data_path))
             else:
                 noise = None
 
             tele_name = None
             uvd = None
             if freq_min is not None:
-                freqs = freq_min + np.arange(nf) * df
+                freq_start_hz = (
+                    float(cast(Any, freq_min).to_value(units.Hz))
+                    if isinstance(freq_min, Quantity)
+                    else float(freq_min)
+                )
+                channel_width_hz = (
+                    float(cast(Any, df).to_value(units.Hz))
+                    if isinstance(df, Quantity)
+                    else float(df)
+                )
+                freqs = np.asarray(
+                    freq_start_hz
+                    + np.arange(nf, dtype=float) * channel_width_hz,
+                    dtype=float,
+                )
             else:
-                freqs = (
-                    freq_center + np.arange(-(nf // 2), nf // 2 + nf % 2) * df
+                assert freq_center is not None
+                center_freq_hz = (
+                    float(cast(Any, freq_center).to_value(units.Hz))
+                    if isinstance(freq_center, Quantity)
+                    else float(freq_center)
+                )
+                channel_width_hz = (
+                    float(cast(Any, df).to_value(units.Hz))
+                    if isinstance(df, Quantity)
+                    else float(df)
+                )
+                freqs = np.asarray(
+                    center_freq_hz
+                    + np.arange(-(nf // 2), nf // 2 + nf % 2, dtype=float)
+                    * channel_width_hz,
+                    dtype=float,
                 )
             if jd_min is not None:
-                jds = Time(jd_min, format="jd") + np.arange(nt) * (
-                    dt * units.s
-                ).to("d")
+                dt_days = (
+                    float(cast(Any, dt).to_value(units.d))
+                    if isinstance(dt, Quantity)
+                    else float(
+                        cast(
+                            Any, Quantity(float(dt), units.s).to_value(units.d)
+                        )
+                    )
+                )
+                jd_start = float(cast(Any, Time(jd_min, format="jd")).jd)
+                jds = np.asarray(
+                    jd_start + np.arange(nt, dtype=float) * dt_days,
+                    dtype=float,
+                )
             else:
-                jds = Time(jd_center, format="jd") + np.arange(
-                    -(nt // 2), nt // 2 + nt % 2
-                ) * (dt * units.s).to("d")
-            jds = jds.jd
+                assert jd_center is not None
+                dt_days = (
+                    float(cast(Any, dt).to_value(units.d))
+                    if isinstance(dt, Quantity)
+                    else float(
+                        cast(
+                            Any, Quantity(float(dt), units.s).to_value(units.d)
+                        )
+                    )
+                )
+                jd_center_val = float(
+                    cast(Any, Time(jd_center, format="jd")).jd
+                )
+                jds = np.asarray(
+                    jd_center_val
+                    + np.arange(-(nt // 2), nt // 2 + nt % 2, dtype=float)
+                    * dt_days,
+                    dtype=float,
+                )
+            df = float(channel_width_hz)
+            dt = (
+                float(cast(Any, dt).to_value(units.s))
+                if isinstance(dt, Quantity)
+                else float(dt)
+            )
 
         elif data_path.suffix in [".uvh5", ".uvfits", ".ms"]:
             mpiprint(
@@ -1420,36 +1694,47 @@ def get_vis_data(
                     return_uvd=True,
                     save_vis=save_vis,
                     save_model=save_model,
-                    save_dir=save_dir,
+                    save_dir=str(save_dir),
                     clobber=clobber,
                     verbose=verbose,
                     rank=rank,
                 )
             )
+            vis = cast(ComplexArray, vis)
+            uvws = cast(FloatArray, uvws)
+            redundancy = cast(FloatArray, redundancy)
+            if noise is not None:
+                noise = cast(ComplexArray, noise)
+            if phasor is not None:
+                phasor = cast(ComplexArray, phasor)
+            assert uvd is not None
             # Check if the frequency array has the Nspws axis for
             # backwards compatibility with old versions of pyuvdata
             trim_nspws_ax = len(uvd.freq_array.shape) > 1
-            freqs = uvd.freq_array
+            freqs = np.asarray(uvd.freq_array, dtype=float)
             if trim_nspws_ax:
                 freqs = freqs[0]
-            df = freqs[1] - freqs[0]
+            df = float(freqs[1] - freqs[0])
             nf = freqs.size
 
-            jds = Time(np.unique(uvd.time_array), format="jd")
-            dt = (jds[1] - jds[0]).to("s").value
-            jds = jds.jd
+            jds = np.asarray(np.unique(uvd.time_array), dtype=float)
+            assert jds.size > 1
+            dt = float((jds[1] - jds[0]) * 86400.0)
             nt = jds.size
 
             try:
                 # Old versions of pyuvdata use telescope_name atribute which
                 # has been replaced by telescope.name in newer versions
-                tele_name = uvd.telescope_name
-            except:
+                tele_name = cast(Any, uvd).telescope_name
+            except AttributeError:
                 tele_name = uvd.telescope.name
 
         if simulate_noise:
             mpiprint("\nGenerating visibility noise:", style="bold", rank=rank)
             mpiprint(f"\nNoise std. dev. = {sigma:.2e} mK sr", rank=rank)
+            assert sigma is not None
+            assert nf is not None
+            assert nt is not None
             vis_noisy, noise, bl_conj_pairs_map = generate_gaussian_noise(
                 sigma,
                 vis,
@@ -1457,23 +1742,29 @@ def get_vis_data(
                 nt,
                 uvws[0],
                 redundancy[0],
-                random_seed=noise_seed,
+                random_seed=noise_seed if noise_seed is not None else "",
                 rank=print_rank,
             )
+            vis_noisy = cast(ComplexArray, vis_noisy)
+            noise = cast(ComplexArray, noise)
         else:
             # The input visibilities are noisy
             vis_noisy = vis
+            bl_conj_pairs_map = np.arange(vis_noisy.size, dtype=int)
 
-        vis_dict = {
-            "vis_noisy": vis_noisy,
-            "noise": noise,
+        assert noise is not None
+        df_float = float(cast(Any, df))
+        dt_float = float(cast(Any, dt))
+        vis_dict: VisibilityData = {
+            "vis_noisy": cast(ComplexArray, vis_noisy),
+            "noise": cast(ComplexArray, noise),
             "bl_conj_pairs_map": bl_conj_pairs_map,
-            "uvws": uvws,
-            "redundancy": redundancy,
-            "freqs": freqs,
-            "df": df,
-            "jds": jds,
-            "dt": dt,
+            "uvws": cast(FloatArray, uvws),
+            "redundancy": cast(FloatArray, redundancy),
+            "freqs": np.asarray(freqs, dtype=float),
+            "df": df_float,
+            "jds": np.asarray(jds, dtype=float),
+            "dt": dt_float,
         }
         if simulate_noise:
             vis_dict["vis"] = vis
@@ -1570,8 +1861,6 @@ def build_k_cube(
             "and ps_box_size_para_Mpc must all not be None"
         )
 
-    # print_rank will only trigger print if verbose is True and rank == 0
-    print_rank = 1 - (verbose and rank == 0)
     mod_k, _, _, _, _, _, _ = generate_k_cube_in_physical_coordinates(
         nu,
         nv,
@@ -1588,7 +1877,7 @@ def build_k_cube(
         mod_k_vo,
         k_cube_voxels_in_bin,
         save_k_vals=(save_k_vals and rank == 0),
-        k_vals_dir=output_dir,
+        k_vals_dir=str(output_dir),
         clobber=clobber,
     )
 
@@ -1626,7 +1915,7 @@ def generate_array_dir(
     dt: float | None = None,
     drift_scan: bool = True,
     beam_type: str | None = None,
-    beam_center: list[float] | None = None,
+    beam_center: Sequence[float] | None = None,
     achromatic_beam: bool = False,
     beam_peak_amplitude: float | None = 1.0,
     fwhm_deg: float | None = None,
@@ -1780,10 +2069,13 @@ def generate_array_dir(
         model_str += "-ffm"
     if use_shg:
         shg_str = "shg"
+        assert nu_sh is not None
         if nu_sh > 0:
             shg_str += f"-nush{nu_sh}"
+        assert nv_sh is not None
         if nv_sh > 0 and nu_sh != nv_sh:
             shg_str += f"-nvsh{nv_sh}"
+        assert nq_sh is not None
         if nq_sh > 0:
             shg_str += f"-nqsh{nq_sh}"
         if fit_for_shg_amps:
@@ -1818,6 +2110,9 @@ def generate_array_dir(
     matrices_path /= img_str
 
     if include_instrumental_effects:
+        assert nt is not None
+        assert dt is not None
+        assert beam_type is not None
         inst_str = ""
         if telescope_name != "":
             inst_str += f"{telescope_name}-"
@@ -1919,7 +2214,7 @@ def build_matrices(
     jd_center: float,
     dt: float,
     beam_type: str,
-    beam_center: list[float] | None = None,
+    beam_center: Sequence[float] | None = None,
     achromatic_beam: bool = False,
     beam_peak_amplitude: float = 1.0,
     fwhm_deg: float | None = None,
@@ -1930,7 +2225,7 @@ def build_matrices(
     telescope_name: str = "",
     uvws: np.ndarray,
     redundancy: np.ndarray,
-    noise: np.ndarray,
+    noise: np.ndarray | None,
     phasor: np.ndarray | None = None,
     taper_func: str | None = None,
     noise_data_path: Path | str | None = None,
@@ -2131,20 +2426,10 @@ def build_matrices(
             "telescope_latlonalt cannot be None if include_instrumental_effects is true"
         )
 
-    # print_rank will only trigger print if verbose is True and rank == 0
-    print_rank = 1 - (verbose and rank == 0)
-
     if uvws is not None:
         nbls = len(uvws[0])
-        uvws_vec = uvws.copy().reshape(-1, 3)
-        n_vis = len(uvws_vec)
     else:
         nbls = None
-        uvws_vec = None
-        n_vis = None
-
-    if redundancy is not None:
-        redundancy_vec = redundancy.copy().reshape(-1, 1).flatten()
 
     array_dir = generate_array_dir(
         nu=nu,
@@ -2297,7 +2582,7 @@ def build_posterior(
     ps_box_size_dec_Mpc: float,
     ps_box_size_para_Mpc: float,
     include_instrumental_effects: bool = True,
-    priors: Sequence[float],
+    priors: Sequence[Sequence[float]],
     log_priors: bool = False,
     uprior_inds: np.ndarray | None = None,
     dimensionless_PS: bool = True,
@@ -2417,6 +2702,7 @@ def build_posterior(
     # The EoR model uv-plane excludes the (u, v) = (0, 0) pixel, so the number
     # of EoR model uv-plane pixels is nu*nv - 1
     nuv = nu * nv - 1
+    prior_list = [list(prior) for prior in priors]
 
     if use_LWM_Gaussian_prior:
         # use_LWM_Gaussian_prior not implemented
@@ -2436,21 +2722,21 @@ def build_posterior(
         # constraint at the given signal-to-noise in the data.
         fg_log_priors_max = 6.0
         # Calibrate LW model priors using white noise fitting
-        priors[0] = [fg_log_priors_min, fg_log_priors_max]
-        priors[1] = [fg_log_priors_min, fg_log_priors_max]
-        priors[2] = [fg_log_priors_min, fg_log_priors_max]
+        prior_list[0] = [fg_log_priors_min, fg_log_priors_max]
+        prior_list[1] = [fg_log_priors_min, fg_log_priors_max]
+        prior_list[2] = [fg_log_priors_min, fg_log_priors_max]
         if use_intrinsic_noise_fitting:
-            priors[1] = priors[0]
-            priors[2] = priors[1]
-            priors[3] = priors[2]
-            priors[0] = [1.0, 2.0]  # Linear alpha_prime range
+            prior_list[1] = prior_list[0]
+            prior_list[2] = prior_list[1]
+            prior_list[3] = prior_list[2]
+            prior_list[0] = [1.0, 2.0]  # Linear alpha_prime range
     else:
         if use_intrinsic_noise_fitting:
-            priors[0] = [1.0, 2.0]  # Linear alpha_prime range
+            prior_list[0] = [1.0, 2.0]  # Linear alpha_prime range
     ps_unit = "mK^2"
     if not dimensionless_PS:
         ps_unit += " Mpc^3"
-    mpiprint(f"priors = {priors} {ps_unit}", rank=print_rank)
+    mpiprint(f"priors = {prior_list} {ps_unit}", rank=print_rank)
 
     pspp = PowerSpectrumPosteriorProbability(
         T_Ninv_T,
