@@ -3,7 +3,15 @@
 import warnings
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Literal, NotRequired, TypedDict, TypeAlias, cast, overload
+from typing import (
+    Any,
+    Literal,
+    NotRequired,
+    TypeAlias,
+    TypedDict,
+    cast,
+    overload,
+)
 
 import numpy as np
 from astropy import units
@@ -33,7 +41,6 @@ from .utils import (
 )
 from .vis import preprocess_uvdata
 
-
 FloatArray: TypeAlias = NDArray[np.float64]
 ComplexArray: TypeAlias = NDArray[np.complex128]
 KCubeVoxels: TypeAlias = list[Any]
@@ -42,7 +49,7 @@ KCubeVoxels: TypeAlias = list[Any]
 class VisibilityData(TypedDict):
     vis_noisy: ComplexArray
     noise: ComplexArray
-    bl_conj_pairs_map: NDArray[np.int_]
+    bl_conj_pairs_map: Any
     uvws: FloatArray
     redundancy: FloatArray
     freqs: FloatArray
@@ -1593,7 +1600,8 @@ def get_vis_data(
                     else float(df)
                 )
                 freqs = np.asarray(
-                    freq_start_hz + np.arange(nf, dtype=float) * channel_width_hz,
+                    freq_start_hz
+                    + np.arange(nf, dtype=float) * channel_width_hz,
                     dtype=float,
                 )
             else:
@@ -1618,7 +1626,11 @@ def get_vis_data(
                 dt_days = (
                     float(cast(Any, dt).to_value(units.d))
                     if isinstance(dt, Quantity)
-                    else float(cast(Any, Quantity(float(dt), units.s).to_value(units.d)))
+                    else float(
+                        cast(
+                            Any, Quantity(float(dt), units.s).to_value(units.d)
+                        )
+                    )
                 )
                 jd_start = float(cast(Any, Time(jd_min, format="jd")).jd)
                 jds = np.asarray(
@@ -1630,12 +1642,19 @@ def get_vis_data(
                 dt_days = (
                     float(cast(Any, dt).to_value(units.d))
                     if isinstance(dt, Quantity)
-                    else float(cast(Any, Quantity(float(dt), units.s).to_value(units.d)))
+                    else float(
+                        cast(
+                            Any, Quantity(float(dt), units.s).to_value(units.d)
+                        )
+                    )
                 )
-                jd_center_val = float(cast(Any, Time(jd_center, format="jd")).jd)
+                jd_center_val = float(
+                    cast(Any, Time(jd_center, format="jd")).jd
+                )
                 jds = np.asarray(
                     jd_center_val
-                    + np.arange(-(nt // 2), nt // 2 + nt % 2, dtype=float) * dt_days,
+                    + np.arange(-(nt // 2), nt // 2 + nt % 2, dtype=float)
+                    * dt_days,
                     dtype=float,
                 )
             df = float(channel_width_hz)
@@ -1739,7 +1758,7 @@ def get_vis_data(
         vis_dict: VisibilityData = {
             "vis_noisy": cast(ComplexArray, vis_noisy),
             "noise": cast(ComplexArray, noise),
-            "bl_conj_pairs_map": np.asarray(bl_conj_pairs_map, dtype=int),
+            "bl_conj_pairs_map": bl_conj_pairs_map,
             "uvws": cast(FloatArray, uvws),
             "redundancy": cast(FloatArray, redundancy),
             "freqs": np.asarray(freqs, dtype=float),
