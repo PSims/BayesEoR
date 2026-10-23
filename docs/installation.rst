@@ -46,11 +46,34 @@ If you wish to use an existing installation of ``MultiNest``, please comment out
 Installing BayesEoR
 -------------------
 
-Once you have satisfied the above dependencies, you can install the BayesEoR python package (``bayeseor``) via ``pip`` with
+Creating the environment installs the dependencies, but does not install the
+``bayeseor`` package itself. From the root of your BayesEoR checkout, install it
+into the ``bayeseor`` environment:
 
 .. code-block:: bash
 
-    pip install .
+    conda run -n bayeseor python -m pip install -e .
+
+Editable mode uses the source in this checkout, so keep it accessible on any
+compute nodes that will run the analysis. If your batch scripts activate a
+different environment, install BayesEoR into that environment instead.
+
+Verify the interpreter and package location with:
+
+.. code-block:: bash
+
+    conda run -n bayeseor python -I -c "import sys, bayeseor; print(sys.executable); print(bayeseor.__file__)"
+
+The ``-I`` option excludes the current directory and ``PYTHONPATH`` from the
+import search, so the source tree alone cannot make this check pass. This
+checks the Python package installation; the hardware/software dependencies
+above are still required for analysis.
+
+Activate the environment before running BayesEoR:
+
+.. code-block:: bash
+
+    conda activate bayeseor
 
 
 Updating BayesEoR
