@@ -38,6 +38,9 @@ You can run lint checks with:
 conda run --no-capture-output -n bayeseor ruff check bayeseor/model tests
 ```
 
+The enabled lint rules are defined in `pyproject.toml`. CI pins Ruff in
+`.github/workflows/ci.yml`; use that version when reproducing CI results locally.
+
 ## Questions
 
 For questions about contributing, please open an issue or contact one of the
