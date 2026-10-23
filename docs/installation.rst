@@ -33,7 +33,7 @@ You can install all of these dependencies with ``mamba`` from the root directory
 
     mamba env create -f environment.yaml
 
-If you use ``conda``, simply replace ``conda`` with ``mamba`` in the above command.
+If you use ``conda``, simply replace ``mamba`` with ``conda`` in the above command.
 
 If you wish to use an existing installation of ``CUDA``, please comment out ``cuda`` in ``environment.yaml`` before installing the dependencies with ``mamba`` / ``conda``.  As long as a valid path to the existing ``CUDA`` binaries, e.g. ``/usr/local/cuda/bin``, is present in your bash ``PATH`` variable, ``pycuda`` will be automatically configured to point to the existing ``CUDA``.
 
@@ -46,12 +46,29 @@ If you wish to use an existing installation of ``MultiNest``, please comment out
 Installing BayesEoR
 -------------------
 
-Once you have satisfied the above dependencies, you can install the BayesEoR python package (``bayeseor``) via ``pip`` with
+Creating the environment installs the dependencies, but does not install the
+``bayeseor`` package itself. From the root of your BayesEoR checkout, activate the
+``bayeseor`` environment and install the package:
 
 .. code-block:: bash
 
-    pip install .
+    conda activate bayeseor
+    python -m pip install -e .
 
+Editable mode uses the source in this checkout, so keep it accessible on any
+compute nodes that will run the analysis. If your batch scripts activate a
+different environment, install BayesEoR into that environment instead.
+
+Verify the interpreter and package location with:
+
+.. code-block:: bash
+
+    python -I -c "import sys, bayeseor; print(sys.executable); print(bayeseor.__file__)"
+
+The ``-I`` option excludes the current directory and ``PYTHONPATH`` from the
+import search, so the source tree alone cannot make this check pass. This
+checks the Python package installation; the hardware/software dependencies
+above are still required for analysis.
 
 Updating BayesEoR
 ^^^^^^^^^^^^^^^^^
@@ -60,4 +77,4 @@ If you have recently pulled changes and wish to update your version of ``bayeseo
 
 .. code-block:: bash
 
-    pip install .
+    python -m pip install .

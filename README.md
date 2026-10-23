@@ -73,7 +73,37 @@ If you have a pre-configured installation of MPI, e.g. one optimized/configured 
 Similarly, if using a pre-configured implementation of MultiNest, `pymultinest` can also be installed via `pip` and forced to point to a particular installation by including the desired MultiNest installation in your `LD_LIBRARY_PATH`.  See the `pymultinest` [documentation](https://johannesbuchner.github.io/PyMultiNest/install.html) for more details.
 
 
+### Installing BayesEoR
+
+Creating the environment installs the dependencies, but does not install the
+`bayeseor` package itself. From the root of your BayesEoR checkout, activate the
+`bayeseor` environment and install the package:
+
+```bash
+conda activate bayeseor
+python -m pip install -e .
+```
+
+Editable mode uses the source in this checkout, so keep it accessible on any
+compute nodes that will run the analysis. If your batch scripts activate a
+different environment, install BayesEoR into that environment instead.
+
+Verify the interpreter and package location with:
+
+```bash
+python -I -c "import sys, bayeseor; print(sys.executable); print(bayeseor.__file__)"
+```
+
+The `-I` option excludes the current directory and `PYTHONPATH` from the import
+search, so the source tree alone cannot make this check pass. This checks the
+Python package installation; the hardware/software dependencies above are
+still required for analysis.
+
+
 # Running BayesEoR
+
+Run the commands below in the environment used for installation. In a new
+shell, activate it first with `conda activate bayeseor`.
 
 There are two ways to interface with variables in BayesEoR: a yaml configuration file (recommended) or command line arguments.  For a list of available command line arguments and their descriptions, run
 ```
